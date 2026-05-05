@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+dist
+.env
+.env.local
+*.log
+.DS_Store
+vmui.db
+vmui.db-*
+drizzle/meta
+.vscode/*
+!.vscode/extensions.json
+.pnpm-cache/
