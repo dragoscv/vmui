@@ -100,6 +100,8 @@ const more = [
   { href: "/boot-script-diff", label: "Boot diff", icon: FileStack },
   { href: "/tag-policies", label: "Tag policies", icon: Tag },
   { href: "/trash", label: "Trash", icon: AlertTriangle },
+  { href: "/bill-explainer", label: "Bill explainer", icon: PiggyBank },
+  { href: "/anomaly-playback", label: "Anomaly playback", icon: Activity },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },
