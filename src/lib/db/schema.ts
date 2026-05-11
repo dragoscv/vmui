@@ -466,6 +466,29 @@ export const imageBuilds = sqliteTable("image_builds", {
 
 export type ImageBuildRow = typeof imageBuilds.$inferSelect;
 
+/**
+ * Web Push subscriptions. One row per device/browser that opted in. The
+ * endpoint URL is unique per subscription and serves as the foreign key.
+ */
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: text("id").primaryKey(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  authKey: text("auth_key").notNull(),
+  /** Comma-separated topic flags: state,builds,alerts,costs,compliance */
+  topics: text("topics").notNull().default("state,builds,alerts,costs,compliance"),
+  userAgent: text("user_agent"),
+  userId: text("user_id"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+
 
 /**
  * Append-only history of `cached_resources.rawJson` changes. A row is

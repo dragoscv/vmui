@@ -1,10 +1,12 @@
-import { Settings as SettingsIcon, KeyRound, Database, Server, Globe, Activity, Cpu, ShieldCheck, ShieldAlert, ArrowRight, Key, Users } from "lucide-react";
+import { Settings as SettingsIcon, KeyRound, Database, Server, Globe, Activity, Cpu, ShieldCheck, ShieldAlert, ArrowRight, Key, Users, Smartphone } from "lucide-react";
 import Link from "next/link";
 import { getSettings } from "@/server/queries/settings";
 import { BackupCard } from "@/components/settings/backup-card";
 import { KnownHostsCard } from "@/components/settings/known-hosts-card";
 import { WebhooksCard } from "@/components/settings/webhooks-card";
 import { BootScriptsCard } from "@/components/settings/boot-scripts-card";
+import { InstallButton } from "@/components/pwa/install-prompt";
+import { PushManager } from "@/components/pwa/push-manager";
 import { listKnownHostsAction } from "@/server/actions/known-hosts";
 import { listWebhooksAction } from "@/server/actions/webhooks";
 import { listBootScriptsAction } from "@/server/actions/boot-scripts";
@@ -175,6 +177,7 @@ export default async function SettingsPage() {
       <KnownHostsCard initial={knownHosts} />
       <WebhooksCard initial={webhooks} />
       <BootScriptsCard initial={bootScripts} />
+      <PwaCard />
 
       <Card>
         <CardHeader>
@@ -250,5 +253,34 @@ function Shortcut({ k, desc }: { k: string; desc: string }) {
         {k}
       </kbd>
     </li>
+  );
+}
+
+function PwaCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Smartphone className="h-4 w-4" /> Progressive Web App
+        </CardTitle>
+        <CardDescription>
+          Install vmui to your home screen, enable push notifications for VM/build/alert events.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-wider text-muted">Install</div>
+          <InstallButton />
+        </div>
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-wider text-muted">Notifications</div>
+          <PushManager />
+          <p className="mt-2 text-[10px] text-muted">
+            Requires VAPID keys in <code>.env</code>: <code>VAPID_PUBLIC_KEY</code>, <code>VAPID_PRIVATE_KEY</code>,
+            optional <code>VAPID_SUBJECT</code>. Generate with <code>pnpm dlx web-push generate-vapid-keys</code>.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

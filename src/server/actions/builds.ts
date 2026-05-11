@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { imageBuilds, registryCredentials, auditLog } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth";
 import { encryptCreds, runBuild, type RegistryType } from "@/lib/builds";
+import { sendPush } from "@/lib/push";
 
 const REGISTRY_TYPES = ["ecr", "gcr", "acr", "dockerhub", "ghcr"] as const;
 
@@ -122,6 +123,12 @@ export async function kickoffBuildAction(input: z.infer<typeof KickoffBuildSchem
           message: row?.imageRef ?? "",
         })
         .run();
+      void sendPush("builds", {
+        title: row?.status === "success" ? "Build succeeded" : "Build failed",
+        body: row?.imageRef ?? id,
+        url: "/builds",
+        tag: `build:${id}`,
+      });
     })
     .catch((e: unknown) => {
       const msg = e instanceof Error ? e.message : "unknown";

@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { CommandPalette } from "./command-palette";
 import { ShortcutsDialog } from "./shortcuts-dialog";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { syncAllAccounts } from "@/server/actions/instances";
 
 /**
@@ -115,6 +116,7 @@ export function GlobalOverlays() {
     <>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <InstallPrompt />
     </>
   );
 }

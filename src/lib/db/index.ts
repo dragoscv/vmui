@@ -329,6 +329,18 @@ sqlite.exec(
   `CREATE INDEX IF NOT EXISTS idx_image_builds_created ON image_builds(created_at DESC)`,
 );
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id TEXT PRIMARY KEY,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth_key TEXT NOT NULL,
+  topics TEXT NOT NULL DEFAULT 'state,builds,alerts,costs,compliance',
+  user_agent TEXT,
+  user_id TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_seen_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
 sqlite.exec(`CREATE TABLE IF NOT EXISTS resource_history (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,

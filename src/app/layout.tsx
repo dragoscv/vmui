@@ -11,6 +11,7 @@ import { GlobalOverlays } from "@/components/nav/global-overlays";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { VibeProvider } from "@/components/dashboard/vibe-provider";
+import { PullToRefresh } from "@/components/pwa/pull-to-refresh";
 import { ensureSchedulerRunning } from "@/lib/scheduler";
 import { ensureAuditRetention } from "@/lib/audit-retention";
 import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
@@ -72,16 +73,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <QueryProvider>
               <TooltipProvider delayDuration={300}>
                 <ConfirmProvider>
-                  <div className="flex min-h-screen">
-                    <Sidebar />
-                    <div className="flex flex-1 flex-col">
-                      <div className="relative">
-                        <Topbar />
-                        <UserMenuSlot />
+                  <PullToRefresh>
+                    <div className="flex min-h-screen">
+                      <Sidebar />
+                      <div className="flex flex-1 flex-col">
+                        <div className="relative">
+                          <Topbar />
+                          <UserMenuSlot />
+                        </div>
+                        <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">{children}</main>
                       </div>
-                      <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">{children}</main>
                     </div>
-                  </div>
+                  </PullToRefresh>
                   <MobileNav />
                   <Toaster position="bottom-right" theme="system" richColors closeButton />
                   <GlobalOverlays />
