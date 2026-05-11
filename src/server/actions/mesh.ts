@@ -1,6 +1,9 @@
 "use server";
 
 import { z } from "zod";
+import { db } from "@/lib/db";
+import { instances } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireRole } from "@/lib/auth";
 import { buildMesh, tailscaleUpCommand, tailscaleInstallCommand } from "@/lib/mesh";
 
@@ -47,4 +50,30 @@ export async function generateTailscaleCommandAction(input: z.infer<typeof tsSch
   const install = tailscaleInstallCommand();
   const up = tailscaleUpCommand(parsed.data);
   return { ok: true as const, install, up, combined: `${install}\n${up}` };
+}
+
+const autoSchema = z.object({
+  subnet: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.0\/24$/).default("10.66.0.0/24"),
+  listenPort: z.coerce.number().int().min(1).max(65535).default(51820),
+});
+
+export async function autoBuildMeshFromFleetAction(input: z.infer<typeof autoSchema>) {
+  await requireRole("operator");
+  const parsed = autoSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "invalid" };
+
+  const running = db.select().from(instances).where(eq(instances.state, "running")).all();
+  const reachable = running.filter((r) => r.publicIp);
+  if (reachable.length < 2) return { ok: false as const, error: `need at least 2 reachable running VMs, found ${reachable.length}` };
+
+  const baseOctets = parsed.data.subnet.split(".");
+  const wgPeers = reachable.map((r, i) => ({
+    name: (r.name ?? r.providerInstanceId).replace(/[^a-zA-Z0-9-]/g, "-"),
+    ip: r.publicIp!,
+    publicIp: r.publicIp,
+    wgAddress: `${baseOctets[0]}.${baseOctets[1]}.${baseOctets[2]}.${i + 1}/32`,
+    listenPort: parsed.data.listenPort,
+  }));
+  const result = buildMesh(wgPeers);
+  return { ok: true as const, configs: result.configs, peerCount: reachable.length };
 }

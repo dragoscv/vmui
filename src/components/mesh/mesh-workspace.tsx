@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Download, Network, Copy } from "lucide-react";
-import { generateWgMeshAction, generateTailscaleCommandAction } from "@/server/actions/mesh";
+import { Download, Network, Copy, Sparkles } from "lucide-react";
+import { generateWgMeshAction, generateTailscaleCommandAction, autoBuildMeshFromFleetAction } from "@/server/actions/mesh";
 
 interface InstanceLite {
   id: string;
@@ -108,6 +108,22 @@ function WireguardTab({ instances }: { instances: InstanceLite[] }) {
         className="inline-flex w-fit items-center gap-1 rounded-md bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-40"
       >
         <Network className="h-3 w-3" /> Generate mesh
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await autoBuildMeshFromFleetAction({ subnet, listenPort: 51820 });
+            if (r.ok) {
+              setConfigs(r.configs);
+              toast.success(`Auto-built mesh for ${r.peerCount} reachable VMs`);
+            } else toast.error(r.error);
+          })
+        }
+        className="inline-flex w-fit items-center gap-1 rounded-md border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-1 text-xs font-semibold disabled:opacity-40"
+      >
+        <Sparkles className="h-3 w-3" /> Auto-build from fleet
       </button>
       {Object.keys(configs).length > 0 ? (
         <div className="grid gap-2">
