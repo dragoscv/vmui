@@ -75,6 +75,15 @@ export function cliFor(action: Action, ctx: InstanceCodeContext): string {
       };
       return map[action];
     }
+    case "hetzner": {
+      const map: Record<Action, string> = {
+        start: `hcloud server poweron ${id}`,
+        stop: `hcloud server shutdown ${id}`,
+        reboot: `hcloud server reboot ${id}`,
+        terminate: `hcloud server delete ${id}`,
+      };
+      return map[action];
+    }
     case "local-kvm": {
       const map: Record<Action, string> = {
         start: `virsh start ${ctx.name ?? id}`,
@@ -167,6 +176,18 @@ export function terraformFor(ctx: InstanceCodeContext): string {
         ``,
         `# Import with:`,
         `# terraform import digitalocean_droplet.${resName} ${ctx.providerInstanceId}`,
+      ].join("\n");
+    case "hetzner":
+      return [
+        `resource "hcloud_server" "${resName}" {`,
+        `  name        = "${ctx.name ?? resName}"`,
+        `  server_type = "${it}"`,
+        `  image       = "ubuntu-24.04"`,
+        `  location    = "${ctx.region}"`,
+        `}`,
+        ``,
+        `# Import with:`,
+        `# terraform import hcloud_server.${resName} ${ctx.providerInstanceId}`,
       ].join("\n");
     case "local-kvm":
       return [

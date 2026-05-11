@@ -9,6 +9,7 @@ import { LocalKvmProvider, type LocalKvmCredentials, KIND_DEFAULTS } from "./loc
 import { AzureProvider, type AzureCredentials } from "./azure";
 import { GcpProvider, type GcpCredentials } from "./gcp";
 import { DigitalOceanProvider, type DigitalOceanCredentials } from "./digitalocean";
+import { HetznerProvider, type HetznerCredentials } from "./hetzner";
 import type { CloudProvider, ProviderId } from "./types";
 
 /**
@@ -84,6 +85,10 @@ function buildProvider(
       const creds = decryptJSON<Omit<DigitalOceanCredentials, "defaultRegion">>(credentialsEnc);
       return new DigitalOceanProvider({ ...creds, defaultRegion: defaultRegion ?? "nyc3" });
     }
+    case "hetzner": {
+      const creds = decryptJSON<Omit<HetznerCredentials, "defaultRegion">>(credentialsEnc);
+      return new HetznerProvider({ ...creds, defaultRegion: defaultRegion ?? "nbg1" });
+    }
     default:
       throw new Error(`Unknown provider: ${providerId}`);
   }
@@ -97,5 +102,6 @@ export function listSupportedProviders(): { id: ProviderId; label: string; avail
     { id: "azure", label: "Microsoft Azure", available: true },
     { id: "gcp", label: "Google Cloud Platform", available: true },
     { id: "digitalocean", label: "DigitalOcean", available: true },
+    { id: "hetzner", label: "Hetzner Cloud", available: true },
   ];
 }

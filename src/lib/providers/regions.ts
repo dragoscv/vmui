@@ -83,6 +83,14 @@ export const REGION_CATALOG: Record<string, { id: string; label: string }[]> = {
     { id: "blr1", label: "Bangalore 1" },
     { id: "syd1", label: "Sydney 1" },
   ],
+  hetzner: [
+    { id: "nbg1", label: "Nuremberg" },
+    { id: "fsn1", label: "Falkenstein" },
+    { id: "hel1", label: "Helsinki" },
+    { id: "ash", label: "Ashburn (US East)" },
+    { id: "hil", label: "Hillsboro (US West)" },
+    { id: "sin", label: "Singapore" },
+  ],
   "local-kvm": [{ id: "local", label: "Local" }],
 };
 

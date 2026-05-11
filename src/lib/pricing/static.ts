@@ -128,6 +128,26 @@ const DIGITALOCEAN_BASE: Record<string, number> = {
   "m-4vcpu-32gb": 0.26786,
 };
 
+/** Hetzner Cloud — €→USD ≈ 1.07. Numbers from public pricing page. */
+const HETZNER_BASE: Record<string, number> = {
+  cax11: 0.0049,
+  cax21: 0.0089,
+  cax31: 0.0177,
+  cax41: 0.0354,
+  cx22: 0.0061,
+  cx32: 0.0117,
+  cx42: 0.0286,
+  cx52: 0.0606,
+  cpx11: 0.0086,
+  cpx21: 0.0148,
+  cpx31: 0.0286,
+  cpx41: 0.0561,
+  cpx51: 0.115,
+  ccx13: 0.025,
+  ccx23: 0.05,
+  ccx33: 0.099,
+};
+
 function platformKey(p: string): "linux" | "windows" | "mac" {
   const x = p.toLowerCase();
   if (x.includes("win")) return "windows";
@@ -168,6 +188,10 @@ export function lookupStaticPrice(
   }
   if (provider === "digitalocean") {
     const usd = DIGITALOCEAN_BASE[instanceType];
+    return usd == null ? null : { usdPerHour: usd, source: "static" };
+  }
+  if (provider === "hetzner") {
+    const usd = HETZNER_BASE[instanceType];
     return usd == null ? null : { usdPerHour: usd, source: "static" };
   }
   if (provider === "local-kvm") {

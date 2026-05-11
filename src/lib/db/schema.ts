@@ -3,7 +3,7 @@ import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const cloudAccounts = sqliteTable("cloud_accounts", {
   id: text("id").primaryKey(),
-  provider: text("provider", { enum: ["aws", "azure", "gcp", "scaleway", "digitalocean", "local-kvm"] }).notNull(),
+  provider: text("provider", { enum: ["aws", "azure", "gcp", "scaleway", "digitalocean", "hetzner", "local-kvm"] }).notNull(),
   name: text("name").notNull(),
   /** Default region used when the provider needs one. */
   defaultRegion: text("default_region"),

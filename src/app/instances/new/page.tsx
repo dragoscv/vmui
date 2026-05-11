@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AwsProvider } from "@/lib/providers/aws";
 import { ScalewayProvider } from "@/lib/providers/scaleway";
 import { DigitalOceanProvider } from "@/lib/providers/digitalocean";
+import { HetznerProvider } from "@/lib/providers/hetzner";
 import { LocalKvmProvider } from "@/lib/providers/local-kvm";
 import type { InstanceTemplate, ProviderId } from "@/lib/providers/types";
 
@@ -31,6 +32,10 @@ export default async function NewInstancePage() {
   const digitalOceanTemplates = await new DigitalOceanProvider({
     token: "",
     defaultRegion: "nyc3",
+  }).listInstanceTemplates();
+  const hetznerTemplates = await new HetznerProvider({
+    token: "",
+    defaultRegion: "nbg1",
   }).listInstanceTemplates();
   // Aggregate templates across all local-kvm kinds (mac/win/ubuntu) so the
   // create wizard can offer them. Per-kind credentials are placeholders —
@@ -63,6 +68,7 @@ export default async function NewInstancePage() {
     azure: [],
     gcp: [],
     digitalocean: digitalOceanTemplates,
+    hetzner: hetznerTemplates,
   };
 
   // Static region lists per provider.
@@ -77,6 +83,7 @@ export default async function NewInstancePage() {
     azure: [],
     gcp: [],
     digitalocean: ["nyc1", "nyc3", "sfo3", "ams3", "fra1", "lon1", "tor1", "sgp1", "blr1", "syd1"],
+    hetzner: ["nbg1", "fsn1", "hel1", "ash", "hil", "sin"],
   };
 
   return (
