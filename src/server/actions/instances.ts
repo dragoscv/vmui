@@ -5,7 +5,7 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { auditLog, bootScripts, cloudAccounts, instances, instanceTags, snapshotHistory, syncHistory } from "@/lib/db/schema";
+import { auditLog, bootScripts, cloudAccounts, instances, instanceTags, snapshotHistory, syncHistory, autoTagRules as autoTagRulesTable } from "@/lib/db/schema";
 import { decryptJSON } from "@/lib/crypto";
 import { getProvider } from "@/lib/providers/registry";
 import { checkSnapshotFreshness } from "@/server/actions/snapshot-freshness";
@@ -141,10 +141,43 @@ async function applyAutoTagRules(args: {
   }
 }
 
+/** Apply globally-configured auto-tag rules (from the auto_tag_rules table). */
+async function applyGlobalAutoTagRules(args: {
+  instanceId: string;
+  instanceName: string;
+  rules: { namePattern: string; tagKey: string; tagValue: string; enabled: number; priority: number }[];
+}): Promise<void> {
+  if (args.rules.length === 0) return;
+  const merged: Record<string, string> = {};
+  for (const rule of args.rules.filter((r) => r.enabled === 1)) {
+    let re: RegExp;
+    try { re = new RegExp(rule.namePattern); } catch { continue; }
+    if (re.test(args.instanceName)) merged[rule.tagKey] = rule.tagValue;
+  }
+  if (Object.keys(merged).length === 0) return;
+  const existing = await db
+    .select({ key: instanceTags.key })
+    .from(instanceTags)
+    .where(eq(instanceTags.instanceId, args.instanceId));
+  const have = new Set(existing.map((r) => r.key));
+  const toInsert = Object.entries(merged)
+    .filter(([k]) => !have.has(k))
+    .map(([key, value]) => ({
+      id: nanoid(),
+      instanceId: args.instanceId,
+      key,
+      value,
+      source: "local" as const,
+    }));
+  if (toInsert.length > 0) await db.insert(instanceTags).values(toInsert);
+}
+
 /** Sync all instances for one account across every configured region in parallel. */
 export async function syncAccountInstances(accountId: string): Promise<{ count: number }> {
   const { provider, account } = await getProvider(accountId);
   const regions = parseRegions(account.regions, account.defaultRegion);
+
+  const globalAutoTagRules = await db.select().from(autoTagRulesTable);
 
   // Snapshot prior states so we can emit instance.changed events on diff.
   const priorRows = await db.select().from(instances).where(eq(instances.accountId, accountId));
@@ -273,6 +306,11 @@ export async function syncAccountInstances(accountId: string): Promise<{ count: 
         instanceId: row.id,
         instanceName: row.name ?? row.providerInstanceId,
         rulesJson: account.autoTagRules,
+      });
+      await applyGlobalAutoTagRules({
+        instanceId: row.id,
+        instanceName: row.name ?? row.providerInstanceId,
+        rules: globalAutoTagRules,
       });
     }
   }

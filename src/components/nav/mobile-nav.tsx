@@ -83,6 +83,8 @@ const more = [
   { href: "/burn-rate", label: "Burn rate", icon: PiggyBank },
   { href: "/fleet-diff", label: "Fleet diff", icon: History },
   { href: "/auto-tag", label: "Auto-tag", icon: Tag },
+  { href: "/heatmap", label: "Heatmap", icon: AlertTriangle },
+  { href: "/config-backup", label: "Config", icon: KeyRound },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },
