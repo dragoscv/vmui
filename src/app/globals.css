@@ -266,6 +266,26 @@
   ::view-transition-new(instance-card) {
     animation-duration: 0.4s;
   }
+
+  /* Keep persistent chrome stable across navigations so only the main view
+     fades. The aside/header below get their own view-transition-name, so the
+     root pseudo-element doesn't animate them. */
+  aside[data-vmui-sidebar],
+  header[data-vmui-topbar] {
+    view-transition-name: var(--vmui-vt-name);
+  }
+  aside[data-vmui-sidebar] {
+    --vmui-vt-name: vmui-sidebar;
+  }
+  header[data-vmui-topbar] {
+    --vmui-vt-name: vmui-topbar;
+  }
+  ::view-transition-old(vmui-sidebar),
+  ::view-transition-new(vmui-sidebar),
+  ::view-transition-old(vmui-topbar),
+  ::view-transition-new(vmui-topbar) {
+    animation-duration: 0s;
+  }
 }
 
 /* ---------- Components ---------- */

@@ -32,7 +32,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-bg)_70%,transparent)] px-6 backdrop-blur-md lg:px-10">
+    <header data-vmui-topbar className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-bg)_70%,transparent)] px-6 backdrop-blur-md lg:px-10">
       <div className="text-sm text-muted">
         <span className="font-medium text-[var(--color-fg)]">Control plane</span>
         <span className="mx-2 opacity-40">/</span>

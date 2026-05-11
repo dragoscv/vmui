@@ -24,7 +24,7 @@ const items = [
 export function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-surface)_50%,transparent)] backdrop-blur-md md:flex md:flex-col">
+    <aside data-vmui-sidebar className="hidden w-60 shrink-0 border-r border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-surface)_50%,transparent)] backdrop-blur-md md:flex md:flex-col">
       <div className="flex items-center gap-2 px-5 py-5">
         <div className="grid h-9 w-9 place-items-center rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] text-white shadow-[var(--shadow-glow)]">
           <Cloud className="h-5 w-5" />
