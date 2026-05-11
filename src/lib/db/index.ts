@@ -281,6 +281,28 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS boot_scripts (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS compose_recipes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  body TEXT NOT NULL,
+  build_location TEXT NOT NULL DEFAULT 'remote',
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS compose_recipe_versions (
+  id TEXT PRIMARY KEY,
+  recipe_id TEXT NOT NULL REFERENCES compose_recipes(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  note TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_compose_recipe_versions ON compose_recipe_versions(recipe_id, version DESC)`,
+);
+
 sqlite.exec(`CREATE TABLE IF NOT EXISTS resource_history (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,

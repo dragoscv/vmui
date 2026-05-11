@@ -377,6 +377,45 @@ export const bootScripts = sqliteTable("boot_scripts", {
 export type BootScriptRow = typeof bootScripts.$inferSelect;
 
 /**
+ * docker-compose recipes that can be applied to any reachable Linux instance
+ * via SSH. Versions are tracked separately so users can roll back or audit
+ * what was applied to which host.
+ */
+export const composeRecipes = sqliteTable("compose_recipes", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  /** Current YAML body (also written to compose_recipe_versions on save). */
+  body: text("body").notNull(),
+  /** "local" (build images on vmui host) or "remote" (build on target VM). */
+  buildLocation: text("build_location", { enum: ["local", "remote"] }).notNull().default("remote"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type ComposeRecipeRow = typeof composeRecipes.$inferSelect;
+
+export const composeRecipeVersions = sqliteTable("compose_recipe_versions", {
+  id: text("id").primaryKey(),
+  recipeId: text("recipe_id")
+    .notNull()
+    .references(() => composeRecipes.id, { onDelete: "cascade" }),
+  /** Monotonic version number within a recipe (1, 2, 3…). */
+  version: integer("version").notNull(),
+  body: text("body").notNull(),
+  note: text("note"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type ComposeRecipeVersionRow = typeof composeRecipeVersions.$inferSelect;
+
+/**
  * Append-only history of `cached_resources.rawJson` changes. A row is
  * inserted whenever a sync detects that the upstream provider JSON for an
  * already-known resource differs from what we have cached. Allows users to
