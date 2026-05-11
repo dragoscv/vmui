@@ -69,6 +69,12 @@ export default async function NewInstancePage() {
     gcp: [],
     digitalocean: digitalOceanTemplates,
     hetzner: hetznerTemplates,
+    linode: [],
+    vultr: [],
+    ovh: [],
+    oracle: [],
+    fly: [],
+    proxmox: [],
   };
 
   // Static region lists per provider.
@@ -84,6 +90,12 @@ export default async function NewInstancePage() {
     gcp: [],
     digitalocean: ["nyc1", "nyc3", "sfo3", "ams3", "fra1", "lon1", "tor1", "sgp1", "blr1", "syd1"],
     hetzner: ["nbg1", "fsn1", "hel1", "ash", "hil", "sin"],
+    linode: ["us-east", "us-west", "us-central", "us-southeast", "eu-west", "eu-central", "ap-south", "ap-northeast", "ap-southeast"],
+    vultr: [],
+    ovh: [],
+    oracle: [],
+    fly: [],
+    proxmox: [],
   };
 
   return (

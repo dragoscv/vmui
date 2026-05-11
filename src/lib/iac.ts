@@ -93,6 +93,21 @@ export function cliFor(action: Action, ctx: InstanceCodeContext): string {
       };
       return map[action];
     }
+    case "linode": {
+      const map: Record<Action, string> = {
+        start: `linode-cli linodes boot ${id}`,
+        stop: `linode-cli linodes shutdown ${id}`,
+        reboot: `linode-cli linodes reboot ${id}`,
+        terminate: `linode-cli linodes delete ${id}`,
+      };
+      return map[action];
+    }
+    case "vultr":
+    case "ovh":
+    case "oracle":
+    case "fly":
+    case "proxmox":
+      return `# ${ctx.provider} CLI not yet wired in vmui`;
   }
 }
 
@@ -194,5 +209,23 @@ export function terraformFor(ctx: InstanceCodeContext): string {
         `# Local KVM domains are managed by libvirt, not Terraform by default.`,
         `# See terraform-provider-libvirt if you want IaC for local VMs.`,
       ].join("\n");
+    case "linode":
+      return [
+        `resource "linode_instance" "${resName}" {`,
+        `  label  = "${ctx.name ?? resName}"`,
+        `  type   = "${it}"`,
+        `  region = "${ctx.region}"`,
+        `  image  = "linode/ubuntu24.04"`,
+        `}`,
+        ``,
+        `# Import with:`,
+        `# terraform import linode_instance.${resName} ${ctx.providerInstanceId}`,
+      ].join("\n");
+    case "vultr":
+    case "ovh":
+    case "oracle":
+    case "fly":
+    case "proxmox":
+      return `# Terraform snippet for ${ctx.provider} not yet wired in vmui`;
   }
 }
