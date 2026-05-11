@@ -18,6 +18,7 @@ import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
 import { ensureComplianceScanRunning } from "@/lib/compliance-scheduler";
 import { ensureAlertSchedulerRunning } from "@/lib/alert-engine";
 import { ensureGitopsSchedulerRunning } from "@/lib/gitops";
+import { ensureBackupSchedulerRunning } from "@/lib/backups";
 import { getCurrentUser } from "@/lib/auth";
 import { UserMenu } from "@/components/nav/user-menu";
 import "./globals.css";
@@ -28,6 +29,7 @@ startWebhookDispatcher();
 ensureComplianceScanRunning();
 ensureAlertSchedulerRunning();
 ensureGitopsSchedulerRunning();
+ensureBackupSchedulerRunning();
 
 export const metadata: Metadata = {
   title: "vmui — multi-cloud VM control",

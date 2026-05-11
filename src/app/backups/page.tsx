@@ -1,18 +1,27 @@
 import { Suspense } from "react";
 import { listSnapshotEvents } from "@/server/queries/snapshots";
 import { listLocalBackupsAction } from "@/server/actions/local-backup";
+import { listInstances } from "@/server/queries";
 import { SnapshotCalendar } from "@/components/backups/snapshot-calendar";
 import { LocalBackupCard } from "@/components/backups/local-backup-card";
+import { BackupsWorkspace } from "@/components/backups/backups-workspace";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldCheck, Layers, CalendarDays } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function BackupsPage() {
-  const [events, files] = await Promise.all([
+  const [events, files, all] = await Promise.all([
     listSnapshotEvents(),
     listLocalBackupsAction(),
+    listInstances(),
   ]);
+  const reachable = all.map((i) => ({
+    id: i.id,
+    name: i.name,
+    providerInstanceId: i.providerInstanceId,
+    provider: i.provider,
+  }));
 
   const totalBytes = events.reduce((a, e) => a + (e.sizeBytes ?? 0), 0);
   const accounts = new Set(events.map((e) => e.accountId)).size;
@@ -60,6 +69,14 @@ export default async function BackupsPage() {
       <Suspense>
         <SnapshotCalendar events={events} />
       </Suspense>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Scheduled policies</h2>
+        <p className="text-xs text-muted">
+          Cron-driven cloud snapshots, S3 dumps, local copies, or cross-region snapshots with retention windows.
+        </p>
+        <BackupsWorkspace instances={reachable} />
+      </section>
 
       <LocalBackupCard initialBackups={files} />
     </div>

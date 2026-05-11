@@ -371,6 +371,57 @@ sqlite.exec(
   `CREATE INDEX IF NOT EXISTS idx_git_apply_history ON git_apply_history(source_id, created_at DESC)`,
 );
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS backup_policies (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'cloud-snapshot',
+  instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  cron_expr TEXT NOT NULL DEFAULT '0 3 * * *',
+  retention_json TEXT NOT NULL DEFAULT '{"keepDaily":7,"keepWeekly":4,"keepMonthly":6}',
+  dest_config_enc TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_run_at INTEGER,
+  last_status TEXT,
+  last_error TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS backup_jobs (
+  id TEXT PRIMARY KEY,
+  policy_id TEXT NOT NULL REFERENCES backup_policies(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  finished_at INTEGER,
+  artifact_ref TEXT,
+  size_bytes INTEGER,
+  message TEXT
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_backup_jobs ON backup_jobs(policy_id, started_at DESC)`,
+);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS secrets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'generic',
+  value_enc TEXT NOT NULL,
+  rotation_days INTEGER,
+  last_rotated_at INTEGER,
+  sealed INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS secret_reveals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  secret_id TEXT NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
+  user_id TEXT,
+  ip TEXT,
+  at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_secret_reveals ON secret_reveals(secret_id, at DESC)`,
+);
+
 sqlite.exec(`CREATE TABLE IF NOT EXISTS resource_history (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,

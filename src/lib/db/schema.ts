@@ -795,3 +795,93 @@ export const probeSamples = sqliteTable("probe_samples", {
 });
 
 export type ProbeSampleRow = typeof probeSamples.$inferSelect;
+
+/**
+ * Backup policy. Defines a recurring backup job for one instance.
+ *
+ * kind:
+ *  - cloud-snapshot: provider.createSnapshot() of the boot disk
+ *  - s3-dump:        tar over ssh, piped to `aws s3 cp -` (destination in destConfig)
+ *  - local-copy:     tar over ssh to a path on the VM (destination in destConfig)
+ *  - cross-region:   cloud-snapshot then provider-specific copy to another region
+ */
+export const backupPolicies = sqliteTable("backup_policies", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["cloud-snapshot", "s3-dump", "local-copy", "cross-region"] })
+    .notNull()
+    .default("cloud-snapshot"),
+  instanceId: text("instance_id")
+    .notNull()
+    .references(() => instances.id, { onDelete: "cascade" }),
+  /** Standard 5-field cron expression. */
+  cronExpr: text("cron_expr").notNull().default("0 3 * * *"),
+  /** JSON { keepDaily, keepWeekly, keepMonthly } */
+  retentionJson: text("retention_json").notNull().default('{"keepDaily":7,"keepWeekly":4,"keepMonthly":6}'),
+  /** Encrypted JSON. Shape depends on kind. */
+  destConfigEnc: text("dest_config_enc"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastRunAt: integer("last_run_at", { mode: "timestamp" }),
+  lastStatus: text("last_status", { enum: ["ok", "error", "running"] }),
+  lastError: text("last_error"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type BackupPolicyRow = typeof backupPolicies.$inferSelect;
+
+export const backupJobs = sqliteTable("backup_jobs", {
+  id: text("id").primaryKey(),
+  policyId: text("policy_id")
+    .notNull()
+    .references(() => backupPolicies.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["queued", "running", "ok", "error"] }).notNull().default("queued"),
+  startedAt: integer("started_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+  /** Reference: snapshot id, s3 key, local path, etc. */
+  artifactRef: text("artifact_ref"),
+  /** Size in bytes (best-effort) */
+  sizeBytes: integer("size_bytes"),
+  message: text("message"),
+});
+
+export type BackupJobRow = typeof backupJobs.$inferSelect;
+
+/**
+ * Encrypted secret blob. Used for DB credentials, API keys, generic
+ * passwords. Reveal events go in `secretReveals`.
+ */
+export const secrets = sqliteTable("secrets", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["db", "api-key", "password", "generic"] }).notNull().default("generic"),
+  /** Encrypted JSON: { value: string, meta?: Record<string,string> } */
+  valueEnc: text("value_enc").notNull(),
+  /** If set, reminder shows in UI after this many days since lastRotatedAt. */
+  rotationDays: integer("rotation_days"),
+  lastRotatedAt: integer("last_rotated_at", { mode: "timestamp" }),
+  /** When true, value can only be revealed with an admin re-auth. */
+  sealed: integer("sealed", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type SecretRow = typeof secrets.$inferSelect;
+
+export const secretReveals = sqliteTable("secret_reveals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  secretId: text("secret_id")
+    .notNull()
+    .references(() => secrets.id, { onDelete: "cascade" }),
+  userId: text("user_id"),
+  ip: text("ip"),
+  at: integer("at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type SecretRevealRow = typeof secretReveals.$inferSelect;
