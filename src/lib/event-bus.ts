@@ -20,7 +20,20 @@ export type BusEvent =
   | { channel: "instance.changed"; payload: { accountId: string; providerInstanceId: string; state: string; prev: string | null } }
   | { channel: "sync.completed"; payload: { accountId: string; region: string; count: number; durationMs: number; added?: number; removed?: number; stateChanged?: number } }
   | { channel: "snapshot.created"; payload: { accountId: string; providerInstanceId: string; snapshotId: string } }
-  | { channel: "notification.created"; payload: { id: string; category: string; severity: "info" | "success" | "warning" | "error"; title: string } };
+  | { channel: "notification.created"; payload: { id: string; category: string; severity: "info" | "success" | "warning" | "error"; title: string } }
+  | {
+      channel: "alert.fired";
+      payload: {
+        ruleId: string;
+        ruleName: string;
+        severity: "info" | "warning" | "critical";
+        message: string;
+        instanceId: string | null;
+        metric: string;
+        value: number;
+        threshold: number;
+      };
+    };
 
 type Listener = (e: BusEvent) => void;
 

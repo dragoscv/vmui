@@ -42,6 +42,8 @@ function summarize(e: BusEvent): string {
       return `Snapshot ${e.payload.snapshotId} created for ${e.payload.providerInstanceId}`;
     case "notification.created":
       return `[${e.payload.severity}] ${e.payload.title}`;
+    case "alert.fired":
+      return `[${e.payload.severity}] ${e.payload.ruleName}: ${e.payload.message}`;
   }
 }
 

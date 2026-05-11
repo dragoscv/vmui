@@ -15,6 +15,7 @@ import { ensureSchedulerRunning } from "@/lib/scheduler";
 import { ensureAuditRetention } from "@/lib/audit-retention";
 import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
 import { ensureComplianceScanRunning } from "@/lib/compliance-scheduler";
+import { ensureAlertSchedulerRunning } from "@/lib/alert-engine";
 import { getCurrentUser } from "@/lib/auth";
 import { UserMenu } from "@/components/nav/user-menu";
 import "./globals.css";
@@ -23,6 +24,7 @@ ensureSchedulerRunning();
 ensureAuditRetention();
 startWebhookDispatcher();
 ensureComplianceScanRunning();
+ensureAlertSchedulerRunning();
 
 export const metadata: Metadata = {
   title: "vmui — multi-cloud VM control",
