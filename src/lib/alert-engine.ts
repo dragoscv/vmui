@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   alertRules,
@@ -15,58 +15,14 @@ import { decryptJSON } from "@/lib/crypto";
 import { deliverChannel, type ChannelConfig, type AlertPayload } from "@/lib/alert-channels";
 import { publishEvent } from "@/lib/event-bus";
 import type { ProbeMetrics } from "@/lib/probe";
+import { extractValue, compare, renderTemplate as renderTemplateShared, type MetricName, type Op, type RuleExpression } from "@/lib/alert-eval";
 
-export type MetricName = "cpu" | "mem" | "disk" | "net_in" | "net_out" | "load1" | "uptime";
-export type Op = ">" | "<" | ">=" | "<=" | "==" | "!=";
-
-export interface RuleExpression {
-  metric: MetricName;
-  op: Op;
-  threshold: number;
-  windowSec: number;
-  cooldownSec?: number;
-}
+export type { MetricName, Op, RuleExpression };
 
 export interface RuleScope {
   accountIds?: string[];
   tagKey?: string;
   tagValue?: string;
-}
-
-function extractValue(m: ProbeMetrics, metric: MetricName): number {
-  switch (metric) {
-    case "cpu":
-      return m.cpu;
-    case "mem":
-      return m.mem;
-    case "disk":
-      return m.disk;
-    case "net_in":
-      return m.netIn;
-    case "net_out":
-      return m.netOut;
-    case "load1":
-      return m.load1;
-    case "uptime":
-      return m.uptimeSec;
-  }
-}
-
-function compare(v: number, op: Op, t: number): boolean {
-  switch (op) {
-    case ">":
-      return v > t;
-    case "<":
-      return v < t;
-    case ">=":
-      return v >= t;
-    case "<=":
-      return v <= t;
-    case "==":
-      return v === t;
-    case "!=":
-      return v !== t;
-  }
 }
 
 interface ScopedInstance {
@@ -150,12 +106,14 @@ async function inCooldown(ruleId: string, instanceId: string | null, cooldownSec
 }
 
 function renderTemplate(template: string | null, p: AlertPayload): string {
-  if (!template) return `${p.ruleName}: ${p.metric}=${p.value} (threshold ${p.threshold})`;
-  return template
-    .replace(/{{\s*instance\s*}}/g, p.instanceName ?? p.instanceId ?? "(none)")
-    .replace(/{{\s*metric\s*}}/g, p.metric)
-    .replace(/{{\s*value\s*}}/g, String(p.value))
-    .replace(/{{\s*threshold\s*}}/g, String(p.threshold));
+  return renderTemplateShared(template, {
+    ruleName: p.ruleName,
+    metric: p.metric,
+    value: p.value,
+    threshold: p.threshold,
+    instanceName: p.instanceName ?? null,
+    instanceId: p.instanceId ?? null,
+  });
 }
 
 async function evaluateRule(rule: AlertRuleRow): Promise<void> {
@@ -222,6 +180,43 @@ async function evaluateRule(rule: AlertRuleRow): Promise<void> {
         threshold: expr.threshold,
       },
     });
+  }
+
+  // Auto-resolve: any active firing for this rule whose latest sample no
+  // longer matches the expression flips to "resolved" and re-dispatches.
+  const active = await db
+    .select()
+    .from(alertFirings)
+    .where(and(eq(alertFirings.ruleId, rule.id), eq(alertFirings.status, "firing"), isNull(alertFirings.resolvedAt)));
+  for (const firing of active) {
+    if (!firing.instanceId) continue;
+    const latest = await db
+      .select()
+      .from(probeSamples)
+      .where(eq(probeSamples.instanceId, firing.instanceId))
+      .orderBy(desc(probeSamples.collectedAt))
+      .limit(1);
+    if (latest.length === 0) continue;
+    const row = latest[0]!;
+    const v = extractValue(JSON.parse(row.metricsJson) as ProbeMetrics, expr.metric);
+    if (compare(v, expr.op, expr.threshold)) continue;
+    const inst = targets.find((t) => t.id === firing.instanceId);
+    const resolvedPayload: AlertPayload = {
+      ruleName: rule.name,
+      severity: "info",
+      message: `[RESOLVED] ${rule.name}: ${expr.metric}=${v} is back under ${expr.threshold}`,
+      metric: expr.metric,
+      value: v,
+      threshold: expr.threshold,
+      instanceId: firing.instanceId,
+      instanceName: inst?.displayName ?? inst?.name ?? null,
+      firedAt: Date.now(),
+    };
+    const deliveries = await Promise.all(channels.map((c) => deliverChannel(c.row.name, c.config, resolvedPayload)));
+    await db
+      .update(alertFirings)
+      .set({ status: "resolved", resolvedAt: new Date(), deliveryJson: JSON.stringify(deliveries) })
+      .where(eq(alertFirings.id, firing.id));
   }
 }
 

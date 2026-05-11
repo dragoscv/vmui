@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { env } from "../env";
+import { redactQuiet } from "../secret-redactor";
 import * as schema from "./schema";
 
 const dbPath = resolve(process.cwd(), env.VMUI_DB_PATH);
@@ -436,6 +437,22 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS probe_samples (
 sqlite.exec(
   `CREATE INDEX IF NOT EXISTS idx_probe_samples_instance ON probe_samples(instance_id, collected_at DESC)`,
 );
+
+// Write-time redaction: a SQLite UDF + AFTER INSERT trigger redacts secrets
+// in audit_log.message before any consumer can read raw values. This is a
+// defense-in-depth layer on top of read-time redaction in queries.
+sqlite.function("vmui_redact", { deterministic: false }, (msg: unknown) => {
+  if (typeof msg !== "string" || msg.length === 0) return msg as string | null;
+  return redactQuiet(msg);
+});
+sqlite.exec(`
+CREATE TRIGGER IF NOT EXISTS audit_log_redact_message
+AFTER INSERT ON audit_log
+FOR EACH ROW WHEN NEW.message IS NOT NULL
+BEGIN
+  UPDATE audit_log SET message = vmui_redact(NEW.message) WHERE id = NEW.id;
+END;
+`);
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

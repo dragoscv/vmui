@@ -54,7 +54,10 @@ export default async function InstanceDetailPage({ params }: PageProps) {
         </Link>
       </Button>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div
+        className="flex flex-wrap items-start justify-between gap-4"
+        style={{ viewTransitionName: `inst-${instance.id.replace(/[^a-zA-Z0-9_-]/g, "-")}` }}
+      >
         <div className="flex items-start gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] text-white shadow-[var(--shadow-glow)]">
             <Icon className="h-6 w-6" />

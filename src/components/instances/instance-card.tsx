@@ -87,6 +87,7 @@ export function InstanceCard({
               selected &&
                 "border-[color-mix(in_oklch,var(--color-primary)_55%,var(--color-border))] shadow-[var(--shadow-glow)]",
             )}
+            style={{ viewTransitionName: `inst-${instance.id.replace(/[^a-zA-Z0-9_-]/g, "-")}` }}
           >
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
