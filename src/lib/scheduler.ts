@@ -8,6 +8,7 @@ import { applySnapshotRetentionAction } from "@/server/actions/snapshot-retentio
 import { maybeRunIdlePark } from "@/lib/idle-park";
 import { captureFleetSnapshot } from "@/lib/fleet-diff";
 import { maybeAlertBurnRate } from "@/lib/burn-rate";
+import { checkAccountBudgets } from "@/server/actions/templates-and-budgets";
 import { notify } from "@/lib/notifications";
 import { redactSecrets } from "@/lib/redact";
 
@@ -98,6 +99,7 @@ async function tick(): Promise<void> {
   await maybeRunIdlePark();
   await maybeRunFleetSnapshot();
   await maybeAlertBurnRate().catch(() => undefined);
+  await checkAccountBudgets().catch(() => undefined);
 }
 
 let lastFleetSnapAt = 0;

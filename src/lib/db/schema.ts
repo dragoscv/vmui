@@ -1025,3 +1025,28 @@ export const settings = sqliteTable("app_settings", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type SettingRow = typeof settings.$inferSelect;
+
+/** Saved launch templates — re-launchable VM configurations. */
+export const launchTemplates = sqliteTable("launch_templates", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  accountId: text("account_id").notNull(),
+  region: text("region").notNull(),
+  instanceType: text("instance_type").notNull(),
+  platform: text("platform").notNull(),
+  /** JSON CreateInstanceInput-shaped payload */
+  configJson: text("config_json").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdBy: text("created_by"),
+});
+export type LaunchTemplateRow = typeof launchTemplates.$inferSelect;
+
+/** Per-cloud-account monthly budget cap. */
+export const accountBudgets = sqliteTable("account_budgets", {
+  accountId: text("account_id").primaryKey(),
+  monthlyUsd: real("monthly_usd").notNull(),
+  alertedAt: integer("alerted_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type AccountBudgetRow = typeof accountBudgets.$inferSelect;

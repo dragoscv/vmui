@@ -725,6 +725,26 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS app_settings (
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS launch_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  account_id TEXT NOT NULL,
+  region TEXT NOT NULL,
+  instance_type TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  config_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_by TEXT
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS account_budgets (
+  account_id TEXT PRIMARY KEY,
+  monthly_usd REAL NOT NULL,
+  alerted_at INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);
