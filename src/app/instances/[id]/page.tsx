@@ -14,6 +14,7 @@ import { InstanceStatsPanel } from "@/components/instances/instance-stats-panel"
 import { MetricsTab } from "@/components/instances/metrics-tab";
 import { ConsoleLogsCard } from "@/components/instances/console-logs-card";
 import { CockpitDashboard } from "@/components/instances/cockpit-dashboard";
+import { CloudInitStream } from "@/components/instances/cloud-init-stream";
 import { VmHardwareConfig } from "@/components/instances/vm-hardware-config";
 import { VmScreenshot } from "@/components/instances/vm-screenshot";
 import { InstanceSnapshotsCard } from "@/components/instances/instance-snapshots-card";
@@ -163,6 +164,10 @@ export default async function InstanceDetailPage({ params }: PageProps) {
             />
           </CardContent>
         </Card>
+      )}
+
+      {(instance.platform === "linux" || instance.platform === "macos") && (
+        <CloudInitStream instanceId={instance.id} platform={instance.platform} />
       )}
 
       {(instance.provider === "aws" || instance.provider === "azure" || instance.provider === "gcp") && (
