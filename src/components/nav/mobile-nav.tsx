@@ -93,6 +93,7 @@ const more = [
   { href: "/tag-drift", label: "Tag drift", icon: Tag },
   { href: "/saved-searches", label: "Saved searches", icon: FileStack },
   { href: "/instance-webhooks", label: "Instance webhooks", icon: Activity },
+  { href: "/account-forecast", label: "Spend forecast", icon: PiggyBank },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },

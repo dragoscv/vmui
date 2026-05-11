@@ -9,6 +9,7 @@ import { maybeRunIdlePark } from "@/lib/idle-park";
 import { captureFleetSnapshot } from "@/lib/fleet-diff";
 import { maybeAlertBurnRate } from "@/lib/burn-rate";
 import { checkAccountBudgets } from "@/server/actions/templates-and-budgets";
+import { maybeRunIdleAutoStop, maybeRecomputeBaselines, maybeCheckDrift } from "@/lib/idle-and-drift";
 import { notify } from "@/lib/notifications";
 import { redactSecrets } from "@/lib/redact";
 
@@ -100,6 +101,9 @@ async function tick(): Promise<void> {
   await maybeRunFleetSnapshot();
   await maybeAlertBurnRate().catch(() => undefined);
   await checkAccountBudgets().catch(() => undefined);
+  await maybeRunIdleAutoStop().catch(() => undefined);
+  await maybeRecomputeBaselines().catch(() => undefined);
+  await maybeCheckDrift().catch(() => undefined);
 }
 
 let lastFleetSnapAt = 0;
