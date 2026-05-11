@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Play, Square, RotateCcw, Trash2, Download, FileText, Search, Loader2 } from "lucide-react";
+import { Play, Square, RotateCcw, Trash2, Download, FileText, Search, Loader2, TerminalSquare } from "lucide-react";
 import {
   containerActionAction,
   inspectContainerAction,
@@ -192,6 +192,16 @@ function ContainerRowView({
           <IconBtn title="Restart" onClick={() => act("restart")} disabled={pending} icon={<RotateCcw className="h-3 w-3" />} />
           <IconBtn title="Pull image" onClick={() => act("pull")} disabled={pending} icon={<Download className="h-3 w-3" />} />
           <IconBtn title="Logs" onClick={onLogs} icon={<FileText className="h-3 w-3" />} />
+          {isRunning && (
+            <IconBtn
+              title="Exec shell"
+              onClick={() => {
+                const url = `/terminal?instance=${encodeURIComponent(instanceId)}&container=${encodeURIComponent(row.id || row.name)}`;
+                window.open(url, "_blank", "noopener");
+              }}
+              icon={<TerminalSquare className="h-3 w-3" />}
+            />
+          )}
           <IconBtn title="Inspect" onClick={onInspect} icon={<Search className="h-3 w-3" />} />
           <IconBtn
             title="Remove"

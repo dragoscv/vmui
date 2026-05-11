@@ -32,6 +32,12 @@ export interface SshProfile {
   passphrase?: string;
   /** Display label, returned to the UI but unused server-side. */
   label?: string;
+  /**
+   * Optional command to run instead of a login shell. When set, the bridge
+   * opens an interactive `exec` channel (e.g. `docker exec -it <id> /bin/sh`)
+   * with a pty so xterm.js still works.
+   */
+  command?: string;
 }
 
 interface PendingToken {
@@ -154,10 +160,10 @@ function startServer(): BridgeState {
     });
 
     ssh.on("ready", () => {
-      ssh.shell({ term: "xterm-256color", cols, rows }, (err, ch) => {
-        if (err) {
-          ws.send(JSON.stringify({ type: "error", message: `Shell open failed: ${err.message}` }));
-          ws.close(1011, "shell open failed");
+      const onChannel = (err: Error | undefined, ch: import("ssh2").ClientChannel | undefined) => {
+        if (err || !ch) {
+          ws.send(JSON.stringify({ type: "error", message: `Channel open failed: ${err?.message ?? "unknown"}` }));
+          ws.close(1011, "channel open failed");
           ssh.end();
           return;
         }
@@ -174,7 +180,12 @@ function startServer(): BridgeState {
           ws.send(JSON.stringify({ type: "close" }));
           ws.close(1000, "shell ended");
         });
-      });
+      };
+      if (profile.command) {
+        ssh.exec(profile.command, { pty: { term: "xterm-256color", cols, rows } }, onChannel);
+      } else {
+        ssh.shell({ term: "xterm-256color", cols, rows }, onChannel);
+      }
     });
 
     ssh.on("error", (err) => {
