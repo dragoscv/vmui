@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle } from "lucide-react";
+import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Instances", icon: Server },
   { href: "/resources", label: "Resources", icon: Boxes },
+  { href: "/topology", label: "Topology", icon: Network },
   { href: "/costs", label: "Costs", icon: BarChart3 },
   { href: "/recipes", label: "Recipes", icon: Sparkles },
   { href: "/schedules", label: "Schedules", icon: Clock },
