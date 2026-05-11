@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# vmui — boot Ubuntu (26.04 LTS by default) in QEMU/KVM with VNC + QMP.
+# vmui — boot Ubuntu (cloud-image flavour) in QEMU/KVM with VNC + QMP.
 #
 # Connect from Windows host with any VNC client to localhost:7900 (default).
-# Default credentials baked into the cloud-init seed: dragos / REDACTED_GUEST_PASSWORD.
+# Guest credentials are baked into the cloud-init seed by setup-ubuntu-vm.sh
+# from $VMDIR/vm-creds.env (written by the vmui server action when the
+# account is created from the web UI).
 #
 # Disk layout in $VMDIR (default ~/vmui-vms/ubuntu):
-#   Ubuntu.qcow2     — main system disk (created by setup script)
-#   ubuntu.iso       — Ubuntu installer ISO (downloaded by setup script)
+#   Ubuntu.qcow2     — main system disk (resized Ubuntu cloud image)
 #   seed.iso         — NoCloud cloud-init datasource (built by setup script)
-#   OVMF_CODE.fd     — UEFI firmware (no secure boot needed for Ubuntu)
+#   OVMF_CODE.fd     — UEFI firmware
 #   OVMF_VARS.fd     — per-VM UEFI variable store
 set -euo pipefail
 
@@ -26,7 +27,6 @@ SSH_FORWARD_PORT="${SSH_FORWARD_PORT:-10024}"
 
 NAME="${VM_NAME:-vmui-ubuntu}"
 DISK="${UBUNTU_DISK:-Ubuntu.qcow2}"
-INSTALL_ISO="${INSTALL_ISO:-ubuntu.iso}"
 SEED_ISO="${SEED_ISO:-seed.iso}"
 OVMF_CODE="${OVMF_CODE:-OVMF_CODE.fd}"
 OVMF_VARS="${OVMF_VARS:-OVMF_VARS.fd}"
@@ -43,13 +43,9 @@ if [ ! -f "$OVMF_CODE" ] || [ ! -f "$OVMF_VARS" ]; then
 fi
 
 CD_ARGS=()
-if [ -f "$INSTALL_ISO" ]; then
-  CD_ARGS+=("-drive" "file=$INSTALL_ISO,media=cdrom,if=none,id=installcd,readonly=on")
-  CD_ARGS+=("-device" "ide-cd,drive=installcd,bootindex=0")
-fi
 if [ -f "$SEED_ISO" ]; then
   CD_ARGS+=("-drive" "file=$SEED_ISO,media=cdrom,if=none,id=seedcd,readonly=on")
-  CD_ARGS+=("-device" "ide-cd,drive=seedcd,bootindex=2")
+  CD_ARGS+=("-device" "ide-cd,drive=seedcd,bus=ide.0")
 fi
 
 exec qemu-system-x86_64 \
@@ -73,6 +69,5 @@ exec qemu-system-x86_64 \
   -vnc "0.0.0.0:$VNC_PORT" \
   -monitor none \
   -qmp tcp:127.0.0.1:"$QMP_PORT",server=on,wait=off \
-  -no-reboot \
   -d guest_errors -D /tmp/vmui-ubuntu.qemu.log \
   -pidfile /tmp/vmui-ubuntu.pid

@@ -28,7 +28,13 @@ export function InstanceStatsDialog({
             Realtime resource usage — {instance.provider} · {instance.region}
           </DialogDescription>
         </DialogHeader>
-        <InstanceStatsPanel accountId={instance.accountId} enabled={open} intervalMs={1500} />
+        <InstanceStatsPanel
+          accountId={instance.accountId}
+          enabled={open}
+          intervalMs={1500}
+          providerInstanceId={instance.providerInstanceId}
+          instanceId={instance.id}
+        />
       </DialogContent>
     </Dialog>
   );

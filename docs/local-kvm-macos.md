@@ -44,6 +44,7 @@ Both routes end up running the same `watchdog-mac.ps1` with the same args.
    for live log tailing during dev.
 
 The watchdog itself:
+
 - syncs `run-mac-foreground.sh` from `/mnt/e/gh/vmui/scripts` on every iteration
 - pre-cleans stale `qemu-nbd` connections / mounts that would lock
   `OpenCore.qcow2` (e.g. from a crashed UIScale-patch run)
@@ -54,8 +55,8 @@ The watchdog itself:
 WSL2 Ubuntu-24.04 ships **QEMU 8.2.2**. Earlier guides for OSX-KVM use props
 that this build no longer accepts:
 
-| Removed prop | Symptom | Fix |
-|---|---|---|
+| Removed prop         | Symptom                                                             | Fix                                         |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------- |
 | `VGA.xmm`, `VGA.ymm` | `Property 'VGA.xmm' not found` → QEMU exits, watchdog restart-loops | omit them; the bare `xres`/`yres` is enough |
 
 These were physical-screen-size hints (in mm) used by older QEMU to hint
@@ -66,6 +67,7 @@ DPI to the guest. They've been removed from the std VGA device.
 ### Symptom
 
 After boot, macOS reports:
+
 ```
 Resolution: 1920 x 1080
 UI Looks like: 960 x 540 @ 75.00Hz
@@ -218,10 +220,10 @@ wsl -d Ubuntu-24.04 -- bash -lc 'pkill -9 -f "[q]emu-system-x86_64"; rm -f /tmp/
 
 ## File map
 
-| Path | Role |
-|---|---|
-| [scripts/boot-mac.sh](../scripts/boot-mac.sh) | The QEMU command line. Synced into `~/OSX-KVM/` on every launch. |
-| [scripts/run-mac-foreground.sh](../scripts/run-mac-foreground.sh) | WSL-side runner; the foreground process whose lifetime gates QEMU. |
-| [scripts/watchdog-mac.ps1](../scripts/watchdog-mac.ps1) | Windows-side restart loop; holds the WSL handle. |
-| [scripts/spawn-watchdog.ps1](../scripts/spawn-watchdog.ps1) | Detached launcher used by the web UI Server Action. |
-| [src/lib/providers/local-kvm.ts](../src/lib/providers/local-kvm.ts) | `LocalKvmProvider` (verify, list, start, stop, stats, QMP). |
+| Path                                                                | Role                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [scripts/boot-mac.sh](../scripts/boot-mac.sh)                       | The QEMU command line. Synced into `~/OSX-KVM/` on every launch.   |
+| [scripts/run-mac-foreground.sh](../scripts/run-mac-foreground.sh)   | WSL-side runner; the foreground process whose lifetime gates QEMU. |
+| [scripts/watchdog-mac.ps1](../scripts/watchdog-mac.ps1)             | Windows-side restart loop; holds the WSL handle.                   |
+| [scripts/spawn-watchdog.ps1](../scripts/spawn-watchdog.ps1)         | Detached launcher used by the web UI Server Action.                |
+| [src/lib/providers/local-kvm.ts](../src/lib/providers/local-kvm.ts) | `LocalKvmProvider` (verify, list, start, stop, stats, QMP).        |

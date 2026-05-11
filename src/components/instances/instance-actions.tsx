@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { instanceAction } from "@/server/actions/instances";
+import { checkSnapshotFreshness } from "@/server/actions/snapshot-freshness";
 import type { InstanceRow } from "@/lib/db/schema";
 import { ConnectDialog } from "./connect-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -21,12 +22,27 @@ export function InstanceActions({ instance }: { instance: InstanceRow }) {
 
   async function run(action: "start" | "stop" | "reboot" | "terminate") {
     if (action === "terminate") {
+      const freshness = await checkSnapshotFreshness({
+        accountId: instance.accountId,
+        region: instance.region,
+        providerInstanceId: instance.providerInstanceId,
+      });
+      const warning = !freshness.hasAny
+        ? "No snapshot of this instance exists in our cache. If you need its disk later, take a snapshot first."
+        : !freshness.hasRecent
+          ? `Most recent matching snapshot is ${freshness.daysSince}d old. Consider snapshotting first.`
+          : null;
       const ok = await confirm({
         title: `Terminate ${label}?`,
         description: (
           <>
             This permanently destroys the instance and any data on its
             non-persistent volumes. <b>This cannot be undone.</b>
+            {warning && (
+              <div className="mt-2 rounded-md border border-[var(--color-warning)]/40 bg-[color-mix(in_oklch,var(--color-warning)_10%,transparent)] p-2 text-xs">
+                ⚠ {warning}
+              </div>
+            )}
           </>
         ),
         tone: "danger",

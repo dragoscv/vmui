@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { listAccounts } from "@/server/queries";
 import { Button } from "@/components/ui/button";
 import { CreateInstanceForm } from "@/components/instances/create-form";
+import { listBootScriptsAction } from "@/server/actions/boot-scripts";
 import { Card, CardContent } from "@/components/ui/card";
 import { AwsProvider } from "@/lib/providers/aws";
 import { ScalewayProvider } from "@/lib/providers/scaleway";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewInstancePage() {
   const accounts = await listAccounts();
+  const bootScripts = await listBootScriptsAction();
 
   // Pre-fetch templates from each provider (static, no API calls).
   const awsTemplates = await new AwsProvider({
@@ -25,18 +27,29 @@ export default async function NewInstancePage() {
     projectId: "",
     defaultZone: "fr-par-1",
   }).listInstanceTemplates();
-  const localKvmTemplates = await new LocalKvmProvider({
-    distro: "",
-    vmDir: "",
-    hostLabel: "",
-    vncPort: 5900,
-    qmpPort: 4444,
-    sshPort: 10022,
-    wsPort: 6080,
-    ramMb: 16384,
-    cores: 4,
-    threads: 8,
-  }).listInstanceTemplates();
+  // Aggregate templates across all local-kvm kinds (mac/win/ubuntu) so the
+  // create wizard can offer them. Per-kind credentials are placeholders —
+  // listInstanceTemplates() doesn't touch the WSL host.
+  const localKvmKinds = ["mac", "win", "ubuntu", "hyperv-win"] as const;
+  const localKvmTemplates = (
+    await Promise.all(
+      localKvmKinds.map((kind) =>
+        new LocalKvmProvider({
+          kind,
+          distro: "",
+          vmDir: "",
+          hostLabel: "",
+          vncPort: 5900,
+          qmpPort: 4444,
+          sshPort: 10022,
+          wsPort: 6080,
+          ramMb: 16384,
+          cores: 4,
+          threads: 8,
+        }).listInstanceTemplates(),
+      ),
+    )
+  ).flat();
 
   const templatesByProvider: Record<ProviderId, InstanceTemplate[]> = {
     aws: awsTemplates,
@@ -92,6 +105,7 @@ export default async function NewInstancePage() {
           }))}
           templatesByProvider={templatesByProvider}
           regionsByProvider={regionsByProvider}
+          bootScripts={bootScripts.map((s) => ({ id: s.id, name: s.name, kind: s.kind }))}
         />
       )}
     </div>

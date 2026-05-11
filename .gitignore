@@ -12,3 +12,8 @@ drizzle/meta
 .vscode/*
 !.vscode/extensions.json
 .pnpm-cache/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/

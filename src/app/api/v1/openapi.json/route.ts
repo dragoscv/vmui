@@ -1,0 +1,74 @@
+import "server-only";
+
+const SPEC = {
+  openapi: "3.1.0",
+  info: {
+    title: "vmui public API",
+    version: "1.0.0",
+    description:
+      "Authenticated bearer-token API for vmui. Create keys at /settings/api-keys.",
+  },
+  servers: [{ url: "http://127.0.0.1:3737" }],
+  security: [{ bearerAuth: [] }],
+  components: {
+    securitySchemes: {
+      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "vmui_*" },
+    },
+  },
+  paths: {
+    "/api/v1/instances": {
+      get: {
+        summary: "List cached instances across all accounts",
+        parameters: [
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 500, default: 100 } },
+          { name: "offset", in: "query", schema: { type: "integer", default: 0 } },
+        ],
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
+    "/api/v1/instances/{id}/{action}": {
+      post: {
+        summary: "Run a power action against an instance (operator role)",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" } },
+          {
+            name: "action",
+            in: "path",
+            required: true,
+            schema: { type: "string", enum: ["start", "stop", "reboot", "terminate"] },
+          },
+        ],
+        responses: {
+          "200": { description: "OK" },
+          "400": { description: "Bad action / provider error" },
+          "401": { description: "Unauthorized" },
+          "403": { description: "Operator role required" },
+          "404": { description: "Instance not found" },
+          "429": { description: "Rate limited" },
+        },
+      },
+    },
+    "/api/v1/accounts": {
+      get: {
+        summary: "List cloud accounts",
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
+    "/api/v1/audit": {
+      get: {
+        summary: "Search the audit log",
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string" } },
+          { name: "status", in: "query", schema: { type: "string", enum: ["ok", "error"] } },
+          { name: "account", in: "query", schema: { type: "string" } },
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 500, default: 50 } },
+        ],
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
+  },
+} as const;
+
+export function GET() {
+  return Response.json(SPEC);
+}

@@ -19,3 +19,25 @@ export function formatRelative(date: Date | number | null | undefined): string {
   const day = Math.round(hr / 24);
   return `${day}d ago`;
 }
+
+/**
+ * Format a USD/hour rate. Picks fractional precision so very cheap
+ * instances ("$0.0042/hr") still show useful digits.
+ */
+export function formatUsdPerHour(n: number): string {
+  if (n === 0) return "free";
+  if (n < 0.01) return `$${n.toFixed(4)}/hr`;
+  if (n < 1) return `$${n.toFixed(3)}/hr`;
+  return `$${n.toFixed(2)}/hr`;
+}
+
+/** Format a USD amount as currency: $1,234.56 */
+export function formatUsd(n: number): string {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: n >= 100 ? 0 : 2,
+  });
+}
+
+export const HOURS_PER_MONTH = 730;

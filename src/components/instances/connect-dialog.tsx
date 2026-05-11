@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, Copy, Loader2, MonitorPlay } from "lucide-react";
+import { Download, Copy, Loader2, MonitorPlay, KeyRound, Eye, EyeOff, Terminal as TerminalIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getConnectionInfoAction } from "@/server/actions/instances";
+import { getWindowsPasswordAction } from "@/server/actions/windows-password";
 import type { ConnectionInfo } from "@/lib/providers/types";
 import type { InstanceRow } from "@/lib/db/schema";
 
@@ -142,6 +143,10 @@ export function ConnectDialog({
                 ))}
               </div>
             )}
+
+            {instance.provider === "aws" && instance.platform === "windows" && (
+              <WindowsPasswordSection instance={instance} />
+            )}
           </div>
         )}
 
@@ -153,6 +158,13 @@ export function ConnectDialog({
               </Link>
             </Button>
           )}
+          {info?.protocol === "ssh" && (
+            <Button asChild variant={instance.provider === "local-kvm" ? "secondary" : "primary"}>
+              <Link href={`/instances/${encodeURIComponent(instance.id)}/ssh`}>
+                <TerminalIcon className="h-4 w-4" /> Browser SSH
+              </Link>
+            </Button>
+          )}
           {info?.fileContent && (
             <Button onClick={downloadFile} variant={instance.provider === "local-kvm" ? "secondary" : "primary"}>
               <Download className="h-4 w-4" /> Download {info.fileName}
@@ -161,5 +173,122 @@ export function ConnectDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function WindowsPasswordSection({ instance }: { instance: InstanceRow }) {
+  const [open, setOpen] = useState(false);
+  const [pem, setPem] = useState("");
+  const [password, setPassword] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDecrypt() {
+    setLoading(true);
+    setError(null);
+    const r = await getWindowsPasswordAction({
+      accountId: instance.accountId,
+      providerInstanceId: instance.providerInstanceId,
+      privateKeyPem: pem,
+    });
+    setLoading(false);
+    if (r.ok) {
+      setPassword(r.password);
+      // Clear PEM from memory once decrypted.
+      setPem("");
+      toast.success("Administrator password decrypted");
+    } else {
+      setError(r.error);
+    }
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setPem(text);
+  }
+
+  return (
+    <div className="rounded-md border border-[var(--color-border)] p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left text-xs font-medium"
+      >
+        <span className="flex items-center gap-1.5">
+          <KeyRound className="h-3.5 w-3.5 text-[var(--color-primary)]" />
+          Decrypt Windows Administrator password
+        </span>
+        <span className="text-muted">{open ? "−" : "+"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2 text-xs">
+          <p className="text-muted">
+            AWS encrypts the auto-generated Administrator password with the public key of the keypair you launched
+            this VM with. Paste or upload the matching <code>.pem</code> private key — it never leaves this
+            machine.
+          </p>
+
+          {password ? (
+            <>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 truncate rounded-md bg-[var(--color-bg-muted)] px-3 py-2 font-mono">
+                  {reveal ? password : "•".repeat(password.length)}
+                </code>
+                <Button variant="secondary" size="icon" onClick={() => setReveal((v) => !v)} aria-label="Toggle reveal">
+                  {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(password);
+                    toast.success("Password copied");
+                  }}
+                  aria-label="Copy password"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setPassword(null)}>
+                Decrypt again
+              </Button>
+            </>
+          ) : (
+            <>
+              <textarea
+                value={pem}
+                onChange={(e) => setPem(e.target.value)}
+                placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+                rows={6}
+                spellCheck={false}
+                className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-[11px]"
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept=".pem,.key,.txt,application/x-pem-file"
+                  onChange={handleFile}
+                  className="block w-full text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[var(--color-bg-muted)] file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-[var(--color-border)]"
+                />
+                <Button onClick={handleDecrypt} disabled={!pem || loading} size="sm">
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                  Decrypt
+                </Button>
+              </div>
+            </>
+          )}
+
+          {error && (
+            <div className="rounded-md bg-[color-mix(in_oklch,var(--color-danger)_15%,transparent)] p-2 text-[var(--color-danger)]">
+              {error}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

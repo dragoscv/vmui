@@ -35,14 +35,35 @@ RDP_FORWARD_PORT="${RDP_FORWARD_PORT:-13389}"
 
 NAME="${VM_NAME:-vmui-win}"
 DISK="${WIN_DISK:-Win11.qcow2}"
-INSTALL_ISO="${INSTALL_ISO:-Win11.iso}"
+# Prefer the repacked install ISO (no "press any key" prompt, autounattend.xml
+# embedded at the root). Fall back to the raw Win11-Enterprise.iso /
+# Win11.iso plus the sidecar autounattend.iso ONLY if the repack hasn't
+# been run yet (this fallback path will hang on the "press any key" prompt;
+# always prefer the repacked image).
+if [ -f Win11-auto.iso ]; then
+  INSTALL_ISO="${INSTALL_ISO:-Win11-auto.iso}"
+  USE_SIDECAR_UNATTEND=0
+elif [ -f Win11-Enterprise.iso ]; then
+  INSTALL_ISO="${INSTALL_ISO:-Win11-Enterprise.iso}"
+  USE_SIDECAR_UNATTEND=1
+else
+  INSTALL_ISO="${INSTALL_ISO:-Win11.iso}"
+  USE_SIDECAR_UNATTEND=1
+fi
 VIRTIO_ISO="${VIRTIO_ISO:-virtio-win.iso}"
 UNATTEND_ISO="${UNATTEND_ISO:-autounattend.iso}"
-OVMF_CODE="${OVMF_CODE:-OVMF_CODE.secboot.fd}"
+# Use the NON-secboot OVMF firmware. We deliberately do NOT use the
+# Microsoft-keyed Secure Boot variant: when the guest sees Secure Boot +
+# TPM 2.0, Windows 11 auto-enables VBS/HVCI (Memory Integrity) during early
+# kernel boot and tries to set CR4.VMXE to start its inner Hyper-V. Under
+# WSL2 (Hyper-V is already L1) this triggers an EPT misconfig (VM-exit
+# reason 0x31) and the guest dies before Setup can run. Booting with the
+# plain OVMF (no SB, no TPM) keeps VBS dormant; our autounattend.xml has
+# BypassTPMCheck/BypassSecureBootCheck flags so Setup is happy regardless.
+OVMF_CODE="${OVMF_CODE:-OVMF_CODE.fd}"
 OVMF_VARS="${OVMF_VARS:-OVMF_VARS.fd}"
 
-SWTPM_DIR="./tpm"
-SWTPM_SOCK="$SWTPM_DIR/swtpm-sock"
+echo "[boot-win] install media: $INSTALL_ISO (sidecar unattend=$USE_SIDECAR_UNATTEND)"
 
 if [ ! -f "$DISK" ]; then
   echo "ERROR: $DISK not found in $(pwd)." >&2
@@ -55,47 +76,112 @@ if [ ! -f "$OVMF_CODE" ] || [ ! -f "$OVMF_VARS" ]; then
   exit 1
 fi
 
-# Start (or restart) the swtpm emulator, daemonized. We bind it to a UNIX
-# socket QEMU connects to via -chardev socket,id=chrtpm.
-mkdir -p "$SWTPM_DIR"
-if ! pgrep -f "swtpm.*$SWTPM_SOCK" >/dev/null 2>&1; then
-  rm -f "$SWTPM_SOCK"
-  swtpm socket \
-    --tpmstate "dir=$SWTPM_DIR" \
-    --ctrl "type=unixio,path=$SWTPM_SOCK" \
-    --tpm2 \
-    --log "level=1,file=/tmp/vmui-win-swtpm.log" \
-    --daemon
-  # Give it a moment to bind the socket.
-  for _ in 1 2 3 4 5; do
-    [ -S "$SWTPM_SOCK" ] && break
-    sleep 0.2
-  done
-fi
+# NOTE: swtpm intentionally NOT started. See OVMF comment above re: VBS.
 
 # Build the variable list of CD drives we attach. The unattend ISO must come
 # last with bootindex>1 so Windows Setup picks up autounattend.xml from one of
 # the attached drives (it scans them all).
-CD_ARGS=()
-if [ -f "$INSTALL_ISO" ]; then
-  CD_ARGS+=("-drive" "file=$INSTALL_ISO,media=cdrom,if=none,id=installcd,readonly=on")
-  CD_ARGS+=("-device" "ide-cd,drive=installcd,bootindex=0")
+#
+# q35's built-in AHCI controller exposes 6 SATA ports (ide.0 .. ide.5), each
+# holding exactly one unit. We must therefore pin each ide-cd to its own bus
+# or QEMU fails with "Can't create IDE unit 1, bus supports only 1 units".
+#
+# After the first install pass, the disk grows past ~1 GiB (Windows file copy
+# is well underway). On subsequent QEMU restarts (the watchdog relaunches us
+# whenever the guest reboots, which Windows Setup does several times during
+# install) we DETACH the install media so UEFI can no longer fall back to it.
+# Otherwise we'd loop forever between "boot installed Windows" → reboot → CD
+# is still ahead → install starts from scratch.
+DISK_BYTES=0
+if [ -f "$DISK" ]; then
+  DISK_BYTES="$(stat -c %s "$DISK" 2>/dev/null || echo 0)"
 fi
-if [ -f "$VIRTIO_ISO" ]; then
-  CD_ARGS+=("-drive" "file=$VIRTIO_ISO,media=cdrom,if=none,id=virtiocd,readonly=on")
-  CD_ARGS+=("-device" "ide-cd,drive=virtiocd,bootindex=2")
-fi
-if [ -f "$UNATTEND_ISO" ]; then
-  CD_ARGS+=("-drive" "file=$UNATTEND_ISO,media=cdrom,if=none,id=unattendcd,readonly=on")
-  CD_ARGS+=("-device" "ide-cd,drive=unattendcd,bootindex=3")
+ATTACH_INSTALLER=1
+if [ "$DISK_BYTES" -gt $((1 * 1024 * 1024 * 1024)) ]; then
+  ATTACH_INSTALLER=0
+  echo "[boot-win] disk has $DISK_BYTES bytes already — skipping install media"
 fi
 
-# Hyper-V enlightenments dramatically improve Windows guest performance.
+CD_ARGS=()
+CD_BUS=0
+if [ "$ATTACH_INSTALLER" = "1" ] && [ -f "$INSTALL_ISO" ]; then
+  CD_ARGS+=("-drive" "file=$INSTALL_ISO,media=cdrom,if=none,id=installcd,readonly=on")
+  CD_ARGS+=("-device" "ide-cd,drive=installcd,bus=ide.$CD_BUS,bootindex=2")
+  CD_BUS=$((CD_BUS + 1))
+fi
+if [ "$ATTACH_INSTALLER" = "1" ] && [ -f "$VIRTIO_ISO" ]; then
+  CD_ARGS+=("-drive" "file=$VIRTIO_ISO,media=cdrom,if=none,id=virtiocd,readonly=on")
+  CD_ARGS+=("-device" "ide-cd,drive=virtiocd,bus=ide.$CD_BUS,bootindex=3")
+  CD_BUS=$((CD_BUS + 1))
+fi
+if [ "$ATTACH_INSTALLER" = "1" ] && [ "$USE_SIDECAR_UNATTEND" = "1" ] && [ -f "$UNATTEND_ISO" ]; then
+  CD_ARGS+=("-drive" "file=$UNATTEND_ISO,media=cdrom,if=none,id=unattendcd,readonly=on")
+  CD_ARGS+=("-device" "ide-cd,drive=unattendcd,bus=ide.$CD_BUS,bootindex=4")
+  CD_BUS=$((CD_BUS + 1))
+fi
+
+# When falling back to a non-repacked install ISO (Win11.iso /
+# Win11-Enterprise.iso) the UEFI bootloader shows "Press any key to boot
+# from CD or DVD..." for ~5 s. To keep the install hands-off in that case
+# we fork a background helper that hammers ENTER on PS/2 and USB keyboards
+# via QMP for ~60 s. With Win11-auto.iso this isn't needed because the EFI
+# El-Torito boot image is the no-prompt variant.
+if [ "$USE_SIDECAR_UNATTEND" = "1" ]; then
+  (
+    exec >/tmp/vmui-win-keypress.log 2>&1
+    echo "[$(date)] keypress helper start (qmp 127.0.0.1:$QMP_PORT)"
+    for _ in $(seq 1 30); do
+      if printf '{"execute":"qmp_capabilities"}\n' \
+           | nc -q 1 -w 1 127.0.0.1 "$QMP_PORT" 2>/dev/null | grep -q return; then
+        break
+      fi
+      sleep 0.5
+    done
+    echo "[$(date)] qmp reachable, hammering keys for 60 s"
+    for i in $(seq 1 60); do
+      {
+        printf '{"execute":"qmp_capabilities"}\n'
+        printf '{"execute":"human-monitor-command","arguments":{"command-line":"sendkey ret"}}\n'
+        printf '{"execute":"human-monitor-command","arguments":{"command-line":"sendkey spc"}}\n'
+        printf '{"execute":"send-key","arguments":{"keys":[{"type":"qcode","data":"ret"}],"hold-time":100}}\n'
+      } | nc -q 1 -w 2 127.0.0.1 "$QMP_PORT" >/dev/null 2>&1 || true
+      sleep 1
+    done
+    echo "[$(date)] keypress helper done"
+  ) &
+fi
+
+# CPU model selection — running Windows as an L3 guest:
+#   L0 host (Windows) -> L1 Hyper-V -> L2 WSL2 (Linux) -> L3 QEMU/KVM (Windows).
+#
+# `-cpu host` (with or without hv-passthrough) causes
+# `KVM: entry failed, hardware error 0x0` on the first Windows-kernel
+# VMENTER under WSL2 because the WSL kernel running on Hyper-V cannot back
+# every CR4 control bit / MSR that `host` exposes (notably some PMU and
+# SPEC_CTRL bits). The fix is to use a NAMED CPU model whose VMCS state KVM
+# can fully express in nested mode. Skylake-Client-v3 is the modern
+# recommendation: it advertises everything Win11 requires (SSE4.2, AES,
+# SMEP, SMAP, FSGSBASE, RDRAND, XSAVE, AVX, AVX2) without any feature that
+# WSL2's L1 hypervisor refuses to virtualise.
+#
+# Hyper-V enlightenments — minimum-viable curated set that survives nested
+# VMENTER on WSL2:
+#   hv-relaxed   – relaxes Windows' watchdog timeout (avoids 0x101 BSOD)
+#   hv-vapic     – synthetic APIC (faster IPIs, L1-safe)
+#   hv-spinlocks – tells Windows to back off rather than VMEXIT-spin
+#   hv-time      – synthetic reference-counter pages
+#   hv-vpindex   – per-vCPU virtual processor indices
+# We deliberately AVOID hv-synic, hv-stimer, hv-tlbflush, hv-ipi: those
+# require the L1 hypervisor to back them and trigger invalid-VMCS aborts on
+# Hyper-V -> KVM nested setups. `kvm=off,hv-vendor-id=KVMKVMKVM` keeps the
+# KVM signature out of CPUID so Windows takes the HV path we wired above
+# rather than its KVM-detection path (which assumes Linux-host semantics).
+#
 # `smm=on` and the secure pflash are needed for Secure Boot to be effective.
 exec qemu-system-x86_64 \
   -name "$NAME" \
   -enable-kvm -m "$ALLOCATED_RAM" \
-  -cpu host,hv_relaxed,hv_spinlocks=0x1fff,hv_vapic,hv_time,hv_vendor_id=KVMKVMKVM,kvm=on \
+  -cpu Skylake-Client-v3,kvm=off,hv-vendor-id=KVMKVMKVM,hv-relaxed,hv-vapic,hv-spinlocks=0x1fff,hv-time,hv-vpindex,+aes,+xsave,+xsaveopt,+xsavec,+xgetbv1,+rdrand,+rdseed,+invtsc \
   -machine q35,smm=on,vmport=off \
   -global driver=cfi.pflash01,property=secure,value=on \
   -global ICH9-LPC.disable_s3=1 \
@@ -113,11 +199,10 @@ exec qemu-system-x86_64 \
   "${CD_ARGS[@]}" \
   -netdev user,id=net0,hostfwd=tcp::"$SSH_FORWARD_PORT"-:22,hostfwd=tcp::"$RDP_FORWARD_PORT"-:3389 \
   -device virtio-net-pci,netdev=net0,id=net0,mac=52:54:00:c9:18:28 \
-  -vga virtio \
+  -vga std \
   -display none \
   -vnc "0.0.0.0:$VNC_PORT" \
   -monitor none \
   -qmp tcp:127.0.0.1:"$QMP_PORT",server=on,wait=off \
-  -no-reboot \
   -d guest_errors -D /tmp/vmui-win.qemu.log \
   -pidfile /tmp/vmui-win.pid

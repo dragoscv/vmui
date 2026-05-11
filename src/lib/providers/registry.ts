@@ -5,7 +5,9 @@ import { cloudAccounts } from "../db/schema";
 import { decryptJSON } from "../crypto";
 import { AwsProvider, type AwsCredentials } from "./aws";
 import { ScalewayProvider, type ScalewayCredentials } from "./scaleway";
-import { LocalKvmProvider, type LocalKvmCredentials } from "./local-kvm";
+import { LocalKvmProvider, type LocalKvmCredentials, KIND_DEFAULTS } from "./local-kvm";
+import { AzureProvider, type AzureCredentials } from "./azure";
+import { GcpProvider, type GcpCredentials } from "./gcp";
 import type { CloudProvider, ProviderId } from "./types";
 
 /**
@@ -48,22 +50,35 @@ function buildProvider(
     case "local-kvm": {
       const creds = decryptJSON<Partial<LocalKvmCredentials>>(credentialsEnc);
       // Backfill defaults for credentials saved before a field was added.
+      // Existing accounts without `kind` were all macOS, so default to "mac"
+      // to preserve their behavior on upgrade.
+      const kind = (creds.kind ?? "mac") as LocalKvmCredentials["kind"];
+      const d = KIND_DEFAULTS[kind];
       return new LocalKvmProvider({
+        kind,
         distro: creds.distro ?? "Ubuntu-24.04",
-        vmDir: creds.vmDir ?? "/home/dragos/OSX-KVM",
-        hostLabel: creds.hostLabel ?? "Local Mac",
-        vncPort: creds.vncPort ?? 5900,
-        qmpPort: creds.qmpPort ?? 4444,
-        sshPort: creds.sshPort ?? 10022,
-        wsPort: creds.wsPort ?? 6080,
-        ramMb: creds.ramMb ?? 16384,
-        cores: creds.cores ?? 4,
-        threads: creds.threads ?? 8,
+        vmDir: creds.vmDir ?? d.vmDir,
+        hostLabel: creds.hostLabel ?? d.hostLabelHint,
+        vncPort: creds.vncPort ?? d.vncPort,
+        qmpPort: creds.qmpPort ?? d.qmpPort,
+        sshPort: creds.sshPort ?? d.sshPort,
+        wsPort: creds.wsPort ?? d.wsPort,
+        ramMb: creds.ramMb ?? d.ramMb,
+        cores: creds.cores ?? d.cores,
+        threads: creds.threads ?? d.threads,
+        osUsername: creds.osUsername,
+        osPassword: creds.osPassword,
+        hypervVmName: creds.hypervVmName,
       });
     }
-    case "azure":
-    case "gcp":
-      throw new Error(`${providerId} provider not implemented yet`);
+    case "azure": {
+      const creds = decryptJSON<Omit<AzureCredentials, "defaultLocation">>(credentialsEnc);
+      return new AzureProvider({ ...creds, defaultLocation: defaultRegion ?? "westeurope" });
+    }
+    case "gcp": {
+      const creds = decryptJSON<Omit<GcpCredentials, "defaultZone">>(credentialsEnc);
+      return new GcpProvider({ ...creds, defaultZone: defaultRegion ?? "us-central1-a" });
+    }
     default:
       throw new Error(`Unknown provider: ${providerId}`);
   }
@@ -74,7 +89,7 @@ export function listSupportedProviders(): { id: ProviderId; label: string; avail
     { id: "aws", label: "Amazon Web Services", available: true },
     { id: "scaleway", label: "Scaleway (Apple Silicon)", available: true },
     { id: "local-kvm", label: "Local · KVM (WSL2)", available: true },
-    { id: "azure", label: "Microsoft Azure", available: false },
-    { id: "gcp", label: "Google Cloud Platform", available: false },
+    { id: "azure", label: "Microsoft Azure", available: true },
+    { id: "gcp", label: "Google Cloud Platform", available: true },
   ];
 }

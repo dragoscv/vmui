@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncAllAccounts } from "@/server/actions/instances";
 import { useRouter } from "next/navigation";
+import { NotificationsBell } from "@/components/nav/notifications-bell";
 
 export function Topbar() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -38,6 +39,8 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-2">
+        <NotificationsBell />
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

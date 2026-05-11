@@ -1,0 +1,78 @@
+/**
+ * Static region/zone catalog for the region picker. Live region lookups are
+ * exposed via provider.listRegions() but those calls are slow and need
+ * credentials, so the UI defaults to this curated list.
+ */
+export const REGION_CATALOG: Record<string, { id: string; label: string }[]> = {
+  aws: [
+    { id: "us-east-1", label: "US East (N. Virginia)" },
+    { id: "us-east-2", label: "US East (Ohio)" },
+    { id: "us-west-1", label: "US West (N. California)" },
+    { id: "us-west-2", label: "US West (Oregon)" },
+    { id: "ca-central-1", label: "Canada (Central)" },
+    { id: "eu-west-1", label: "Europe (Ireland)" },
+    { id: "eu-west-2", label: "Europe (London)" },
+    { id: "eu-west-3", label: "Europe (Paris)" },
+    { id: "eu-central-1", label: "Europe (Frankfurt)" },
+    { id: "eu-north-1", label: "Europe (Stockholm)" },
+    { id: "eu-south-1", label: "Europe (Milan)" },
+    { id: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
+    { id: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
+    { id: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
+    { id: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
+    { id: "ap-south-1", label: "Asia Pacific (Mumbai)" },
+    { id: "sa-east-1", label: "South America (São Paulo)" },
+    { id: "me-south-1", label: "Middle East (Bahrain)" },
+    { id: "af-south-1", label: "Africa (Cape Town)" },
+  ],
+  azure: [
+    { id: "eastus", label: "East US" },
+    { id: "eastus2", label: "East US 2" },
+    { id: "westus2", label: "West US 2" },
+    { id: "westus3", label: "West US 3" },
+    { id: "centralus", label: "Central US" },
+    { id: "northeurope", label: "North Europe (Ireland)" },
+    { id: "westeurope", label: "West Europe (Netherlands)" },
+    { id: "uksouth", label: "UK South" },
+    { id: "francecentral", label: "France Central" },
+    { id: "germanywestcentral", label: "Germany West Central" },
+    { id: "swedencentral", label: "Sweden Central" },
+    { id: "switzerlandnorth", label: "Switzerland North" },
+    { id: "japaneast", label: "Japan East" },
+    { id: "koreacentral", label: "Korea Central" },
+    { id: "southeastasia", label: "Southeast Asia" },
+    { id: "australiaeast", label: "Australia East" },
+    { id: "centralindia", label: "Central India" },
+    { id: "brazilsouth", label: "Brazil South" },
+  ],
+  gcp: [
+    { id: "us-central1-a", label: "Iowa (us-central1-a)" },
+    { id: "us-east1-b", label: "South Carolina (us-east1-b)" },
+    { id: "us-east4-a", label: "N. Virginia (us-east4-a)" },
+    { id: "us-west1-a", label: "Oregon (us-west1-a)" },
+    { id: "us-west2-a", label: "Los Angeles (us-west2-a)" },
+    { id: "europe-west1-b", label: "Belgium (europe-west1-b)" },
+    { id: "europe-west2-a", label: "London (europe-west2-a)" },
+    { id: "europe-west3-a", label: "Frankfurt (europe-west3-a)" },
+    { id: "europe-west4-a", label: "Netherlands (europe-west4-a)" },
+    { id: "europe-north1-a", label: "Finland (europe-north1-a)" },
+    { id: "asia-east1-a", label: "Taiwan (asia-east1-a)" },
+    { id: "asia-northeast1-a", label: "Tokyo (asia-northeast1-a)" },
+    { id: "asia-southeast1-a", label: "Singapore (asia-southeast1-a)" },
+    { id: "australia-southeast1-a", label: "Sydney (australia-southeast1-a)" },
+  ],
+  scaleway: [
+    { id: "fr-par-1", label: "Paris 1" },
+    { id: "fr-par-2", label: "Paris 2" },
+    { id: "fr-par-3", label: "Paris 3" },
+    { id: "nl-ams-1", label: "Amsterdam 1" },
+    { id: "nl-ams-2", label: "Amsterdam 2" },
+    { id: "pl-waw-1", label: "Warsaw 1" },
+    { id: "pl-waw-2", label: "Warsaw 2" },
+  ],
+  "local-kvm": [{ id: "local", label: "Local" }],
+};
+
+export function regionsFor(provider: string): { id: string; label: string }[] {
+  return REGION_CATALOG[provider] ?? [];
+}

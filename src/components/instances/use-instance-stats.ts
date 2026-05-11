@@ -26,20 +26,77 @@ function pushBounded(arr: number[], v: number, max = HISTORY_LEN) {
 
 /**
  * Polls realtime stats for an instance and maintains rolling history rings
- * suitable for sparkline rendering. Pauses polling when the document is
- * hidden so backgrounded tabs don't hammer WSL.
+ * suitable for sparkline rendering. When `instanceId` is provided we
+ * subscribe to the per-instance SSE stream at /api/instances/{id}/stats/stream
+ * which is server-pumped and shared across all open tabs — much cheaper
+ * than per-tab polling. Falls back to action polling when no instanceId is
+ * known (early account-onboarding flows).
  */
 export function useInstanceStats(
   accountId: string | null,
-  options: { enabled?: boolean; intervalMs?: number } = {},
+  options: {
+    enabled?: boolean;
+    intervalMs?: number;
+    providerInstanceId?: string | null;
+    /** Synthetic DB id ${accountId}:${region}:${providerInstanceId}. When set, SSE is used. */
+    instanceId?: string | null;
+  } = {},
 ) {
-  const { enabled = true, intervalMs = 2000 } = options;
+  const { enabled = true, intervalMs = 2000, providerInstanceId = null, instanceId = null } = options;
   const [latest, setLatest] = useState<InstanceStatsSample | null>(null);
   const [history, setHistory] = useState<StatsHistory>(emptyHistory);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
+  // SSE path: server-pumped, shared across tabs.
   useEffect(() => {
+    if (!instanceId || !enabled) return;
+    if (typeof EventSource === "undefined") return;
+    const url = `/api/instances/${encodeURIComponent(instanceId)}/stats/stream?interval=${intervalMs}`;
+    const es = new EventSource(url);
+    const onStats = (raw: MessageEvent) => {
+      try {
+        const sample = JSON.parse(raw.data) as InstanceStatsSample;
+        setError(null);
+        setLatest(sample);
+        setHistory((h) => {
+          const next: StatsHistory = {
+            cpu: h.cpu.slice(),
+            mem: h.mem.slice(),
+            diskR: h.diskR.slice(),
+            diskW: h.diskW.slice(),
+            netRx: h.netRx.slice(),
+            netTx: h.netTx.slice(),
+          };
+          pushBounded(next.cpu, Math.min(100, Math.max(0, sample.cpuPercent ?? 0)));
+          const memPct =
+            sample.memUsedBytes && sample.memTotalBytes
+              ? Math.min(100, (sample.memUsedBytes / sample.memTotalBytes) * 100)
+              : 0;
+          pushBounded(next.mem, memPct);
+          pushBounded(next.diskR, sample.diskReadBps ?? 0);
+          pushBounded(next.diskW, sample.diskWriteBps ?? 0);
+          pushBounded(next.netRx, sample.netRxBps ?? 0);
+          pushBounded(next.netTx, sample.netTxBps ?? 0);
+          return next;
+        });
+      } catch {
+        /* ignore malformed frame */
+      }
+    };
+    es.addEventListener("stats", onStats);
+    es.onerror = () => {
+      // EventSource auto-reconnects.
+    };
+    return () => {
+      es.removeEventListener("stats", onStats);
+      es.close();
+    };
+  }, [instanceId, enabled, intervalMs]);
+
+  useEffect(() => {
+    // Skip the polling fallback entirely when we have a stream.
+    if (instanceId) return;
     if (!accountId || !enabled) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -55,7 +112,7 @@ export function useInstanceStats(
       }
       inFlight.current = true;
       try {
-        const r = await getInstanceStatsAction(accountId!);
+        const r = await getInstanceStatsAction(accountId!, providerInstanceId ?? undefined);
         if (cancelled) return;
         if (!r.ok) {
           setError(r.error);
@@ -102,7 +159,7 @@ export function useInstanceStats(
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [accountId, enabled, intervalMs]);
+  }, [accountId, enabled, intervalMs, providerInstanceId, instanceId]);
 
   return { latest, history, error };
 }

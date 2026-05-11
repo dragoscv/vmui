@@ -2,13 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud } from "lucide-react";
+import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Instances", icon: Server },
+  { href: "/resources", label: "Resources", icon: Boxes },
+  { href: "/costs", label: "Costs", icon: BarChart3 },
+  { href: "/recipes", label: "Recipes", icon: Sparkles },
+  { href: "/schedules", label: "Schedules", icon: Clock },
+  { href: "/tags", label: "Tags", icon: Tag },
+  { href: "/compliance", label: "Compliance", icon: ShieldAlert },
   { href: "/accounts", label: "Accounts", icon: KeyRound },
+  { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar() {
@@ -47,9 +55,15 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-auto p-4 text-[11px] text-muted">
+      <div className="mt-auto space-y-2 p-4 text-[11px] text-muted">
+        <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-2 py-1.5">
+          <span>Command palette</span>
+          <kbd className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px]">
+            ⌘ K
+          </kbd>
+        </div>
         <div>localhost:3737</div>
-        <div className="mt-1">credentials encrypted at rest (AES-256-GCM)</div>
+        <div>AES-256-GCM at rest</div>
       </div>
     </aside>
   );

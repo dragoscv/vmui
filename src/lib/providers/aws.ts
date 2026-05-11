@@ -4,25 +4,55 @@ import {
   DescribeHostsCommand,
   DescribeImagesCommand,
   DescribeInstancesCommand,
+  DescribeKeyPairsCommand,
   DescribeRegionsCommand,
+  DescribeSecurityGroupsCommand,
+  DescribeSnapshotsCommand,
+  DescribeSubnetsCommand,
+  DescribeVolumesCommand,
+  DescribeVpcsCommand,
   EC2Client,
+  GetPasswordDataCommand,
   RebootInstancesCommand,
   RunInstancesCommand,
   type RunInstancesCommandInput,
   StartInstancesCommand,
   StopInstancesCommand,
   TerminateInstancesCommand,
+  CreateTagsCommand,
+  GetConsoleOutputCommand,
+  CreateSnapshotsCommand,
+  DeleteSnapshotCommand,
+  RegisterImageCommand,
   type Instance as Ec2Instance,
 } from "@aws-sdk/client-ec2";
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
+import {
+  CloudWatchClient,
+  GetMetricStatisticsCommand,
+} from "@aws-sdk/client-cloudwatch";
+import { S3Client, ListBucketsCommand, GetBucketLocationCommand } from "@aws-sdk/client-s3";
+import { RDSClient, DescribeDBInstancesCommand } from "@aws-sdk/client-rds";
+import {
+  ElasticLoadBalancingV2Client,
+  DescribeLoadBalancersCommand,
+} from "@aws-sdk/client-elastic-load-balancing-v2";
+import { Route53Client, ListHostedZonesCommand } from "@aws-sdk/client-route-53";
+import { privateDecrypt, constants as cryptoConstants } from "node:crypto";
 import type {
   CloudProvider,
   ConnectionInfo,
   CreateInstanceInput,
+  InstanceLogChunk,
+  InstanceStatsSample,
   InstanceTemplate,
+  MetricSeries,
+  MetricsHistory,
   NormalizedInstance,
+  NormalizedResource,
   NormalizedState,
   Platform,
+  ResourceKind,
   ProviderAccountInfo,
 } from "./types";
 
@@ -156,6 +186,14 @@ export class AwsProvider implements CloudProvider {
     });
   }
 
+  private credentialsObj() {
+    return {
+      accessKeyId: this.creds.accessKeyId,
+      secretAccessKey: this.creds.secretAccessKey,
+      sessionToken: this.creds.sessionToken,
+    };
+  }
+
   private sts(): STSClient {
     return new STSClient({
       region: this.creds.defaultRegion,
@@ -165,6 +203,208 @@ export class AwsProvider implements CloudProvider {
         sessionToken: this.creds.sessionToken,
       },
     });
+  }
+
+  private cloudwatch(region: string): CloudWatchClient {
+    return new CloudWatchClient({
+      region,
+      credentials: {
+        accessKeyId: this.creds.accessKeyId,
+        secretAccessKey: this.creds.secretAccessKey,
+        sessionToken: this.creds.sessionToken,
+      },
+    });
+  }
+
+  /**
+   * Pull a recent CloudWatch sample for an instance. CloudWatch publishes
+   * EC2 metrics at 5-minute granularity by default, so we look at the last
+   * ~10 minutes and take the most recent datapoint. Memory and disk are
+   * unavailable without the CloudWatch agent installed in the guest.
+   */
+  async getMetrics(region: string, instanceId: string): Promise<InstanceStatsSample> {
+    const cw = this.cloudwatch(region);
+    const now = new Date();
+    const start = new Date(now.getTime() - 10 * 60 * 1000);
+    const dimensions = [{ Name: "InstanceId", Value: instanceId }];
+
+    async function fetchLatest(name: string, unit: "Percent" | "Bytes"): Promise<number | undefined> {
+      const out = await cw.send(
+        new GetMetricStatisticsCommand({
+          Namespace: "AWS/EC2",
+          MetricName: name,
+          Dimensions: dimensions,
+          StartTime: start,
+          EndTime: now,
+          Period: 60,
+          Statistics: ["Average"],
+          Unit: unit,
+        }),
+      );
+      const points = (out.Datapoints ?? []).slice().sort((a, b) => {
+        const ta = a.Timestamp?.getTime() ?? 0;
+        const tb = b.Timestamp?.getTime() ?? 0;
+        return tb - ta;
+      });
+      const v = points[0]?.Average;
+      return typeof v === "number" ? v : undefined;
+    }
+
+    const [cpu, netIn, netOut] = await Promise.all([
+      fetchLatest("CPUUtilization", "Percent"),
+      fetchLatest("NetworkIn", "Bytes"),
+      fetchLatest("NetworkOut", "Bytes"),
+    ]);
+
+    return {
+      sampledAt: Date.now(),
+      running: true,
+      cpuPercent: cpu,
+      // CloudWatch emits NetworkIn/NetworkOut as bytes-per-period (60s here),
+      // so divide to get bytes/sec.
+      netRxBps: typeof netIn === "number" ? netIn / 60 : undefined,
+      netTxBps: typeof netOut === "number" ? netOut / 60 : undefined,
+      note: "CloudWatch · 5-min granularity (memory/disk require CW agent).",
+    };
+  }
+
+  async getMetricsHistory(
+    region: string,
+    instanceId: string,
+    rangeMinutes: number,
+  ): Promise<MetricsHistory> {
+    const cw = this.cloudwatch(region);
+    const end = new Date();
+    const start = new Date(end.getTime() - rangeMinutes * 60_000);
+    // Pick a period that yields ~60-120 buckets and respects CW's 1m / 5m grids.
+    const targetBuckets = 90;
+    const rough = Math.max(60, Math.round((rangeMinutes * 60) / targetBuckets));
+    const period = rough <= 60 ? 60 : rough <= 300 ? 300 : rough <= 900 ? 900 : 3600;
+    const dimensions = [{ Name: "InstanceId", Value: instanceId }];
+
+    const fetchSeries = async (
+      name: string,
+      unit: "Percent" | "Bytes",
+    ): Promise<{ t: number; v: number | null }[]> => {
+      const out = await cw.send(
+        new GetMetricStatisticsCommand({
+          Namespace: "AWS/EC2",
+          MetricName: name,
+          Dimensions: dimensions,
+          StartTime: start,
+          EndTime: end,
+          Period: period,
+          Statistics: ["Average"],
+          Unit: unit,
+        }),
+      );
+      return (out.Datapoints ?? [])
+        .map((d) => ({ t: d.Timestamp?.getTime() ?? 0, v: typeof d.Average === "number" ? d.Average : null }))
+        .sort((a, b) => a.t - b.t);
+    };
+
+    const [cpu, netIn, netOut] = await Promise.all([
+      fetchSeries("CPUUtilization", "Percent"),
+      fetchSeries("NetworkIn", "Bytes"),
+      fetchSeries("NetworkOut", "Bytes"),
+    ]);
+
+    const toBps = (pts: { t: number; v: number | null }[]): { t: number; v: number | null }[] =>
+      pts.map((p) => ({ t: p.t, v: p.v == null ? null : p.v / period }));
+
+    const series: MetricSeries[] = [
+      { id: "cpuPercent", label: "CPU", unit: "percent", points: cpu },
+      { id: "netRxBps", label: "Network in", unit: "bps", points: toBps(netIn) },
+      { id: "netTxBps", label: "Network out", unit: "bps", points: toBps(netOut) },
+    ];
+    return {
+      startedAt: start.getTime(),
+      endedAt: end.getTime(),
+      stepSeconds: period,
+      series,
+      source: `CloudWatch · ${period}s buckets`,
+      note: "Memory and disk metrics require the CloudWatch agent to be installed in the guest.",
+    };
+  }
+
+  async getInstanceLogs(region: string, instanceId: string): Promise<InstanceLogChunk> {
+    const out = await this.ec2(region).send(
+      new GetConsoleOutputCommand({ InstanceId: instanceId, Latest: true }),
+    );
+    const b64 = out.Output ?? "";
+    const text = b64 ? Buffer.from(b64, "base64").toString("utf8") : "";
+    return {
+      text,
+      fetchedAt: Date.now(),
+      source: "EC2 console output",
+      truncated: false,
+      note: text ? undefined : "AWS publishes console output asynchronously; it may take a few minutes after boot to appear.",
+    };
+  }
+
+  async createSnapshot(
+    region: string,
+    instanceId: string,
+    label: string,
+  ): Promise<{ snapshotId: string; note?: string }> {
+    const out = await this.ec2(region).send(
+      new CreateSnapshotsCommand({
+        InstanceSpecification: { InstanceId: instanceId, ExcludeBootVolume: false },
+        Description: label,
+        CopyTagsFromSource: "volume",
+      }),
+    );
+    const snaps = out.Snapshots ?? [];
+    if (snaps.length === 0) throw new Error("AWS returned no snapshots");
+    const ids = snaps.map((s) => s.SnapshotId).filter(Boolean) as string[];
+    return {
+      snapshotId: ids.join(","),
+      note: snaps.length > 1 ? `Created ${snaps.length} snapshots (one per attached volume).` : undefined,
+    };
+  }
+
+  async deleteSnapshot(region: string, snapshotId: string): Promise<void> {
+    const ids = snapshotId.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const id of ids) {
+      await this.ec2(region).send(new DeleteSnapshotCommand({ SnapshotId: id }));
+    }
+  }
+
+  /**
+   * Retrieve and decrypt the auto-generated Windows Administrator password.
+   * AWS encrypts it with the public half of the keypair using PKCS#1 v1.5
+   * padding. Decryption requires the corresponding private key (PEM).
+   */
+  async getWindowsPassword(
+    region: string,
+    instanceId: string,
+    privateKeyPem: string,
+  ): Promise<{ password: string; passwordTimestamp?: string }> {
+    const out = await this.ec2(region).send(new GetPasswordDataCommand({ InstanceId: instanceId }));
+    const data = out.PasswordData;
+    if (!data) {
+      throw new Error(
+        "Password not available yet. AWS can take up to 4 minutes after launch to generate it; try again shortly.",
+      );
+    }
+    const ciphertext = Buffer.from(data, "base64");
+    let plaintext: Buffer;
+    try {
+      plaintext = privateDecrypt(
+        { key: privateKeyPem, padding: cryptoConstants.RSA_PKCS1_PADDING },
+        ciphertext,
+      );
+    } catch (err) {
+      throw new Error(
+        err instanceof Error
+          ? `Decryption failed (wrong private key?): ${err.message}`
+          : "Decryption failed — make sure the private key matches the keypair this instance was launched with.",
+      );
+    }
+    return {
+      password: plaintext.toString("utf8"),
+      passwordTimestamp: out.Timestamp?.toISOString(),
+    };
   }
 
   async verify(): Promise<ProviderAccountInfo> {
@@ -214,6 +454,12 @@ export class AwsProvider implements CloudProvider {
     await this.ec2(region).send(new TerminateInstancesCommand({ InstanceIds: [id] }));
   }
 
+  async applyTags(region: string, id: string, tags: Record<string, string>): Promise<void> {
+    const Tags = Object.entries(tags).map(([Key, Value]) => ({ Key, Value }));
+    if (Tags.length === 0) return;
+    await this.ec2(region).send(new CreateTagsCommand({ Resources: [id], Tags }));
+  }
+
   /**
    * Resolve AMI id via SSM public parameter. Falls back to a name-based DescribeImages
    * for templates that don't have a known SSM param.
@@ -236,8 +482,58 @@ export class AwsProvider implements CloudProvider {
     return ami;
   }
 
+  /**
+   * Register a new AMI backed by an existing EBS snapshot, so it can be used
+   * as the boot source for a fresh EC2 instance. Snapshots created by vmui
+   * may include multiple comma-joined ids (one per attached volume); we use
+   * the first as the boot disk and ignore the rest. Idempotent on (snapshot,
+   * label): re-running with the same input simply returns a fresh AMI id.
+   */
+  private async registerImageFromSnapshot(
+    region: string,
+    snapshotId: string,
+    label: string,
+  ): Promise<string> {
+    const bootSnap = (snapshotId.split(",")[0] ?? "").trim();
+    if (!bootSnap.startsWith("snap-")) {
+      throw new Error(`Invalid snapshot id: ${snapshotId}`);
+    }
+    const ec2 = this.ec2(region);
+    // Pull the snapshot to learn its size + architecture hints.
+    const snaps = await ec2.send(new DescribeSnapshotsCommand({ SnapshotIds: [bootSnap] }));
+    const snap = snaps.Snapshots?.[0];
+    if (!snap) throw new Error(`Snapshot not found in ${region}: ${bootSnap}`);
+    const safeLabel = label.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 60);
+    const amiName = `vmui-restore-${safeLabel}-${Date.now()}`.slice(0, 128);
+    const out = await ec2.send(
+      new RegisterImageCommand({
+        Name: amiName,
+        Description: `vmui restore from ${bootSnap}`,
+        Architecture: "x86_64",
+        RootDeviceName: "/dev/xvda",
+        VirtualizationType: "hvm",
+        EnaSupport: true,
+        BlockDeviceMappings: [
+          {
+            DeviceName: "/dev/xvda",
+            Ebs: {
+              SnapshotId: bootSnap,
+              VolumeSize: snap.VolumeSize ?? 8,
+              VolumeType: "gp3",
+              DeleteOnTermination: true,
+            },
+          },
+        ],
+      }),
+    );
+    if (!out.ImageId) throw new Error(`RegisterImage returned no ImageId for ${bootSnap}`);
+    return out.ImageId;
+  }
+
   async createInstance(input: CreateInstanceInput): Promise<NormalizedInstance> {
-    const ami = await this.resolveAmi(input.region, input.template);
+    const ami = input.fromSnapshotId
+      ? await this.registerImageFromSnapshot(input.region, input.fromSnapshotId, input.name)
+      : await this.resolveAmi(input.region, input.template);
     const isMac = input.template.startsWith("macos") || input.instanceType.startsWith("mac");
 
     let placement: { HostId?: string; Tenancy?: "host" } | undefined;
@@ -285,6 +581,9 @@ export class AwsProvider implements CloudProvider {
         MaxCount: 1,
         KeyName: input.keyName,
         Placement: placement,
+        UserData: input.userData
+          ? Buffer.from(input.userData, "utf-8").toString("base64")
+          : undefined,
         TagSpecifications: [
           {
             ResourceType: "instance",
@@ -388,5 +687,176 @@ export class AwsProvider implements CloudProvider {
 
   async listInstanceTemplates(): Promise<InstanceTemplate[]> {
     return TEMPLATES;
+  }
+
+  async listResources(region: string, kind: ResourceKind): Promise<NormalizedResource[]> {
+    const ec2 = this.ec2(region);
+    const tagOf = (tags?: { Key?: string; Value?: string }[]): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const t of tags ?? []) if (t.Key) out[t.Key] = t.Value ?? "";
+      return out;
+    };
+    const nameOf = (tags?: { Key?: string; Value?: string }[]): string | null =>
+      tags?.find((t) => t.Key === "Name")?.Value ?? null;
+
+    switch (kind) {
+      case "volume": {
+        const out = await ec2.send(new DescribeVolumesCommand({}));
+        return (out.Volumes ?? []).map((v) => ({
+          externalId: v.VolumeId ?? "",
+          region,
+          kind: "volume",
+          name: nameOf(v.Tags) ?? v.VolumeId ?? null,
+          status: v.State ?? null,
+          sizeBytes: v.Size ? v.Size * 1024 ** 3 : null,
+          attachedTo: v.Attachments?.[0]?.InstanceId ?? null,
+          tags: tagOf(v.Tags),
+          raw: v,
+        }));
+      }
+      case "snapshot": {
+        // Limit to snapshots owned by this account; "self" is the AWS shorthand.
+        const out = await ec2.send(new DescribeSnapshotsCommand({ OwnerIds: ["self"] }));
+        return (out.Snapshots ?? []).map((s) => ({
+          externalId: s.SnapshotId ?? "",
+          region,
+          kind: "snapshot",
+          name: nameOf(s.Tags) ?? s.Description ?? s.SnapshotId ?? null,
+          status: s.State ?? null,
+          sizeBytes: s.VolumeSize ? s.VolumeSize * 1024 ** 3 : null,
+          attachedTo: s.VolumeId ?? null,
+          tags: tagOf(s.Tags),
+          raw: s,
+        }));
+      }
+      case "security-group": {
+        const out = await ec2.send(new DescribeSecurityGroupsCommand({}));
+        return (out.SecurityGroups ?? []).map((g) => ({
+          externalId: g.GroupId ?? "",
+          region,
+          kind: "security-group",
+          name: g.GroupName ?? g.GroupId ?? null,
+          status: null,
+          attachedTo: g.VpcId ?? null,
+          tags: tagOf(g.Tags),
+          raw: g,
+        }));
+      }
+      case "keypair": {
+        const out = await ec2.send(new DescribeKeyPairsCommand({}));
+        return (out.KeyPairs ?? []).map((k) => ({
+          externalId: k.KeyPairId ?? k.KeyName ?? "",
+          region,
+          kind: "keypair",
+          name: k.KeyName ?? null,
+          status: k.KeyType ?? null,
+          tags: tagOf(k.Tags),
+          raw: k,
+        }));
+      }
+      case "vpc": {
+        const out = await ec2.send(new DescribeVpcsCommand({}));
+        return (out.Vpcs ?? []).map((v) => ({
+          externalId: v.VpcId ?? "",
+          region,
+          kind: "vpc",
+          name: nameOf(v.Tags) ?? v.VpcId ?? null,
+          status: v.State ?? null,
+          tags: tagOf(v.Tags),
+          raw: v,
+        }));
+      }
+      case "subnet": {
+        const out = await ec2.send(new DescribeSubnetsCommand({}));
+        return (out.Subnets ?? []).map((s) => ({
+          externalId: s.SubnetId ?? "",
+          region,
+          kind: "subnet",
+          name: nameOf(s.Tags) ?? s.SubnetId ?? null,
+          status: s.State ?? null,
+          attachedTo: s.VpcId ?? null,
+          tags: tagOf(s.Tags),
+          raw: s,
+        }));
+      }
+      case "bucket": {
+        // S3 buckets are global; ignore the region arg for listing but resolve
+        // each bucket's actual region for display.
+        const s3 = new S3Client({
+          region: region || "us-east-1",
+          credentials: this.credentialsObj(),
+        });
+        const out = await s3.send(new ListBucketsCommand({}));
+        const result: NormalizedResource[] = [];
+        for (const b of out.Buckets ?? []) {
+          if (!b.Name) continue;
+          let bucketRegion = "us-east-1";
+          try {
+            const loc = await s3.send(new GetBucketLocationCommand({ Bucket: b.Name }));
+            // EU empty string = us-east-1; "EU" = eu-west-1 (legacy).
+            const c = loc.LocationConstraint;
+            bucketRegion = c === "EU" ? "eu-west-1" : c || "us-east-1";
+          } catch {
+            /* keep default region */
+          }
+          result.push({
+            externalId: b.Name,
+            region: bucketRegion,
+            kind: "bucket",
+            name: b.Name,
+            status: null,
+            raw: b,
+          });
+        }
+        return result;
+      }
+      case "database": {
+        const rds = new RDSClient({ region, credentials: this.credentialsObj() });
+        const out = await rds.send(new DescribeDBInstancesCommand({}));
+        return (out.DBInstances ?? []).map((d) => ({
+          externalId: d.DBInstanceIdentifier ?? "",
+          region,
+          kind: "database",
+          name: d.DBInstanceIdentifier ?? null,
+          status: d.DBInstanceStatus ?? null,
+          sizeBytes: d.AllocatedStorage ? d.AllocatedStorage * 1024 ** 3 : null,
+          tags: {
+            engine: d.Engine ?? "",
+            class: d.DBInstanceClass ?? "",
+            multiAZ: String(Boolean(d.MultiAZ)),
+          },
+          raw: d,
+        }));
+      }
+      case "load-balancer": {
+        const elb = new ElasticLoadBalancingV2Client({ region, credentials: this.credentialsObj() });
+        const out = await elb.send(new DescribeLoadBalancersCommand({}));
+        return (out.LoadBalancers ?? []).map((lb) => ({
+          externalId: lb.LoadBalancerArn ?? "",
+          region,
+          kind: "load-balancer",
+          name: lb.LoadBalancerName ?? null,
+          status: lb.State?.Code ?? null,
+          attachedTo: lb.VpcId ?? null,
+          tags: { type: lb.Type ?? "", scheme: lb.Scheme ?? "" },
+          raw: lb,
+        }));
+      }
+      case "dns-zone": {
+        const r53 = new Route53Client({ region: "us-east-1", credentials: this.credentialsObj() });
+        const out = await r53.send(new ListHostedZonesCommand({}));
+        return (out.HostedZones ?? []).map((z) => ({
+          externalId: z.Id ?? "",
+          region: "global",
+          kind: "dns-zone",
+          name: z.Name ?? null,
+          status: z.Config?.PrivateZone ? "private" : "public",
+          tags: { records: String(z.ResourceRecordSetCount ?? 0) },
+          raw: z,
+        }));
+      }
+      default:
+        return [];
+    }
   }
 }

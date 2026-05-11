@@ -1,16 +1,17 @@
 "use server";
 
+import { decryptJSON, encryptJSON } from "@/lib/crypto";
+import { db } from "@/lib/db";
+import { auditLog, cloudAccounts, instances } from "@/lib/db/schema";
+import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
+import { AwsProvider } from "@/lib/providers/aws";
+import { getProvider } from "@/lib/providers/registry";
+import type { InstanceStatsSample } from "@/lib/providers/types";
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { auditLog, cloudAccounts } from "@/lib/db/schema";
-import { decryptJSON, encryptJSON } from "@/lib/crypto";
-import { getProvider } from "@/lib/providers/registry";
-import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
-import type { InstanceStatsSample } from "@/lib/providers/types";
 
 const execFileP = promisify(execFile);
 
@@ -121,6 +122,37 @@ export async function getAutoStartStatusAction(
   accountId: string,
 ): Promise<{ ok: boolean; enabled: boolean; taskName: string; error?: string }> {
   const name = taskName(accountId);
+  // Hyper-V kind: read AutomaticStartAction from Get-VM. We still return a
+  // synthetic taskName so the UI keeps the same shape.
+  try {
+    const { provider } = await getProvider(accountId);
+    if (
+      provider instanceof LocalKvmProvider &&
+      provider.getCredentials().kind === "hyperv-win"
+    ) {
+      const vmName = provider.hypervVmName;
+      const { stdout } = await execFileP(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          `try { (Get-VM -Name '${vmName}' -ErrorAction Stop).AutomaticStartAction } catch { 'MISSING' }`,
+        ],
+        { windowsHide: true, maxBuffer: 256 * 1024 },
+      );
+      const action = stdout.replace(/\r/g, "").trim();
+      return {
+        ok: action !== "MISSING",
+        enabled: action === "Start" || action === "StartIfRunning",
+        taskName: `hyperv:${vmName}:AutomaticStartAction`,
+      };
+    }
+  } catch {
+    /* fall through to schtasks check */
+  }
   try {
     const exists = await taskExists(name);
     return { ok: true, enabled: exists, taskName: name };
@@ -135,8 +167,8 @@ export async function getAutoStartStatusAction(
 }
 
 /**
- * Create a Scheduled Task that runs at user logon and launches the macOS VM
- * via `wsl.exe -d <distro> -- bash <vmDir>/boot-mac.sh`.
+ * Create a Scheduled Task that runs at user logon and launches the VM via
+ * `wsl.exe -d <distro> -- bash <vmDir>/boot-${kind}.sh`.
  *
  * Uses /SC ONLOGON so it triggers when the current Windows user signs in.
  * Uses /RL LIMITED (no admin elevation needed). /F forces overwrite.
@@ -150,12 +182,54 @@ export async function enableAutoStartAction(accountId: string): Promise<{
   const creds = lk.getCredentials();
   const name = taskName(accountId);
 
+  // Hyper-V VMs use the hypervisor's own AutomaticStartAction setting
+  // instead of a Windows scheduled task. We set Start + a 0s delay so the
+  // VM boots when the host comes up; the user only sees an "auto-start"
+  // toggle in the UI either way.
+  if (creds.kind === "hyperv-win") {
+    const vmName = (lk as LocalKvmProvider).hypervVmName;
+    try {
+      await execFileP(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          `Set-VM -Name '${vmName}' -AutomaticStartAction Start -AutomaticStartDelay 0 -ErrorAction Stop`,
+        ],
+        { windowsHide: true, maxBuffer: 1024 * 1024 },
+      );
+      await db.insert(auditLog).values({
+        accountId,
+        action: "autostart.enable",
+        target: vmName,
+        status: "ok",
+        message: "Set Hyper-V AutomaticStartAction=Start",
+      });
+      revalidatePath(`/instances/${accountId}:hyperv:${vmName}`);
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Set-VM failed";
+      await db.insert(auditLog).values({
+        accountId,
+        action: "autostart.enable",
+        status: "error",
+        message: msg,
+      });
+      return { ok: false, error: msg };
+    }
+  }
+
+  const bootScript = `boot-${creds.kind}.sh`;
+  const logFile = `/tmp/vmui-${creds.kind}.log`;
+
   // The action: invoke wsl.exe with the full boot path.
   // schtasks needs the "Action" passed as a single quoted string in /TR.
-  // We escape inner quotes by doubling them per schtasks rules.
   const tr =
     `wsl.exe -d ${creds.distro} -- bash -lc ` +
-    `"cd '${creds.vmDir}' && nohup setsid bash ./boot-mac.sh > /tmp/vmui-mac.log 2>&1 < /dev/null & disown"`;
+    `"cd '${creds.vmDir}' && nohup setsid bash ./${bootScript} > ${logFile} 2>&1 < /dev/null & disown"`;
 
   try {
     await execFileP(
@@ -183,7 +257,7 @@ export async function enableAutoStartAction(accountId: string): Promise<{
       message: "Created Windows scheduled task on user logon",
     });
 
-    revalidatePath(`/instances/${accountId}:wsl-local:local-mac`);
+    revalidatePath(`/instances/${accountId}:wsl-local:local-${creds.kind}`);
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "schtasks failed";
@@ -202,6 +276,55 @@ export async function disableAutoStartAction(accountId: string): Promise<{
   error?: string;
 }> {
   const name = taskName(accountId);
+  // Best-effort kind lookup for revalidatePath; fall back to mac if unknown.
+  let kind: string = "mac";
+  let lkProvider: LocalKvmProvider | null = null;
+  try {
+    const { provider } = await getProvider(accountId);
+    if (provider instanceof LocalKvmProvider) {
+      lkProvider = provider;
+      kind = provider.getCredentials().kind;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  if (lkProvider && kind === "hyperv-win") {
+    const vmName = lkProvider.hypervVmName;
+    try {
+      await execFileP(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          `Set-VM -Name '${vmName}' -AutomaticStartAction Nothing -ErrorAction Stop`,
+        ],
+        { windowsHide: true, maxBuffer: 1024 * 1024 },
+      );
+      await db.insert(auditLog).values({
+        accountId,
+        action: "autostart.disable",
+        target: vmName,
+        status: "ok",
+        message: "Set Hyper-V AutomaticStartAction=Nothing",
+      });
+      revalidatePath(`/instances/${accountId}:hyperv:${vmName}`);
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Set-VM failed";
+      await db.insert(auditLog).values({
+        accountId,
+        action: "autostart.disable",
+        status: "error",
+        message: msg,
+      });
+      return { ok: false, error: msg };
+    }
+  }
+
   try {
     if (!(await taskExists(name))) {
       return { ok: true }; // already gone
@@ -219,7 +342,7 @@ export async function disableAutoStartAction(accountId: string): Promise<{
       status: "ok",
     });
 
-    revalidatePath(`/instances/${accountId}:wsl-local:local-mac`);
+    revalidatePath(`/instances/${accountId}:wsl-local:local-${kind}`);
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "schtasks failed";
@@ -258,6 +381,7 @@ const lastSamples = new Map<string, RawSample>();
 
 export async function getInstanceStatsAction(
   accountId: string,
+  providerInstanceId?: string,
 ): Promise<{ ok: true; sample: InstanceStatsSample } | { ok: false; error: string }> {
   let provider;
   try {
@@ -267,12 +391,40 @@ export async function getInstanceStatsAction(
   }
 
   if (!(provider instanceof LocalKvmProvider)) {
+    if (provider instanceof AwsProvider) {
+      // Look up region for the requested instance (or fall back to first VM).
+      const where = providerInstanceId
+        ? and(eq(instances.accountId, accountId), eq(instances.providerInstanceId, providerInstanceId))
+        : eq(instances.accountId, accountId);
+      const row = await db.select().from(instances).where(where).limit(1);
+      const inst = row[0];
+      if (!inst) {
+        return {
+          ok: true,
+          sample: { sampledAt: Date.now(), running: false, note: "No synced AWS instances yet." },
+        };
+      }
+      try {
+        const sample = await provider.getMetrics(inst.region, inst.providerInstanceId);
+        return { ok: true, sample };
+      } catch (err) {
+        return {
+          ok: true,
+          sample: {
+            sampledAt: Date.now(),
+            running: false,
+            note: err instanceof Error ? `CloudWatch: ${err.message}` : "CloudWatch error",
+          },
+        };
+      }
+    }
+
     return {
       ok: true,
       sample: {
         sampledAt: Date.now(),
         running: false,
-        note: "Realtime metrics are only available for local-kvm instances right now.",
+        note: "Realtime metrics are only available for local-kvm and AWS instances right now.",
       },
     };
   }
@@ -359,11 +511,12 @@ export async function getHostCapabilitiesAction(
       return { ok: false, error: "Hardware config is only available for local-kvm." };
     }
     const creds = provider.getCredentials();
+    const pidFile = provider.getPidFile();
     const out = await execFileP(
       "wsl.exe",
       ["-d", creds.distro, "--", "bash", "-lc",
-        // single-line: nproc, MemTotal kB, MemAvailable kB, qemu-running flag
-        `printf '%s %s %s %s' "$(nproc)" "$(awk '/^MemTotal:/{print $2}' /proc/meminfo)" "$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)" "$([ -f /tmp/vmui-mac.pid ] && [ -d /proc/$(cat /tmp/vmui-mac.pid 2>/dev/null) ] && echo 1 || echo 0)"`,
+        // single-line: nproc, MemTotal kB, MemAvailable kB, qemu-running flag (per-kind pidfile)
+        `printf '%s %s %s %s' "$(nproc)" "$(awk '/^MemTotal:/{print $2}' /proc/meminfo)" "$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)" "$([ -f ${pidFile} ] && [ -d /proc/$(cat ${pidFile} 2>/dev/null) ] && echo 1 || echo 0)"`,
       ],
       { timeout: 5000, windowsHide: true },
     );
@@ -456,10 +609,12 @@ export async function updateVmHardwareAction(
   }
 
   const current = decryptJSON<Partial<LocalKvmCredentials>>(row.credentialsEnc);
+  const kind: LocalKvmCredentials["kind"] = (current.kind ?? "mac") as LocalKvmCredentials["kind"];
   const next: LocalKvmCredentials = {
+    kind,
     distro: current.distro ?? "Ubuntu-24.04",
     vmDir: current.vmDir ?? "/home/dragos/OSX-KVM",
-    hostLabel: current.hostLabel ?? "Local Mac",
+    hostLabel: current.hostLabel ?? "Local VM",
     vncPort: current.vncPort ?? 5900,
     qmpPort: current.qmpPort ?? 4444,
     sshPort: current.sshPort ?? 10022,
@@ -483,7 +638,7 @@ export async function updateVmHardwareAction(
   });
 
   const running = caps.ok && caps.caps.vmRunning;
-  revalidatePath(`/instances/${accountId}:wsl-local:local-mac`);
+  revalidatePath(`/instances/${accountId}:wsl-local:local-${next.kind}`);
   revalidatePath("/");
   return { ok: true, appliedNextBoot: running };
 }

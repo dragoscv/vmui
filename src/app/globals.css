@@ -92,6 +92,32 @@
   ::view-transition-new(root) {
     animation-duration: 0.35s;
   }
+
+  ::view-transition-old(root) {
+    animation: vt-fade-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  ::view-transition-new(root) {
+    animation: vt-fade-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes vt-fade-out {
+    to {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.995);
+    }
+  }
+  @keyframes vt-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.99);
+    }
+  }
+
+  /* Per-element transitions: any element with a unique view-transition-name
+     animates in place across navigations. */
+  ::view-transition-old(instance-card),
+  ::view-transition-new(instance-card) {
+    animation-duration: 0.4s;
+  }
 }
 
 /* ---------- Components ---------- */
@@ -175,9 +201,24 @@
 }
 
 @utility surface {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-surface) 92%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
   border-radius: var(--radius-lg);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  transition: border-color 180ms ease, box-shadow 220ms ease;
+}
+@utility surface:hover {
+  border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+}
+
+/* Crisper focus ring for keyboard nav */
+@layer base {
+  :focus-visible {
+    outline: 2px solid color-mix(in oklch, var(--color-primary) 70%, transparent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* ---------- Radix data-state animations ---------- */

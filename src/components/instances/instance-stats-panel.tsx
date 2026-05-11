@@ -26,6 +26,8 @@ interface Props {
   enabled?: boolean;
   intervalMs?: number;
   className?: string;
+  providerInstanceId?: string;
+  instanceId?: string;
 }
 
 /**
@@ -37,8 +39,10 @@ export function InstanceStatsPanel({
   enabled = true,
   intervalMs = 2000,
   className,
+  providerInstanceId,
+  instanceId,
 }: Props) {
-  const { latest, history, error } = useInstanceStats(accountId, { enabled, intervalMs });
+  const { latest, history, error } = useInstanceStats(accountId, { enabled, intervalMs, providerInstanceId, instanceId });
 
   return (
     <Card className={className}>

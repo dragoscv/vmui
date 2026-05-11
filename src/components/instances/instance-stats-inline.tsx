@@ -14,12 +14,16 @@ export function InstanceStatsInline({
   accountId,
   enabled,
   onOpenDetails,
+  providerInstanceId,
+  instanceId,
 }: {
   accountId: string;
   enabled: boolean;
   onOpenDetails?: () => void;
+  providerInstanceId?: string;
+  instanceId?: string;
 }) {
-  const { latest, history } = useInstanceStats(accountId, { enabled, intervalMs: 2000 });
+  const { latest, history } = useInstanceStats(accountId, { enabled, intervalMs: 2000, providerInstanceId, instanceId });
 
   if (!enabled) return null;
   if (!latest?.running) {

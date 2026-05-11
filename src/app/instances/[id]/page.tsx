@@ -1,15 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Apple, MonitorSmartphone, Server, Globe, Cpu, Network, Calendar } from "lucide-react";
+import { ArrowLeft, Apple, MonitorSmartphone, Server, Globe, Cpu, Network, Calendar, DollarSign } from "lucide-react";
 import { getInstanceById } from "@/server/queries";
+import { getInstancePrice } from "@/lib/pricing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/instances/status-badge";
 import { InstanceActions } from "@/components/instances/instance-actions";
+import { TerminationLockButton } from "@/components/instances/termination-lock-button";
 import { AutoStartToggle } from "@/components/instances/auto-start-toggle";
+import { ShowAsCodeDialog } from "@/components/instances/show-as-code-dialog";
 import { InstanceStatsPanel } from "@/components/instances/instance-stats-panel";
+import { MetricsTab } from "@/components/instances/metrics-tab";
+import { ConsoleLogsCard } from "@/components/instances/console-logs-card";
 import { VmHardwareConfig } from "@/components/instances/vm-hardware-config";
-import { formatRelative } from "@/lib/utils";
+import { VmScreenshot } from "@/components/instances/vm-screenshot";
+import { InstanceSnapshotsCard } from "@/components/instances/instance-snapshots-card";
+import { RelatedResourcesCard } from "@/components/instances/related-resources-card";
+import { InstanceSchedulesCard } from "@/components/schedules/instance-schedules-card";
+import { listSchedulesForInstance } from "@/server/queries/schedules";
+import { formatRelative, formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +31,16 @@ export default async function InstanceDetailPage({ params }: PageProps) {
   const { id } = await params;
   const instance = await getInstanceById(decodeURIComponent(id));
   if (!instance) notFound();
+
+  const price = await getInstancePrice(
+    instance.provider,
+    instance.region,
+    instance.instanceType,
+    instance.platform,
+    instance.accountId,
+  );
+
+  const schedules = await listSchedulesForInstance(instance.id);
 
   const Icon = instance.platform === "macos" ? Apple : instance.platform === "windows" ? MonitorSmartphone : Server;
 
@@ -51,6 +71,25 @@ export default async function InstanceDetailPage({ params }: PageProps) {
         <InstanceActions instance={instance} />
       </div>
 
+      <div className="flex flex-wrap justify-end gap-2">
+        <ShowAsCodeDialog
+          instance={{
+            provider: instance.provider as "aws" | "azure" | "gcp" | "scaleway" | "local-kvm",
+            region: instance.region,
+            providerInstanceId: instance.providerInstanceId,
+            name: instance.name,
+            instanceType: instance.instanceType,
+            platform: instance.platform as "linux" | "windows" | "macos",
+          }}
+        />
+        <TerminationLockButton
+          accountId={instance.accountId}
+          region={instance.region}
+          providerInstanceId={instance.providerInstanceId}
+          initial={instance.terminationLocked ?? false}
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Detail icon={Cpu} label="Instance type" value={instance.instanceType ?? "—"} />
         <Detail icon={Server} label="Platform" value={instance.platform} />
@@ -62,7 +101,34 @@ export default async function InstanceDetailPage({ params }: PageProps) {
           label="Last synced"
           value={instance.lastSyncedAt ? formatRelative(instance.lastSyncedAt) : "—"}
         />
+        {price && (
+          <Detail
+            icon={DollarSign}
+            label="On-demand price"
+            value={
+              price.usdPerHour === 0
+                ? "free"
+                : `${formatUsd(price.usdPerHour)}/hr · ${formatUsd(price.usdPerHour * HOURS_PER_MONTH)}/mo`
+            }
+          />
+        )}
       </div>
+
+      {instance.provider === "local-kvm" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Live preview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <VmScreenshot
+              accountId={instance.accountId}
+              enabled={instance.state === "running"}
+              maxWidth={960}
+              intervalMs={5000}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {instance.provider === "local-kvm" && (
         <Card>
@@ -80,8 +146,42 @@ export default async function InstanceDetailPage({ params }: PageProps) {
         </Card>
       )}
 
-      {instance.provider === "local-kvm" && instance.state === "running" && (
-        <InstanceStatsPanel accountId={instance.accountId} />
+      {(instance.provider === "local-kvm" || instance.provider === "aws") && instance.state === "running" && (
+        <InstanceStatsPanel accountId={instance.accountId} providerInstanceId={instance.providerInstanceId} instanceId={instance.id} />
+      )}
+
+      {(instance.provider === "aws" || instance.provider === "azure" || instance.provider === "gcp") && (
+        <MetricsTab
+          accountId={instance.accountId}
+          providerInstanceId={instance.providerInstanceId}
+          enabled={instance.state === "running"}
+        />
+      )}
+
+      {(instance.provider === "aws" || instance.provider === "azure" || instance.provider === "gcp") && (
+        <ConsoleLogsCard
+          accountId={instance.accountId}
+          providerInstanceId={instance.providerInstanceId}
+        />
+      )}
+
+      {(instance.provider === "aws" || instance.provider === "azure" || instance.provider === "gcp") && (
+        <div id="snapshots" className="scroll-mt-4">
+          <InstanceSnapshotsCard
+            accountId={instance.accountId}
+            region={instance.region}
+            providerInstanceId={instance.providerInstanceId}
+            provider={instance.provider}
+          />
+        </div>
+      )}
+
+      {(instance.provider === "aws" || instance.provider === "azure" || instance.provider === "gcp") && (
+        <RelatedResourcesCard
+          accountId={instance.accountId}
+          region={instance.region}
+          providerInstanceId={instance.providerInstanceId}
+        />
       )}
 
       {instance.provider === "local-kvm" && (
@@ -103,6 +203,19 @@ export default async function InstanceDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       )}
+
+      <InstanceSchedulesCard
+        instanceId={instance.id}
+        schedules={schedules.map((s) => ({
+          id: s.id,
+          cron: s.cron,
+          action: s.action,
+          enabled: s.enabled,
+          label: s.label,
+          lastRunAt: s.lastRunAt,
+          lastRunStatus: s.lastRunStatus,
+        }))}
+      />
     </div>
   );
 }

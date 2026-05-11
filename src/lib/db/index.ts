@@ -65,7 +65,300 @@ CREATE TABLE IF NOT EXISTS audit_log (
   message TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
+
+CREATE TABLE IF NOT EXISTS pricing_cache (
+  -- Synthetic key: "<provider>:<region>:<instance_type>:<platform>"
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  region TEXT NOT NULL,
+  instance_type TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  usd_per_hour REAL NOT NULL,
+  source TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_pricing_lookup
+  ON pricing_cache(provider, region, instance_type, platform);
+
+CREATE TABLE IF NOT EXISTS cached_resources (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  region TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  name TEXT,
+  status TEXT,
+  size_bytes INTEGER,
+  attached_to_instance_id TEXT,
+  monthly_usd REAL,
+  raw_json TEXT,
+  last_synced_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_resources_account ON cached_resources(account_id);
+CREATE INDEX IF NOT EXISTS idx_resources_kind ON cached_resources(kind);
+
+CREATE TABLE IF NOT EXISTS ssh_keys (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  algo TEXT NOT NULL,
+  public_key TEXT NOT NULL,
+  private_key_enc TEXT,
+  passphrase_enc TEXT,
+  fingerprint TEXT,
+  notes TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS snapshot_history (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+  captured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  total_instances INTEGER NOT NULL,
+  running_instances INTEGER NOT NULL,
+  hourly_usd REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_snapshot_account_time
+  ON snapshot_history(account_id, captured_at DESC);
+
+CREATE TABLE IF NOT EXISTS schedules (
+  id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+  cron TEXT NOT NULL,
+  action TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  label TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_run_at INTEGER,
+  last_run_status TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_schedules_instance ON schedules(instance_id);
+
+CREATE TABLE IF NOT EXISTS instance_tags (
+  id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'local',
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_instance_tags_unique
+  ON instance_tags(instance_id, key);
+CREATE INDEX IF NOT EXISTS idx_instance_tags_key ON instance_tags(key);
+
+CREATE TABLE IF NOT EXISTS ssh_host_keys (
+  id TEXT PRIMARY KEY,
+  host TEXT NOT NULL,
+  port INTEGER NOT NULL DEFAULT 22,
+  algorithm TEXT NOT NULL,
+  fingerprint_sha256 TEXT NOT NULL,
+  first_seen_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_seen_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  note TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ssh_host_keys_unique
+  ON ssh_host_keys(host, port);
+
+CREATE TABLE IF NOT EXISTS tag_budgets (
+  id TEXT PRIMARY KEY,
+  tag_key TEXT NOT NULL,
+  tag_value TEXT,
+  monthly_usd REAL NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_checked_at INTEGER,
+  last_observed_usd REAL,
+  exceeded INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_tag_budgets_key ON tag_budgets(tag_key);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  channels TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_fired_at INTEGER,
+  last_status TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_created   ON audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_account   ON audit_log(account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_instances_state ON instances(state);
+CREATE INDEX IF NOT EXISTS idx_instances_provider_state
+  ON instances(provider, state);
+CREATE INDEX IF NOT EXISTS idx_instances_last_synced
+  ON instances(last_synced_at DESC);
 `);
+
+// Lightweight column migrations. SQLite has no IF NOT EXISTS for ADD COLUMN,
+// so we read the table info and only add missing columns.
+const existingCols = new Set(
+  (sqlite.prepare(`PRAGMA table_info(instances)`).all() as { name: string }[]).map(
+    (r) => r.name,
+  ),
+);
+const addColumn = (def: string, name: string) => {
+  if (!existingCols.has(name)) sqlite.exec(`ALTER TABLE instances ADD COLUMN ${def}`);
+};
+addColumn("display_name TEXT", "display_name");
+addColumn("pinned INTEGER NOT NULL DEFAULT 0", "pinned");
+addColumn("sort_order INTEGER", "sort_order");
+addColumn("notes TEXT", "notes");
+addColumn("termination_locked INTEGER NOT NULL DEFAULT 0", "termination_locked");
+addColumn("last_state_change_at INTEGER", "last_state_change_at");
+
+const existingAccountCols = new Set(
+  (sqlite.prepare(`PRAGMA table_info(cloud_accounts)`).all() as { name: string }[]).map(
+    (r) => r.name,
+  ),
+);
+if (!existingAccountCols.has("regions")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN regions TEXT`);
+}
+if (!existingAccountCols.has("default_tags")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN default_tags TEXT`);
+}
+if (!existingAccountCols.has("snapshot_retention_count")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN snapshot_retention_count INTEGER`);
+}
+if (!existingAccountCols.has("monthly_budget_usd")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN monthly_budget_usd REAL`);
+}
+if (!existingAccountCols.has("required_tags")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN required_tags TEXT`);
+}
+if (!existingAccountCols.has("vcpu_quota")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN vcpu_quota INTEGER`);
+}
+if (!existingAccountCols.has("safe_terminate")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN safe_terminate INTEGER NOT NULL DEFAULT 0`);
+}
+if (!existingAccountCols.has("auto_tag_rules")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN auto_tag_rules TEXT`);
+}
+
+const webhookCols = sqlite
+  .prepare("PRAGMA table_info(webhooks)")
+  .all() as Array<{ name: string }>;
+const existingWebhookCols = new Set(webhookCols.map((c) => c.name));
+if (webhookCols.length > 0 && !existingWebhookCols.has("cooldown_sec")) {
+  sqlite.exec(`ALTER TABLE webhooks ADD COLUMN cooldown_sec INTEGER`);
+}
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS sync_history (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+  region TEXT NOT NULL,
+  captured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  total INTEGER NOT NULL DEFAULT 0,
+  added INTEGER NOT NULL DEFAULT 0,
+  removed INTEGER NOT NULL DEFAULT 0,
+  state_changed INTEGER NOT NULL DEFAULT 0,
+  details_json TEXT
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_sync_history_acct_time ON sync_history(account_id, captured_at DESC)`,
+);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS boot_scripts (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  kind TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS resource_history (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+  region TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  captured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  prev_json TEXT,
+  next_json TEXT NOT NULL
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_resource_history_lookup ON resource_history(account_id, kind, external_id, captured_at DESC)`,
+);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_login_at INTEGER
+)`);
+
+const userCols = sqlite.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+const existingUserCols = new Set(userCols.map((c) => c.name));
+if (!existingUserCols.has("totp_secret_enc")) {
+  sqlite.exec(`ALTER TABLE users ADD COLUMN totp_secret_enc TEXT`);
+}
+if (!existingUserCols.has("totp_verified_at")) {
+  sqlite.exec(`ALTER TABLE users ADD COLUMN totp_verified_at INTEGER`);
+}
+if (!existingUserCols.has("totp_backup_codes_enc")) {
+  sqlite.exec(`ALTER TABLE users ADD COLUMN totp_backup_codes_enc TEXT`);
+}
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_seen_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  rate_limit_per_minute INTEGER NOT NULL DEFAULT 60,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  revoked_at INTEGER,
+  last_used_at INTEGER
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'info',
+  title TEXT NOT NULL,
+  body TEXT,
+  href TEXT,
+  account_id TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  seen_at INTEGER,
+  dismissed_at INTEGER
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_unread
+  ON notifications(dismissed_at, created_at DESC)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS passkeys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL UNIQUE,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  transports TEXT,
+  label TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  last_used_at INTEGER
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)`);
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { PriceEstimate } from "./price-estimate";
 import { cn } from "@/lib/utils";
 import type { InstanceTemplate, ProviderId } from "@/lib/providers/types";
 import { createInstanceAction, type CreateInstanceState } from "@/server/actions/instances";
@@ -19,10 +20,12 @@ export function CreateInstanceForm({
   accounts,
   templatesByProvider,
   regionsByProvider,
+  bootScripts = [],
 }: {
   accounts: { id: string; name: string; provider: string; defaultRegion: string | null }[];
   templatesByProvider: Record<ProviderId, InstanceTemplate[]>;
   regionsByProvider: Record<ProviderId, string[]>;
+  bootScripts?: { id: string; name: string; kind: string }[];
 }) {
   const [state, action, pending] = useActionState(createInstanceAction, initial);
   const router = useRouter();
@@ -38,6 +41,7 @@ export function CreateInstanceForm({
   const template = useMemo(() => templates.find((t) => t.id === templateId), [templates, templateId]);
   const [instanceType, setInstanceType] = useState(template?.recommendedTypes[0] ?? "");
   const [region, setRegion] = useState(account?.defaultRegion ?? regions[0] ?? "");
+  const [bootScriptId, setBootScriptId] = useState("");
 
   // When the user switches account → provider may change → reset template/region/type
   useEffect(() => {
@@ -74,6 +78,7 @@ export function CreateInstanceForm({
       <input type="hidden" name="region" value={region} />
       <input type="hidden" name="template" value={templateId} />
       <input type="hidden" name="instanceType" value={instanceType} />
+      <input type="hidden" name="bootScriptId" value={bootScriptId} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Account &amp; region</h2>
@@ -170,6 +175,15 @@ export function CreateInstanceForm({
                 </ul>
               </div>
             )}
+            {accountId && instanceType && region && template && (
+              <PriceEstimate
+                accountId={accountId}
+                provider={providerId}
+                region={region}
+                instanceType={instanceType}
+                platform={template.platform}
+              />
+            )}
           </CardContent>
         </Card>
       </section>
@@ -181,19 +195,73 @@ export function CreateInstanceForm({
             <div className="space-y-1.5">
               <Label htmlFor="name">Name</Label>
               <Input id="name" name="name" placeholder="my-mac-builder" required />
-              <p className="text-xs text-muted">Becomes the instance's <code>Name</code> tag in AWS.</p>
+              <p className="text-xs text-muted">Becomes the instance's <code>Name</code> tag.</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="keyName">SSH key pair name (existing)</Label>
-              <Input id="keyName" name="keyName" placeholder="my-key" />
-              <p className="text-xs text-muted">
-                Name of an EC2 key pair you already created in this region (EC2 → Key Pairs). Required for SSH/Windows
-                password retrieval. Leave empty if you only need the AWS console.
-              </p>
-            </div>
+            {providerId === "aws" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="keyName">SSH key pair name (existing)</Label>
+                <Input id="keyName" name="keyName" placeholder="my-key" />
+                <p className="text-xs text-muted">
+                  Name of an EC2 key pair you already created in this region. Required for SSH/Windows password retrieval.
+                </p>
+              </div>
+            )}
+            {(providerId === "azure" || providerId === "gcp") && template?.platform === "linux" && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="sshPublicKey">SSH public key</Label>
+                <textarea
+                  id="sshPublicKey"
+                  name="sshPublicKey"
+                  rows={3}
+                  placeholder="ssh-rsa AAAAB3... or ssh-ed25519 AAAA..."
+                  className="flex w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs"
+                  required={providerId === "azure"}
+                />
+                <p className="text-xs text-muted">
+                  Pasted from <code>~/.ssh/id_ed25519.pub</code>. Injected as the default-user authorized key.
+                </p>
+              </div>
+            )}
+            {(providerId === "azure" || providerId === "gcp") && template?.platform === "windows" && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="username">Admin username</Label>
+                  <Input id="username" name="username" placeholder="azureadmin" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">Admin password</Label>
+                  <Input id="password" name="password" type="password" placeholder="MinLen 12, mixed case + digits" />
+                  <p className="text-xs text-muted">Required by Windows. Stored only in the cloud provider.</p>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </section>
+
+      {bootScripts.length > 0 && providerId !== "scaleway" && providerId !== "local-kvm" && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Boot script (optional)</h2>
+          <Card>
+            <CardContent className="p-5">
+              <select
+                value={bootScriptId}
+                onChange={(e) => setBootScriptId(e.target.value)}
+                className="flex h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+              >
+                <option value="">— None —</option>
+                {bootScripts.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.kind})</option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-muted">
+                Runs on first boot. AWS uses <code>UserData</code>, Azure uses <code>userData</code>, GCP uses{" "}
+                <code>startup-script</code> metadata.
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <div className="flex items-start gap-2 rounded-md bg-[var(--color-bg-muted)] p-3 text-xs text-muted">
         <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--color-warning)]" />
