@@ -10,6 +10,7 @@ import { MobileNav } from "@/components/nav/mobile-nav";
 import { GlobalOverlays } from "@/components/nav/global-overlays";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { CommandPalette } from "@/components/command-palette";
+import { VoiceCommander } from "@/components/voice-commander";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { VibeProvider } from "@/components/dashboard/vibe-provider";
 import { PullToRefresh } from "@/components/pwa/pull-to-refresh";
@@ -95,6 +96,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <GlobalOverlays />
                   <ServiceWorkerRegister />
                   <CommandPalette />
+                  <VoiceCommander />
                   <RealtimeListener />
                 </ConfirmProvider>
               </TooltipProvider>

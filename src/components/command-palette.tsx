@@ -39,6 +39,7 @@ const NAV: { href: string; label: string; icon: React.ComponentType<{ className?
   { href: "/budgets", label: "Tag budgets", icon: PiggyBank, keywords: "cap monthly alert" },
   { href: "/auto-park", label: "Idle auto-park", icon: Activity, keywords: "stop idle low cpu" },
   { href: "/key-rotation", label: "SSH key rotation", icon: KeyRound, keywords: "rotate authorized_keys fleet" },
+  { href: "/digest", label: "What changed (digest)", icon: Sparkles, keywords: "hourly summary recap" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
