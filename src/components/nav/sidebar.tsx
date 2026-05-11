@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network, FileSearch, Package, Container, FileStack, TerminalSquare, Hammer, GitBranch, Lock, LineChart, Spline } from "lucide-react";
+import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network, FileSearch, Package, Container, FileStack, TerminalSquare, Hammer, GitBranch, Lock, LineChart, Spline, PiggyBank, Ship } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -16,6 +16,8 @@ const items = [
   { href: "/secrets", label: "Secrets", icon: Lock },
   { href: "/monitoring", label: "Monitoring", icon: LineChart },
   { href: "/mesh", label: "Mesh", icon: Spline },
+  { href: "/cost-optimizer", label: "Cost optimizer", icon: PiggyBank },
+  { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/topology", label: "Topology", icon: Network },
   { href: "/costs", label: "Costs", icon: BarChart3 },
   { href: "/recipes", label: "Recipes", icon: Sparkles },
