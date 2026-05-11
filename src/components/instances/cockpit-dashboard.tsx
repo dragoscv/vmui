@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Cpu, MemoryStick, HardDrive, ArrowDownUp, Activity as ActivityIcon, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { probeInstanceAction } from "@/server/actions/probe";
 import type { ProbeMetrics } from "@/lib/probe";
 
 interface Props {
@@ -103,40 +102,27 @@ export function CockpitDashboard({ instanceId, intervalSec, initial }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(true);
   const interval = intervalSec ?? 10;
-  const lastRef = useRef<number>(0);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
-    let cancelled = false;
-    const tick = async () => {
-      if (!running) return;
-      const out = await probeInstanceAction({ instanceId });
-      if (cancelled) return;
-      if (out.ok && out.metrics) {
-        setMetrics(out.metrics);
+    if (!running) return;
+    const es = new EventSource(`/api/instances/${instanceId}/probe-stream?interval=${interval}`);
+    es.addEventListener("sample", (ev) => {
+      try {
+        const m = JSON.parse((ev as MessageEvent).data) as ProbeMetrics;
+        setMetrics(m);
         setError(null);
         setHistory((h) =>
-          [
-            ...h,
-            {
-              t: out.metrics!.collectedAt,
-              cpu: out.metrics!.cpu,
-              mem: out.metrics!.mem,
-              netIn: out.metrics!.netIn,
-              netOut: out.metrics!.netOut,
-            },
-          ].slice(-60),
+          [...h, { t: m.collectedAt, cpu: m.cpu, mem: m.mem, netIn: m.netIn, netOut: m.netOut }].slice(-60),
         );
-      } else {
-        setError(out.error ?? "Probe failed");
+      } catch {
+        /* */
       }
-      lastRef.current = Date.now();
-      timer = setTimeout(tick, interval * 1000);
-    };
-    tick();
+    });
+    es.addEventListener("error", () => {
+      setError("stream disconnected — retrying");
+    });
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+      es.close();
     };
   }, [instanceId, interval, running]);
 
