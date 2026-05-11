@@ -667,6 +667,30 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS terminal_recordings (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_terminal_recordings_started ON terminal_recordings(started_at DESC)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS runbooks (
+  id TEXT PRIMARY KEY,
+  account_id TEXT,
+  provider_instance_id TEXT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_runbooks_target ON runbooks(account_id, provider_instance_id)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS idle_park_policies (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  provider_instance_id TEXT NOT NULL,
+  cpu_pct INTEGER NOT NULL DEFAULT 5,
+  net_kbps INTEGER NOT NULL DEFAULT 50,
+  window_min INTEGER NOT NULL DEFAULT 30,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_parked_at INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_idle_park_target ON idle_park_policies(account_id, provider_instance_id)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);

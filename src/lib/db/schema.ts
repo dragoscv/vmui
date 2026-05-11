@@ -951,3 +951,35 @@ export const terminalRecordings = sqliteTable("terminal_recordings", {
 });
 
 export type TerminalRecordingRow = typeof terminalRecordings.$inferSelect;
+
+/**
+ * Per-instance markdown runbooks. Tracked centrally so they survive VM
+ * recreation; matched by `accountId + providerInstanceId`.
+ */
+export const runbooks = sqliteTable("runbooks", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id"),
+  providerInstanceId: text("provider_instance_id"),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type RunbookRow = typeof runbooks.$inferSelect;
+
+/**
+ * Tag-based monthly budgets — alert threshold lives in code, not schema.
+ * (Original schema kept at line 283.)
+ */
+export const idleParkPolicies = sqliteTable("idle_park_policies", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerInstanceId: text("provider_instance_id").notNull(),
+  cpuPct: integer("cpu_pct").notNull().default(5),
+  netKbps: integer("net_kbps").notNull().default(50),
+  windowMin: integer("window_min").notNull().default(30),
+  enabled: integer("enabled").notNull().default(1),
+  lastParkedAt: integer("last_parked_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type IdleParkPolicyRow = typeof idleParkPolicies.$inferSelect;

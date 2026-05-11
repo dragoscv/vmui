@@ -5,6 +5,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { matchesNow } from "@/lib/cron";
 import { getProvider } from "@/lib/providers/registry";
 import { applySnapshotRetentionAction } from "@/server/actions/snapshot-retention";
+import { maybeRunIdlePark } from "@/lib/idle-park";
 import { notify } from "@/lib/notifications";
 import { redactSecrets } from "@/lib/redact";
 
@@ -92,6 +93,7 @@ async function tick(): Promise<void> {
   // touch unused import lint
   void and;
   await maybeRunRetention();
+  await maybeRunIdlePark();
 }
 
 export function ensureSchedulerRunning(): void {

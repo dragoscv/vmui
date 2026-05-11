@@ -35,6 +35,10 @@ const NAV: { href: string; label: string; icon: React.ComponentType<{ className?
   { href: "/teams", label: "Teams", icon: Users },
   { href: "/anomalies", label: "Cost anomalies", icon: AlertTriangle, keywords: "z-score spend spike" },
   { href: "/recordings", label: "Terminal recordings", icon: TerminalSquare, keywords: "asciinema cast replay" },
+  { href: "/runbooks", label: "Runbooks", icon: FileStack, keywords: "markdown procedures playbook" },
+  { href: "/budgets", label: "Tag budgets", icon: PiggyBank, keywords: "cap monthly alert" },
+  { href: "/auto-park", label: "Idle auto-park", icon: Activity, keywords: "stop idle low cpu" },
+  { href: "/key-rotation", label: "SSH key rotation", icon: KeyRound, keywords: "rotate authorized_keys fleet" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
