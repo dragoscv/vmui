@@ -17,6 +17,11 @@ export interface ContainerRow {
   createdAt: string;
   ports: string;
   runtime: ContainerRuntime;
+  cpuPct?: number;
+  memPct?: number;
+  memUsage?: string;
+  netIo?: string;
+  blockIo?: string;
 }
 
 export interface ContainerListResult {

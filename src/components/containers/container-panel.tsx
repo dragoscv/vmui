@@ -24,10 +24,12 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
   const [logsFor, setLogsFor] = useState<ContainerRow | null>(null);
   const [inspectFor, setInspectFor] = useState<{ row: ContainerRow; data: unknown } | null>(null);
   const [filter, setFilter] = useState("");
+  const [showStats, setShowStats] = useState(false);
   const evtRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const ev = new EventSource(`/api/instances/${encodeURIComponent(instanceId)}/containers/stream?interval=5`);
+    const qs = showStats ? "interval=10&stats=1" : "interval=5";
+    const ev = new EventSource(`/api/instances/${encodeURIComponent(instanceId)}/containers/stream?${qs}`);
     evtRef.current = ev;
     ev.addEventListener("snapshot", (e) => {
       try {
@@ -48,7 +50,7 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
     return () => {
       ev.close();
     };
-  }, [instanceId]);
+  }, [instanceId, showStats]);
 
   if (err && !data) {
     return (
@@ -88,6 +90,14 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
           {data.runtime}
         </span>
         <span className="text-xs text-muted">{data.rows.length} container{data.rows.length === 1 ? "" : "s"}</span>
+        <button
+          type="button"
+          onClick={() => setShowStats((s) => !s)}
+          className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${showStats ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-[var(--color-primary)]" : "border-[var(--color-border)] text-muted"}`}
+          title="Toggle live CPU/memory stats"
+        >
+          {showStats ? "stats on" : "stats off"}
+        </button>
         <div className="relative ml-auto">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
@@ -107,6 +117,9 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
               <th className="px-3 py-1.5 text-left font-semibold">Name</th>
               <th className="px-3 py-1.5 text-left font-semibold">Image</th>
               <th className="px-3 py-1.5 text-left font-semibold">Status</th>
+              {showStats && <th className="px-3 py-1.5 text-right font-semibold">CPU</th>}
+              {showStats && <th className="px-3 py-1.5 text-right font-semibold">Mem</th>}
+              {showStats && <th className="px-3 py-1.5 text-left font-semibold">Net I/O</th>}
               <th className="px-3 py-1.5 text-left font-semibold">Ports</th>
               <th className="px-3 py-1.5 text-right font-semibold">Actions</th>
             </tr>
@@ -114,7 +127,7 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-muted">
+                <td colSpan={showStats ? 8 : 5} className="px-3 py-6 text-center text-muted">
                   No containers match.
                 </td>
               </tr>
@@ -124,6 +137,7 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
                 key={r.id || r.name}
                 row={r}
                 instanceId={instanceId}
+                showStats={showStats}
                 onLogs={() => setLogsFor(r)}
                 onInspect={async () => {
                   const res = await inspectContainerAction({ instanceId, containerId: r.id || r.name });
@@ -156,11 +170,13 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
 function ContainerRowView({
   row,
   instanceId,
+  showStats,
   onLogs,
   onInspect,
 }: {
   row: ContainerRow;
   instanceId: string;
+  showStats: boolean;
   onLogs: () => void;
   onInspect: () => void;
 }) {
@@ -184,6 +200,19 @@ function ContainerRowView({
         </span>
         <span className="ml-1 text-[10px] text-muted">{row.status}</span>
       </td>
+      {showStats && (
+        <td className="px-3 py-1.5 text-right font-mono text-[11px] tabular-nums">
+          {row.cpuPct != null ? `${row.cpuPct.toFixed(1)}%` : "—"}
+        </td>
+      )}
+      {showStats && (
+        <td className="px-3 py-1.5 text-right font-mono text-[11px] tabular-nums" title={row.memUsage}>
+          {row.memPct != null ? `${row.memPct.toFixed(1)}%` : "—"}
+        </td>
+      )}
+      {showStats && (
+        <td className="px-3 py-1.5 font-mono text-[10px] text-muted">{row.netIo || "—"}</td>
+      )}
       <td className="px-3 py-1.5 font-mono text-[10px] text-muted">{row.ports || "—"}</td>
       <td className="px-3 py-1.5 text-right">
         <div className="inline-flex items-center gap-0.5">
