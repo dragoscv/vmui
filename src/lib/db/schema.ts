@@ -31,6 +31,12 @@ export const cloudAccounts = sqliteTable("cloud_accounts", {
   credentialsEnc: text("credentials_enc").notNull(),
   /** Cached display info (account id, email, etc.) — encrypted JSON. */
   metadataEnc: text("metadata_enc"),
+  /**
+   * Encrypted JSON of `{ privateKey: string; passphrase?: string; defaultUser?: string }`
+   * used as the agent SSH key for live-stats probes & cloud-init log streaming
+   * across every instance in this account. Upload once, reuse everywhere.
+   */
+  probeKeyEnc: text("probe_key_enc"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -59,6 +65,8 @@ export const instances = sqliteTable("instances", {
   notes: text("notes"),
   /** When true, terminate is refused and surfaced in the UI as a lock icon. */
   terminationLocked: integer("termination_locked", { mode: "boolean" }).notNull().default(false),
+  /** Live-stats probe interval in seconds (5..600). null = inherits global default. */
+  probeIntervalSec: integer("probe_interval_sec"),
   /** Normalized state: pending | running | stopping | stopped | terminated | unknown */
   state: text("state").notNull().default("unknown"),
   /** "windows" | "macos" | "linux" */
@@ -543,3 +551,85 @@ export const costRecommendations = sqliteTable("cost_recommendations", {
 });
 
 export type CostRecommendationRow = typeof costRecommendations.$inferSelect;
+
+export const alertRules = sqliteTable("alert_rules", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  /** Filter scope: null = all instances; JSON `{accountIds?: string[]; tagKey?: string; tagValue?: string}` */
+  scopeJson: text("scope_json"),
+  /**
+   * Rule expression as JSON:
+   * { metric: "cpu"|"mem"|"disk"|"net_in"|"net_out"|"load1"|"uptime";
+   *   op: ">"|"<"|">="|"<="|"=="|"!=";
+   *   threshold: number;
+   *   windowSec: number;   // sustained for this many seconds
+   *   cooldownSec?: number; // suppress refires for this many seconds (default 600)
+   * }
+   */
+  expressionJson: text("expression_json").notNull(),
+  /** JSON array of channel ids referenced from alertChannels. */
+  channelsJson: text("channels_json").notNull(),
+  /** ISO message template; supports {{instance}}, {{metric}}, {{value}}, {{threshold}}. */
+  messageTemplate: text("message_template"),
+  /** "info" | "warning" | "critical" */
+  severity: text("severity").notNull().default("warning"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type AlertRuleRow = typeof alertRules.$inferSelect;
+
+export const alertChannels = sqliteTable("alert_channels", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** "toast" | "discord" | "slack" | "ntfy" | "webhook" | "smtp" */
+  kind: text("kind").notNull(),
+  /** Encrypted JSON config (webhook URL, SMTP creds, etc.). */
+  configEnc: text("config_enc").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type AlertChannelRow = typeof alertChannels.$inferSelect;
+
+export const alertFirings = sqliteTable("alert_firings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ruleId: text("rule_id")
+    .notNull()
+    .references(() => alertRules.id, { onDelete: "cascade" }),
+  instanceId: text("instance_id"),
+  metric: text("metric").notNull(),
+  value: real("value").notNull(),
+  threshold: real("threshold").notNull(),
+  status: text("status", { enum: ["firing", "resolved"] }).notNull().default("firing"),
+  message: text("message"),
+  /** JSON array of `{channel, status, error?}` results. */
+  deliveryJson: text("delivery_json"),
+  firedAt: integer("fired_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  resolvedAt: integer("resolved_at", { mode: "timestamp" }),
+});
+
+export type AlertFiringRow = typeof alertFirings.$inferSelect;
+
+export const probeSamples = sqliteTable("probe_samples", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  instanceId: text("instance_id")
+    .notNull()
+    .references(() => instances.id, { onDelete: "cascade" }),
+  /** Composite metric JSON: { cpu, mem, disk, net_in, net_out, load1, uptime, cores: number[], iops? } */
+  metricsJson: text("metrics_json").notNull(),
+  collectedAt: integer("collected_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type ProbeSampleRow = typeof probeSamples.$inferSelect;

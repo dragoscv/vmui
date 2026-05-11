@@ -13,6 +13,7 @@ import { ShowAsCodeDialog } from "@/components/instances/show-as-code-dialog";
 import { InstanceStatsPanel } from "@/components/instances/instance-stats-panel";
 import { MetricsTab } from "@/components/instances/metrics-tab";
 import { ConsoleLogsCard } from "@/components/instances/console-logs-card";
+import { CockpitDashboard } from "@/components/instances/cockpit-dashboard";
 import { VmHardwareConfig } from "@/components/instances/vm-hardware-config";
 import { VmScreenshot } from "@/components/instances/vm-screenshot";
 import { InstanceSnapshotsCard } from "@/components/instances/instance-snapshots-card";
@@ -148,6 +149,20 @@ export default async function InstanceDetailPage({ params }: PageProps) {
 
       {(instance.provider === "local-kvm" || instance.provider === "aws") && instance.state === "running" && (
         <InstanceStatsPanel accountId={instance.accountId} providerInstanceId={instance.providerInstanceId} instanceId={instance.id} />
+      )}
+
+      {instance.state === "running" && (instance.platform === "linux" || instance.platform === "macos") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Live cockpit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CockpitDashboard
+              instanceId={instance.id}
+              intervalSec={instance.probeIntervalSec ?? undefined}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {(instance.provider === "aws" || instance.provider === "azure" || instance.provider === "gcp") && (

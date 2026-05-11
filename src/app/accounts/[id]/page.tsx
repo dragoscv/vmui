@@ -20,6 +20,7 @@ import { RequiredTagsEditor } from "@/components/accounts/required-tags-editor";
 import { VcpuQuotaEditor } from "@/components/accounts/vcpu-quota-editor";
 import { SafeTerminateEditor } from "@/components/accounts/safe-terminate-editor";
 import { DeleteAccountButton } from "@/components/accounts/delete-account-button";
+import { ProbeKeyCard } from "@/components/accounts/probe-key-card";
 import { formatRelative, formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -144,8 +145,7 @@ export default async function AccountDetailPage({ params }: PageProps) {
             provider={account.provider}
             defaultRegion={account.defaultRegion}
             initialRegions={regions}
-          />
-          {byRegion.size > 0 && (
+          />          {byRegion.size > 0 && (
             <div className="grid gap-2 sm:grid-cols-2">
               {Array.from(byRegion.entries()).map(([region, s]) => (
                 <div
@@ -214,6 +214,8 @@ export default async function AccountDetailPage({ params }: PageProps) {
       </Card>
 
       <SafeTerminateEditor accountId={account.id} initial={account.safeTerminate ?? false} />
+
+      <ProbeKeyCard accountId={account.id} hasKey={!!account.probeKeyEnc} />
 
       <Card>
         <CardHeader>

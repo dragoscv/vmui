@@ -211,6 +211,7 @@ addColumn("sort_order INTEGER", "sort_order");
 addColumn("notes TEXT", "notes");
 addColumn("termination_locked INTEGER NOT NULL DEFAULT 0", "termination_locked");
 addColumn("last_state_change_at INTEGER", "last_state_change_at");
+addColumn("probe_interval_sec INTEGER", "probe_interval_sec");
 
 const existingAccountCols = new Set(
   (sqlite.prepare(`PRAGMA table_info(cloud_accounts)`).all() as { name: string }[]).map(
@@ -240,6 +241,9 @@ if (!existingAccountCols.has("safe_terminate")) {
 }
 if (!existingAccountCols.has("auto_tag_rules")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN auto_tag_rules TEXT`);
+}
+if (!existingAccountCols.has("probe_key_enc")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN probe_key_enc TEXT`);
 }
 
 const webhookCols = sqlite
@@ -379,6 +383,58 @@ sqlite.exec(
 );
 sqlite.exec(
   `CREATE INDEX IF NOT EXISTS idx_cost_rec_instance ON cost_recommendations(instance_id)`,
+);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS alert_rules (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  scope_json TEXT,
+  expression_json TEXT NOT NULL,
+  channels_json TEXT NOT NULL,
+  message_template TEXT,
+  severity TEXT NOT NULL DEFAULT 'warning',
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS alert_channels (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  config_enc TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS alert_firings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rule_id TEXT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
+  instance_id TEXT,
+  metric TEXT NOT NULL,
+  value REAL NOT NULL,
+  threshold REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'firing',
+  message TEXT,
+  delivery_json TEXT,
+  fired_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  resolved_at INTEGER
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_alert_firings_rule ON alert_firings(rule_id, fired_at DESC)`,
+);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_alert_firings_instance ON alert_firings(instance_id, fired_at DESC)`,
+);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS probe_samples (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  metrics_json TEXT NOT NULL,
+  collected_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_probe_samples_instance ON probe_samples(instance_id, collected_at DESC)`,
 );
 
 export const db = drizzle(sqlite, { schema });
