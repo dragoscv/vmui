@@ -13,6 +13,10 @@ drizzle/meta
 !.vscode/extensions.json
 .pnpm-cache/
 
+# Go CLI build artifacts
+vmui-cli
+vmui-cli.exe
+
 # Playwright artifacts
 test-results/
 playwright-report/
