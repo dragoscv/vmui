@@ -85,6 +85,8 @@ const more = [
   { href: "/auto-tag", label: "Auto-tag", icon: Tag },
   { href: "/heatmap", label: "Heatmap", icon: AlertTriangle },
   { href: "/config-backup", label: "Config", icon: KeyRound },
+  { href: "/action-history", label: "History", icon: History },
+  { href: "/cost-recos", label: "Cost recos", icon: PiggyBank },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },
