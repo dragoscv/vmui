@@ -42,6 +42,7 @@ import {
   Zap,
   AlertTriangle,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +95,8 @@ const more = [
   { href: "/saved-searches", label: "Saved searches", icon: FileStack },
   { href: "/instance-webhooks", label: "Instance webhooks", icon: Activity },
   { href: "/account-forecast", label: "Spend forecast", icon: PiggyBank },
+  { href: "/audit-chain", label: "Audit chain", icon: ShieldCheck },
+  { href: "/region-map", label: "Region map", icon: Globe },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },
