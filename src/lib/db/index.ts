@@ -835,6 +835,19 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS instance_trash (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_inst_trash_time ON instance_trash(terminated_at)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS maintenance_windows (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  starts_at INTEGER NOT NULL,
+  ends_at INTEGER NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'warn',
+  account_id TEXT,
+  reason TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_by TEXT
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_maint_window_range ON maintenance_windows(starts_at, ends_at)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);

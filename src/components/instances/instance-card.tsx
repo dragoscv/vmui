@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { Apple, MonitorSmartphone, Server, Globe, Pin, StickyNote, Moon } from "lucide-react";
+import { Apple, MonitorSmartphone, Server, Globe, Pin, StickyNote, Moon, Cpu } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "./status-badge";
 import { InstanceActions } from "./instance-actions";
@@ -20,6 +20,7 @@ import { VmScreenshot } from "./vm-screenshot";
 import { CostPill } from "./cost-pill";
 import { Badge } from "@/components/ui/badge";
 import { detectIdle } from "@/lib/idle";
+import { detectGpu } from "@/lib/gpu-detect";
 import type { InstanceRow } from "@/lib/db/schema";
 import type { PricedRow } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
@@ -132,6 +133,14 @@ export function InstanceCard({
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <StatusBadge state={instance.state} />
+                  {(() => {
+                    const gpu = detectGpu(instance.instanceType);
+                    return gpu ? (
+                      <Badge variant="info" title={`${gpu.count}× NVIDIA ${gpu.model}`} className="gap-1">
+                        <Cpu className="h-3 w-3" /> {gpu.count}×{gpu.model}
+                      </Badge>
+                    ) : null;
+                  })()}
                   {(() => {
                     const idle = detectIdle({ state: instance.state, lastStateChangeAt: instance.lastStateChangeAt });
                     return idle.isIdle ? (

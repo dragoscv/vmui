@@ -401,6 +401,21 @@ export async function executeInstanceAction(
     const { provider, account } = await getProvider(data.accountId);
     const { region, providerInstanceId: id } = data;
 
+    {
+      const { getActiveMaintenanceWindow } = await import("@/lib/maintenance");
+      const win = await getActiveMaintenanceWindow(data.accountId);
+      if (win && win.mode === "block") {
+        await db.insert(auditLog).values({
+          accountId: data.accountId,
+          action: `instance.${action}.blocked`,
+          target: id,
+          status: "error",
+          message: `maintenance window: ${win.name}`,
+        });
+        return { ok: false, error: `Action blocked: maintenance window "${win.name}" until ${win.endsAt.toISOString()}.` };
+      }
+    }
+
     if (action === "terminate") {
       const row = await db.query.instances.findFirst({
         where: and(

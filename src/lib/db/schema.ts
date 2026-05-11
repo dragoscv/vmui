@@ -1154,3 +1154,21 @@ export const instanceTrash = sqliteTable("instance_trash", {
   terminatedBy: text("terminated_by"),
 });
 export type InstanceTrashRow = typeof instanceTrash.$inferSelect;
+
+/** Maintenance windows: actions are blocked or warned about during them. */
+export const maintenanceWindows = sqliteTable("maintenance_windows", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** ISO timestamp of window start. */
+  startsAt: integer("starts_at", { mode: "timestamp" }).notNull(),
+  /** ISO timestamp of window end. */
+  endsAt: integer("ends_at", { mode: "timestamp" }).notNull(),
+  /** "block" refuses mutations; "warn" only logs. */
+  mode: text("mode", { enum: ["block", "warn"] }).notNull().default("warn"),
+  /** Optional account scope; null = global. */
+  accountId: text("account_id"),
+  reason: text("reason"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdBy: text("created_by"),
+});
+export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
