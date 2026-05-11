@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell } from "lucide-react";
+import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -11,6 +11,7 @@ const items = [
   { href: "/costs", label: "Costs", icon: BarChart3 },
   { href: "/recipes", label: "Recipes", icon: Sparkles },
   { href: "/schedules", label: "Schedules", icon: Clock },
+  { href: "/backups", label: "Backups", icon: Archive },
   { href: "/tags", label: "Tags", icon: Tag },
   { href: "/compliance", label: "Compliance", icon: ShieldAlert },
   { href: "/accounts", label: "Accounts", icon: KeyRound },

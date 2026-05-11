@@ -4,10 +4,13 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { auditLog, cachedResources, instances } from "@/lib/db/schema";
+import { auditLog, cachedResources, cloudAccounts, instances } from "@/lib/db/schema";
 import { getProvider } from "@/lib/providers/registry";
 import { publishEvent } from "@/lib/event-bus";
 import { requireRole } from "@/lib/auth";
+import { decryptJSON } from "@/lib/crypto";
+import type { AwsCredentials } from "@/lib/providers/aws";
+import { CopySnapshotCommand, EC2Client } from "@aws-sdk/client-ec2";
 
 const createSchema = z.object({
   accountId: z.string().min(1),
@@ -289,5 +292,81 @@ export async function deleteInstanceSnapshotAction(input: {
       message,
     });
     return { ok: false, error: message };
+  }
+}
+
+// ===== W13 marker =====
+
+const replicateSchema = z.object({
+  accountId: z.string().min(1),
+  fromRegion: z.string().min(1),
+  toRegion: z.string().min(1),
+  snapshotId: z.string().min(1),
+  description: z.string().max(255).optional(),
+  encrypted: z.boolean().default(true),
+});
+
+export async function replicateSnapshotAction(
+  input: z.infer<typeof replicateSchema>,
+): Promise<{ ok: boolean; newSnapshotId?: string; error?: string }> {
+  try {
+    await requireRole("operator");
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Not authorized" };
+  }
+  const parsed = replicateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
+  const acc = await db.query.cloudAccounts.findFirst({
+    where: eq(cloudAccounts.id, parsed.data.accountId),
+  });
+  if (!acc) return { ok: false, error: "Account not found" };
+  if (acc.provider !== "aws") {
+    return {
+      ok: false,
+      error: `Cross-region replication is currently AWS-only (got: ${acc.provider}). Snapshots from other providers can be restored to a new VM in the same region.`,
+    };
+  }
+
+  const creds = decryptJSON<Omit<AwsCredentials, "defaultRegion">>(acc.credentialsEnc);
+  const ec2 = new EC2Client({
+    region: parsed.data.toRegion,
+    credentials: {
+      accessKeyId: creds.accessKeyId,
+      secretAccessKey: creds.secretAccessKey,
+      sessionToken: creds.sessionToken,
+    },
+  });
+
+  try {
+    const out = await ec2.send(
+      new CopySnapshotCommand({
+        SourceRegion: parsed.data.fromRegion,
+        SourceSnapshotId: parsed.data.snapshotId,
+        Description:
+          parsed.data.description ??
+          `vmui replicate ${parsed.data.snapshotId} from ${parsed.data.fromRegion}`,
+        Encrypted: parsed.data.encrypted,
+      }),
+    );
+    await db.insert(auditLog).values({
+      accountId: parsed.data.accountId,
+      action: "snapshot.replicate",
+      target: parsed.data.snapshotId,
+      status: "ok",
+      message: `${parsed.data.fromRegion} → ${parsed.data.toRegion}: ${out.SnapshotId}`,
+    });
+    revalidatePath("/backups");
+    revalidatePath("/resources");
+    return { ok: true, newSnapshotId: out.SnapshotId ?? undefined };
+  } catch (err) {
+    await db.insert(auditLog).values({
+      accountId: parsed.data.accountId,
+      action: "snapshot.replicate",
+      target: parsed.data.snapshotId,
+      status: "error",
+      message: err instanceof Error ? err.message : "unknown",
+    });
+    return { ok: false, error: err instanceof Error ? err.message : "Copy failed" };
   }
 }
