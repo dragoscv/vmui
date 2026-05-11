@@ -507,3 +507,39 @@ export const passkeys = sqliteTable("passkeys", {
 });
 
 export type PasskeyRow = typeof passkeys.$inferSelect;
+
+/**
+ * Cached cost optimisation recommendations. One row per (account, instance,
+ * kind). Refreshed on demand and on a 12h scheduler tick. Cleared when the
+ * underlying instance disappears.
+ */
+export const costRecommendations = sqliteTable("cost_recommendations", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id")
+    .notNull()
+    .references(() => cloudAccounts.id, { onDelete: "cascade" }),
+  instanceId: text("instance_id")
+    .notNull()
+    .references(() => instances.id, { onDelete: "cascade" }),
+  /** "rightsize" | "idle" | "stop-after-hours" | "spot-eligible" */
+  kind: text("kind").notNull(),
+  /** Severity-style confidence indicator: "low" | "medium" | "high". */
+  confidence: text("confidence").notNull().default("medium"),
+  /** Free-form one-line summary shown in the UI. */
+  summary: text("summary").notNull(),
+  /** Optional suggested instance type (rightsize). */
+  suggestedInstanceType: text("suggested_instance_type"),
+  /** Observed p95 CPU over the lookback window, percent. */
+  observedCpuP95: real("observed_cpu_p95"),
+  /** Hours of CPU sample data analysed. */
+  lookbackHours: integer("lookback_hours"),
+  /** Estimated monthly savings if applied (positive number). */
+  estMonthlySavingsUsd: real("est_monthly_savings_usd"),
+  /** Optional payload (e.g. CW datapoint counts). */
+  detailsJson: text("details_json"),
+  computedAt: integer("computed_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type CostRecommendationRow = typeof costRecommendations.$inferSelect;

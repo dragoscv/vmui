@@ -360,5 +360,26 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS passkeys (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS cost_recommendations (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
+  instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  confidence TEXT NOT NULL DEFAULT 'medium',
+  summary TEXT NOT NULL,
+  suggested_instance_type TEXT,
+  observed_cpu_p95 REAL,
+  lookback_hours INTEGER,
+  est_monthly_savings_usd REAL,
+  details_json TEXT,
+  computed_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_cost_rec_account ON cost_recommendations(account_id, computed_at DESC)`,
+);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_cost_rec_instance ON cost_recommendations(instance_id)`,
+);
+
 export const db = drizzle(sqlite, { schema });
 export { schema };

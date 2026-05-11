@@ -138,6 +138,23 @@ export default async function CostsPage() {
           }))}
         />
       </div>
+      <Link
+        href="/costs/recommendations"
+        className="group flex items-center justify-between gap-4 rounded-[var(--radius-lg)] border border-[color-mix(in_oklch,var(--color-primary)_30%,var(--color-border))] bg-gradient-to-r from-[color-mix(in_oklch,var(--color-primary)_10%,transparent)] to-transparent px-4 py-3 transition hover:border-[var(--color-primary)]"
+      >
+        <div className="flex items-center gap-3">
+          <Sparkles className="h-5 w-5 text-[var(--color-primary)]" />
+          <div>
+            <div className="text-sm font-medium">Cost recommendations</div>
+            <div className="text-xs text-muted">
+              CloudWatch-driven rightsizing & idle detection across your AWS fleet.
+            </div>
+          </div>
+        </div>
+        <span className="text-xs text-[var(--color-primary)] opacity-0 transition group-hover:opacity-100">
+          Open →
+        </span>
+      </Link>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="surface">

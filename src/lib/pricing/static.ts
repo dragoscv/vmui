@@ -155,3 +155,34 @@ export function lookupStaticPrice(
   }
   return null;
 }
+
+/**
+ * AWS instance-type ladders ordered from smallest to largest. Used by the
+ * rightsizing recommender to pick the next-smaller type when CPU usage is
+ * sustainably low. Only covers families we also price in `AWS_BASE`; types
+ * outside the ladder yield `null` ("can't recommend automatically").
+ */
+const AWS_FAMILY_LADDERS: Record<string, string[]> = {
+  t3: ["t3.nano", "t3.micro", "t3.small", "t3.medium", "t3.large", "t3.xlarge", "t3.2xlarge"],
+  t4g: ["t4g.nano", "t4g.micro", "t4g.small", "t4g.medium"],
+  m6i: ["m6i.large", "m6i.xlarge", "m6i.2xlarge", "m6i.4xlarge"],
+  m7i: ["m7i.large", "m7i.xlarge"],
+  c6i: ["c6i.large", "c6i.xlarge"],
+  c7i: ["c7i.large"],
+  r6i: ["r6i.large", "r6i.xlarge"],
+};
+
+/**
+ * Return the next-smaller AWS instance type in the same family, or null
+ * when the current type is already the smallest (or unknown).
+ */
+export function nextSmallerAwsType(instanceType: string): string | null {
+  const dot = instanceType.indexOf(".");
+  if (dot < 1) return null;
+  const family = instanceType.slice(0, dot);
+  const ladder = AWS_FAMILY_LADDERS[family];
+  if (!ladder) return null;
+  const idx = ladder.indexOf(instanceType);
+  if (idx <= 0) return null;
+  return ladder[idx - 1] ?? null;
+}

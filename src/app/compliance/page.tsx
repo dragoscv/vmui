@@ -4,6 +4,9 @@ import { scanCompliance } from "@/server/queries/compliance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ComplianceFixButton } from "@/components/compliance/compliance-fix-button";
+import { OrphanCleanupButton } from "@/components/compliance/orphan-cleanup-button";
+
+const ORPHAN_KINDS = new Set(["orphan-volume", "orphan-snapshot", "orphan-elastic-ip"]);
 
 const SEVERITY_VARIANT: Record<string, "danger" | "warning" | "info" | "muted"> = {
   critical: "danger",
@@ -79,6 +82,14 @@ export default async function CompliancePage() {
                         groupId={f.externalId}
                         port={f.kind === "ssh-open-world" ? 22 : 3389}
                         label={f.kind === "ssh-open-world" ? "SSH" : "RDP"}
+                      />
+                    )}
+                    {f.provider === "aws" && ORPHAN_KINDS.has(f.kind) && (
+                      <OrphanCleanupButton
+                        accountId={f.accountId}
+                        resourceId={`${f.accountId}:${f.region}:${f.resourceKind}:${f.externalId}`}
+                        externalId={f.externalId}
+                        kind={f.resourceKind}
                       />
                     )}
                     <code className="font-mono text-[11px] text-muted">{f.externalId}</code>
