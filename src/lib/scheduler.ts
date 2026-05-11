@@ -6,6 +6,8 @@ import { matchesNow } from "@/lib/cron";
 import { getProvider } from "@/lib/providers/registry";
 import { applySnapshotRetentionAction } from "@/server/actions/snapshot-retention";
 import { maybeRunIdlePark } from "@/lib/idle-park";
+import { captureFleetSnapshot } from "@/lib/fleet-diff";
+import { maybeAlertBurnRate } from "@/lib/burn-rate";
 import { notify } from "@/lib/notifications";
 import { redactSecrets } from "@/lib/redact";
 
@@ -94,6 +96,20 @@ async function tick(): Promise<void> {
   void and;
   await maybeRunRetention();
   await maybeRunIdlePark();
+  await maybeRunFleetSnapshot();
+  await maybeAlertBurnRate().catch(() => undefined);
+}
+
+let lastFleetSnapAt = 0;
+async function maybeRunFleetSnapshot(): Promise<void> {
+  // capture once per ~24h
+  if (Date.now() - lastFleetSnapAt < 23 * 3600_000) return;
+  try {
+    await captureFleetSnapshot();
+    lastFleetSnapAt = Date.now();
+  } catch {
+    /* swallowed */
+  }
 }
 
 export function ensureSchedulerRunning(): void {

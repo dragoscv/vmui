@@ -719,6 +719,12 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS fleet_snapshots (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_snap_time ON fleet_snapshots(captured_at)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);

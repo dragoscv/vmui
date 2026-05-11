@@ -1017,3 +1017,11 @@ export const fleetSnapshots = sqliteTable("fleet_snapshots", {
   membersJson: text("members_json").notNull(),
 });
 export type FleetSnapshotRow = typeof fleetSnapshots.$inferSelect;
+
+/** Generic key/value app settings (single-row config). */
+export const settings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type SettingRow = typeof settings.$inferSelect;

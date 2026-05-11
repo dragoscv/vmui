@@ -7,6 +7,7 @@ import { WebhooksCard } from "@/components/settings/webhooks-card";
 import { BootScriptsCard } from "@/components/settings/boot-scripts-card";
 import { InstallButton } from "@/components/pwa/install-prompt";
 import { PushManager } from "@/components/pwa/push-manager";
+import { SoundEffectsToggle } from "@/components/sound-effects-toggle";
 import { listKnownHostsAction } from "@/server/actions/known-hosts";
 import { listWebhooksAction } from "@/server/actions/webhooks";
 import { listBootScriptsAction } from "@/server/actions/boot-scripts";
@@ -279,6 +280,10 @@ function PwaCard() {
             Requires VAPID keys in <code>.env</code>: <code>VAPID_PUBLIC_KEY</code>, <code>VAPID_PRIVATE_KEY</code>,
             optional <code>VAPID_SUBJECT</code>. Generate with <code>pnpm dlx web-push generate-vapid-keys</code>.
           </p>
+        </div>
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-wider text-muted">Sound</div>
+          <SoundEffectsToggle />
         </div>
       </CardContent>
     </Card>
