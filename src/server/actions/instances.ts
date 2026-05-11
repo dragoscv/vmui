@@ -485,6 +485,16 @@ export async function executeInstanceAction(
           prev: null,
         },
       });
+      try {
+        const { fireWebhooksForState } = await import("@/server/actions/extras");
+        await fireWebhooksForState({
+          accountId: data.accountId,
+          providerInstanceId: id,
+          instanceName: id,
+          from: "?",
+          to: newState,
+        });
+      } catch { /* never block */ }
     }
 
     revalidatePath("/");

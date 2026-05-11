@@ -745,6 +745,60 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS account_budgets (
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS saved_searches (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  query TEXT NOT NULL,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_by TEXT
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS instance_runbooks (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  provider_instance_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_by TEXT
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_runbooks_target ON instance_runbooks(account_id, provider_instance_id)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS instance_webhooks (
+  id TEXT PRIMARY KEY,
+  account_id TEXT,
+  provider_instance_id TEXT,
+  url TEXT NOT NULL,
+  secret TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_fired_at INTEGER,
+  last_status TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS probe_baselines (
+  instance_id TEXT PRIMARY KEY,
+  cpu_mean REAL NOT NULL,
+  cpu_std REAL NOT NULL,
+  mem_mean REAL NOT NULL,
+  mem_std REAL NOT NULL,
+  samples INTEGER NOT NULL,
+  computed_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS audit_chain (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_audit_id INTEGER NOT NULL,
+  to_audit_id INTEGER NOT NULL,
+  prev_hash TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  hmac TEXT NOT NULL,
+  computed_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_audit_chain_to ON audit_chain(to_audit_id)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);

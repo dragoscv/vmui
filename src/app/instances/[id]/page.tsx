@@ -22,6 +22,7 @@ import { InstanceSnapshotsCard } from "@/components/instances/instance-snapshots
 import { RelatedResourcesCard } from "@/components/instances/related-resources-card";
 import { InstanceSchedulesCard } from "@/components/schedules/instance-schedules-card";
 import { StickyNotesCard } from "@/components/instances/sticky-notes";
+import { RunbookEditor } from "@/components/instances/runbook-editor";
 import { ConsoleLinkButton } from "@/components/instances/console-link-button";
 import { listSchedulesForInstance } from "@/server/queries/schedules";
 import { formatRelative, formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
@@ -260,6 +261,11 @@ export default async function InstanceDetailPage({ params }: PageProps) {
       />
 
       <StickyNotesCard
+        accountId={instance.accountId}
+        providerInstanceId={instance.providerInstanceId}
+      />
+
+      <RunbookEditor
         accountId={instance.accountId}
         providerInstanceId={instance.providerInstanceId}
       />

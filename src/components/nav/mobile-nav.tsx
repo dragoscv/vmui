@@ -91,6 +91,8 @@ const more = [
   { href: "/account-budgets", label: "Acct budgets", icon: PiggyBank },
   { href: "/provider-status", label: "Provider status", icon: Activity },
   { href: "/tag-drift", label: "Tag drift", icon: Tag },
+  { href: "/saved-searches", label: "Saved searches", icon: FileStack },
+  { href: "/instance-webhooks", label: "Instance webhooks", icon: Activity },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },

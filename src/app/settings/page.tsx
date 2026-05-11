@@ -8,6 +8,8 @@ import { BootScriptsCard } from "@/components/settings/boot-scripts-card";
 import { InstallButton } from "@/components/pwa/install-prompt";
 import { PushManager } from "@/components/pwa/push-manager";
 import { SoundEffectsToggle } from "@/components/sound-effects-toggle";
+import { QuietHoursPanel } from "@/components/settings/quiet-hours-panel";
+import { getQuietHours } from "@/lib/quiet-hours";
 import { listKnownHostsAction } from "@/server/actions/known-hosts";
 import { listWebhooksAction } from "@/server/actions/webhooks";
 import { listBootScriptsAction } from "@/server/actions/boot-scripts";
@@ -29,11 +31,12 @@ function formatBytes(b: number | null): string {
 }
 
 export default async function SettingsPage() {
-  const [s, knownHosts, webhooks, bootScripts] = await Promise.all([
+  const [s, knownHosts, webhooks, bootScripts, quietHours] = await Promise.all([
     getSettings(),
     listKnownHostsAction(),
     listWebhooksAction(),
     listBootScriptsAction(),
+    getQuietHours(),
   ]);
   return (
     <div className="space-y-6">
@@ -178,7 +181,7 @@ export default async function SettingsPage() {
       <KnownHostsCard initial={knownHosts} />
       <WebhooksCard initial={webhooks} />
       <BootScriptsCard initial={bootScripts} />
-      <PwaCard />
+      <PwaCard quietHours={quietHours} />
 
       <Card>
         <CardHeader>
@@ -257,7 +260,7 @@ function Shortcut({ k, desc }: { k: string; desc: string }) {
   );
 }
 
-function PwaCard() {
+function PwaCard({ quietHours }: { quietHours: import("@/lib/quiet-hours").QuietHoursConfig }) {
   return (
     <Card>
       <CardHeader>
@@ -284,6 +287,10 @@ function PwaCard() {
         <div>
           <div className="mb-1 text-xs uppercase tracking-wider text-muted">Sound</div>
           <SoundEffectsToggle />
+        </div>
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-wider text-muted">Quiet hours</div>
+          <QuietHoursPanel initial={quietHours} />
         </div>
       </CardContent>
     </Card>

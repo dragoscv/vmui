@@ -1050,3 +1050,65 @@ export const accountBudgets = sqliteTable("account_budgets", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type AccountBudgetRow = typeof accountBudgets.$inferSelect;
+
+/** Saved search filters for the instances list. */
+export const savedSearches = sqliteTable("saved_searches", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  query: text("query").notNull(),
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdBy: text("created_by"),
+});
+export type SavedSearchRow = typeof savedSearches.$inferSelect;
+
+/** Markdown runbook attached to an instance (per providerInstanceId). */
+export const instanceRunbooks = sqliteTable("instance_runbooks", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerInstanceId: text("provider_instance_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdBy: text("created_by"),
+});
+export type InstanceRunbookRow = typeof instanceRunbooks.$inferSelect;
+
+/** Webhook fired on instance state transitions. */
+export const instanceWebhooks = sqliteTable("instance_webhooks", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id"),
+  providerInstanceId: text("provider_instance_id"),
+  url: text("url").notNull(),
+  secret: text("secret"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastFiredAt: integer("last_fired_at", { mode: "timestamp" }),
+  lastStatus: text("last_status"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type InstanceWebhookRow = typeof instanceWebhooks.$inferSelect;
+
+/** Rolling baseline of CPU/mem averages for drift alarms. */
+export const probeBaselines = sqliteTable("probe_baselines", {
+  instanceId: text("instance_id").primaryKey(),
+  cpuMean: real("cpu_mean").notNull(),
+  cpuStd: real("cpu_std").notNull(),
+  memMean: real("mem_mean").notNull(),
+  memStd: real("mem_std").notNull(),
+  samples: integer("samples").notNull(),
+  computedAt: integer("computed_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type ProbeBaselineRow = typeof probeBaselines.$inferSelect;
+
+/** Hash chain over auditLog rows; computed in batches by scheduler. */
+export const auditChain = sqliteTable("audit_chain", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fromAuditId: integer("from_audit_id").notNull(),
+  toAuditId: integer("to_audit_id").notNull(),
+  prevHash: text("prev_hash").notNull(),
+  hash: text("hash").notNull(),
+  hmac: text("hmac").notNull(),
+  computedAt: integer("computed_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type AuditChainRow = typeof auditChain.$inferSelect;

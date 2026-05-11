@@ -5,6 +5,7 @@ import { and, desc, eq, isNull, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notifications, type NotificationRow } from "@/lib/db/schema";
 import { publishEvent } from "@/lib/event-bus";
+import { getQuietHours, isQuietNow } from "@/lib/quiet-hours";
 
 export type NotificationSeverity = NotificationRow["severity"];
 export type NotificationCategory =
@@ -32,6 +33,11 @@ export interface NotifyInput {
  */
 export async function notify(input: NotifyInput): Promise<void> {
   try {
+    const sev = input.severity ?? "info";
+    try {
+      const qh = await getQuietHours();
+      if (isQuietNow(qh) && !qh.allowSeverities.includes(sev)) return;
+    } catch { /* fall through and notify */ }
     const id = nanoid();
     await db.insert(notifications).values({
       id,
