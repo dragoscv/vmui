@@ -13,6 +13,8 @@ import { HetznerProvider, type HetznerCredentials } from "./hetzner";
 import { LinodeProvider, type LinodeCredentials } from "./linode";
 import { VultrProvider, type VultrCredentials } from "./vultr";
 import { ProxmoxProvider, type ProxmoxCredentials } from "./proxmox";
+import { OvhProvider, type OvhCredentials } from "./ovh";
+import { FlyProvider, type FlyCredentials } from "./fly";
 import type { CloudProvider, ProviderId } from "./types";
 
 /**
@@ -104,9 +106,15 @@ function buildProvider(
       const creds = decryptJSON<Omit<ProxmoxCredentials, "defaultRegion">>(credentialsEnc);
       return new ProxmoxProvider({ ...creds, defaultRegion: defaultRegion ?? "pve" });
     }
-    case "ovh":
+    case "ovh": {
+      const creds = decryptJSON<Omit<OvhCredentials, "defaultRegion">>(credentialsEnc);
+      return new OvhProvider({ ...creds, defaultRegion: defaultRegion ?? "GRA9" });
+    }
+    case "fly": {
+      const creds = decryptJSON<Omit<FlyCredentials, "defaultRegion">>(credentialsEnc);
+      return new FlyProvider({ ...creds, defaultRegion: defaultRegion ?? "ord" });
+    }
     case "oracle":
-    case "fly":
       throw new Error(`Provider '${providerId}' is registered but its driver is not yet implemented. See docs for a roadmap.`);
     default:
       throw new Error(`Unknown provider: ${providerId}`);
@@ -125,8 +133,8 @@ export function listSupportedProviders(): { id: ProviderId; label: string; avail
     { id: "linode", label: "Linode (Akamai)", available: true },
     { id: "vultr", label: "Vultr", available: true },
     { id: "proxmox", label: "Proxmox VE (self-hosted)", available: true },
-    { id: "ovh", label: "OVHcloud", available: false },
+    { id: "ovh", label: "OVHcloud", available: true },
     { id: "oracle", label: "Oracle Cloud Infrastructure", available: false },
-    { id: "fly", label: "Fly.io", available: false },
+    { id: "fly", label: "Fly.io", available: true },
   ];
 }
