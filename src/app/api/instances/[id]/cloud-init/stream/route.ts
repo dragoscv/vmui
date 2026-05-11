@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { cloudAccounts, instances } from "@/lib/db/schema";
 import { decryptJSON } from "@/lib/crypto";
 import { startSshStream } from "@/lib/ssh-exec-stream";
+import { redactQuiet } from "@/lib/secret-redactor";
 import type { ProbeKey } from "@/lib/probe";
 
 export const runtime = "nodejs";
@@ -107,12 +108,12 @@ export async function GET(
           const parts = lineBuf.split(/\r?\n/);
           lineBuf = parts.pop() ?? "";
           for (const line of parts) {
-            if (line.length > 0) sendEvent("line", { ts: Date.now(), text: line });
+            if (line.length > 0) sendEvent("line", { ts: Date.now(), text: redactQuiet(line) });
           }
         },
         onError: (msg) => sendEvent("error", { message: msg }),
         onClose: () => {
-          if (lineBuf) sendEvent("line", { ts: Date.now(), text: lineBuf });
+          if (lineBuf) sendEvent("line", { ts: Date.now(), text: redactQuiet(lineBuf) });
           sendEvent("end", { ok: true });
           try {
             controller.close();

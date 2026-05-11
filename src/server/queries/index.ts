@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { auditLog, cloudAccounts, instances } from "@/lib/db/schema";
 import { decryptJSON } from "@/lib/crypto";
 import { priceInstances, type PricedRow } from "@/lib/pricing";
+import { redactQuiet } from "@/lib/secret-redactor";
 
 export async function listAccounts() {
   const rows = await db.select().from(cloudAccounts).orderBy(desc(cloudAccounts.createdAt));
@@ -140,7 +141,11 @@ export async function listAuditLogFiltered(filter: AuditLogFilter = {}): Promise
     total = c?.c ?? page.length;
   }
 
-  return { rows: page, nextCursor, total };
+  return { rows: redactAuditRows(page), nextCursor, total };
+}
+
+function redactAuditRows<T extends { message: string | null }>(rows: T[]): T[] {
+  return rows.map((r) => (r.message ? { ...r, message: redactQuiet(r.message) } : r));
 }
 
 function escapeLike(s: string): string {
