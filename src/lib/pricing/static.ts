@@ -112,6 +112,22 @@ const GCP_BASE: Record<string, { linux?: number; windows?: number }> = {
   "c3-standard-4": { linux: 0.207, windows: 0.41 },
 };
 
+/** DigitalOcean droplets — flat hourly, billed monthly cap (730h). Linux only. */
+const DIGITALOCEAN_BASE: Record<string, number> = {
+  "s-1vcpu-1gb": 0.00744,
+  "s-1vcpu-2gb": 0.01488,
+  "s-2vcpu-2gb": 0.02232,
+  "s-2vcpu-4gb": 0.03571,
+  "s-4vcpu-8gb": 0.07143,
+  "s-8vcpu-16gb": 0.14286,
+  "c-2": 0.06,
+  "c-4": 0.12,
+  "g-2vcpu-8gb": 0.09375,
+  "g-4vcpu-16gb": 0.1875,
+  "m-2vcpu-16gb": 0.13393,
+  "m-4vcpu-32gb": 0.26786,
+};
+
 function platformKey(p: string): "linux" | "windows" | "mac" {
   const x = p.toLowerCase();
   if (x.includes("win")) return "windows";
@@ -149,6 +165,10 @@ export function lookupStaticPrice(
     if (!base) return null;
     const baseUsd = base[pk === "mac" ? "linux" : pk];
     return baseUsd == null ? null : { usdPerHour: baseUsd, source: "static" };
+  }
+  if (provider === "digitalocean") {
+    const usd = DIGITALOCEAN_BASE[instanceType];
+    return usd == null ? null : { usdPerHour: usd, source: "static" };
   }
   if (provider === "local-kvm") {
     return { usdPerHour: 0, source: "kvm-free" };

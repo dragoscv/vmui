@@ -74,7 +74,7 @@ export default async function InstanceDetailPage({ params }: PageProps) {
       <div className="flex flex-wrap justify-end gap-2">
         <ShowAsCodeDialog
           instance={{
-            provider: instance.provider as "aws" | "azure" | "gcp" | "scaleway" | "local-kvm",
+            provider: instance.provider as "aws" | "azure" | "gcp" | "scaleway" | "digitalocean" | "local-kvm",
             region: instance.region,
             providerInstanceId: instance.providerInstanceId,
             name: instance.name,

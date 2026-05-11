@@ -15,6 +15,7 @@ import { ScalewayProvider } from "@/lib/providers/scaleway";
 import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
 import { AzureProvider } from "@/lib/providers/azure";
 import { GcpProvider } from "@/lib/providers/gcp";
+import { DigitalOceanProvider } from "@/lib/providers/digitalocean";
 import {
   hasAwsCli,
   listAwsProfiles,
@@ -781,6 +782,83 @@ export async function addGcpAccount(
     target: identity.accountId,
     status: "ok",
     message: `GCP project "${parsed.data.name}" connected (${identity.label})`,
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath("/");
+  return { ok: true, accountId: id };
+}
+
+// ===== DigitalOcean =====
+
+const digitalOceanCredentialsSchema = z.object({
+  name: z.string().min(1, "Name is required").max(64),
+  token: z
+    .string()
+    .min(40, "DigitalOcean tokens are 64+ characters")
+    .max(255)
+    .regex(/^[A-Za-z0-9_-]+$/, "Invalid token format"),
+  defaultRegion: z
+    .string()
+    .regex(/^[a-z]{2,4}\d{1,2}$/i, "Region slug like nyc3, fra1, sgp1"),
+});
+
+export type DigitalOceanAccountFormState = {
+  ok?: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  accountId?: string;
+};
+
+export async function addDigitalOceanAccount(
+  _prev: DigitalOceanAccountFormState,
+  formData: FormData,
+): Promise<DigitalOceanAccountFormState> {
+  const parsed = digitalOceanCredentialsSchema.safeParse({
+    name: formData.get("name"),
+    token: formData.get("token"),
+    defaultRegion: formData.get("defaultRegion"),
+  });
+  if (!parsed.success) {
+    const fe: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const k = issue.path[0];
+      if (typeof k === "string" && !fe[k]) fe[k] = issue.message;
+    }
+    return { error: "Please fix the highlighted fields.", fieldErrors: fe };
+  }
+
+  const { name, token, defaultRegion } = parsed.data;
+  const provider = new DigitalOceanProvider({ token, defaultRegion });
+
+  let identity;
+  try {
+    identity = await provider.verify();
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error
+          ? `Verification failed: ${err.message}`
+          : "Failed to verify DigitalOcean token.",
+    };
+  }
+
+  const id = nanoid(12);
+  await db.insert(cloudAccounts).values({
+    id,
+    provider: "digitalocean",
+    name,
+    defaultRegion,
+    credentialsEnc: encryptJSON({ token }),
+    metadataEnc: encryptJSON({ accountId: identity.accountId, label: identity.label }),
+  });
+
+  await db.insert(auditLog).values({
+    accountId: id,
+    action: "account.create",
+    target: identity.accountId,
+    status: "ok",
+    message: `DigitalOcean account "${name}" connected (${identity.label})`,
   });
 
   revalidatePath("/accounts");

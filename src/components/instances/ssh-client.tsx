@@ -281,6 +281,7 @@ function defaultUserFor(inst: InstanceRow): string {
   if (inst.provider === "azure") return "azureuser";
   if (inst.provider === "gcp") return "ubuntu";
   if (inst.provider === "scaleway") return "m1";
+  if (inst.provider === "digitalocean") return "root";
   return "ubuntu";
 }
 

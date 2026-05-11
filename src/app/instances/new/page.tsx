@@ -7,6 +7,7 @@ import { listBootScriptsAction } from "@/server/actions/boot-scripts";
 import { Card, CardContent } from "@/components/ui/card";
 import { AwsProvider } from "@/lib/providers/aws";
 import { ScalewayProvider } from "@/lib/providers/scaleway";
+import { DigitalOceanProvider } from "@/lib/providers/digitalocean";
 import { LocalKvmProvider } from "@/lib/providers/local-kvm";
 import type { InstanceTemplate, ProviderId } from "@/lib/providers/types";
 
@@ -26,6 +27,10 @@ export default async function NewInstancePage() {
     secretKey: "",
     projectId: "",
     defaultZone: "fr-par-1",
+  }).listInstanceTemplates();
+  const digitalOceanTemplates = await new DigitalOceanProvider({
+    token: "",
+    defaultRegion: "nyc3",
   }).listInstanceTemplates();
   // Aggregate templates across all local-kvm kinds (mac/win/ubuntu) so the
   // create wizard can offer them. Per-kind credentials are placeholders —
@@ -57,6 +62,7 @@ export default async function NewInstancePage() {
     "local-kvm": localKvmTemplates,
     azure: [],
     gcp: [],
+    digitalocean: digitalOceanTemplates,
   };
 
   // Static region lists per provider.
@@ -70,6 +76,7 @@ export default async function NewInstancePage() {
     "local-kvm": ["wsl-local"],
     azure: [],
     gcp: [],
+    digitalocean: ["nyc1", "nyc3", "sfo3", "ams3", "fra1", "lon1", "tor1", "sgp1", "blr1", "syd1"],
   };
 
   return (

@@ -8,6 +8,7 @@ import { ScalewayProvider, type ScalewayCredentials } from "./scaleway";
 import { LocalKvmProvider, type LocalKvmCredentials, KIND_DEFAULTS } from "./local-kvm";
 import { AzureProvider, type AzureCredentials } from "./azure";
 import { GcpProvider, type GcpCredentials } from "./gcp";
+import { DigitalOceanProvider, type DigitalOceanCredentials } from "./digitalocean";
 import type { CloudProvider, ProviderId } from "./types";
 
 /**
@@ -79,6 +80,10 @@ function buildProvider(
       const creds = decryptJSON<Omit<GcpCredentials, "defaultZone">>(credentialsEnc);
       return new GcpProvider({ ...creds, defaultZone: defaultRegion ?? "us-central1-a" });
     }
+    case "digitalocean": {
+      const creds = decryptJSON<Omit<DigitalOceanCredentials, "defaultRegion">>(credentialsEnc);
+      return new DigitalOceanProvider({ ...creds, defaultRegion: defaultRegion ?? "nyc3" });
+    }
     default:
       throw new Error(`Unknown provider: ${providerId}`);
   }
@@ -91,5 +96,6 @@ export function listSupportedProviders(): { id: ProviderId; label: string; avail
     { id: "local-kvm", label: "Local · KVM (WSL2)", available: true },
     { id: "azure", label: "Microsoft Azure", available: true },
     { id: "gcp", label: "Google Cloud Platform", available: true },
+    { id: "digitalocean", label: "DigitalOcean", available: true },
   ];
 }

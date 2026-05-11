@@ -70,6 +70,19 @@ export const REGION_CATALOG: Record<string, { id: string; label: string }[]> = {
     { id: "pl-waw-1", label: "Warsaw 1" },
     { id: "pl-waw-2", label: "Warsaw 2" },
   ],
+  digitalocean: [
+    { id: "nyc1", label: "New York 1" },
+    { id: "nyc3", label: "New York 3" },
+    { id: "sfo2", label: "San Francisco 2" },
+    { id: "sfo3", label: "San Francisco 3" },
+    { id: "ams3", label: "Amsterdam 3" },
+    { id: "fra1", label: "Frankfurt 1" },
+    { id: "lon1", label: "London 1" },
+    { id: "tor1", label: "Toronto 1" },
+    { id: "sgp1", label: "Singapore 1" },
+    { id: "blr1", label: "Bangalore 1" },
+    { id: "syd1", label: "Sydney 1" },
+  ],
   "local-kvm": [{ id: "local", label: "Local" }],
 };
 

@@ -3,7 +3,7 @@
  * implementing this interface and registering in `registry.ts`.
  */
 
-export type ProviderId = "aws" | "azure" | "gcp" | "scaleway" | "local-kvm";
+export type ProviderId = "aws" | "azure" | "gcp" | "scaleway" | "digitalocean" | "local-kvm";
 
 export type NormalizedState =
   | "pending"

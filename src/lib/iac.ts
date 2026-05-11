@@ -66,6 +66,15 @@ export function cliFor(action: Action, ctx: InstanceCodeContext): string {
       };
       return map[action];
     }
+    case "digitalocean": {
+      const map: Record<Action, string> = {
+        start: `doctl compute droplet-action power-on ${id}`,
+        stop: `doctl compute droplet-action shutdown ${id}`,
+        reboot: `doctl compute droplet-action reboot ${id}`,
+        terminate: `doctl compute droplet delete ${id} --force`,
+      };
+      return map[action];
+    }
     case "local-kvm": {
       const map: Record<Action, string> = {
         start: `virsh start ${ctx.name ?? id}`,
@@ -146,6 +155,18 @@ export function terraformFor(ctx: InstanceCodeContext): string {
         `# Scaleway bare-metal Mac minis aren't fully expressible in Terraform.`,
         `# Use the Scaleway CLI or API; vmui shows the equivalent CLI command above.`,
         `# server_id = "${ctx.providerInstanceId}" zone = "${ctx.region}"`,
+      ].join("\n");
+    case "digitalocean":
+      return [
+        `resource "digitalocean_droplet" "${resName}" {`,
+        `  name   = "${ctx.name ?? resName}"`,
+        `  size   = "${it}"`,
+        `  image  = "ubuntu-22-04-x64"`,
+        `  region = "${ctx.region}"`,
+        `}`,
+        ``,
+        `# Import with:`,
+        `# terraform import digitalocean_droplet.${resName} ${ctx.providerInstanceId}`,
       ].join("\n");
     case "local-kvm":
       return [

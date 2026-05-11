@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowLeft, Cloud, Apple, MonitorCog } from "lucide-react";
+import { ArrowLeft, Cloud, Apple, MonitorCog, Droplets } from "lucide-react";
 import { AwsAccountConnect } from "@/components/accounts/aws-account-connect";
 import { ScalewayAccountConnect } from "@/components/accounts/scaleway-account-connect";
 import { LocalKvmAccountConnect } from "@/components/accounts/local-kvm-account-connect";
 import { AzureAccountConnect } from "@/components/accounts/azure-account-connect";
 import { GcpAccountConnect } from "@/components/accounts/gcp-account-connect";
+import { DigitalOceanAccountConnect } from "@/components/accounts/digitalocean-account-connect";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -24,7 +25,7 @@ export default function NewAccountPage() {
         </p>
       </div>
       <Tabs defaultValue="aws" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="aws">
             <Cloud className="mr-1.5 h-3.5 w-3.5" /> AWS
           </TabsTrigger>
@@ -33,6 +34,9 @@ export default function NewAccountPage() {
           </TabsTrigger>
           <TabsTrigger value="gcp">
             <Cloud className="mr-1.5 h-3.5 w-3.5" /> GCP
+          </TabsTrigger>
+          <TabsTrigger value="digitalocean">
+            <Droplets className="mr-1.5 h-3.5 w-3.5" /> DigitalOcean
           </TabsTrigger>
           <TabsTrigger value="scaleway">
             <Apple className="mr-1.5 h-3.5 w-3.5" /> Scaleway
@@ -49,6 +53,9 @@ export default function NewAccountPage() {
         </TabsContent>
         <TabsContent value="gcp" className="pt-4">
           <GcpAccountConnect />
+        </TabsContent>
+        <TabsContent value="digitalocean" className="pt-4">
+          <DigitalOceanAccountConnect />
         </TabsContent>
         <TabsContent value="scaleway" className="pt-4">
           <ScalewayAccountConnect />
