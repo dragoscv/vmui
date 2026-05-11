@@ -479,6 +479,25 @@ export async function executeInstanceAction(
     else if (action === "reboot") await provider.rebootInstance(region, id);
     else if (action === "terminate") await provider.terminateInstance(region, id);
 
+    if (action === "terminate") {
+      try {
+        const { instanceTrash } = await import("@/lib/db/schema");
+        const { nanoid } = await import("nanoid");
+        const existing = await db.select().from(instances).where(
+          and(eq(instances.accountId, data.accountId), eq(instances.region, region), eq(instances.providerInstanceId, id))
+        ).limit(1);
+        const inst = existing[0];
+        if (inst) {
+          await db.insert(instanceTrash).values({
+            id: nanoid(),
+            accountId: inst.accountId, region: inst.region, providerInstanceId: inst.providerInstanceId,
+            name: inst.name, provider: inst.provider, instanceType: inst.instanceType,
+            rawJson: inst.rawJson, terminatedBy: null,
+          });
+        }
+      } catch { /* best-effort */ }
+    }
+
     await db.insert(auditLog).values({
       accountId: data.accountId,
       action: `instance.${action}`,

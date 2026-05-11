@@ -23,6 +23,7 @@ import { RelatedResourcesCard } from "@/components/instances/related-resources-c
 import { InstanceSchedulesCard } from "@/components/schedules/instance-schedules-card";
 import { StickyNotesCard } from "@/components/instances/sticky-notes";
 import { RunbookEditor } from "@/components/instances/runbook-editor";
+import { SecretsVault } from "@/components/instances/secrets-vault";
 import { ConsoleLinkButton } from "@/components/instances/console-link-button";
 import { listSchedulesForInstance } from "@/server/queries/schedules";
 import { formatRelative, formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
@@ -266,6 +267,11 @@ export default async function InstanceDetailPage({ params }: PageProps) {
       />
 
       <RunbookEditor
+        accountId={instance.accountId}
+        providerInstanceId={instance.providerInstanceId}
+      />
+
+      <SecretsVault
         accountId={instance.accountId}
         providerInstanceId={instance.providerInstanceId}
       />

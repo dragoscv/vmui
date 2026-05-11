@@ -98,6 +98,8 @@ const more = [
   { href: "/audit-chain", label: "Audit chain", icon: ShieldCheck },
   { href: "/region-map", label: "Region map", icon: Globe },
   { href: "/boot-script-diff", label: "Boot diff", icon: FileStack },
+  { href: "/tag-policies", label: "Tag policies", icon: Tag },
+  { href: "/trash", label: "Trash", icon: AlertTriangle },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },

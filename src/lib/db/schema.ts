@@ -1112,3 +1112,45 @@ export const auditChain = sqliteTable("audit_chain", {
   computedAt: integer("computed_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type AuditChainRow = typeof auditChain.$inferSelect;
+
+/** Per-instance encrypted secrets vault (KV). */
+export const instanceSecrets = sqliteTable("instance_secrets", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerInstanceId: text("provider_instance_id").notNull(),
+  key: text("key").notNull(),
+  /** AES-256-GCM encrypted value (base64). */
+  valueEnc: text("value_enc").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdBy: text("created_by"),
+});
+export type InstanceSecretRow = typeof instanceSecrets.$inferSelect;
+
+/** Tag policy DSL rules. Each rule has a condition and required keys. */
+export const tagPolicies = sqliteTable("tag_policies", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** Free-form DSL: e.g. "provider=aws AND region~^eu" */
+  condition: text("condition").notNull(),
+  /** JSON array of required tag keys. */
+  requireKeysJson: text("require_keys_json").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type TagPolicyRow = typeof tagPolicies.$inferSelect;
+
+/** Trash bin: keeps metadata of terminated instances for restore-as-data. */
+export const instanceTrash = sqliteTable("instance_trash", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  region: text("region").notNull(),
+  providerInstanceId: text("provider_instance_id").notNull(),
+  name: text("name"),
+  provider: text("provider").notNull(),
+  instanceType: text("instance_type"),
+  rawJson: text("raw_json"),
+  terminatedAt: integer("terminated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  terminatedBy: text("terminated_by"),
+});
+export type InstanceTrashRow = typeof instanceTrash.$inferSelect;

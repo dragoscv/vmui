@@ -799,6 +799,42 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS audit_chain (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_audit_chain_to ON audit_chain(to_audit_id)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS instance_secrets (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  provider_instance_id TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value_enc TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_by TEXT
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_inst_secrets_target ON instance_secrets(account_id, provider_instance_id)`);
+sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inst_secret_key ON instance_secrets(account_id, provider_instance_id, key)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS tag_policies (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  condition TEXT NOT NULL,
+  require_keys_json TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS instance_trash (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  region TEXT NOT NULL,
+  provider_instance_id TEXT NOT NULL,
+  name TEXT,
+  provider TEXT NOT NULL,
+  instance_type TEXT,
+  raw_json TEXT,
+  terminated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  terminated_by TEXT
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_inst_trash_time ON instance_trash(terminated_at)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);
