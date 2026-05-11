@@ -653,6 +653,20 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS team_invitations (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_team_invitations_email ON team_invitations(email)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS terminal_recordings (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  instance_label TEXT,
+  user_id TEXT,
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  size_bytes INTEGER NOT NULL DEFAULT 0,
+  path TEXT NOT NULL,
+  cols INTEGER NOT NULL DEFAULT 80,
+  rows INTEGER NOT NULL DEFAULT 24
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_terminal_recordings_started ON terminal_recordings(started_at DESC)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);

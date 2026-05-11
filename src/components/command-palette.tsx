@@ -33,6 +33,8 @@ const NAV: { href: string; label: string; icon: React.ComponentType<{ className?
   { href: "/achievements", label: "Achievements", icon: Trophy, keywords: "badges streaks xp" },
   { href: "/status", label: "Public status", icon: Globe },
   { href: "/teams", label: "Teams", icon: Users },
+  { href: "/anomalies", label: "Cost anomalies", icon: AlertTriangle, keywords: "z-score spend spike" },
+  { href: "/recordings", label: "Terminal recordings", icon: TerminalSquare, keywords: "asciinema cast replay" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

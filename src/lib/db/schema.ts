@@ -930,3 +930,24 @@ export const teamInvitations = sqliteTable("team_invitations", {
 });
 
 export type TeamInvitationRow = typeof teamInvitations.$inferSelect;
+
+/**
+ * Terminal session recordings (asciinema cast v2).
+ * Files are written under `data/recordings/<id>.cast`. We store metadata only.
+ */
+export const terminalRecordings = sqliteTable("terminal_recordings", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  instanceLabel: text("instance_label"),
+  userId: text("user_id"),
+  startedAt: integer("started_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  durationMs: integer("duration_ms").notNull().default(0),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  path: text("path").notNull(),
+  cols: integer("cols").notNull().default(80),
+  rows: integer("rows").notNull().default(24),
+});
+
+export type TerminalRecordingRow = typeof terminalRecordings.$inferSelect;

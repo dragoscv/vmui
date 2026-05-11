@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { sshHostKeys } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { Recorder } from "@/lib/terminal-recorder";
 
 /**
  * In-process WebSocket bridge for browser SSH. One singleton server attached
@@ -113,6 +114,8 @@ function startServer(): BridgeState {
     let stream: import("ssh2").ClientChannel | null = null;
     let cols = 80;
     let rows = 24;
+    let recorder: Recorder | null = null;
+    const recordingEnabled = process.env.VMUI_RECORD_TERMINAL !== "0";
 
     ws.on("message", (data, isBinary) => {
       if (!stream) {
@@ -147,6 +150,7 @@ function startServer(): BridgeState {
     });
 
     ws.on("close", () => {
+      recorder?.close();
       try {
         stream?.end();
       } catch {
@@ -168,15 +172,30 @@ function startServer(): BridgeState {
           return;
         }
         stream = ch;
+        if (recordingEnabled) {
+          try {
+            recorder = new Recorder({
+              sessionId: pending.sessionId,
+              instanceLabel: profile.label ?? null,
+              cols,
+              rows,
+            });
+          } catch {
+            recorder = null;
+          }
+        }
         ws.send(JSON.stringify({ type: "ready" }));
 
         ch.on("data", (chunk: Buffer) => {
           if (ws.readyState === ws.OPEN) ws.send(chunk, { binary: true });
+          recorder?.writeOutput(chunk);
         });
         ch.stderr.on("data", (chunk: Buffer) => {
           if (ws.readyState === ws.OPEN) ws.send(chunk, { binary: true });
+          recorder?.writeOutput(chunk);
         });
         ch.on("close", () => {
+          recorder?.close();
           ws.send(JSON.stringify({ type: "close" }));
           ws.close(1000, "shell ended");
         });
