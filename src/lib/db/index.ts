@@ -454,5 +454,36 @@ BEGIN
 END;
 `);
 
+// FTS5 search index over audit_log (action/target/status/message). Kept in
+// sync via triggers; rebuilt on bootstrap if rowcount drifts from base table.
+try {
+  sqlite.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS audit_log_fts USING fts5(
+    action, target, status, message,
+    content='audit_log', content_rowid='id', tokenize='unicode61 remove_diacritics 2'
+  )`);
+  sqlite.exec(`CREATE TRIGGER IF NOT EXISTS audit_log_fts_ai AFTER INSERT ON audit_log BEGIN
+    INSERT INTO audit_log_fts(rowid, action, target, status, message)
+    VALUES (NEW.id, NEW.action, NEW.target, NEW.status, NEW.message);
+  END;`);
+  sqlite.exec(`CREATE TRIGGER IF NOT EXISTS audit_log_fts_ad AFTER DELETE ON audit_log BEGIN
+    INSERT INTO audit_log_fts(audit_log_fts, rowid, action, target, status, message)
+    VALUES ('delete', OLD.id, OLD.action, OLD.target, OLD.status, OLD.message);
+  END;`);
+  sqlite.exec(`CREATE TRIGGER IF NOT EXISTS audit_log_fts_au AFTER UPDATE ON audit_log BEGIN
+    INSERT INTO audit_log_fts(audit_log_fts, rowid, action, target, status, message)
+    VALUES ('delete', OLD.id, OLD.action, OLD.target, OLD.status, OLD.message);
+    INSERT INTO audit_log_fts(rowid, action, target, status, message)
+    VALUES (NEW.id, NEW.action, NEW.target, NEW.status, NEW.message);
+  END;`);
+  const base = sqlite.prepare("SELECT COUNT(*) as c FROM audit_log").get() as { c: number };
+  const fts = sqlite.prepare("SELECT COUNT(*) as c FROM audit_log_fts").get() as { c: number };
+  if (base.c !== fts.c) {
+    sqlite.exec(`INSERT INTO audit_log_fts(audit_log_fts) VALUES('rebuild')`);
+  }
+} catch (e) {
+  console.warn("[db] FTS5 init failed:", (e as Error).message);
+}
+
 export const db = drizzle(sqlite, { schema });
 export { schema };
+export { sqlite as rawSqlite };

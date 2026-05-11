@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network } from "lucide-react";
+import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network, FileSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -19,6 +19,7 @@ const items = [
   { href: "/accounts", label: "Accounts", icon: KeyRound },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/logs", label: "Logs", icon: FileSearch },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
