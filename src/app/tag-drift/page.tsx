@@ -3,8 +3,14 @@ import { db } from "@/lib/db";
 import { instances, instanceTags } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
+import { pushLocalTagsToProviderAction } from "@/server/actions/drift-remediate";
 
 export const dynamic = "force-dynamic";
+
+async function remediate(formData: FormData) {
+  "use server";
+  await pushLocalTagsToProviderAction({ instanceId: String(formData.get("instanceId") ?? "") });
+}
 
 interface DriftRow {
   id: string;
@@ -101,7 +107,13 @@ export default async function TagDriftPage() {
           <div key={d.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
             <div className="flex items-center justify-between">
               <Link href={`/instances/${encodeURIComponent(d.id)}`} className="text-emerald-300 hover:text-emerald-200 font-medium">{d.name}</Link>
-              <span className="text-xs text-zinc-500">{d.provider} · {d.region}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-zinc-500">{d.provider} · {d.region}</span>
+                <form action={remediate}>
+                  <input type="hidden" name="instanceId" value={d.id} />
+                  <button type="submit" className="rounded-md bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 text-xs">Push local tags →</button>
+                </form>
+              </div>
             </div>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <Box title="Only in provider" tone="amber" items={d.onlyProvider} />

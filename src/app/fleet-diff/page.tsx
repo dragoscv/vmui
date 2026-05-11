@@ -1,5 +1,5 @@
 import "server-only";
-import { getLatestFleetDiff, captureFleetSnapshot } from "@/lib/fleet-diff";
+import { getLatestFleetDiff, captureFleetSnapshot, listFleetSnapshots, diffFleetSnapshots } from "@/lib/fleet-diff";
 import { requireRole } from "@/lib/auth";
 
 async function captureAction() {
@@ -10,8 +10,12 @@ async function captureAction() {
 
 export const dynamic = "force-dynamic";
 
-export default async function FleetDiffPage() {
-  const diff = await getLatestFleetDiff();
+export default async function FleetDiffPage(props: { searchParams?: Promise<{ before?: string; after?: string }> }) {
+  const sp = (await props.searchParams) ?? {};
+  const snaps = await listFleetSnapshots();
+  const diff = sp.before && sp.after
+    ? await diffFleetSnapshots(sp.before, sp.after)
+    : await getLatestFleetDiff();
 
   return (
     <div className="space-y-6">
@@ -28,6 +32,20 @@ export default async function FleetDiffPage() {
           </button>
         </form>
       </header>
+
+      {snaps.length >= 2 && (
+        <form method="GET" className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs">
+          <span className="text-zinc-400">Compare</span>
+          <select name="before" defaultValue={sp.before ?? snaps[1]?.id ?? ""} className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1">
+            {snaps.map((s) => <option key={s.id} value={s.id}>{s.capturedAt.toLocaleString()} ({s.count})</option>)}
+          </select>
+          <span className="text-zinc-400">→</span>
+          <select name="after" defaultValue={sp.after ?? snaps[0]?.id ?? ""} className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1">
+            {snaps.map((s) => <option key={s.id} value={s.id}>{s.capturedAt.toLocaleString()} ({s.count})</option>)}
+          </select>
+          <button type="submit" className="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1">Diff</button>
+        </form>
+      )}
 
       {!diff && (
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-400">

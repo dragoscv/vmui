@@ -79,3 +79,38 @@ export async function pruneFleetSnapshots(days: number = 30): Promise<number> {
   const stale = await db.select({ id: fleetSnapshots.id }).from(fleetSnapshots).where(gte(fleetSnapshots.capturedAt, cutoff));
   return stale.length; // (delete left as exercise; SQLite handles it)
 }
+
+export async function listFleetSnapshots(): Promise<{ id: string; capturedAt: Date; count: number }[]> {
+  const rows = await db.select().from(fleetSnapshots).orderBy(desc(fleetSnapshots.capturedAt)).limit(100);
+  return rows.map((r) => {
+    let count = 0;
+    try { count = (JSON.parse(r.membersJson) as FleetMember[]).length; } catch { /* ignore */ }
+    return { id: r.id, capturedAt: r.capturedAt, count };
+  });
+}
+
+export async function diffFleetSnapshots(beforeId: string, afterId: string): Promise<FleetDiff | null> {
+  const rows = await db.select().from(fleetSnapshots);
+  const before = rows.find((r) => r.id === beforeId);
+  const after = rows.find((r) => r.id === afterId);
+  if (!before || !after) return null;
+  const beforeArr = JSON.parse(before.membersJson) as FleetMember[];
+  const afterArr = JSON.parse(after.membersJson) as FleetMember[];
+  const key = (m: FleetMember) => `${m.accountId}::${m.providerInstanceId}`;
+  const beforeMap = new Map(beforeArr.map((m) => [key(m), m]));
+  const afterMap = new Map(afterArr.map((m) => [key(m), m]));
+  const added = afterArr.filter((m) => !beforeMap.has(key(m)));
+  const removed = beforeArr.filter((m) => !afterMap.has(key(m)));
+  const changed: FleetDiff["changed"] = [];
+  for (const a of afterArr) {
+    const b = beforeMap.get(key(a));
+    if (!b) continue;
+    const fields: string[] = [];
+    if (b.state !== a.state) fields.push("state");
+    if (b.region !== a.region) fields.push("region");
+    if (b.instanceType !== a.instanceType) fields.push("instanceType");
+    if (b.name !== a.name) fields.push("name");
+    if (fields.length > 0) changed.push({ before: b, after: a, fields });
+  }
+  return { added, removed, changed, beforeAt: before.capturedAt, afterAt: after.capturedAt };
+}

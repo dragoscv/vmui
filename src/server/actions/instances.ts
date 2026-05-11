@@ -450,6 +450,30 @@ export async function executeInstanceAction(
       }
     }
 
+    if (action === "start" && provider.createSnapshot) {
+      const fresh = await checkSnapshotFreshness({
+        accountId: data.accountId,
+        region,
+        providerInstanceId: id,
+      });
+      if (!fresh.hasRecent) {
+        try {
+          const label = `pre-start-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+          const snap = await provider.createSnapshot(region, id, label);
+          await db.insert(auditLog).values({
+            accountId: data.accountId, action: "instance.start.pre-snapshot",
+            target: id, status: "ok", message: snap.snapshotId,
+          });
+        } catch (err) {
+          await db.insert(auditLog).values({
+            accountId: data.accountId, action: "instance.start.pre-snapshot",
+            target: id, status: "error",
+            message: err instanceof Error ? err.message : "snapshot failed",
+          });
+        }
+      }
+    }
+
     if (action === "start") await provider.startInstance(region, id);
     else if (action === "stop") await provider.stopInstance(region, id);
     else if (action === "reboot") await provider.rebootInstance(region, id);

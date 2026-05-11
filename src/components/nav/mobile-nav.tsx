@@ -97,6 +97,7 @@ const more = [
   { href: "/account-forecast", label: "Spend forecast", icon: PiggyBank },
   { href: "/audit-chain", label: "Audit chain", icon: ShieldCheck },
   { href: "/region-map", label: "Region map", icon: Globe },
+  { href: "/boot-script-diff", label: "Boot diff", icon: FileStack },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },
