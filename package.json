@@ -63,6 +63,7 @@
     "better-sqlite3": "^11.8.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "drizzle-orm": "^0.39.3",
     "google-auth-library": "^10.6.2",
     "lucide-react": "^0.475.0",

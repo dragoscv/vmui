@@ -11,6 +11,8 @@ import { GcpProvider, type GcpCredentials } from "./gcp";
 import { DigitalOceanProvider, type DigitalOceanCredentials } from "./digitalocean";
 import { HetznerProvider, type HetznerCredentials } from "./hetzner";
 import { LinodeProvider, type LinodeCredentials } from "./linode";
+import { VultrProvider, type VultrCredentials } from "./vultr";
+import { ProxmoxProvider, type ProxmoxCredentials } from "./proxmox";
 import type { CloudProvider, ProviderId } from "./types";
 
 /**
@@ -94,11 +96,17 @@ function buildProvider(
       const creds = decryptJSON<Omit<LinodeCredentials, "defaultRegion">>(credentialsEnc);
       return new LinodeProvider({ ...creds, defaultRegion: defaultRegion ?? "us-east" });
     }
-    case "vultr":
+    case "vultr": {
+      const creds = decryptJSON<Omit<VultrCredentials, "defaultRegion">>(credentialsEnc);
+      return new VultrProvider({ ...creds, defaultRegion: defaultRegion ?? "ewr" });
+    }
+    case "proxmox": {
+      const creds = decryptJSON<Omit<ProxmoxCredentials, "defaultRegion">>(credentialsEnc);
+      return new ProxmoxProvider({ ...creds, defaultRegion: defaultRegion ?? "pve" });
+    }
     case "ovh":
     case "oracle":
     case "fly":
-    case "proxmox":
       throw new Error(`Provider '${providerId}' is registered but its driver is not yet implemented. See docs for a roadmap.`);
     default:
       throw new Error(`Unknown provider: ${providerId}`);
@@ -115,10 +123,10 @@ export function listSupportedProviders(): { id: ProviderId; label: string; avail
     { id: "digitalocean", label: "DigitalOcean", available: true },
     { id: "hetzner", label: "Hetzner Cloud", available: true },
     { id: "linode", label: "Linode (Akamai)", available: true },
-    { id: "vultr", label: "Vultr", available: false },
+    { id: "vultr", label: "Vultr", available: true },
+    { id: "proxmox", label: "Proxmox VE (self-hosted)", available: true },
     { id: "ovh", label: "OVHcloud", available: false },
     { id: "oracle", label: "Oracle Cloud Infrastructure", available: false },
     { id: "fly", label: "Fly.io", available: false },
-    { id: "proxmox", label: "Proxmox VE", available: false },
   ];
 }

@@ -311,8 +311,8 @@ export const webhooks = sqliteTable("webhooks", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   url: text("url").notNull(),
-  /** "slack" | "discord" | "generic" — controls body shape. */
-  kind: text("kind", { enum: ["slack", "discord", "generic"] }).notNull(),
+  /** "slack" | "discord" | "teams" | "generic" — controls body shape. */
+  kind: text("kind", { enum: ["slack", "discord", "teams", "generic"] }).notNull(),
   /** JSON array of subscribed event channels. */
   channels: text("channels").notNull(),
   enabled: integer("enabled").notNull().default(1),

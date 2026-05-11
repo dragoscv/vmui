@@ -55,6 +55,17 @@ function bodyFor(hook: WebhookRow, e: BusEvent): unknown {
   if (hook.kind === "discord") {
     return { content: `**vmui** · ${text}` };
   }
+  if (hook.kind === "teams") {
+    // Microsoft Teams Incoming Webhook (legacy MessageCard format)
+    return {
+      "@type": "MessageCard",
+      "@context": "https://schema.org/extensions",
+      themeColor: "0078D4",
+      summary: "vmui event",
+      title: "vmui",
+      text,
+    };
+  }
   return { source: "vmui", channel: e.channel, payload: e.payload, summary: text };
 }
 
