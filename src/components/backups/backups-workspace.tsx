@@ -23,6 +23,7 @@ import {
   listBackupPoliciesAction,
   listBackupJobsAction,
 } from "@/server/actions/backups";
+import { verifyBackupJobAction } from "@/server/actions/backup-verify";
 
 type BackupKind = "cloud-snapshot" | "s3-dump" | "local-copy" | "cross-region";
 
@@ -301,11 +302,12 @@ function PolicyRow({
                     <th className="px-2 py-1 text-left">Artifact</th>
                     <th className="px-2 py-1 text-left">Size</th>
                     <th className="px-2 py-1 text-left">Message</th>
+                    <th className="px-2 py-1 text-left">Verify</th>
                   </tr>
                 </thead>
                 <tbody>
                   {jobs.length === 0 ? (
-                    <tr><td colSpan={5} className="px-2 py-2 text-center text-muted">No jobs yet</td></tr>
+                    <tr><td colSpan={6} className="px-2 py-2 text-center text-muted">No jobs yet</td></tr>
                   ) : null}
                   {jobs.map((j) => (
                     <tr key={j.id} className="border-t border-[var(--color-border)]">
@@ -316,6 +318,19 @@ function PolicyRow({
                       <td className="px-2 py-1 font-mono">{j.artifactRef ?? "—"}</td>
                       <td className="px-2 py-1 font-mono">{j.sizeBytes ? formatBytes(j.sizeBytes) : "—"}</td>
                       <td className="px-2 py-1 text-muted">{j.message?.slice(0, 120) ?? ""}</td>
+                      <td className="px-2 py-1">
+                        <button
+                          disabled={j.status !== "ok"}
+                          onClick={async () => {
+                            const r = await verifyBackupJobAction({ jobId: j.id });
+                            if (r.ok) toast.success((("message" in r && r.message) || "Verified"));
+                            else toast.error(r.error ?? "Verify failed");
+                          }}
+                          className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] hover:bg-[var(--color-surface-muted)] disabled:opacity-30"
+                        >
+                          Verify
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

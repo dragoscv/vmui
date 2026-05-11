@@ -4,8 +4,8 @@
  * are cached opportunistically via stale-while-revalidate; everything else
  * goes straight to the network.
  */
-const CACHE = "vmui-shell-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg"];
+const CACHE = "vmui-shell-v2";
+const SHELL = ["/", "/offline", "/manifest.webmanifest", "/icons/icon-192.svg", "/icons/icon-512.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -44,7 +44,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Read-only HTML routes — stale-while-revalidate.
+  // Read-only HTML routes — stale-while-revalidate, falling back to /offline.
   if (req.headers.get("accept")?.includes("text/html")) {
     event.respondWith(
       caches.match(req).then((hit) => {
@@ -56,7 +56,7 @@ self.addEventListener("fetch", (event) => {
             }
             return res;
           })
-          .catch(() => hit);
+          .catch(() => hit || caches.match("/offline"));
         return hit || fresh;
       }),
     );
