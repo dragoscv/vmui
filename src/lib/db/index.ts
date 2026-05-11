@@ -341,6 +341,36 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS push_subscriptions (
   last_seen_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS git_sources (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT 'main',
+  auth_type TEXT NOT NULL DEFAULT 'none',
+  auth_blob TEXT,
+  compose_glob TEXT NOT NULL DEFAULT '**/docker-compose.y*ml',
+  target_instance_id TEXT,
+  poll_seconds INTEGER NOT NULL DEFAULT 60,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_commit TEXT,
+  last_synced_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS git_apply_history (
+  id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL REFERENCES git_sources(id) ON DELETE CASCADE,
+  commit TEXT NOT NULL,
+  path TEXT NOT NULL,
+  status TEXT NOT NULL,
+  message TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_git_apply_history ON git_apply_history(source_id, created_at DESC)`,
+);
+
 sqlite.exec(`CREATE TABLE IF NOT EXISTS resource_history (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,

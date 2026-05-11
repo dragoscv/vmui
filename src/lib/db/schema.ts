@@ -489,6 +489,54 @@ export const pushSubscriptions = sqliteTable("push_subscriptions", {
 
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 
+/**
+ * GitOps source. A row represents a git repository that is periodically
+ * cloned (or fetched) and scanned for docker-compose files; every change is
+ * automatically applied to a target instance.
+ */
+export const gitSources = sqliteTable("git_sources", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  branch: text("branch").notNull().default("main"),
+  /** none | token | ssh */
+  authType: text("auth_type", { enum: ["none", "token", "ssh"] }).notNull().default("none"),
+  /** Encrypted JSON: { token?, sshKey?, username? } */
+  authBlob: text("auth_blob"),
+  /** Glob inside the repo, e.g. "stacks/**\/docker-compose.yml" */
+  composeGlob: text("compose_glob").notNull().default("**/docker-compose.y*ml"),
+  /** Instance to deploy to (optional — if null, applies to all reachable VMs with the matching tag). */
+  targetInstanceId: text("target_instance_id"),
+  /** Cron-ish interval in seconds. */
+  pollSeconds: integer("poll_seconds").notNull().default(60),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastCommit: text("last_commit"),
+  lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+  lastError: text("last_error"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type GitSourceRow = typeof gitSources.$inferSelect;
+
+export const gitApplyHistory = sqliteTable("git_apply_history", {
+  id: text("id").primaryKey(),
+  sourceId: text("source_id")
+    .notNull()
+    .references(() => gitSources.id, { onDelete: "cascade" }),
+  commit: text("commit").notNull(),
+  /** compose file path within the repo */
+  path: text("path").notNull(),
+  status: text("status", { enum: ["success", "failed", "skipped"] }).notNull(),
+  message: text("message"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type GitApplyHistoryRow = typeof gitApplyHistory.$inferSelect;
+
 
 /**
  * Append-only history of `cached_resources.rawJson` changes. A row is
