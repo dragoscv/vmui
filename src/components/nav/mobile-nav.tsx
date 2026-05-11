@@ -105,6 +105,8 @@ const more = [
   { href: "/maintenance", label: "Maintenance", icon: Clock },
   { href: "/changelog", label: "Changelog", icon: BookOpen },
   { href: "/spend-heatmap", label: "Spend heatmap", icon: AlertTriangle },
+  { href: "/webhook-deliveries", label: "Webhook queue", icon: Activity },
+  { href: "/cis", label: "CIS-Linux", icon: ShieldCheck },
   { href: "/ai", label: "AI", icon: Bot },
   { href: "/k8s", label: "Kubernetes", icon: Ship },
   { href: "/mesh", label: "Mesh", icon: Spline },

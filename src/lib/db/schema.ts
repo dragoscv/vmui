@@ -1172,3 +1172,35 @@ export const maintenanceWindows = sqliteTable("maintenance_windows", {
   createdBy: text("created_by"),
 });
 export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
+
+/** Outbound webhook delivery queue with retry/backoff. */
+export const webhookDeliveries = sqliteTable("webhook_deliveries", {
+  id: text("id").primaryKey(),
+  webhookId: text("webhook_id").notNull(),
+  url: text("url").notNull(),
+  payloadJson: text("payload_json").notNull(),
+  signature: text("signature"),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(5),
+  /** queued | delivering | ok | failed */
+  status: text("status", { enum: ["queued", "delivering", "ok", "failed"] }).notNull().default("queued"),
+  lastErrorMessage: text("last_error"),
+  nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  deliveredAt: integer("delivered_at", { mode: "timestamp" }),
+});
+export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
+
+/** CIS-Linux benchmark check results per instance. */
+export const cisCheckResults = sqliteTable("cis_check_results", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerInstanceId: text("provider_instance_id").notNull(),
+  checkId: text("check_id").notNull(),
+  title: text("title").notNull(),
+  /** pass | fail | skip | error */
+  result: text("result", { enum: ["pass", "fail", "skip", "error"] }).notNull(),
+  evidence: text("evidence"),
+  ranAt: integer("ran_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type CisCheckRow = typeof cisCheckResults.$inferSelect;

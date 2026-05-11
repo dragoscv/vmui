@@ -119,17 +119,9 @@ export async function fireWebhooksForState(args: { accountId: string; providerIn
       const { createHmac } = await import("node:crypto");
       signature = "sha256=" + createHmac("sha256", h.secret).update(payload).digest("hex");
     }
-    try {
-      const res = await fetch(h.url, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...(signature ? { "x-vmui-signature": signature } : {}) },
-        body: payload,
-        signal: AbortSignal.timeout(10_000),
-      });
-      await db.update(instanceWebhooks).set({ lastFiredAt: new Date(), lastStatus: `HTTP ${res.status}` }).where(eq(instanceWebhooks.id, h.id));
-    } catch (e) {
-      await db.update(instanceWebhooks).set({ lastFiredAt: new Date(), lastStatus: e instanceof Error ? e.message.slice(0, 200) : "fetch error" }).where(eq(instanceWebhooks.id, h.id));
-    }
+    const { enqueueWebhookDelivery } = await import("@/lib/webhook-queue");
+    await enqueueWebhookDelivery({ webhookId: h.id, url: h.url, payload: JSON.parse(payload), signature });
+    await db.update(instanceWebhooks).set({ lastFiredAt: new Date(), lastStatus: "queued" }).where(eq(instanceWebhooks.id, h.id));
   }));
 }
 

@@ -848,6 +848,34 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS maintenance_windows (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_maint_window_range ON maintenance_windows(starts_at, ends_at)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id TEXT PRIMARY KEY,
+  webhook_id TEXT NOT NULL,
+  url TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  signature TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 5,
+  status TEXT NOT NULL DEFAULT 'queued',
+  last_error TEXT,
+  next_attempt_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  delivered_at INTEGER
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_due ON webhook_deliveries(status, next_attempt_at)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS cis_check_results (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  provider_instance_id TEXT NOT NULL,
+  check_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  result TEXT NOT NULL,
+  evidence TEXT,
+  ran_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_cis_target ON cis_check_results(account_id, provider_instance_id, ran_at)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);

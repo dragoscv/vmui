@@ -11,6 +11,7 @@ import { maybeAlertBurnRate } from "@/lib/burn-rate";
 import { checkAccountBudgets } from "@/server/actions/templates-and-budgets";
 import { maybeRunIdleAutoStop, maybeRecomputeBaselines, maybeCheckDrift } from "@/lib/idle-and-drift";
 import { maybeAppendAuditChain } from "@/lib/audit-chain";
+import { maybeFlushWebhookDeliveries } from "@/lib/webhook-queue";
 import { maybeRunDiskWatchdog } from "@/lib/disk-watchdog";
 import { notify } from "@/lib/notifications";
 import { redactSecrets } from "@/lib/redact";
@@ -107,6 +108,7 @@ async function tick(): Promise<void> {
   await maybeRecomputeBaselines().catch(() => undefined);
   await maybeCheckDrift().catch(() => undefined);
   await maybeAppendAuditChain().catch(() => undefined);
+  await maybeFlushWebhookDeliveries().catch(() => undefined);
   await maybeRunDiskWatchdog().catch(() => undefined);
 }
 
