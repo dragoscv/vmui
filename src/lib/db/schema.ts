@@ -416,6 +416,58 @@ export const composeRecipeVersions = sqliteTable("compose_recipe_versions", {
 export type ComposeRecipeVersionRow = typeof composeRecipeVersions.$inferSelect;
 
 /**
+ * Container registry credentials. Secrets are AES-256-GCM encrypted JSON
+ * stored as a single blob in `credentials`.
+ */
+export const registryCredentials = sqliteTable("registry_credentials", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** ecr | gcr | acr | dockerhub | ghcr */
+  type: text("type", { enum: ["ecr", "gcr", "acr", "dockerhub", "ghcr"] }).notNull(),
+  /** e.g. 123.dkr.ecr.us-east-1.amazonaws.com or ghcr.io */
+  registryUrl: text("registry_url").notNull(),
+  /** Encrypted JSON: {username?,password?,token?,accessKeyId?,secretAccessKey?,region?,serviceAccountJson?} */
+  credentials: text("credentials").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type RegistryCredentialRow = typeof registryCredentials.$inferSelect;
+
+/**
+ * Image build + push history. Tracks every `docker build && docker push`
+ * job kicked off through vmui, regardless of where the build ran.
+ */
+export const imageBuilds = sqliteTable("image_builds", {
+  id: text("id").primaryKey(),
+  registryId: text("registry_id")
+    .notNull()
+    .references(() => registryCredentials.id, { onDelete: "cascade" }),
+  /** Full image ref, e.g. ghcr.io/foo/bar:1.2.3 */
+  imageRef: text("image_ref").notNull(),
+  /** "local" (run on vmui host) or "remote" (run over SSH on an instance). */
+  buildLocation: text("build_location", { enum: ["local", "remote"] }).notNull(),
+  /** Set when buildLocation === "remote". */
+  instanceId: text("instance_id"),
+  /** Inline Dockerfile body OR path on remote. */
+  dockerfile: text("dockerfile"),
+  /** Optional context dir (defaults to the dockerfile's parent). */
+  contextPath: text("context_path"),
+  status: text("status", { enum: ["pending", "running", "success", "failed"] })
+    .notNull()
+    .default("pending"),
+  logOutput: text("log_output"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+});
+
+export type ImageBuildRow = typeof imageBuilds.$inferSelect;
+
+
+/**
  * Append-only history of `cached_resources.rawJson` changes. A row is
  * inserted whenever a sync detects that the upstream provider JSON for an
  * already-known resource differs from what we have cached. Allows users to

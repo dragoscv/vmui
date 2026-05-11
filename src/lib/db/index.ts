@@ -303,6 +303,32 @@ sqlite.exec(
   `CREATE INDEX IF NOT EXISTS idx_compose_recipe_versions ON compose_recipe_versions(recipe_id, version DESC)`,
 );
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS registry_credentials (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  registry_url TEXT NOT NULL,
+  credentials TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS image_builds (
+  id TEXT PRIMARY KEY,
+  registry_id TEXT NOT NULL REFERENCES registry_credentials(id) ON DELETE CASCADE,
+  image_ref TEXT NOT NULL,
+  build_location TEXT NOT NULL,
+  instance_id TEXT,
+  dockerfile TEXT,
+  context_path TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  log_output TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  finished_at INTEGER
+)`);
+sqlite.exec(
+  `CREATE INDEX IF NOT EXISTS idx_image_builds_created ON image_builds(created_at DESC)`,
+);
+
 sqlite.exec(`CREATE TABLE IF NOT EXISTS resource_history (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL REFERENCES cloud_accounts(id) ON DELETE CASCADE,
