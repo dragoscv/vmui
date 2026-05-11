@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network, FileSearch, Package, Container, FileStack, TerminalSquare, Hammer, GitBranch, Lock, LineChart, Spline, PiggyBank, Ship, RotateCcw, Bot, Trophy, History, TrendingUp, Zap, Globe } from "lucide-react";
+import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network, FileSearch, Package, Container, FileStack, TerminalSquare, Hammer, GitBranch, Lock, LineChart, Spline, PiggyBank, Ship, RotateCcw, Bot, Trophy, History, TrendingUp, Zap, Globe, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -25,6 +25,7 @@ const items = [
   { href: "/forecast", label: "Cost forecast", icon: TrendingUp },
   { href: "/dr", label: "DR drill", icon: Zap },
   { href: "/status", label: "Public status", icon: Globe },
+  { href: "/teams", label: "Teams", icon: Users },
   { href: "/topology", label: "Topology", icon: Network },
   { href: "/costs", label: "Costs", icon: BarChart3 },
   { href: "/recipes", label: "Recipes", icon: Sparkles },

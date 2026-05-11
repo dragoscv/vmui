@@ -625,6 +625,39 @@ try {
   console.warn("[db] FTS5 init failed:", (e as Error).message);
 }
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS team_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member',
+  joined_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(team_id, user_id)
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id)`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS team_invitations (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL DEFAULT 'member',
+  invited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  expires_at INTEGER NOT NULL,
+  accepted_at INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_team_invitations_email ON team_invitations(email)`);
+
+const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
+if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
+  sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);
+}
+
 export const db = drizzle(sqlite, { schema });
 export { schema };
 export { sqlite as rawSqlite };

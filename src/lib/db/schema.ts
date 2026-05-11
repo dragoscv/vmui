@@ -885,3 +885,48 @@ export const secretReveals = sqliteTable("secret_reveals", {
 });
 
 export type SecretRevealRow = typeof secretReveals.$inferSelect;
+
+export const teams = sqliteTable("teams", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type TeamRow = typeof teams.$inferSelect;
+
+export const teamMembers = sqliteTable("team_members", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  role: text("role", { enum: ["owner", "admin", "operator", "viewer", "member"] }).notNull().default("member"),
+  joinedAt: integer("joined_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type TeamMemberRow = typeof teamMembers.$inferSelect;
+
+export const teamInvitations = sqliteTable("team_invitations", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  token: text("token").notNull().unique(),
+  role: text("role", { enum: ["admin", "operator", "viewer", "member"] }).notNull().default("member"),
+  invitedBy: text("invited_by"),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+export type TeamInvitationRow = typeof teamInvitations.$inferSelect;
