@@ -983,3 +983,37 @@ export const idleParkPolicies = sqliteTable("idle_park_policies", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type IdleParkPolicyRow = typeof idleParkPolicies.$inferSelect;
+
+/** Sticky notes attached to a VM (matched by accountId + providerInstanceId). */
+export const stickyNotes = sqliteTable("sticky_notes", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerInstanceId: text("provider_instance_id").notNull(),
+  body: text("body").notNull(),
+  color: text("color").notNull().default("amber"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  createdBy: text("created_by"),
+});
+export type StickyNoteRow = typeof stickyNotes.$inferSelect;
+
+/** Auto-tag rules: regex on name → key/value tag applied at sync time. */
+export const autoTagRules = sqliteTable("auto_tag_rules", {
+  id: text("id").primaryKey(),
+  /** JS regex source, no flags */
+  namePattern: text("name_pattern").notNull(),
+  tagKey: text("tag_key").notNull(),
+  tagValue: text("tag_value").notNull(),
+  enabled: integer("enabled").notNull().default(1),
+  priority: integer("priority").notNull().default(100),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type AutoTagRuleRow = typeof autoTagRules.$inferSelect;
+
+/** Daily snapshot of fleet membership for diffing day-over-day. */
+export const fleetSnapshots = sqliteTable("fleet_snapshots", {
+  id: text("id").primaryKey(),
+  capturedAt: integer("captured_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /** JSON array of {accountId, providerInstanceId, name, region, state, instanceType} */
+  membersJson: text("members_json").notNull(),
+});
+export type FleetSnapshotRow = typeof fleetSnapshots.$inferSelect;

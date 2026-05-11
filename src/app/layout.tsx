@@ -11,6 +11,7 @@ import { GlobalOverlays } from "@/components/nav/global-overlays";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { CommandPalette } from "@/components/command-palette";
 import { VoiceCommander } from "@/components/voice-commander";
+import { IncidentBanner } from "@/components/incident-banner";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { VibeProvider } from "@/components/dashboard/vibe-provider";
 import { PullToRefresh } from "@/components/pwa/pull-to-refresh";
@@ -87,7 +88,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                           <Topbar />
                           <UserMenuSlot />
                         </div>
-                        <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">{children}</main>
+                        <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">
+                          <IncidentBanner />
+                          {children}
+                        </main>
                       </div>
                     </div>
                   </PullToRefresh>

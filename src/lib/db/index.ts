@@ -691,6 +691,34 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS idle_park_policies (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_idle_park_target ON idle_park_policies(account_id, provider_instance_id)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS sticky_notes (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  provider_instance_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT 'amber',
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  created_by TEXT
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_sticky_target ON sticky_notes(account_id, provider_instance_id)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS auto_tag_rules (
+  id TEXT PRIMARY KEY,
+  name_pattern TEXT NOT NULL,
+  tag_key TEXT NOT NULL,
+  tag_value TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  priority INTEGER NOT NULL DEFAULT 100,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+sqlite.exec(`CREATE TABLE IF NOT EXISTS fleet_snapshots (
+  id TEXT PRIMARY KEY,
+  captured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  members_json TEXT NOT NULL
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_snap_time ON fleet_snapshots(captured_at)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);
