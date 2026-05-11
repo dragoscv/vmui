@@ -66,6 +66,33 @@ const SPEC = {
         responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
       },
     },
+    "/api/v1/backups/policies": {
+      get: {
+        summary: "List backup policies",
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
+    "/api/v1/backups/jobs": {
+      get: {
+        summary: "List recent backup jobs (most recent first)",
+        parameters: [
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 500, default: 50 } },
+        ],
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
+    "/api/v1/gitops/sources": {
+      get: {
+        summary: "List GitOps sources",
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
+    "/api/v1/secrets": {
+      get: {
+        summary: "List secret metadata (values are never returned)",
+        responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
+      },
+    },
   },
 } as const;
 

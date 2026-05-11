@@ -100,6 +100,11 @@ Usage:
   vmui-cli reboot   <id>                 Reboot an instance
   vmui-cli snapshot <id> [-label LABEL]  Snapshot the boot disk
   vmui-cli terminate <id>                Terminate (destructive!)
+  vmui-cli backups policies              List backup policies
+  vmui-cli backups jobs [-limit N]       List recent backup jobs
+  vmui-cli gitops sources                List GitOps sources
+  vmui-cli secrets                       List secret metadata (no values)
+  vmui-cli audit [-q TERM] [-limit N]    Search the audit log
 
 Env:
   VMUI_URL       Base URL of the vmui app (default %s)
@@ -172,6 +177,57 @@ func cmdSnapshot(c *client, id, label string) error {
 	return nil
 }
 
+func cmdGenericList(c *client, path string, cols []string) error {
+	var resp struct {
+		OK    bool                     `json:"ok"`
+		Items []map[string]interface{} `json:"items"`
+	}
+	if err := c.do("GET", path, nil, &resp); err != nil {
+		return err
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	header := strings.Join(upperAll(cols), "\t")
+	fmt.Fprintln(w, header)
+	for _, row := range resp.Items {
+		parts := make([]string, 0, len(cols))
+		for _, col := range cols {
+			parts = append(parts, fmt.Sprintf("%v", cellString(row[col])))
+		}
+		fmt.Fprintln(w, strings.Join(parts, "\t"))
+	}
+	return w.Flush()
+}
+
+func upperAll(s []string) []string {
+	out := make([]string, len(s))
+	for i, v := range s {
+		out[i] = strings.ToUpper(v)
+	}
+	return out
+}
+
+func cellString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch x := v.(type) {
+	case string:
+		return truncate(x, 48)
+	case float64:
+		if x == float64(int64(x)) {
+			return fmt.Sprintf("%d", int64(x))
+		}
+		return fmt.Sprintf("%g", x)
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
@@ -213,6 +269,41 @@ func main() {
 		label := fs.String("label", "", "snapshot label")
 		_ = fs.Parse(os.Args[3:])
 		err = cmdSnapshot(c, id, *label)
+	case "backups":
+		if len(os.Args) < 3 {
+			usage()
+			os.Exit(2)
+		}
+		switch os.Args[2] {
+		case "policies":
+			err = cmdGenericList(c, "/api/v1/backups/policies", []string{"id", "name", "kind", "cronExpr", "lastStatus"})
+		case "jobs":
+			fs := flag.NewFlagSet("jobs", flag.ExitOnError)
+			limit := fs.Int("limit", 20, "max rows")
+			_ = fs.Parse(os.Args[3:])
+			err = cmdGenericList(c, fmt.Sprintf("/api/v1/backups/jobs?limit=%d", *limit), []string{"id", "policyId", "status", "startedAt", "artifactRef"})
+		default:
+			usage()
+			os.Exit(2)
+		}
+	case "gitops":
+		if len(os.Args) < 3 || os.Args[2] != "sources" {
+			usage()
+			os.Exit(2)
+		}
+		err = cmdGenericList(c, "/api/v1/gitops/sources", []string{"id", "name", "url", "branch", "lastCommit", "lastError"})
+	case "secrets":
+		err = cmdGenericList(c, "/api/v1/secrets", []string{"id", "name", "kind", "rotationDays", "lastRotatedAt"})
+	case "audit":
+		fs := flag.NewFlagSet("audit", flag.ExitOnError)
+		q := fs.String("q", "", "search term")
+		limit := fs.Int("limit", 30, "max rows")
+		_ = fs.Parse(os.Args[2:])
+		path := fmt.Sprintf("/api/v1/audit?limit=%d", *limit)
+		if *q != "" {
+			path += "&q=" + urlEsc(*q)
+		}
+		err = cmdGenericList(c, path, []string{"id", "action", "target", "status", "message"})
 	case "-h", "--help", "help":
 		usage()
 		return
