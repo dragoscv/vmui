@@ -14,6 +14,7 @@ import { BackgroundSync } from "@/components/instances/background-sync";
 import { RunningVmsStrip } from "@/components/instances/running-vms-strip";
 import { CostAnomalyBanner } from "@/components/dashboard/cost-anomaly-banner";
 import { AccountSpendCards } from "@/components/dashboard/account-spend-cards";
+import { HeroCanvas } from "@/components/dashboard/hero-canvas";
 import { formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,7 @@ export default async function DashboardPage() {
       {/* Hero */}
       <section className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-gradient-to-br from-[color-mix(in_oklch,var(--color-primary)_18%,var(--color-surface))] to-[var(--color-surface)] p-6 sm:p-8">
         <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[color-mix(in_oklch,var(--color-accent)_30%,transparent)] blur-3xl" />
+        <HeroCanvas />
         <div className="relative flex flex-wrap items-end justify-between gap-6">
           <div>
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--color-primary)_20%,transparent)] px-3 py-1 text-xs font-medium text-[var(--color-primary)]">

@@ -99,7 +99,7 @@ const PRESETS: Record<Kind, KindPreset> = {
   },
 };
 
-const KIND_LABELS: Record<Kind, { label: string; sub: string; icon: React.ElementType }> = {
+const KIND_LABELS: Record<Kind, { label: string; sub: string; icon: React.ComponentType<{ className?: string }> }> = {
   mac: { label: "macOS", sub: "OSX-KVM + OpenCore", icon: Apple },
   win: { label: "Windows 11 (KVM)", sub: "WSL2 + QEMU + swtpm", icon: MonitorCog },
   ubuntu: { label: "Ubuntu LTS", sub: "Desktop with autoinstall", icon: Terminal },

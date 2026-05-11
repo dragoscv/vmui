@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { syncAllAccounts } from "@/server/actions/instances";
 import { useRouter } from "next/navigation";
 import { NotificationsBell } from "@/components/nav/notifications-bell";
+import { VibeSwitcher } from "@/components/dashboard/vibe-switcher";
 
 export function Topbar() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -40,6 +41,8 @@ export function Topbar() {
 
       <div className="flex items-center gap-2">
         <NotificationsBell />
+
+        <VibeSwitcher />
 
         <Tooltip>
           <TooltipTrigger asChild>

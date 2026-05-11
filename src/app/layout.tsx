@@ -10,6 +10,7 @@ import { MobileNav } from "@/components/nav/mobile-nav";
 import { GlobalOverlays } from "@/components/nav/global-overlays";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { RealtimeListener } from "@/components/realtime-listener";
+import { VibeProvider } from "@/components/dashboard/vibe-provider";
 import { ensureSchedulerRunning } from "@/lib/scheduler";
 import { ensureAuditRetention } from "@/lib/audit-retention";
 import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
@@ -55,29 +56,39 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var v=localStorage.getItem('vmui:vibe');if(v&&['default','cyberpunk','cockpit','strategy','terminal','minimal','aurora','synthwave'].indexOf(v)>=0){document.documentElement.setAttribute('data-vibe',v);}}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="min-h-screen antialiased">
         <ThemeProvider>
-          <QueryProvider>
-            <TooltipProvider delayDuration={300}>
-              <ConfirmProvider>
-                <div className="flex min-h-screen">
-                  <Sidebar />
-                  <div className="flex flex-1 flex-col">
-                    <div className="relative">
-                      <Topbar />
-                      <UserMenuSlot />
+          <VibeProvider>
+            <QueryProvider>
+              <TooltipProvider delayDuration={300}>
+                <ConfirmProvider>
+                  <div className="flex min-h-screen">
+                    <Sidebar />
+                    <div className="flex flex-1 flex-col">
+                      <div className="relative">
+                        <Topbar />
+                        <UserMenuSlot />
+                      </div>
+                      <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">{children}</main>
                     </div>
-                    <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">{children}</main>
                   </div>
-                </div>
-                <MobileNav />
-                <Toaster position="bottom-right" theme="system" richColors closeButton />
-                <GlobalOverlays />
-                <ServiceWorkerRegister />
-                <RealtimeListener />
-              </ConfirmProvider>
-            </TooltipProvider>
-          </QueryProvider>
+                  <MobileNav />
+                  <Toaster position="bottom-right" theme="system" richColors closeButton />
+                  <GlobalOverlays />
+                  <ServiceWorkerRegister />
+                  <RealtimeListener />
+                </ConfirmProvider>
+              </TooltipProvider>
+            </QueryProvider>
+          </VibeProvider>
         </ThemeProvider>
       </body>
     </html>
