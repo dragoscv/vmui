@@ -17,6 +17,18 @@ SPICE_PORT="${SPICE_PORT:-5930}"          # connect with virt-viewer / remote-vi
 ARD_FORWARD_PORT="${ARD_FORWARD_PORT:-5901}"  # host:5901 -> guest:5900 (Apple Screen Sharing)
 NAME="${VM_NAME:-vmui-mac}"
 
+# Which macOS system disk to boot.
+#
+# `mac_hdd_ng.img` is the FROZEN golden base (chmod 444, macOS 15.7.5) and is
+# never booted directly — every bootable disk is a qcow2 overlay on top of it,
+# so an OS upgrade can be tested and reverted without touching the base.
+# Branches are managed with scripts/mac-branch.ps1 (-List / -Use / -Reset).
+#
+#   mac-tahoe.qcow2   macOS Tahoe 26.6.2 (25G83)   <- default
+#   mac-retry.qcow2   macOS Sequoia 15.7.9 (24G830)
+#   mac-current.qcow2 macOS Sequoia 15.7.5 (24G624, the original)
+MAC_DISK="${MAC_DISK:-mac-tahoe.qcow2}"
+
 # Required by macOS guest
 if ! cat /sys/module/kvm/parameters/ignore_msrs 2>/dev/null | grep -q Y; then
   echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs >/dev/null || true
@@ -53,7 +65,7 @@ exec qemu-system-x86_64 \
   -device ich9-ahci,id=sata \
   -drive id=OpenCoreBoot,if=none,snapshot=on,format=qcow2,file="OpenCore/OpenCore.qcow2" \
   -device ide-hd,bus=sata.2,drive=OpenCoreBoot \
-  -drive id=MacHDD,if=none,file="mac_hdd_ng.img",format=qcow2 \
+  -drive id=MacHDD,if=none,file="$MAC_DISK",format=qcow2 \
   -device ide-hd,bus=sata.4,drive=MacHDD \
   -netdev user,id=net0,hostfwd=tcp::"$SSH_FORWARD_PORT"-:22,hostfwd=tcp::"$ARD_FORWARD_PORT"-:5900 \
   -device vmxnet3,netdev=net0,id=net0,mac=52:54:00:c9:18:27 \

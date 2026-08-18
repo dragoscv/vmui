@@ -218,11 +218,62 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
 wsl -d Ubuntu-24.04 -- bash -lc 'pkill -9 -f "[q]emu-system-x86_64"; rm -f /tmp/vmui-mac.*'
 ```
 
+## Disk branches (qcow2 overlays)
+
+`mac_hdd_ng.img` is a FROZEN golden base (`chmod 444`, macOS 15.7.5 24G624)
+plus a full byte copy at `mac_hdd_ng.golden-15.7.5.img`. It is never booted
+directly. Every bootable disk is a thin qcow2 overlay on top of it, so an OS
+upgrade is testable and revertible without ever writing to the base.
+
+| Branch              | Contents                                    |
+| ------------------- | ------------------------------------------- |
+| `mac-tahoe.qcow2`   | macOS Tahoe 26.6.2 (25G83) — **default**    |
+| `mac-retry.qcow2`   | macOS Sequoia 15.7.9 (24G830)               |
+| `mac-current.qcow2` | macOS Sequoia 15.7.5 (24G624), the original |
+
+```powershell
+.\scripts\mac-branch.ps1 -List                 # inventory + which is booted
+.\scripts\mac-branch.ps1 -Use mac-current      # switch branch and reboot
+.\scripts\mac-branch.ps1 -Reset mac-tahoe      # discard a branch, recreate from base
+.\scripts\mac-branch.ps1 -Stop
+```
+
+The default branch is the `MAC_DISK` fallback in `scripts/boot-mac.sh`, so it
+applies to every launch path (web UI, VS Code tasks, bare watchdog). Override
+per-launch with `-MacDisk <branch>.qcow2` on `spawn-watchdog.ps1`.
+
+### ⚠️ macOS OS installs need a narrow SMP topology
+
+`-smp 8,cores=4` **hangs** the macOS installer's pre-boot environment: every
+vCPU pegs at 100% while nothing is written and the frame never changes, so it
+looks like a slow install rather than a hang. Verified 2026-08-18 — the same
+update that wedged for an hour at 8t/4c completed in 15 min at 4t/2c.
+
+Always install/upgrade with:
+
+```powershell
+.\scripts\mac-branch.ps1 -Use <branch> -Cores 2 -Threads 4
+```
+
+Wide SMP is fine at runtime; restore it after the upgrade. The CPU _model_ is
+not the lever — upstream OSX-KVM requires `Skylake-Client,-hle,-rtm` for
+Sequoia and Tahoe.
+
+Watch an install and get an automatic hang verdict (samples guest SSH, qcow2
+growth and screen MD5; calls HANG after 15 min of no growth + no frame change):
+
+```bash
+wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/e/gh/vmui/scripts/mac-watch-install.sh mac-tahoe.qcow2 150 15.7.5'
+```
+
 ## File map
 
 | Path                                                                | Role                                                               |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | [scripts/boot-mac.sh](../scripts/boot-mac.sh)                       | The QEMU command line. Synced into `~/OSX-KVM/` on every launch.   |
+| [scripts/mac-branch.ps1](../scripts/mac-branch.ps1)                 | Branch manager: `-List` / `-Use` / `-Reset` / `-Stop`.             |
+| [scripts/mac-watch-install.sh](../scripts/mac-watch-install.sh)     | Install watcher; distinguishes real progress from a spin-hang.     |
+| [scripts/mac-guest-shutdown.sh](../scripts/mac-guest-shutdown.sh)   | Clean in-guest shutdown over SSH.                                  |
 | [scripts/run-mac-foreground.sh](../scripts/run-mac-foreground.sh)   | WSL-side runner; the foreground process whose lifetime gates QEMU. |
 | [scripts/watchdog-mac.ps1](../scripts/watchdog-mac.ps1)             | Windows-side restart loop; holds the WSL handle.                   |
 | [scripts/spawn-watchdog.ps1](../scripts/spawn-watchdog.ps1)         | Detached launcher used by the web UI Server Action.                |

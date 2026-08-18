@@ -27,7 +27,8 @@ param(
   [int]$QmpPort = 0,
   [int]$SshPort = 0,
   [int]$RestartDelaySec = 5,
-  [int]$MaxRestarts = 0        # 0 = unlimited
+  [int]$MaxRestarts = 0,       # 0 = unlimited
+  [string]$MacDisk = ""        # mac only: overlay/system disk filename inside VMDIR
 )
 
 $ErrorActionPreference = "Continue"
@@ -86,7 +87,13 @@ if ($Kind -eq "mac") {
   $nbdCleanup = "sudo umount -l /tmp/vmui-oc-mnt 2>/dev/null; sudo qemu-nbd -d /dev/nbd0 2>/dev/null; true"
 }
 
-$bashCmd = "$syncCmd; $nbdCleanup; KIND=$Kind ALLOCATED_RAM=$AllocatedRamMb CPU_CORES=$Cores CPU_THREADS=$Threads VNC_PORT=$VncDisplay QMP_PORT=$QmpPort SSH_FORWARD_PORT=$SshPort exec bash /tmp/run-vm-foreground.sh"
+$diskEnv = ""
+if ($Kind -eq "mac" -and $MacDisk -ne "") {
+  $diskEnv = "MAC_DISK=$MacDisk "
+  Write-Log "Booting from macOS disk: $MacDisk"
+}
+
+$bashCmd = "$syncCmd; $nbdCleanup; ${diskEnv}KIND=$Kind ALLOCATED_RAM=$AllocatedRamMb CPU_CORES=$Cores CPU_THREADS=$Threads VNC_PORT=$VncDisplay QMP_PORT=$QmpPort SSH_FORWARD_PORT=$SshPort exec bash /tmp/run-vm-foreground.sh"
 
 $restarts = 0
 while ($true) {

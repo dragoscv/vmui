@@ -24,7 +24,8 @@ param(
   [int]$Threads,
   [int]$VncDisplay,
   [int]$QmpPort,
-  [int]$SshPort
+  [int]$SshPort,
+  [string]$MacDisk = ""   # mac only: overlay/system disk filename inside VMDIR
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,6 +68,10 @@ $cmdLine = '"' + $pwshExe + '"' +
   ' -VncDisplay ' + $VncDisplay +
   ' -QmpPort ' + $QmpPort +
   ' -SshPort ' + $SshPort
+
+if ($Kind -eq "mac" -and $MacDisk -ne "") {
+  $cmdLine += ' -MacDisk "' + $MacDisk + '"'
+}
 
 $si = ([wmiclass]"Win32_ProcessStartup").CreateInstance()
 $si.ShowWindow = 0  # SW_HIDE

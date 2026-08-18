@@ -9,6 +9,7 @@
 #   KIND               mac | win | ubuntu
 # Optional env (forwarded to boot-${KIND}.sh):
 #   ALLOCATED_RAM CPU_CORES CPU_THREADS VNC_PORT QMP_PORT SSH_FORWARD_PORT
+#   MAC_DISK           (mac only) system disk / overlay filename inside VMDIR
 set -u
 
 KIND="${KIND:?KIND env var required (mac|win|ubuntu)}"
