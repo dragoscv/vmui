@@ -2,7 +2,7 @@
 
 This document covers the **local-kvm** provider configured with
 `kind=ubuntu`: an Ubuntu LTS desktop guest running under QEMU/KVM inside
-WSL2 Ubuntu, with a NoCloud cloud-init seed that bakes in `dragos:REDACTED_GUEST_PASSWORD`
+WSL2 Ubuntu, with a NoCloud cloud-init seed that bakes in `dragos:<your-guest-password>`
 as a sudo-NOPASSWD user.
 
 ## Network ports (host-side)
@@ -21,7 +21,7 @@ All ports are on `127.0.0.1` (auto-forwarded from WSL2 to Windows).
 Baked into the cloud-init seed (`seed.iso`):
 
 - Username: `dragos`
-- Password: `REDACTED_GUEST_PASSWORD` (stored as SHA-512 crypt hash; cloud-init refuses
+- Password: `<your-guest-password>` (stored as SHA-512 crypt hash; cloud-init refuses
   plaintext)
 - `sudo NOPASSWD:ALL` for `dragos`
 - OpenSSH server installed and enabled
@@ -75,7 +75,7 @@ Tasks: Run Task → vmui: start ubuntu VM
 ## Connecting
 
 - **VNC**: any client → `127.0.0.1:7900`. Full GUI via virtio-vga.
-- **SSH**: `ssh -p 10024 dragos@127.0.0.1` (password: `REDACTED_GUEST_PASSWORD`).
+- **SSH**: `ssh -p 10024 dragos@127.0.0.1` (password: `<your-guest-password>`).
 
 ## Stopping
 

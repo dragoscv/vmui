@@ -3,7 +3,7 @@
 This document covers the **local-kvm** provider configured with `kind=win`:
 a Windows 11 (25H2) guest running under QEMU/KVM inside WSL2 Ubuntu, with
 UEFI Secure Boot, emulated TPM 2.0 (swtpm) and an unattended-install ISO
-that bakes in `dragos:REDACTED_GUEST_PASSWORD` as the local Administrator.
+that bakes in `dragos:<your-guest-password>` as the local Administrator.
 
 ## Network ports (host-side)
 
@@ -22,7 +22,7 @@ All ports are on `127.0.0.1` (auto-forwarded from WSL2 to Windows).
 Baked into `autounattend.xml`:
 
 - Username: `dragos`
-- Password: `REDACTED_GUEST_PASSWORD`
+- Password: `<your-guest-password>`
 - Local Administrators group
 - AutoLogon: 1 (so first-logon commands enable RDP + OpenSSH automatically)
 
@@ -71,7 +71,7 @@ This script (idempotent) does the following:
    - Wipes disk 0 and writes `EFI + MSR + Windows (NTFS, C:)` partitions.
    - Picks `IMAGE/INDEX = 6` (Pro). Change to 1=Home, 2=Home N, 6=Pro,
      11=Education etc. depending on your ISO edition.
-   - Creates the `dragos` local admin with password `REDACTED_GUEST_PASSWORD`.
+   - Creates the `dragos` local admin with password `<your-guest-password>`.
    - Enables AutoLogon (LogonCount=1) so first-boot can run setup commands.
    - Hides all OOBE / online-account / OEM / EULA / privacy screens.
    - First-logon commands: enable RDP, open Remote Desktop firewall group,
@@ -107,7 +107,7 @@ with the same parameters.
 
 - **VNC**: any client → `127.0.0.1:6900`. The vmui UI also offers an
   in-browser noVNC viewer (start the websockify bridge on port 6090).
-- **RDP**: `mstsc /v:127.0.0.1:13389`. Credentials: `dragos / REDACTED_GUEST_PASSWORD`.
+- **RDP**: `mstsc /v:127.0.0.1:13389`. Credentials: `dragos / <your-guest-password>`.
 - **SSH**: `ssh -p 10023 dragos@127.0.0.1` (after first logon).
 
 ## Stopping

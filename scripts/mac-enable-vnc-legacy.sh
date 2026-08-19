@@ -14,14 +14,18 @@
 # Only acceptable on a local throwaway VM; never on a machine with real data.
 #
 # Usage: mac-enable-vnc-legacy.sh          (password defaults to VNC_PASS)
+# Credentials come from .private/credentials.env (gitignored).
+# shellcheck source=lib/guest-credentials.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/guest-credentials.sh"
+
 set -u
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-10022}"
 USER_GUEST="${USER_GUEST:-dragos}"
-PASS_GUEST="${PASS_GUEST:-REDACTED_GUEST_PASSWORD}"
+PASS_GUEST="${PASS_GUEST:-${MAC_GUEST_PASS}}"
 # RFB VNC auth is limited to 8 characters by the protocol itself.
-VNC_PASS="${VNC_PASS:-REDACTED_VNC_PASSWORD}"
+VNC_PASS="${VNC_PASS:-${MAC_VNC_PASS}}"
 
 sshpass -p "$PASS_GUEST" ssh \
   -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

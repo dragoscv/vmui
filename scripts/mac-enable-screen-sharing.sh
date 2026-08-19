@@ -4,18 +4,22 @@
 # After running this once, you can connect from Windows with any VNC client
 # (RealVNC, TigerVNC, TightVNC) to:
 #
-#     127.0.0.1:5901    user: dragos    password: REDACTED_GUEST_PASSWORD
+#     127.0.0.1:5901    user: dragos    password: ${MAC_GUEST_PASS}
 #
 # This is much faster than QEMU's built-in -vnc (host:5900) because Apple's
 # ARD protocol does proper dirty-region tracking + JPEG/zlib encoding.
 #
 # Idempotent. Requires the VM up and SSH (host:10022 -> guest:22) reachable.
+# Credentials come from .private/credentials.env (gitignored).
+# shellcheck source=lib/guest-credentials.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/guest-credentials.sh"
+
 set -euo pipefail
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-10022}"
 USER="${USER_GUEST:-dragos}"
-PASS="${PASS_GUEST:-REDACTED_GUEST_PASSWORD}"
+PASS="${PASS_GUEST:-${MAC_GUEST_PASS}}"
 
 if ! command -v sshpass >/dev/null; then
   echo "ERROR: sshpass not found. Install with: sudo apt install sshpass" >&2

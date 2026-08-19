@@ -19,7 +19,8 @@
 #   - We use `efisys_noprompt.bin` instead of `efisys.bin`, eliminating the
 #     "press any key" prompt for unattended boot.
 #   - All credential and naming inputs are parameters, so this VM uses
-#     dragos/REDACTED_GUEST_PASSWORD by default but future VMs can specify -Username +
+#     dragos/<password from .private/credentials.env> by default, but future
+#     VMs can specify -Username +
 #     auto-generated password.
 #
 # Requirements:

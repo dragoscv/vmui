@@ -5,7 +5,10 @@
 # - `Resolve-VmuiCredential` returns a [pscredential]-shaped @{Username; Password}
 #   hashtable. If both inputs are blank, generates a random password. If only
 #   the password is blank AND the username is the default "dragos", uses the
-#   well-known dev password "REDACTED_GUEST_PASSWORD" (matches the existing dev VM).
+#   password from .private/credentials.env (matches the existing dev VM).
+
+# Guest credentials come from .private/credentials.env (gitignored).
+. "$PSScriptRoot\guest-credentials.ps1"
 
 function New-VmuiPassword {
   [CmdletBinding()]
@@ -51,7 +54,7 @@ function Resolve-VmuiCredential {
   if (-not $Password) {
     if ($Username -eq 'dragos') {
       # Match the legacy WSL/QEMU dev VM so existing notes work.
-      $Password = 'REDACTED_GUEST_PASSWORD'
+      $Password = $env:WIN_GUEST_PASS
     } else {
       $Password = New-VmuiPassword
     }

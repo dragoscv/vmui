@@ -23,20 +23,30 @@
   Local Administrator username inside the guest. Default: dragos.
 
 .PARAMETER Password
-  Plaintext password for the guest local admin. Default: REDACTED_GUEST_PASSWORD.
+  Plaintext password for the guest local admin. Default: $env:WIN_GUEST_PASS.
 
 .EXAMPLE
   pwsh -File scripts\enable-ssh-hyperv.ps1
-  pwsh -File scripts\enable-ssh-hyperv.ps1 -VmName vmui-win -Username dragos -Password REDACTED_GUEST_PASSWORD
+  pwsh -File scripts\enable-ssh-hyperv.ps1 -VmName vmui-win -Username dragos -Password $env:WIN_GUEST_PASS
 #>
 [CmdletBinding()]
 param(
   [string]$VmName   = 'vmui-win',
   [string]$Username = 'dragos',
-  [string]$Password = 'REDACTED_GUEST_PASSWORD'
+  # Resolved below from .private/credentials.env when not supplied. It cannot
+  # default to $env:WIN_GUEST_PASS here: param defaults are evaluated before
+  # the body runs, so the credential loader has not executed yet.
+  [string]$Password
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Guest credentials come from .private/credentials.env (gitignored).
+. "$PSScriptRoot\lib\guest-credentials.ps1"
+if (-not $Password) { $Password = $env:WIN_GUEST_PASS }
+if (-not $Password) {
+  throw "No guest password. Create .private\credentials.env (see .private.example\README.md) or pass -Password."
+}
 
 function Wait-VmReady {
   param([string]$Name, [int]$TimeoutSec = 300)

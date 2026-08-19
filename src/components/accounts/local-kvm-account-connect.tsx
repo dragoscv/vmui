@@ -280,7 +280,7 @@ export function LocalKvmAccountConnect() {
                   name="osPassword"
                   label="Guest password"
                   type="password"
-                  placeholder="REDACTED_GUEST_PASSWORD"
+                  placeholder="your-guest-password"
                   description="Stored encrypted; written to vm-creds.env in the WSL distro."
                   error={state.fieldErrors?.osPassword}
                 />

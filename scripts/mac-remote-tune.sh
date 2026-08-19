@@ -3,18 +3,22 @@
 # Software-rendered VGA has no GPU: every animated/blurred/moving pixel costs
 # CPU in WindowServer + screensharingd encode. This kills all of that.
 # Idempotent; run any time via SSH. Usage: mac-remote-tune.sh
+# Credentials come from .private/credentials.env (gitignored).
+# shellcheck source=lib/guest-credentials.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/guest-credentials.sh"
+
 set -u
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-10022}"
 USER_GUEST="${USER_GUEST:-dragos}"
-PASS_GUEST="${PASS_GUEST:-REDACTED_GUEST_PASSWORD}"
+PASS_GUEST="${PASS_GUEST:-${MAC_GUEST_PASS}}"
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10 -o PreferredAuthentications=password -p "$PORT")
 
 sshpass -p "$PASS_GUEST" ssh -tt "${SSH_OPTS[@]}" "$USER_GUEST@$HOST" bash -s <<'REMOTE'
 set -u
-PASS=REDACTED_GUEST_PASSWORD
+PASS="$MAC_GUEST_PASS"
 sudo_() { echo "$PASS" | sudo -S -p '' "$@"; }
 
 echo "--- power: never sleep ---"

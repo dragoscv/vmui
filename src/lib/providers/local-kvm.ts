@@ -73,7 +73,7 @@ export interface LocalKvmCredentials {
   osUsername?: string;
   /**
    * Guest OS password baked into the unattended install. Optional —
-   * defaults to "REDACTED_GUEST_PASSWORD". Stored encrypted alongside the rest of the
+   * defaults to "your-guest-password". Stored encrypted alongside the rest of the
    * credentials blob.
    */
   osPassword?: string;
@@ -315,7 +315,7 @@ const TEMPLATES_BY_KIND: Record<LocalKvmKind, InstanceTemplate[]> = {
       notes: [
         "Run scripts/setup-win-vm.sh once to download VirtIO drivers, build the autounattend ISO and create the qcow2.",
         "Drop the official Windows 11 ISO at ~/vmui-vms/win/Win11.iso before first boot.",
-        "Default credentials baked in: dragos / REDACTED_GUEST_PASSWORD (local Administrator).",
+        "Default credentials baked in: dragos / your-guest-password (local Administrator).",
         "VNC :6900 · RDP :13389 · SSH :10023 (all on 127.0.0.1).",
       ],
     },
@@ -331,7 +331,7 @@ const TEMPLATES_BY_KIND: Record<LocalKvmKind, InstanceTemplate[]> = {
       notes: [
         "Run scripts/setup-ubuntu-vm.sh once to download the ISO, build the cloud-init seed and create the qcow2.",
         "First boot runs the unattended autoinstall (~10 minutes).",
-        "Default credentials baked in: dragos / REDACTED_GUEST_PASSWORD (sudo NOPASSWD).",
+        "Default credentials baked in: dragos / your-guest-password (sudo NOPASSWD).",
         "VNC :7900 · SSH :10024 (on 127.0.0.1).",
       ],
     },
@@ -348,7 +348,7 @@ const TEMPLATES_BY_KIND: Record<LocalKvmKind, InstanceTemplate[]> = {
         "Run scripts/install-adk-oscdimg.ps1 once (elevated) to install the Microsoft ADK oscdimg tool.",
         "Run scripts/grant-hyperv-admin.ps1 once (elevated) and sign out / in to use Hyper-V without UAC.",
         "Drop the Win11 Enterprise ISO at E:\\Hyper-V\\vmui\\Win11-Enterprise.iso then run scripts/setup-win-hyperv.ps1.",
-        "Default credentials baked in: dragos / REDACTED_GUEST_PASSWORD (local Administrator).",
+        "Default credentials baked in: dragos / your-guest-password (local Administrator).",
         "Console: vmconnect.exe localhost vmui-win · RDP via guest IP shown in the UI.",
       ],
     },

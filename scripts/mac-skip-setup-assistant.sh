@@ -8,12 +8,16 @@
 #
 # This marks every wizard pane as already-seen and terminates the assistant.
 # Idempotent; safe to re-run. Requires SSH to the guest.
+# Credentials come from .private/credentials.env (gitignored).
+# shellcheck source=lib/guest-credentials.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/guest-credentials.sh"
+
 set -u
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-10022}"
 USER_GUEST="${USER_GUEST:-dragos}"
-PASS_GUEST="${PASS_GUEST:-REDACTED_GUEST_PASSWORD}"
+PASS_GUEST="${PASS_GUEST:-${MAC_GUEST_PASS}}"
 
 sshpass -p "$PASS_GUEST" ssh \
   -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

@@ -62,10 +62,29 @@ that this build no longer accepts:
 These were physical-screen-size hints (in mm) used by older QEMU to hint
 DPI to the guest. They've been removed from the std VGA device.
 
+## Host prerequisite: guest credentials (`.private/`)
+
+The scripts drive the guest over SSH unattended, so they need a password. This
+repo is **public**, so credentials live outside it:
+
+```bash
+mkdir -p .private
+cp .private.example/credentials.env .private/credentials.env
+# then edit .private/credentials.env
+```
+
+`.private/` is gitignored. Scripts load it via
+`scripts/lib/guest-credentials.sh` (bash) or
+`scripts/lib/guest-credentials.ps1` (PowerShell), and an already-exported
+environment variable always wins, so a single run can be overridden with
+`MAC_GUEST_PASS='…' ./scripts/mac-perf-tune.sh`.
+
+See [.private.example/README.md](../.private.example/README.md).
+
 ## Host prerequisite: WSL memory cap (`.wslconfig`)
 
 The guest is allocated **32 GB** (`-AllocatedRamMb 32768`) by every launch
-path. QEMU needs headroom *beyond* `-m` for its own address space and for page
+path. QEMU needs headroom _beyond_ `-m` for its own address space and for page
 cache over the qcow2 overlays, so the WSL2 VM must be given more than the
 guest asks for.
 
@@ -91,7 +110,7 @@ wsl -d Ubuntu-24.04 -- free -g          # want ~62 GB total
 Then confirm the guest agrees, rather than trusting the QEMU flag:
 
 ```powershell
-wsl -d Ubuntu-24.04 -- bash -lc "sshpass -p REDACTED_GUEST_PASSWORD ssh -o StrictHostKeyChecking=no -p 10022 dragos@127.0.0.1 'sysctl -n hw.memsize'"
+wsl -d Ubuntu-24.04 -- bash -lc "sshpass -p <your-guest-password> ssh -o StrictHostKeyChecking=no -p 10022 dragos@127.0.0.1 'sysctl -n hw.memsize'"
 # 34359738368 = 32 GB
 ```
 
@@ -308,11 +327,11 @@ wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/e/gh/vmui/scripts/mac-watch-install.s
 
 Three transports are exposed. They are **not** equivalent:
 
-| Port    | Transport             | Notes                                                                        |
-| ------- | --------------------- | ---------------------------------------------------------------------------- |
+| Port    | Transport             | Notes                                                                            |
+| ------- | --------------------- | -------------------------------------------------------------------------------- |
 | `:5930` | **SPICE** ← preferred | QEMU pushes damage rectangles; per-tile adaptive JPEG/LZ; separate input channel |
-| `:5900` | QEMU VNC              | Generic framebuffer diffing. Noticeably laggier                              |
-| `:5901` | Apple Screen Sharing  | Works, but the client must be pinned to RFB 3.8 (see below)                  |
+| `:5900` | QEMU VNC              | Generic framebuffer diffing. Noticeably laggier                                  |
+| `:5901` | Apple Screen Sharing  | Works, but the client must be pinned to RFB 3.8 (see below)                      |
 
 ```powershell
 .\scripts\mac-connect-spice.ps1              # needs: winget install RedHat.VirtViewer
@@ -333,7 +352,7 @@ Apple Screen Sharing on `:5901` rejects standard VNC clients with
 `protocol error: key length is too long`. Apple advertises the non-standard
 banner `RFB 003.889`; clients that follow it negotiate Apple-DH instead of
 legacy VNC auth. Run `scripts/mac-enable-vnc-legacy.sh` once, then force the
-client to RFB 3.8 (TigerVNC: `-RFBVersion 3.8`), password `REDACTED_VNC_PASSWORD` (RFB caps
+client to RFB 3.8 (TigerVNC: `-RFBVersion 3.8`), password `<vnc-pass>` (RFB caps
 VNC passwords at 8 characters).
 
 ## Known limitations (do not re-investigate)
@@ -342,12 +361,12 @@ All of the following trace to one fact: **there is no GPU**.
 `MTLCreateSystemDefaultDevice()` returns `NULL`, and the framebuffer driver is
 `AppleBochVGAFB` with `IOFBMemorySize` = exactly one 1920×1080 frame.
 
-| Symptom                                       | Cause                                                                                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 1px square border around rounded windows/menus | Tahoe's window stroke, drawn opaque because there is no Metal device to composite it. **Not** a shadow or accessibility setting — toggling `disableWindowShadows` produces a byte-identical `rgb(62,62,62)` pixel |
-| Cursor lags while video is smooth              | `IOFBCursorInfo` is empty = no hardware cursor, so every pointer move is a framebuffer damage rect       |
-| VRAM stuck at "7 MB"                           | `AppleBochVGAFB` self-sizes to one frame; `vgamem_mb` is ignored                                         |
-| `screencapture` fails                          | No GPU display stream. Use QMP `screendump` instead                                                      |
+| Symptom                                        | Cause                                                                                                                                                                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1px square border around rounded windows/menus | Tahoe's window stroke, drawn opaque because there is no Metal device to composite it. **Not** a shadow or accessibility setting — toggling `disableWindowShadows` produces a byte-identical `rgb(62,62,62)` pixel                                      |
+| Cursor lags while video is smooth              | `IOFBCursorInfo` is empty = no hardware cursor, so every pointer move is a framebuffer damage rect                                                                                                                                                     |
+| VRAM stuck at "7 MB"                           | `AppleBochVGAFB` self-sizes to one frame; `vgamem_mb` is ignored                                                                                                                                                                                       |
+| `screencapture` fails                          | No GPU display stream. Use QMP `screendump` instead                                                                                                                                                                                                    |
 | No sound                                       | QEMU streams audio over SPICE correctly (`-audiodev spice`), but macOS attaches only an `AppleUSBAudioControlNub` to `usb-audio` and never loads `AppleHDA` for `ich9-intel-hda` (needs an ACPI `HDEF` device with a `layout-id` injected by OpenCore) |
 
 Things tried that made it **worse**, and should not be repeated:
@@ -361,21 +380,21 @@ and macOS has no driver for NVIDIA Ampere or Intel Raptor Lake graphics.
 
 ## File map
 
-| Path                                                                | Role                                                               |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [scripts/boot-mac.sh](../scripts/boot-mac.sh)                       | The QEMU command line. Synced into `~/OSX-KVM/` on every launch.   |
-| [scripts/mac-branch.ps1](../scripts/mac-branch.ps1)                 | Branch manager: `-List` / `-Use` / `-Reset` / `-Stop`.             |
-| [scripts/mac-connect-spice.ps1](../scripts/mac-connect-spice.ps1)   | Connect over SPICE (preferred transport).                          |
-| [scripts/mac-perf-tune.sh](../scripts/mac-perf-tune.sh)             | Post-upgrade tuning: Spotlight off, animations off, no sleep.      |
-| [scripts/mac-skip-setup-assistant.sh](../scripts/mac-skip-setup-assistant.sh) | Dismiss the post-upgrade MiniBuddy wizard.               |
-| [scripts/mac-enable-autologin.sh](../scripts/mac-enable-autologin.sh) | Auto-login so restarts land on the desktop, not the login window. |
-| [scripts/mac-enable-vnc-legacy.sh](../scripts/mac-enable-vnc-legacy.sh) | Let standard VNC clients use Screen Sharing on `:5901`.        |
-| [scripts/mac-restore-window-shadows.sh](../scripts/mac-restore-window-shadows.sh) | Undo the `CHROME_HEADLESS` shadow suppression.       |
-| [scripts/mac-fix-tahoe-electron-lag.sh](../scripts/mac-fix-tahoe-electron-lag.sh) | Tahoe Electron `_cornerMask` workaround (`REVERT=1` to undo). |
-| [scripts/mac-fix-audio-output.sh](../scripts/mac-fix-audio-output.sh) | Select the QEMU sound card over BlackHole as default output.      |
-| [scripts/mac-watch-install.sh](../scripts/mac-watch-install.sh)     | Install watcher; distinguishes real progress from a spin-hang.     |
-| [scripts/mac-guest-shutdown.sh](../scripts/mac-guest-shutdown.sh)   | Clean in-guest shutdown over SSH.                                  |
-| [scripts/run-mac-foreground.sh](../scripts/run-mac-foreground.sh)   | WSL-side runner; the foreground process whose lifetime gates QEMU. |
-| [scripts/watchdog-mac.ps1](../scripts/watchdog-mac.ps1)             | Windows-side restart loop; holds the WSL handle.                   |
-| [scripts/spawn-watchdog.ps1](../scripts/spawn-watchdog.ps1)         | Detached launcher used by the web UI Server Action.                |
-| [src/lib/providers/local-kvm.ts](../src/lib/providers/local-kvm.ts) | `LocalKvmProvider` (verify, list, start, stop, stats, QMP).        |
+| Path                                                                              | Role                                                               |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [scripts/boot-mac.sh](../scripts/boot-mac.sh)                                     | The QEMU command line. Synced into `~/OSX-KVM/` on every launch.   |
+| [scripts/mac-branch.ps1](../scripts/mac-branch.ps1)                               | Branch manager: `-List` / `-Use` / `-Reset` / `-Stop`.             |
+| [scripts/mac-connect-spice.ps1](../scripts/mac-connect-spice.ps1)                 | Connect over SPICE (preferred transport).                          |
+| [scripts/mac-perf-tune.sh](../scripts/mac-perf-tune.sh)                           | Post-upgrade tuning: Spotlight off, animations off, no sleep.      |
+| [scripts/mac-skip-setup-assistant.sh](../scripts/mac-skip-setup-assistant.sh)     | Dismiss the post-upgrade MiniBuddy wizard.                         |
+| [scripts/mac-enable-autologin.sh](../scripts/mac-enable-autologin.sh)             | Auto-login so restarts land on the desktop, not the login window.  |
+| [scripts/mac-enable-vnc-legacy.sh](../scripts/mac-enable-vnc-legacy.sh)           | Let standard VNC clients use Screen Sharing on `:5901`.            |
+| [scripts/mac-restore-window-shadows.sh](../scripts/mac-restore-window-shadows.sh) | Undo the `CHROME_HEADLESS` shadow suppression.                     |
+| [scripts/mac-fix-tahoe-electron-lag.sh](../scripts/mac-fix-tahoe-electron-lag.sh) | Tahoe Electron `_cornerMask` workaround (`REVERT=1` to undo).      |
+| [scripts/mac-fix-audio-output.sh](../scripts/mac-fix-audio-output.sh)             | Select the QEMU sound card over BlackHole as default output.       |
+| [scripts/mac-watch-install.sh](../scripts/mac-watch-install.sh)                   | Install watcher; distinguishes real progress from a spin-hang.     |
+| [scripts/mac-guest-shutdown.sh](../scripts/mac-guest-shutdown.sh)                 | Clean in-guest shutdown over SSH.                                  |
+| [scripts/run-mac-foreground.sh](../scripts/run-mac-foreground.sh)                 | WSL-side runner; the foreground process whose lifetime gates QEMU. |
+| [scripts/watchdog-mac.ps1](../scripts/watchdog-mac.ps1)                           | Windows-side restart loop; holds the WSL handle.                   |
+| [scripts/spawn-watchdog.ps1](../scripts/spawn-watchdog.ps1)                       | Detached launcher used by the web UI Server Action.                |
+| [src/lib/providers/local-kvm.ts](../src/lib/providers/local-kvm.ts)               | `LocalKvmProvider` (verify, list, start, stop, stats, QMP).        |

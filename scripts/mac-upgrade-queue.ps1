@@ -18,6 +18,10 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+
+# Guest credentials come from .private/credentials.env (gitignored).
+. "$PSScriptRoot\lib\guest-credentials.ps1"
+
 $repo = Split-Path $PSScriptRoot -Parent
 $logDir = Join-Path $repo ".copilot-tmp"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -65,7 +69,7 @@ function Wait-Guest([int]$Minutes) {
   while ((Get-Date) -lt $deadline) {
     $v = $null
     try {
-      $v = Wsl "sshpass -p REDACTED_GUEST_PASSWORD ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o PreferredAuthentications=password -o ConnectTimeout=5 -p 10022 dragos@127.0.0.1 'sw_vers -productVersion' 2>/dev/null; exit 0"
+      $v = Wsl "sshpass -p $env:MAC_GUEST_PASS ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o PreferredAuthentications=password -o ConnectTimeout=5 -p 10022 dragos@127.0.0.1 'sw_vers -productVersion' 2>/dev/null; exit 0"
     } catch {
       Say "probe error (ignored): $_"
     }
@@ -91,7 +95,7 @@ if (-not $SkipWaitForCurrent) {
     exit 1
   }
   Say "STAGE 1 RESULT: guest is back on macOS $v"
-  $full = Wsl "sshpass -p REDACTED_GUEST_PASSWORD ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o PreferredAuthentications=password -o ConnectTimeout=8 -p 10022 dragos@127.0.0.1 'sw_vers; echo; df -h /' 2>/dev/null; exit 0"
+  $full = Wsl "sshpass -p $env:MAC_GUEST_PASS ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o PreferredAuthentications=password -o ConnectTimeout=8 -p 10022 dragos@127.0.0.1 'sw_vers; echo; df -h /' 2>/dev/null; exit 0"
   Say ($full | Out-String)
 }
 

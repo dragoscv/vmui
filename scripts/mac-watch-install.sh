@@ -13,6 +13,10 @@
 # If baseline_version is given (e.g. 15.7.5), the watcher ignores the guest
 # while it still reports that version — otherwise it would instantly declare
 # success during the pre-restart download phase.
+# Credentials come from .private/credentials.env (gitignored).
+# shellcheck source=lib/guest-credentials.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/guest-credentials.sh"
+
 set -u
 
 BRANCH="${1:?usage: mac-watch-install.sh <branch.qcow2> [max_minutes]}"
@@ -33,7 +37,7 @@ shot_md5() {
 }
 
 guest_version() {
-  sshpass -p REDACTED_GUEST_PASSWORD ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  sshpass -p "$MAC_GUEST_PASS" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR -o PreferredAuthentications=password -o ConnectTimeout=5 \
     -p 10022 dragos@127.0.0.1 'sw_vers -productVersion' 2>/dev/null || true
 }

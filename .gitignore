@@ -4,6 +4,11 @@ out
 dist
 .env
 .env.local
+
+# Local-only credentials for the KVM guests. NEVER commit this directory —
+# see .private/README.md and scripts/lib/guest-credentials.sh
+.private/
+
 *.log
 .DS_Store
 vmui.db

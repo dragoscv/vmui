@@ -577,7 +577,7 @@ export async function addLocalKvmAccount(
 
   // For Linux/Windows guests, generate fallback credentials when the user
   // didn't supply them. This avoids baking a single shared default
-  // (dragos/REDACTED_GUEST_PASSWORD) across every VM the user creates.
+  // (dragos/your-guest-password) across every VM the user creates.
   let generatedCreds: { username: string; password: string } | undefined;
   if (rest.kind !== "mac") {
     if (!rest.osUsername || !rest.osPassword) {
