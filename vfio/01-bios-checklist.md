@@ -7,22 +7,22 @@ Enter with **DEL** at boot, then **F2** for Advanced Mode.
 
 ## Required
 
-| Setting | Value | Where | Why |
-| --------------------------- | ---------- | ------------------------------------------- | ------------------------------------------------ |
-| Intel VT-x                  | Enabled    | Settings → Miscellaneous → Intel VT-x        | CPU virtualisation |
-| **Intel VT-d**              | **Enabled** | Settings → Miscellaneous → Intel VT-d       | **IOMMU. Without it there is no passthrough.** |
-| Above 4G Decoding           | Enabled    | Settings → Miscellaneous → PCIe             | GPUs need 64-bit BAR space |
-| Initial Display Output      | IGFX       | Settings → Platform Power / Display          | Host boots on the iGPU, leaving the AMD card free |
-| Internal Graphics           | Enabled    | Settings → Chipset                           | Your UHD 770 currently reads "disabled" |
+| Setting                | Value       | Where                                 | Why                                               |
+| ---------------------- | ----------- | ------------------------------------- | ------------------------------------------------- |
+| Intel VT-x             | Enabled     | Settings → Miscellaneous → Intel VT-x | CPU virtualisation                                |
+| **Intel VT-d**         | **Enabled** | Settings → Miscellaneous → Intel VT-d | **IOMMU. Without it there is no passthrough.**    |
+| Above 4G Decoding      | Enabled     | Settings → Miscellaneous → PCIe       | GPUs need 64-bit BAR space                        |
+| Initial Display Output | IGFX        | Settings → Platform Power / Display   | Host boots on the iGPU, leaving the AMD card free |
+| Internal Graphics      | Enabled     | Settings → Chipset                    | Your UHD 770 currently reads "disabled"           |
 
 ## Recommended
 
-| Setting | Value | Why |
-| ---------------------- | -------- | -------------------------------------------------------- |
-| Re-Size BAR Support    | Disabled | Resizable BAR commonly breaks GPU passthrough reset |
-| CSM Support            | Disabled | UEFI-only; OpenCore expects UEFI |
-| Secure Boot            | Disabled | Unsigned vfio/OpenCore bits will not load otherwise |
-| CFG Lock / MSR 0xE2    | Disabled | macOS panics if MSR E2 is locked (may be hidden — see below) |
+| Setting             | Value    | Why                                                          |
+| ------------------- | -------- | ------------------------------------------------------------ |
+| Re-Size BAR Support | Disabled | Resizable BAR commonly breaks GPU passthrough reset          |
+| CSM Support         | Disabled | UEFI-only; OpenCore expects UEFI                             |
+| Secure Boot         | Disabled | Unsigned vfio/OpenCore bits will not load otherwise          |
+| CFG Lock / MSR 0xE2 | Disabled | macOS panics if MSR E2 is locked (may be hidden — see below) |
 
 ### If CFG Lock is not visible
 

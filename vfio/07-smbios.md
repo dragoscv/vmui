@@ -40,11 +40,11 @@ git clone https://github.com/corpnewt/GenSMBIOS && cd GenSMBIOS
 It writes four linked values. They must be internally consistent — a serial
 that does not match its board serial is worse than the placeholder:
 
-| Field | What it is |
-| ------------- | ------------------------------------------------ |
-| `SystemSerialNumber` | the machine serial |
-| `MLB`                | board serial, derived from it |
-| `SystemUUID`         | replaces the all-zero UUID |
+| Field                | What it is                                      |
+| -------------------- | ----------------------------------------------- |
+| `SystemSerialNumber` | the machine serial                              |
+| `MLB`                | board serial, derived from it                   |
+| `SystemUUID`         | replaces the all-zero UUID                      |
 | `ROM`                | 6 bytes, conventionally the primary MAC address |
 
 ## Where it goes

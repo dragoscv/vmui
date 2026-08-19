@@ -378,6 +378,17 @@ through from a hypervisor that exposes IOMMU. WSL2 cannot do this —
 `/sys/kernel/iommu_groups/` is empty because WSL2 is itself a Hyper-V guest —
 and macOS has no driver for NVIDIA Ampere or Intel Raptor Lake graphics.
 
+Also ruled out, so nobody spends a day on them: `AppleParavirtGPU.kext` ships
+in Tahoe and matches PCI `106b:eeee`, but it is the guest half of Apple's
+closed ParavirtualizedGraphics.framework and QEMU cannot implement the host
+half; and there is no macOS virtio-gpu driver at all (`AppleVirtIO.kext`
+covers socket, sound, input, storage and biometrics, not graphics).
+
+The passthrough route is written up in [`vfio/`](../vfio/README.md). It is
+**reference material, not a plan** — it needs hardware this machine does not
+have and would mean giving up Windows as the primary OS. See
+"Is this worth doing?" there before considering it.
+
 ## File map
 
 | Path                                                                              | Role                                                               |
