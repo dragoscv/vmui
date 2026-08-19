@@ -1,0 +1,99 @@
+{
+  "$comment": [
+    "vmui Toolkit — the single source of truth for the menu-bar app.",
+    "",
+    "Adding a tool means adding an entry here. No Swift changes required:",
+    "the app reads this file at launch and builds its menu from it.",
+    "",
+    "IMPORTANT: `command` runs INSIDE the macOS guest, as the logged-in user.",
+    "The repo's scripts/mac-*.sh helpers SSH in from the host, so they cannot be",
+    "invoked from here. Guest-side logic lives in toolkit/tools/ and is installed",
+    "alongside the app; refer to it as $TOOLKIT/<name>.sh.",
+    "",
+    "Fields:",
+    "  id          stable key, also used for the launchd label",
+    "  title       menu text",
+    "  section     groups items; sections render in first-seen order",
+    "  command     argv array, executed without a shell unless you invoke one",
+    "  confirm     ask before running (use for anything disruptive)",
+    "  notify      post a user notification when it finishes",
+    "  requires    capability gates; if unmet the item renders disabled with `unavailable`",
+    "  unavailable why the item is greyed out (shown as a tooltip)"
+  ],
+  "version": 1,
+  "tools": [
+    {
+      "id": "perf-tune",
+      "title": "Apply performance tuning",
+      "section": "Performance",
+      "command": ["$TOOLKIT/perf-tune.sh"],
+      "confirm": false,
+      "notify": true
+    },
+    {
+      "id": "fix-audio",
+      "title": "Fix audio output device",
+      "section": "Performance",
+      "command": ["$TOOLKIT/fix-audio.sh"],
+      "notify": true
+    },
+    {
+      "id": "restore-shadows",
+      "title": "Restore window shadows",
+      "section": "Display",
+      "command": ["$TOOLKIT/restore-shadows.sh"],
+      "notify": true
+    },
+    {
+      "id": "electron-lag",
+      "title": "Apply Electron redraw fix",
+      "section": "Display",
+      "command": ["$TOOLKIT/electron-lag.sh"],
+      "confirm": true,
+      "notify": true
+    },
+    {
+      "id": "gpu-status",
+      "title": "Graphics diagnostics…",
+      "section": "Display",
+      "command": ["$TOOLKIT/gpu-status.sh"],
+      "notify": false
+    },
+    {
+      "id": "sim-iphone",
+      "title": "iPhone simulator",
+      "section": "Simulators",
+      "command": ["$TOOLKIT/sim.sh", "iphone"],
+      "requires": ["metal", "xcode"],
+      "unavailable": "Needs a Metal GPU and Xcode. This VM has neither: MTLCreateSystemDefaultDevice() returns NULL, so Simulator.app cannot render. Fixing it requires GPU passthrough with a macOS-supported AMD card."
+    },
+    {
+      "id": "sim-ipad",
+      "title": "iPad simulator",
+      "section": "Simulators",
+      "command": ["$TOOLKIT/sim.sh", "ipad"],
+      "requires": ["metal", "xcode"],
+      "unavailable": "Needs a Metal GPU and Xcode. This VM has neither: MTLCreateSystemDefaultDevice() returns NULL, so Simulator.app cannot render. Fixing it requires GPU passthrough with a macOS-supported AMD card."
+    },
+    {
+      "id": "sim-list",
+      "title": "List installed simulators…",
+      "section": "Simulators",
+      "command": ["$TOOLKIT/sim.sh", "list"],
+      "requires": ["xcode"],
+      "unavailable": "Needs Xcode, which requires a working Apple ID sign-in. This VM reports serial W00000000001 and an all-zero hardware UUID, so Apple rejects sign-in."
+    },
+    {
+      "id": "guest-info",
+      "title": "Guest info…",
+      "section": "System",
+      "command": ["$TOOLKIT/guest-info.sh"]
+    },
+    {
+      "id": "reveal-logs",
+      "title": "Open toolkit log",
+      "section": "System",
+      "command": ["/usr/bin/open", "-a", "Console", "$TOOLKIT_LOG"]
+    }
+  ]
+}

@@ -9,6 +9,10 @@ dist
 # see .private/README.md and scripts/lib/guest-credentials.sh
 .private/
 
+# toolkit build artifacts (the .dmg is produced by install.sh --dmg)
+toolkit/*.dmg
+toolkit/build/
+
 *.log
 .DS_Store
 vmui.db
