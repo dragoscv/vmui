@@ -1,18 +1,18 @@
-import "server-only";
 import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
-import { Socket } from "node:net";
 import { existsSync } from "node:fs";
+import { Socket } from "node:net";
 import path from "node:path";
+import { promisify } from "node:util";
+import "server-only";
 import type {
-  CloudProvider,
-  ConnectionInfo,
-  CreateInstanceInput,
-  InstanceTemplate,
-  NormalizedInstance,
-  NormalizedState,
-  Platform,
-  ProviderAccountInfo,
+    CloudProvider,
+    ConnectionInfo,
+    CreateInstanceInput,
+    InstanceTemplate,
+    NormalizedInstance,
+    NormalizedState,
+    Platform,
+    ProviderAccountInfo,
 } from "./types";
 
 const execFileP = promisify(execFile);
@@ -99,6 +99,12 @@ export interface KindDefaults {
   platform: Platform;
   hostLabelHint: string;
   vmIdSuffix: string;
+  /**
+   * mac only: which qcow2 overlay to boot. The golden base
+   * (mac_hdd_ng.img, macOS 15.7.5) is frozen read-only and every bootable
+   * disk is an overlay on top of it — see scripts/mac-branch.ps1.
+   */
+  macDisk?: string;
 }
 
 export const KIND_DEFAULTS: Record<LocalKvmKind, KindDefaults> = {
@@ -108,12 +114,16 @@ export const KIND_DEFAULTS: Record<LocalKvmKind, KindDefaults> = {
     qmpPort: 4444,
     sshPort: 10022,
     wsPort: 6080,
-    ramMb: 16384,
-    cores: 4,
-    threads: 8,
+    // Keep in sync with the "start mac VM" VS Code task and the defaults in
+    // scripts/mac-branch.ps1. 32GB requires the WSL cap in ~/.wslconfig to be
+    // >= 64GB, otherwise QEMU has no room and the guest silently gets less.
+    ramMb: 32768,
+    cores: 8,
+    threads: 16,
     platform: "macos",
     hostLabelHint: "Local Mac (KVM)",
     vmIdSuffix: "mac",
+    macDisk: "mac-tahoe.qcow2",
   },
   win: {
     vmDir: "/home/dragos/vmui-vms/win",
@@ -628,6 +638,9 @@ export class LocalKvmProvider implements CloudProvider {
         String(this.creds.qmpPort),
         "-SshPort",
         String(this.creds.sshPort),
+        ...(this.kind === "mac" && KIND_DEFAULTS.mac.macDisk
+          ? ["-MacDisk", KIND_DEFAULTS.mac.macDisk]
+          : []),
       ],
       { detached: true, stdio: "ignore", windowsHide: true },
     );

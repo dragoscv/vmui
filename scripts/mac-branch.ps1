@@ -34,9 +34,14 @@ param(
   # wedges the updater (no disk growth, frozen frame, every vCPU pegged)
   # while `-smp 4,cores=2` completes it. Verified 2026-08-18 on 15.7.9.
   # Always pass -Cores 2 -Threads 4 when running an OS install/upgrade.
-  [int]$RamMb = 16384,
-  [int]$Cores = 4,
-  [int]$Threads = 8
+  # Keep these in sync with the "start mac VM" VS Code task and with
+  # KIND_DEFAULTS.mac in src/lib/providers/local-kvm.ts, otherwise switching
+  # branches silently downgrades the guest (this happened: manual launches at
+  # 16GB while the task specified 32GB).
+  # NOTE: 32GB requires the WSL cap in %USERPROFILE%\.wslconfig to stay >= 64GB.
+  [int]$RamMb = 32768,
+  [int]$Cores = 8,
+  [int]$Threads = 16
 )
 
 $ErrorActionPreference = "Stop"
@@ -96,6 +101,6 @@ switch ($PSCmdlet.ParameterSetName) {
     $spawn = Join-Path $PSScriptRoot "spawn-watchdog.ps1"
     $wdPid = & $spawn -Distro $Distro -Kind mac -AllocatedRamMb $RamMb -Cores $Cores -Threads $Threads `
       -VncDisplay 0 -QmpPort 4444 -SshPort 10022 -MacDisk "$Use.qcow2"
-    Write-Host "Booting branch '$Use' (watchdog pid $wdPid) with ${Cores}c/${Threads}t, ${RamMb}MB. VNC :5900, SSH :10022."
+    Write-Host "Booting branch '$Use' (watchdog pid $wdPid) with ${Cores}c/${Threads}t, ${RamMb}MB. VNC :5900, ScreenSharing :5901, SSH :10022."
   }
 }

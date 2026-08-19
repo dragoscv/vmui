@@ -62,6 +62,44 @@ that this build no longer accepts:
 These were physical-screen-size hints (in mm) used by older QEMU to hint
 DPI to the guest. They've been removed from the std VGA device.
 
+## Host prerequisite: WSL memory cap (`.wslconfig`)
+
+The guest is allocated **32 GB** (`-AllocatedRamMb 32768`) by every launch
+path. QEMU needs headroom *beyond* `-m` for its own address space and for page
+cache over the qcow2 overlays, so the WSL2 VM must be given more than the
+guest asks for.
+
+`%USERPROFILE%\.wslconfig` — **not tracked in this repo**, so it must be
+recreated by hand on a new machine:
+
+```ini
+[wsl2]
+vmIdleTimeout=-1          # never idle-shut the distro (would kill the VM)
+memory=64GB               # must exceed the 32GB guest by a wide margin
+processors=16
+nestedVirtualization=true
+```
+
+A 48 GB cap left only ~31 GB actually available inside WSL and a 32 GB guest
+would not fit. After editing, run `wsl --shutdown` (this stops **all** distros)
+and verify:
+
+```powershell
+wsl -d Ubuntu-24.04 -- free -g          # want ~62 GB total
+```
+
+Then confirm the guest agrees, rather than trusting the QEMU flag:
+
+```powershell
+wsl -d Ubuntu-24.04 -- bash -lc "sshpass -p REDACTED_GUEST_PASSWORD ssh -o StrictHostKeyChecking=no -p 10022 dragos@127.0.0.1 'sysctl -n hw.memsize'"
+# 34359738368 = 32 GB
+```
+
+> RAM/CPU defaults live in **three** places and must be kept in sync:
+> `.vscode/tasks.json` (`start mac VM`), `scripts/mac-branch.ps1`, and
+> `KIND_DEFAULTS.mac` in `src/lib/providers/local-kvm.ts`. They disagreed once
+> and the guest silently ran at 16 GB.
+
 ## HiDPI / "everything is huge" fix
 
 ### Symptom
@@ -266,12 +304,75 @@ growth and screen MD5; calls HANG after 15 min of no growth + no frame change):
 wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/e/gh/vmui/scripts/mac-watch-install.sh mac-tahoe.qcow2 150 15.7.5'
 ```
 
+## Remote display: use SPICE, not VNC
+
+Three transports are exposed. They are **not** equivalent:
+
+| Port    | Transport             | Notes                                                                        |
+| ------- | --------------------- | ---------------------------------------------------------------------------- |
+| `:5930` | **SPICE** ← preferred | QEMU pushes damage rectangles; per-tile adaptive JPEG/LZ; separate input channel |
+| `:5900` | QEMU VNC              | Generic framebuffer diffing. Noticeably laggier                              |
+| `:5901` | Apple Screen Sharing  | Works, but the client must be pinned to RFB 3.8 (see below)                  |
+
+```powershell
+.\scripts\mac-connect-spice.ps1              # needs: winget install RedHat.VirtViewer
+```
+
+> **First thing to check when "it got laggy":** which transport is actually
+> connected. `remote-viewer` dies on `wsl --shutdown` and something can
+> silently reconnect on VNC `:5900`.
+>
+> ```bash
+> wsl -d Ubuntu-24.04 -- bash -lc "ss -tn state established | grep -cE ':5930|:5900'"
+> ```
+>
+> Having a VNC client attached **as well as** SPICE makes QEMU encode the
+> framebuffer twice. Close the one you are not using.
+
+Apple Screen Sharing on `:5901` rejects standard VNC clients with
+`protocol error: key length is too long`. Apple advertises the non-standard
+banner `RFB 003.889`; clients that follow it negotiate Apple-DH instead of
+legacy VNC auth. Run `scripts/mac-enable-vnc-legacy.sh` once, then force the
+client to RFB 3.8 (TigerVNC: `-RFBVersion 3.8`), password `REDACTED_VNC_PASSWORD` (RFB caps
+VNC passwords at 8 characters).
+
+## Known limitations (do not re-investigate)
+
+All of the following trace to one fact: **there is no GPU**.
+`MTLCreateSystemDefaultDevice()` returns `NULL`, and the framebuffer driver is
+`AppleBochVGAFB` with `IOFBMemorySize` = exactly one 1920×1080 frame.
+
+| Symptom                                       | Cause                                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1px square border around rounded windows/menus | Tahoe's window stroke, drawn opaque because there is no Metal device to composite it. **Not** a shadow or accessibility setting — toggling `disableWindowShadows` produces a byte-identical `rgb(62,62,62)` pixel |
+| Cursor lags while video is smooth              | `IOFBCursorInfo` is empty = no hardware cursor, so every pointer move is a framebuffer damage rect       |
+| VRAM stuck at "7 MB"                           | `AppleBochVGAFB` self-sizes to one frame; `vgamem_mb` is ignored                                         |
+| `screencapture` fails                          | No GPU display stream. Use QMP `screendump` instead                                                      |
+| No sound                                       | QEMU streams audio over SPICE correctly (`-audiodev spice`), but macOS attaches only an `AppleUSBAudioControlNub` to `usb-audio` and never loads `AppleHDA` for `ich9-intel-hda` (needs an ACPI `HDEF` device with a `layout-id` injected by OpenCore) |
+
+Things tried that made it **worse**, and should not be repeated:
+`vmware-svga` (VRAM 7 MB → 3 MB, no mode set, dead GUI) and
+`VGA,refresh_rate=30` (broke mouse input over VNC).
+
+The only real fix is a macOS-supported **AMD** GPU (RX 580 / RX 6600) passed
+through from a hypervisor that exposes IOMMU. WSL2 cannot do this —
+`/sys/kernel/iommu_groups/` is empty because WSL2 is itself a Hyper-V guest —
+and macOS has no driver for NVIDIA Ampere or Intel Raptor Lake graphics.
+
 ## File map
 
 | Path                                                                | Role                                                               |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | [scripts/boot-mac.sh](../scripts/boot-mac.sh)                       | The QEMU command line. Synced into `~/OSX-KVM/` on every launch.   |
 | [scripts/mac-branch.ps1](../scripts/mac-branch.ps1)                 | Branch manager: `-List` / `-Use` / `-Reset` / `-Stop`.             |
+| [scripts/mac-connect-spice.ps1](../scripts/mac-connect-spice.ps1)   | Connect over SPICE (preferred transport).                          |
+| [scripts/mac-perf-tune.sh](../scripts/mac-perf-tune.sh)             | Post-upgrade tuning: Spotlight off, animations off, no sleep.      |
+| [scripts/mac-skip-setup-assistant.sh](../scripts/mac-skip-setup-assistant.sh) | Dismiss the post-upgrade MiniBuddy wizard.               |
+| [scripts/mac-enable-autologin.sh](../scripts/mac-enable-autologin.sh) | Auto-login so restarts land on the desktop, not the login window. |
+| [scripts/mac-enable-vnc-legacy.sh](../scripts/mac-enable-vnc-legacy.sh) | Let standard VNC clients use Screen Sharing on `:5901`.        |
+| [scripts/mac-restore-window-shadows.sh](../scripts/mac-restore-window-shadows.sh) | Undo the `CHROME_HEADLESS` shadow suppression.       |
+| [scripts/mac-fix-tahoe-electron-lag.sh](../scripts/mac-fix-tahoe-electron-lag.sh) | Tahoe Electron `_cornerMask` workaround (`REVERT=1` to undo). |
+| [scripts/mac-fix-audio-output.sh](../scripts/mac-fix-audio-output.sh) | Select the QEMU sound card over BlackHole as default output.      |
 | [scripts/mac-watch-install.sh](../scripts/mac-watch-install.sh)     | Install watcher; distinguishes real progress from a spin-hang.     |
 | [scripts/mac-guest-shutdown.sh](../scripts/mac-guest-shutdown.sh)   | Clean in-guest shutdown over SSH.                                  |
 | [scripts/run-mac-foreground.sh](../scripts/run-mac-foreground.sh)   | WSL-side runner; the foreground process whose lifetime gates QEMU. |
