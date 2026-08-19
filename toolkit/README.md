@@ -50,27 +50,27 @@ Two steps, no Swift:
 Re-run `install.sh` and restart the app. The menu is rebuilt from the manifest
 at launch.
 
-| Field | Meaning |
-| ------------- | ------------------------------------------------------------------- |
-| `id`          | stable key, also used in the log                                     |
-| `section`     | groups items; sections appear in first-seen order                    |
-| `command`     | argv array — executed directly, no shell, so no quoting surprises    |
-| `confirm`     | prompt before running                                                |
-| `notify`      | show the output when it finishes (failures always show)              |
-| `requires`    | `metal` / `xcode` — unmet items render greyed out                    |
-| `unavailable` | tooltip explaining why, shown when `requires` is unmet               |
+| Field         | Meaning                                                           |
+| ------------- | ----------------------------------------------------------------- |
+| `id`          | stable key, also used in the log                                  |
+| `section`     | groups items; sections appear in first-seen order                 |
+| `command`     | argv array — executed directly, no shell, so no quoting surprises |
+| `confirm`     | prompt before running                                             |
+| `notify`      | show the output when it finishes (failures always show)           |
+| `requires`    | `metal` / `xcode` — unmet items render greyed out                 |
+| `unavailable` | tooltip explaining why, shown when `requires` is unmet            |
 
 `$TOOLKIT` expands to the install directory and `$TOOLKIT_LOG` to the log file,
 so the manifest stays portable.
 
 ## Layout
 
-| Path | Role |
-| --------------------- | ---------------------------------------------------- |
-| `Sources/main.swift`  | the app: reads the manifest, builds the menu, runs tools |
-| `tools.json`          | the manifest — the only file you edit to add a tool   |
-| `tools/*.sh`          | guest-side implementations                            |
-| `install.sh`          | build, bundle, install, register, optional `.dmg`     |
+| Path                 | Role                                                     |
+| -------------------- | -------------------------------------------------------- |
+| `Sources/main.swift` | the app: reads the manifest, builds the menu, runs tools |
+| `tools.json`         | the manifest — the only file you edit to add a tool      |
+| `tools/*.sh`         | guest-side implementations                               |
+| `install.sh`         | build, bundle, install, register, optional `.dmg`        |
 
 Installed to:
 

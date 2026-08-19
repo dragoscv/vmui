@@ -1,0 +1,153 @@
+<!--
+  Step 5 — libvirt domain for macOS Tahoe with a real GPU.
+
+  BEFORE DEFINING THIS, EDIT:
+    * the <hostdev> PCI addresses  -> the bus/slot from 03-check-iommu.sh
+    * <memory> and <vcpu>          -> to taste (192 GB / 24C available)
+    * the <source file=...> paths  -> where 04-migrate-image.sh put them
+
+    virsh define 05-macos-vm.xml
+    virsh start  macos-tahoe
+
+  Carried over from the working WSL2 configuration:
+    * Penryn CPU with the Apple-required feature bits
+    * isa-applesmc with the OSK
+    * the OpenCore disk on SATA, macOS on SATA
+  Changed for bare metal:
+    * a real GPU via <hostdev> instead of the emulated VGA
+    * no SPICE/VNC: output goes to the physical monitor on the passed card
+-->
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>macos-tahoe</name>
+  <title>macOS Tahoe 26.6.2 — GPU passthrough</title>
+
+  <memory unit="GiB">32</memory>
+  <currentMemory unit="GiB">32</currentMemory>
+
+  <!-- Pin to P-cores. The 14900K's E-cores confuse macOS's scheduler, and
+       mixed core types are a known source of stutter in macOS guests. -->
+  <vcpu placement="static">16</vcpu>
+  <cputune>
+    <vcpupin vcpu="0"  cpuset="0"/>  <vcpupin vcpu="1"  cpuset="1"/>
+    <vcpupin vcpu="2"  cpuset="2"/>  <vcpupin vcpu="3"  cpuset="3"/>
+    <vcpupin vcpu="4"  cpuset="4"/>  <vcpupin vcpu="5"  cpuset="5"/>
+    <vcpupin vcpu="6"  cpuset="6"/>  <vcpupin vcpu="7"  cpuset="7"/>
+    <vcpupin vcpu="8"  cpuset="8"/>  <vcpupin vcpu="9"  cpuset="9"/>
+    <vcpupin vcpu="10" cpuset="10"/> <vcpupin vcpu="11" cpuset="11"/>
+    <vcpupin vcpu="12" cpuset="12"/> <vcpupin vcpu="13" cpuset="13"/>
+    <vcpupin vcpu="14" cpuset="14"/> <vcpupin vcpu="15" cpuset="15"/>
+  </cputune>
+
+  <os>
+    <type arch="x86_64" machine="q35">hvm</type>
+    <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE_4M.fd</loader>
+    <nvram>/var/lib/libvirt/images/macos_VARS.fd</nvram>
+  </os>
+
+  <features>
+    <acpi/>
+    <apic/>
+    <!-- macOS refuses to boot if it detects a hypervisor. -->
+    <kvm><hidden state="on"/></kvm>
+    <vmport state="off"/>
+  </features>
+
+  <!-- Penryn + the feature bits OSX-KVM requires for Sequoia/Tahoe.
+       Do not "modernise" this: newer models break the installer. -->
+  <cpu mode="custom" match="exact" check="none">
+    <model fallback="allow">Penryn</model>
+    <topology sockets="1" dies="1" cores="8" threads="2"/>
+    <feature policy="require" name="ssse3"/>
+    <feature policy="require" name="sse4.2"/>
+    <feature policy="require" name="popcnt"/>
+    <feature policy="require" name="avx"/>
+    <feature policy="require" name="aes"/>
+    <feature policy="require" name="xsave"/>
+    <feature policy="require" name="xsaveopt"/>
+    <feature policy="require" name="invtsc"/>
+    <feature policy="disable" name="hle"/>
+    <feature policy="disable" name="rtm"/>
+  </cpu>
+
+  <clock offset="utc">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+
+    <!-- OpenCore first: it is what actually boots macOS. -->
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2" cache="none" io="native"/>
+      <source file="/var/lib/libvirt/images/OpenCore.qcow2"/>
+      <target dev="sda" bus="sata"/>
+      <boot order="1"/>
+      <address type="drive" controller="0" bus="0" target="0" unit="0"/>
+    </disk>
+
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2" cache="none" io="native" discard="unmap"/>
+      <source file="/var/lib/libvirt/images/macos-tahoe.qcow2"/>
+      <target dev="sdb" bus="sata"/>
+      <boot order="2"/>
+      <address type="drive" controller="0" bus="0" target="0" unit="1"/>
+    </disk>
+
+    <controller type="sata" index="0"/>
+    <controller type="usb" index="0" model="qemu-xhci" ports="15"/>
+    <controller type="pci" index="0" model="pcie-root"/>
+    <controller type="pci" index="1" model="pcie-root-port"/>
+    <controller type="pci" index="2" model="pcie-root-port"/>
+    <controller type="pci" index="3" model="pcie-root-port"/>
+
+    <!-- vmxnet3 is what the working WSL2 setup uses; macOS has a driver. -->
+    <interface type="network">
+      <source network="default"/>
+      <model type="vmxnet3"/>
+    </interface>
+
+    <input type="tablet" bus="usb"/>
+    <input type="keyboard" bus="usb"/>
+
+    <!-- ===================================================================
+         THE POINT OF ALL THIS: the real GPU.
+         Replace bus/slot with the values 03-check-iommu.sh printed.
+         Both functions must be passed: video (.0) and HDMI audio (.1).
+         =================================================================== -->
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x03" slot="0x00" function="0x0"/>
+      </source>
+      <!-- multifunction on the first entry so the guest sees one device -->
+      <address type="pci" domain="0x0000" bus="0x00" slot="0x02" function="0x0" multifunction="on"/>
+    </hostdev>
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x03" slot="0x00" function="0x1"/>
+      </source>
+      <address type="pci" domain="0x0000" bus="0x00" slot="0x02" function="0x1"/>
+    </hostdev>
+
+    <!-- No <graphics> and no emulated <video>: with the GPU passed through,
+         output goes to the physical monitor. Adding an emulated adapter here
+         is a common cause of macOS picking the wrong framebuffer. -->
+
+    <memballoon model="none"/>
+  </devices>
+
+  <qemu:commandline>
+    <!-- Apple SMC: macOS will not boot without the OSK. -->
+    <qemu:arg value="-device"/>
+    <qemu:arg value="isa-applesmc,osk=ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"/>
+    <qemu:arg value="-smbios"/>
+    <qemu:arg value="type=2"/>
+    <!-- Real Mac SMBIOS goes here once GenSMBIOS has generated one (07-smbios.md);
+         without it Apple ID and the App Store stay broken. -->
+  </qemu:commandline>
+</domain>
