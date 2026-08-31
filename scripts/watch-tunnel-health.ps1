@@ -180,6 +180,25 @@ if ($Report) {
       Write-Host '  server download and swap mid-session. Set "update.mode": "start".' -ForegroundColor Red
     }
   }
+
+  # Fourth cause. Deliberately last, because it is the one that looks healthy:
+  # tunnel up, client logging, log file recently touched -- yet dead.
+  $withSrvProc = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'serverAlive' })
+  if ($withSrvProc.Count) {
+    $last = $withSrvProc[-1]
+    Write-Host ''
+    Write-Host 'tunnel server process:' -ForegroundColor Cyan
+    Write-Host "  server processes now : $($last.serverAlive)"
+    Write-Host "  last tunnel log entry: $($last.tunnelLogAgeMin) min ago"
+    $dead = @($withSrvProc | Where-Object { $_.serverAlive -eq 0 }).Count
+    if ($last.serverAlive -eq 0) {
+      Write-Host '  DEAD: no server process. The client will fail every request while the' -ForegroundColor Red
+      Write-Host '  tunnel still looks up. Reconnect from the VM to force a respawn.' -ForegroundColor Red
+    }
+    elseif ($dead) {
+      Write-Host "  the server was missing in $dead earlier sample(s)" -ForegroundColor Yellow
+    }
+  }
   exit 0
 }
 
@@ -241,6 +260,24 @@ function Get-Sample {
     $serverCommits = $seen.Count
   }
 
+  # Fourth cause, seen 2026-08-31 20:44: the server process dies and is never
+  # respawned. Nothing else notices -- the tunnel process stays up and holds
+  # its relay connection, and the VM client keeps writing to its own log, so
+  # the failure is invisible from every angle except these two checks.
+  $serverAlive = @(Get-CimInstance Win32_Process -EA SilentlyContinue |
+      Where-Object { $_.CommandLine -match 'cli\\servers\\(Insiders|Stable)-' }).Count
+  # Age of the LAST ENTRY, not the file mtime -- the file is touched without
+  # being appended to, which is exactly what made this look healthy.
+  $tunnelLogAgeMin = -1
+  if (Test-Path $tlog) {
+    $lastEntry = Get-Content $tlog -Tail 40 |
+      Where-Object { $_ -match '^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\]' } |
+      Select-Object -Last 1
+    if ($lastEntry -and $lastEntry -match '^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\]') {
+      $tunnelLogAgeMin = [int]((Get-Date) - [datetime]::Parse($Matches[1])).TotalMinutes
+    }
+  }
+
   # VM side: the counters that actually describe the symptom.
   # NOT named $vm — PowerShell variables are case-insensitive, so that would
   # clobber the $VM parameter holding the machine name, and Invoke-Command
@@ -298,6 +335,8 @@ function Get-Sample {
     hostRendPid  = $rendererPid
     hostRendAgeH = $rendererAgeH
     serverCommits = $serverCommits
+    serverAlive   = $serverAlive
+    tunnelLogAgeMin = $tunnelLogAgeMin
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
     downloads    = $downloads
