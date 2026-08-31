@@ -197,6 +197,25 @@ if ($Report) {
       Write-Host '  tunnel is up (the workbench runs in the VM; no host server process is expected).'
     }
   }
+
+  # The upstream cause. Everything in "what interrupted the session" above is
+  # downstream of this.
+  $withUp = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'tunnelUpH' -and $_.tunnelUpH -ge 0 })
+  if ($withUp.Count) {
+    $last = $withUp[-1]
+    Write-Host ''
+    Write-Host 'tunnel service uptime (UPSTREAM CAUSE):' -ForegroundColor Cyan
+    Write-Host "  up for                : $($last.tunnelUpH) h"
+    Write-Host "  connections disposed today : $($last.disposalsToday)"
+    if ($last.tunnelUpH -ge 40) {
+      Write-Host '  RESTART IT. Past ~40 h the service disposes a connection every ~60 min,' -ForegroundColor Red
+      Write-Host '  and each disposal can hit the token-reuse bug and kill the chat session.' -ForegroundColor Red
+      Write-Host '  Elevated: Stop-ScheduledTask VSCodeTunnel-dragos; kill code-tunnel; Start-ScheduledTask.' -ForegroundColor Red
+    }
+    elseif ($last.tunnelUpH -ge 24) {
+      Write-Host '  over 24 h - watch the disposal count; restart if it starts climbing hourly.' -ForegroundColor Yellow
+    }
+  }
   exit 0
 }
 
@@ -279,6 +298,31 @@ function Get-Sample {
         Where-Object { $_.OwningProcess -in $tunnelPids -and $_.RemotePort -eq 443 }).Count
   }
 
+  # UPSTREAM CAUSE, found 2026-09-01. The token-reuse failures are not random:
+  # they follow the tunnel disposing a connection, which it started doing every
+  # ~60 min once the service had been up ~45 h. Measured that day: 16
+  # token-reuse in 10.6 h (1.51/h) versus 0.33-0.57/h on the three preceding
+  # days, and 29 disposals plus 89 NoAttachedServerError in one log.
+  # Restarting the service reset it. Track uptime so the next degradation is
+  # visible before it costs a session.
+  $tunnelUpH = -1
+  if ($tunnelPids.Count) {
+    $oldest = $null
+    foreach ($tp in $tunnelPids) {
+      $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$tp" -EA SilentlyContinue
+      if ($ci -and $ci.CreationDate) {
+        if (-not $oldest -or $ci.CreationDate -lt $oldest) { $oldest = $ci.CreationDate }
+      }
+    }
+    if ($oldest) { $tunnelUpH = [math]::Round(((Get-Date) - $oldest).TotalHours, 1) }
+  }
+  $disposalsToday = 0
+  if (Test-Path $tlog) {
+    $today = (Get-Date).ToString('yyyy-MM-dd')
+    $disposalsToday = @(Select-String -Path $tlog -Pattern 'Disposed of connection' -EA SilentlyContinue |
+        Where-Object { $_.Line -match [regex]::Escape($today) }).Count
+  }
+
   # VM side: the counters that actually describe the symptom.
   # NOT named $vm — PowerShell variables are case-insensitive, so that would
   # clobber the $VM parameter holding the machine name, and Invoke-Command
@@ -337,6 +381,8 @@ function Get-Sample {
     hostRendAgeH = $rendererAgeH
     serverCommits = $serverCommits
     relayLinks    = $relayLinks
+    tunnelUpH     = $tunnelUpH
+    disposalsToday = $disposalsToday
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
     downloads    = $downloads
