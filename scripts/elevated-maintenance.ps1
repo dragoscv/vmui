@@ -64,7 +64,30 @@ if ($Register) {
     }
 
     # Each task is a fixed operation. No arguments come from the caller, so
-    # triggering a task cannot be turned into "run arbitrary code as SYSTEM".
+    # triggering a task cannot be turned into "run arbitrary code elevated".
+    #
+    # Owner is the CURRENT USER, not SYSTEM. That detail is the whole trick:
+    # a SYSTEM-owned task inherits a descriptor only SYSTEM and Administrators
+    # may execute, so `schtasks /run` from an ordinary session fails with
+    # "Access is denied" -- exactly what happened on the first attempt, which
+    # defeated the entire purpose. A task owned by this user can be triggered
+    # by this user with no prompt (proven: VSCodeTunnel-dragos runs as vladu
+    # and `schtasks /run` returns 0 unelevated), while RunLevel Highest still
+    # gives it the elevated token required to stop the S4U tunnel processes.
+    # No ACL surgery, nothing to repair later.
+    $me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    Write-Host "  tasks will run as $me with RunLevel Highest"
+
+    # An earlier revision registered these as SYSTEM. Those cannot be
+    # triggered from an ordinary session, so remove them before re-creating;
+    # -Force would overwrite, but an explicit unregister makes the transition
+    # visible and leaves nothing behind if a name ever changes.
+    foreach ($old in @(Get-ScheduledTask -ErrorAction SilentlyContinue |
+            Where-Object { $_.TaskName -match '^CodaiMaint-' -and $_.Principal.UserId -eq 'SYSTEM' })) {
+        Unregister-ScheduledTask -TaskName $old.TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Write-Host "  removed SYSTEM-owned $($old.TaskName)" -ForegroundColor DarkGray
+    }
+
     $tasks = @(
         @{
             Name = 'CodaiMaint-TunnelRefresh'
@@ -89,7 +112,9 @@ if ($Register) {
     foreach ($t in $tasks) {
         $action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
             -Argument ('-NoProfile -ExecutionPolicy Bypass -File "{0}" -Operation {1}' -f $PSCommandPath, $t.Op)
-        $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+        # S4U: runs whether or not you are logged in, and needs no stored
+        # password. Highest supplies the elevated token.
+        $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType S4U -RunLevel Highest
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
             -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
 
@@ -111,6 +136,24 @@ if ($Register) {
     Write-Host ''
     Write-Host 'Trigger from any unelevated session, no UAC prompt:' -ForegroundColor Cyan
     foreach ($t in $tasks) { Write-Host "  schtasks /run /tn `"$($t.Name)`"" }
+
+    # Verify the actual goal, not just that registration returned. The first
+    # attempt registered cleanly and was still untriggerable, which is exactly
+    # the failure this check catches.
+    Write-Host ''
+    Write-Host 'Verifying each task is triggerable by its owner...' -ForegroundColor Cyan
+    foreach ($t in $tasks) {
+        $info = Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue
+        if (-not $info) { Write-Host "  MISSING $($t.Name)" -ForegroundColor Red; continue }
+        $okOwner = $info.Principal.UserId -notmatch 'SYSTEM'
+        $okLevel = $info.Principal.RunLevel -eq 'Highest'
+        $state = if ($okOwner -and $okLevel) { 'ok' } else { 'WRONG' }
+        $colour = if ($okOwner -and $okLevel) { 'Green' } else { 'Red' }
+        Write-Host ("  {0,-34} {1}  owner={2} runlevel={3}" -f $t.Name, $state, $info.Principal.UserId, $info.Principal.RunLevel) -ForegroundColor $colour
+    }
+    Write-Host ''
+    Write-Host 'Now run this from a NORMAL (unelevated) terminal to confirm:' -ForegroundColor Yellow
+    Write-Host '  schtasks /run /tn "CodaiMaint-TunnelRefresh"' -ForegroundColor Yellow
     exit 0
 }
 
