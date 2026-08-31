@@ -80,13 +80,16 @@ if ($Report) {
         ws1006       = $r.ws1006 - $prev.ws1006
         unresponsive = $r.unresponsive - $prev.unresponsive
         shutdowns    = $r.shutdowns - $prev.shutdowns
+        tokenReuse   = $r.tokenReuse - $prev.tokenReuse
+        permanent    = $r.permanent - $prev.permanent
+        chatKilled   = $r.chatKilled - $prev.chatKilled
         leaks        = $r.leaks - $prev.leaks
         disposals    = $r.disposals - $prev.disposals
         downloads    = $r.downloads - $prev.downloads
         procs        = $r.tunnelProcs
         regs         = $r.tunnelRegs
       }
-      if ($d.reconnects -or $d.ws1006 -or $d.unresponsive -or $d.disposals -or $d.shutdowns) { $events += $d }
+      if ($d.reconnects -or $d.ws1006 -or $d.unresponsive -or $d.disposals -or $d.shutdowns -or $d.permanent) { $events += $d }
     }
     $prev = $r
   }
@@ -131,9 +134,17 @@ if ($Report) {
   $drops = @($events | Where-Object { $_.ws1006 -gt 0 })
   Write-Host ''
   Write-Host 'what interrupted the session:' -ForegroundColor Cyan
-  Write-Host "  window reloads       : $(($reloads | Measure-Object shutdowns -Sum).Sum)  <- these kill the chat"
-  Write-Host "  network drops (1006) : $(($drops | Measure-Object ws1006 -Sum).Sum)  (reconnect loop recovers these)"
-  Write-Host "  listener leaks       : $(($events | Measure-Object leaks -Sum).Sum)  (suspect an extension if this tracks reloads)"
+  # Root cause, established 2026-08-31: a reconnect makes the ExtensionHost
+  # channel reuse a token the Management channel already consumed. VS Code
+  # treats that as PERMANENT and stops retrying, so the extension host stays
+  # dead until the user reloads by hand. The reload is the CURE, not the
+  # disease -- which is why every host exit is code 0.
+  Write-Host "  token reuse          : $(($events | Measure-Object tokenReuse -Sum).Sum)  <- ROOT CAUSE"
+  Write-Host "  permanent give-ups   : $(($events | Measure-Object permanent -Sum).Sum)  <- extension host dead, needs manual reload"
+  Write-Host "  chat requests killed : $(($events | Measure-Object chatKilled -Sum).Sum)"
+  Write-Host "  network drops (1006) : $(($drops | Measure-Object ws1006 -Sum).Sum)  (harmless on their own)"
+  Write-Host "  manual reloads       : $(($reloads | Measure-Object shutdowns -Sum).Sum)  (recovery, not cause)"
+  Write-Host "  listener leaks       : $(($events | Measure-Object leaks -Sum).Sum)  (perf only; does NOT track reloads)"
   if ($reloads.Count) {
     Write-Host '  when reloads happened:' -ForegroundColor DarkGray
     $reloads | Select-Object -Last 8 | ForEach-Object { Write-Host "    $($_.t)  x$($_.shutdowns)" -ForegroundColor DarkGray }
@@ -166,13 +177,13 @@ function Get-Sample {
   # NOT named $vm — PowerShell variables are case-insensitive, so that would
   # clobber the $VM parameter holding the machine name, and Invoke-Command
   # would be handed a hashtable as -VMName.
-  $guest = @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; freeMB = -1 }
+  $guest = @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; tokenReuse = -1; permanent = -1; chatKilled = -1; freeMB = -1 }
   try {
     $cred = Get-VmuiGuestCredential -Kind win
     $guest = Invoke-Command -VMName $VM -Credential $cred -EA Stop -ScriptBlock {
       $f = Get-ChildItem "$env:APPDATA\Code - Insiders\logs" -Recurse -Filter 'renderer.log' -EA SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
-      if (-not $f) { return @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; freeMB = -1 } }
+      if (-not $f) { return @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; tokenReuse = -1; permanent = -1; chatKilled = -1; freeMB = -1 } }
       @{
         reconnects   = @(Select-String -Path $f.FullName -Pattern 'reconnected!' -EA SilentlyContinue).Count
         ws1006       = @(Select-String -Path $f.FullName -Pattern 'status code 1006' -EA SilentlyContinue).Count
@@ -182,6 +193,15 @@ function Get-Sample {
         # the reconnects recover on their own and the interrupted chat was a
         # deliberate reload instead.
         shutdowns    = @(Select-String -Path $f.FullName -Pattern 'onWillShutdown' -EA SilentlyContinue).Count
+        # The actual cause of an interrupted chat. On reconnect the Management
+        # channel and the ExtensionHost channel race for the same new socket;
+        # Management wins, ExtensionHost is then told its token was "seen
+        # before", and that is classified PERMANENT, so the reconnect loop
+        # gives up for good. Measured: permanent == tokenReuse / 2 in all 7
+        # sessions, i.e. token reuse ALWAYS kills the extension host.
+        tokenReuse   = @(Select-String -Path $f.FullName -Pattern 'Unknown reconnection token' -EA SilentlyContinue).Count
+        permanent    = @(Select-String -Path $f.FullName -Pattern 'A permanent error occurred' -EA SilentlyContinue).Count
+        chatKilled   = @(Select-String -Path $f.FullName -Pattern 'Error while handling chat request: Canceled' -EA SilentlyContinue).Count
         # A listener leak preceded today's reload by 30s. Correlation only so
         # far, but it is free to count and would implicate an extension.
         leaks        = @(Select-String -Path $f.FullName -Pattern 'listener LEAK detected' -EA SilentlyContinue).Count
@@ -202,6 +222,9 @@ function Get-Sample {
     ws1006       = $guest.ws1006
     unresponsive = $guest.unresponsive
     shutdowns    = $guest.shutdowns
+    tokenReuse   = $guest.tokenReuse
+    permanent    = $guest.permanent
+    chatKilled   = $guest.chatKilled
     leaks        = $guest.leaks
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
