@@ -181,22 +181,20 @@ if ($Report) {
     }
   }
 
-  # Fourth cause. Deliberately last, because it is the one that looks healthy:
-  # tunnel up, client logging, log file recently touched -- yet dead.
-  $withSrvProc = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'serverAlive' })
-  if ($withSrvProc.Count) {
-    $last = $withSrvProc[-1]
+  # Liveness. NOTE: absence of a host-side `cli\servers\` process is NORMAL in
+  # this topology and is NOT a fault -- an earlier version of this report
+  # claimed otherwise and was wrong. The relay socket is the real signal.
+  $withRelay = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'relayLinks' })
+  if ($withRelay.Count) {
+    $last = $withRelay[-1]
     Write-Host ''
-    Write-Host 'tunnel server process:' -ForegroundColor Cyan
-    Write-Host "  server processes now : $($last.serverAlive)"
-    Write-Host "  last tunnel log entry: $($last.tunnelLogAgeMin) min ago"
-    $dead = @($withSrvProc | Where-Object { $_.serverAlive -eq 0 }).Count
-    if ($last.serverAlive -eq 0) {
-      Write-Host '  DEAD: no server process. The client will fail every request while the' -ForegroundColor Red
-      Write-Host '  tunnel still looks up. Reconnect from the VM to force a respawn.' -ForegroundColor Red
+    Write-Host 'tunnel liveness:' -ForegroundColor Cyan
+    Write-Host "  relay connections now : $($last.relayLinks)"
+    if ($last.relayLinks -eq 0) {
+      Write-Host '  the tunnel holds no relay connection - it is genuinely offline.' -ForegroundColor Red
     }
-    elseif ($dead) {
-      Write-Host "  the server was missing in $dead earlier sample(s)" -ForegroundColor Yellow
+    else {
+      Write-Host '  tunnel is up (the workbench runs in the VM; no host server process is expected).'
     }
   }
   exit 0
@@ -260,22 +258,25 @@ function Get-Sample {
     $serverCommits = $seen.Count
   }
 
-  # Fourth cause, seen 2026-08-31 20:44: the server process dies and is never
-  # respawned. Nothing else notices -- the tunnel process stays up and holds
-  # its relay connection, and the VM client keeps writing to its own log, so
-  # the failure is invisible from every angle except these two checks.
-  $serverAlive = @(Get-CimInstance Win32_Process -EA SilentlyContinue |
-      Where-Object { $_.CommandLine -match 'cli\\servers\\(Insiders|Stable)-' }).Count
-  # Age of the LAST ENTRY, not the file mtime -- the file is touched without
-  # being appended to, which is exactly what made this look healthy.
-  $tunnelLogAgeMin = -1
-  if (Test-Path $tlog) {
-    $lastEntry = Get-Content $tlog -Tail 40 |
-      Where-Object { $_ -match '^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\]' } |
-      Select-Object -Last 1
-    if ($lastEntry -and $lastEntry -match '^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\]') {
-      $tunnelLogAgeMin = [int]((Get-Date) - [datetime]::Parse($Matches[1])).TotalMinutes
-    }
+  # Liveness, measured the only way that is actually true here.
+  #
+  # A WRONG version of this check shipped on 2026-08-31 and reported a healthy
+  # tunnel as "dead". It counted host processes matching `cli\servers\` and
+  # found zero -- but zero is the NORMAL state. In this topology the VM runs
+  # the workbench itself and dials out to the relay; the host tunnel brokers
+  # the connection and keeps no long-lived local server process. Two further
+  # traps made the wrong answer look convincing: `Get-CimInstance` returns an
+  # empty `CommandLine`/`ExecutablePath` for processes this unelevated session
+  # cannot open (18 node.exe were invisible), and a stale LAST log entry is
+  # also normal, because the log is only appended on connection events.
+  #
+  # The honest signal is the relay socket. If the tunnel process holds an
+  # ESTABLISHED connection to the relay, the tunnel is up.
+  $tunnelPids = @(Get-Process 'code-tunnel' -EA SilentlyContinue).Id
+  $relayLinks = 0
+  if ($tunnelPids.Count) {
+    $relayLinks = @(Get-NetTCPConnection -State Established -EA SilentlyContinue |
+        Where-Object { $_.OwningProcess -in $tunnelPids -and $_.RemotePort -eq 443 }).Count
   }
 
   # VM side: the counters that actually describe the symptom.
@@ -335,8 +336,7 @@ function Get-Sample {
     hostRendPid  = $rendererPid
     hostRendAgeH = $rendererAgeH
     serverCommits = $serverCommits
-    serverAlive   = $serverAlive
-    tunnelLogAgeMin = $tunnelLogAgeMin
+    relayLinks    = $relayLinks
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
     downloads    = $downloads
