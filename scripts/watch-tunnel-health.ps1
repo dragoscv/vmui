@@ -149,6 +149,24 @@ if ($Report) {
     Write-Host '  when reloads happened:' -ForegroundColor DarkGray
     $reloads | Select-Object -Last 8 | ForEach-Object { Write-Host "    $($_.t)  x$($_.shutdowns)" -ForegroundColor DarkGray }
   }
+
+  # Second, independent failure mode. Tonight's outage had ZERO movement in
+  # every counter above, so absence of churn is not evidence of health.
+  $withMem = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'hostRendMB' -and $_.hostRendMB })
+  if ($withMem.Count) {
+    $peak = ($withMem | Measure-Object hostRendMB -Maximum).Maximum
+    $last = $withMem[-1]
+    Write-Host ''
+    Write-Host 'host renderer memory (independent cause):' -ForegroundColor Cyan
+    Write-Host "  peak observed        : $peak MB"
+    Write-Host "  now                  : $($last.hostRendMB) MB  (pid $($last.hostRendPid), up $($last.hostRendAgeH)h)"
+    if ($last.hostRendMB -ge 3000) {
+      Write-Host '  WARNING: a renderer over ~3 GB will stop responding. Reload that window.' -ForegroundColor Red
+    }
+    elseif ($peak -ge 3000) {
+      Write-Host '  a renderer previously exceeded 3 GB -- watch the growth rate.' -ForegroundColor Yellow
+    }
+  }
   exit 0
 }
 
@@ -166,6 +184,24 @@ function Get-Sample {
   # separates "the client updated" from "the connection churned", which the
   # earlier fields could not distinguish.
   $tlog = "$env:USERPROFILE\.vscode\cli\tunnel-service.log"
+
+  # HOST renderer memory. Added after 2026-08-31 19:34: a renderer that had
+  # been alive since 12:48 reached 7 063 MB private heap and the window stopped
+  # responding, while every VM-side counter stayed frozen (tokenReuse 8,
+  # permanent 4, unchanged for over an hour). Electron renderers become
+  # unstable well below this, so the growth curve is the early warning the
+  # other counters cannot give.
+  $rendererMB = 0; $rendererPid = 0; $rendererAgeH = 0
+  foreach ($proc in @(Get-CimInstance Win32_Process -Filter "Name='Code - Insiders.exe'" -EA SilentlyContinue)) {
+    if ($proc.CommandLine -notmatch '--type=renderer') { continue }
+    $mb = [int]($proc.WorkingSetSize / 1MB)
+    if ($mb -le $rendererMB) { continue }
+    $rendererMB = $mb
+    $rendererPid = $proc.ProcessId
+    $p = Get-Process -Id $proc.ProcessId -EA SilentlyContinue
+    if ($p) { $rendererAgeH = [math]::Round(((Get-Date) - $p.StartTime).TotalHours, 1) }
+  }
+
   $disposals = 0; $downloads = 0; $noServer = 0
   if (Test-Path $tlog) {
     $disposals = @(Select-String -Path $tlog -Pattern 'Disposed of connection to running server' -EA SilentlyContinue).Count
@@ -226,6 +262,9 @@ function Get-Sample {
     permanent    = $guest.permanent
     chatKilled   = $guest.chatKilled
     leaks        = $guest.leaks
+    hostRendMB   = $rendererMB
+    hostRendPid  = $rendererPid
+    hostRendAgeH = $rendererAgeH
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
     downloads    = $downloads
