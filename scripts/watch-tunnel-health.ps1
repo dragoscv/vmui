@@ -167,6 +167,19 @@ if ($Report) {
       Write-Host '  a renderer previously exceeded 3 GB -- watch the growth rate.' -ForegroundColor Yellow
     }
   }
+
+  # Third cause, and the only one that leaves every other counter flat.
+  $withSrv = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'serverCommits' -and $_.serverCommits })
+  if ($withSrv.Count) {
+    $n = ($withSrv | Measure-Object serverCommits -Maximum).Maximum
+    Write-Host ''
+    Write-Host 'tunnel server swaps (root cause):' -ForegroundColor Cyan
+    Write-Host "  distinct servers served today : $n"
+    if ($n -gt 1) {
+      Write-Host '  The Insiders CLIENT updated underneath the STABLE tunnel, forcing a' -ForegroundColor Red
+      Write-Host '  server download and swap mid-session. Set "update.mode": "start".' -ForegroundColor Red
+    }
+  }
   exit 0
 }
 
@@ -207,6 +220,25 @@ function Get-Sample {
     $disposals = @(Select-String -Path $tlog -Pattern 'Disposed of connection to running server' -EA SilentlyContinue).Count
     $downloads = @(Select-String -Path $tlog -Pattern 'Downloading Visual Studio Code server' -EA SilentlyContinue).Count
     $noServer = @(Select-String -Path $tlog -Pattern 'NoAttachedServerError' -EA SilentlyContinue).Count
+  }
+
+  # ROOT CAUSE, found 2026-08-31. The tunnel on this host is started by STABLE
+  # (`Microsoft VS Code\bin\code-tunnel.exe`, task VSCodeTunnel-dragos), while
+  # the VM connects with Insiders. Quality is per-connection, so the tunnel
+  # serves whatever commit the CLIENT asks for -- and Insiders ships a new
+  # commit daily. On 2026-08-31 alone it served three: d5ceefbe -> db46a82c ->
+  # 5c917327. Each switch downloads a new server and tears down the extension
+  # host mid-session. More than one distinct server in a day means the client
+  # is updating underneath the tunnel.
+  $serverCommits = 0
+  if (Test-Path $tlog) {
+    $today = (Get-Date).ToString('yyyy-MM-dd')
+    $seen = @{}
+    foreach ($m in @(Select-String -Path $tlog -Pattern 'servers\\((?:Insiders|Stable)-\w{10})' -EA SilentlyContinue)) {
+      if ($m.Line -notmatch [regex]::Escape($today)) { continue }
+      if ($m.Line -match 'servers\\((?:Insiders|Stable)-\w{10})') { $seen[$Matches[1]] = 1 }
+    }
+    $serverCommits = $seen.Count
   }
 
   # VM side: the counters that actually describe the symptom.
@@ -265,6 +297,7 @@ function Get-Sample {
     hostRendMB   = $rendererMB
     hostRendPid  = $rendererPid
     hostRendAgeH = $rendererAgeH
+    serverCommits = $serverCommits
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
     downloads    = $downloads
