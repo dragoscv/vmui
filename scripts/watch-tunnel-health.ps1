@@ -140,6 +140,7 @@ if ($Report) {
   # dead until the user reloads by hand. The reload is the CURE, not the
   # disease -- which is why every host exit is code 0.
   Write-Host "  token reuse          : $(($events | Measure-Object tokenReuse -Sum).Sum)  <- ROOT CAUSE"
+  Write-Host "  proxy aborts         : $(($events | Measure-Object proxyAborts -Sum).Sum)  <- ORIGIN: the client's own proxy gives up first"
   Write-Host "  permanent give-ups   : $(($events | Measure-Object permanent -Sum).Sum)  <- extension host dead, needs manual reload"
   Write-Host "  chat requests killed : $(($events | Measure-Object chatKilled -Sum).Sum)"
   Write-Host "  network drops (1006) : $(($drops | Measure-Object ws1006 -Sum).Sum)  (harmless on their own)"
@@ -352,13 +353,13 @@ function Get-Sample {
   # NOT named $vm — PowerShell variables are case-insensitive, so that would
   # clobber the $VM parameter holding the machine name, and Invoke-Command
   # would be handed a hashtable as -VMName.
-  $guest = @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; tokenReuse = -1; permanent = -1; chatKilled = -1; freeMB = -1 }
+  $guest = @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; tokenReuse = -1; permanent = -1; chatKilled = -1; proxyAborts = -1; freeMB = -1 }
   try {
     $cred = Get-VmuiGuestCredential -Kind win
     $guest = Invoke-Command -VMName $VM -Credential $cred -EA Stop -ScriptBlock {
       $f = Get-ChildItem "$env:APPDATA\Code - Insiders\logs" -Recurse -Filter 'renderer.log' -EA SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
-      if (-not $f) { return @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; tokenReuse = -1; permanent = -1; chatKilled = -1; freeMB = -1 } }
+      if (-not $f) { return @{ reconnects = -1; ws1006 = -1; unresponsive = -1; shutdowns = -1; leaks = -1; tokenReuse = -1; permanent = -1; chatKilled = -1; proxyAborts = -1; freeMB = -1 } }
       @{
         reconnects   = @(Select-String -Path $f.FullName -Pattern 'reconnected!' -EA SilentlyContinue).Count
         ws1006       = @(Select-String -Path $f.FullName -Pattern 'status code 1006' -EA SilentlyContinue).Count
@@ -377,6 +378,18 @@ function Get-Sample {
         tokenReuse   = @(Select-String -Path $f.FullName -Pattern 'Unknown reconnection token' -EA SilentlyContinue).Count
         permanent    = @(Select-String -Path $f.FullName -Pattern 'A permanent error occurred' -EA SilentlyContinue).Count
         chatKilled   = @(Select-String -Path $f.FullName -Pattern 'Error while handling chat request: Canceled' -EA SilentlyContinue).Count
+        # THE decisive signal, found 2026-09-01. The client's own tunnel proxy
+        # gives up 31 ms BEFORE the socket close, and the socket in question is
+        # 127.0.0.1 -- inside the VM. So the failure never touches the network
+        # we spent four rounds "fixing" (uptime, NAT, memory, updates). Read
+        # from the Remote-Tunnels extension log, which nothing else looks at.
+        proxyAborts  = $(
+          $rt = Get-ChildItem "$env:APPDATA\Code - Insiders\logs" -Recurse -Filter 'Remote - Tunnels.log' -EA SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($rt) {
+            @(Select-String -Path $rt.FullName -Pattern 'Tunnel connection closed with' -EA SilentlyContinue).Count
+          } else { -1 }
+        )
         # A listener leak preceded today's reload by 30s. Correlation only so
         # far, but it is free to count and would implicate an extension.
         leaks        = @(Select-String -Path $f.FullName -Pattern 'listener LEAK detected' -EA SilentlyContinue).Count
@@ -400,6 +413,7 @@ function Get-Sample {
     tokenReuse   = $guest.tokenReuse
     permanent    = $guest.permanent
     chatKilled   = $guest.chatKilled
+    proxyAborts  = $guest.proxyAborts
     leaks        = $guest.leaks
     hostRendMB   = $rendererMB
     hostRendPid  = $rendererPid

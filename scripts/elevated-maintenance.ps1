@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -47,7 +47,10 @@ $log = Join-Path $logDir 'maintenance.log'
 
 function Write-Log([string]$m) {
     $line = "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
-    Add-Content -Path $log -Value $line
+    # ProgramData is written by the elevated task; an unelevated manual run
+    # cannot append there. Logging must never fail the operation it records.
+    try { Add-Content -Path $log -Value $line -ErrorAction Stop }
+    catch { Add-Content -Path (Join-Path $env:USERPROFILE '.codai\maintenance.log') -Value $line -ErrorAction SilentlyContinue }
     Write-Host $line
 }
 
@@ -105,6 +108,13 @@ if ($Register) {
             Name = 'CodaiMaint-KillRunawayRenderer'
             Op   = 'KillRunawayRenderer'
             Desc = 'Terminate any VS Code renderer over 4 GB working set. A renderer that reaches ~7 GB stops responding and takes its window down.'
+            Daily = $null
+        }
+        ,
+        @{
+            Name = 'CodaiMaint-WatchExtensionHost'
+            Op   = 'WatchExtensionHost'
+            Desc = 'Check whether the VM''s remote extension host has permanently given up reconnecting. Detection only; it does not reload.'
             Daily = $null
         }
     )
@@ -167,6 +177,17 @@ switch ($Operation) {
         # trigger costs nothing.
         & (Join-Path $root 'restart-tunnel.ps1')
         Write-Log "TunnelRefresh finished, exit $LASTEXITCODE"
+        exit $LASTEXITCODE
+    }
+
+    'WatchExtensionHost' {
+        # Detection only. A reload discards unsaved editor state and kills
+        # whatever is running mid-turn; these failures are 39-439 min apart
+        # and irregular, so an automatic reload would interrupt real work far
+        # more often than it would rescue a dead session. Pass -AutoReload to
+        # watch-extension-host.ps1 manually if that trade-off ever changes.
+        & (Join-Path $root 'watch-extension-host.ps1') -Once
+        Write-Log "WatchExtensionHost finished, exit $LASTEXITCODE"
         exit $LASTEXITCODE
     }
 
