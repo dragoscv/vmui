@@ -216,6 +216,18 @@ if ($Report) {
       Write-Host '  over 24 h - watch the disposal count; restart if it starts climbing hourly.' -ForegroundColor Yellow
     }
   }
+
+  $withSw = @($rows | Where-Object { $_.PSObject.Properties.Name -contains 'vmSwitch' -and $_.vmSwitch })
+  if ($withSw.Count) {
+    $sw = $withSw[-1].vmSwitch
+    Write-Host ''
+    Write-Host 'VM network:' -ForegroundColor Cyan
+    Write-Host "  Hyper-V switch : $sw"
+    if ($sw -eq 'Default Switch') {
+      Write-Host '  BACK ON NAT. The Default Switch drops idle connections with no log entry' -ForegroundColor Red
+      Write-Host '  on either side. Move it back to the external switch.' -ForegroundColor Red
+    }
+  }
   exit 0
 }
 
@@ -323,6 +335,19 @@ function Get-Sample {
         Where-Object { $_.Line -match [regex]::Escape($today) }).Count
   }
 
+  # Which Hyper-V switch the VM is on. It was 'Default Switch' until
+  # 2026-09-01: an Internal switch with a NAT layer that silently drops idle
+  # connections and reassigns the VM's subnet on every host reboot. That
+  # matches the failure signature exactly -- a socket close with NOTHING
+  # preceding it in either log, while memory, routing and the relay were all
+  # healthy. Moved to the external switch, so the VM now sits directly on the
+  # LAN (192.168.100.x, 0 ms from the host) with no NAT in the path.
+  $vmSwitch = ''
+  try {
+    $vmSwitch = (Get-VMNetworkAdapter -VMName $VM -Name 'Network Adapter' -EA Stop).SwitchName
+  }
+  catch { $vmSwitch = 'unknown' }
+
   # VM side: the counters that actually describe the symptom.
   # NOT named $vm — PowerShell variables are case-insensitive, so that would
   # clobber the $VM parameter holding the machine name, and Invoke-Command
@@ -383,6 +408,7 @@ function Get-Sample {
     relayLinks    = $relayLinks
     tunnelUpH     = $tunnelUpH
     disposalsToday = $disposalsToday
+    vmSwitch      = $vmSwitch
     vmFreeMB     = $guest.freeMB
     disposals    = $disposals
     downloads    = $downloads
