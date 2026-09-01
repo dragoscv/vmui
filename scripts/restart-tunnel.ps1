@@ -29,8 +29,15 @@
   -MaxUptimeHours, so the weekly task is a no-op on a freshly started service.
 
 .PARAMETER MaxUptimeHours
-  Restart only past this uptime. Default 40 — degradation was observed at ~45 h
-  and never below 24 h.
+  Restart only past this uptime. Default 8.
+
+  The original 40 h came from ONE observation (a service up ~45 h). With eight
+  failures now recorded against uptime — 0, 10.4, 12, 14.1, 14.2, 16.4, 16.5
+  and 22.1 h — seven were above 10 h, so a 40 h guard essentially never fired
+  when it mattered. 8 h restarts before the band where failures cluster.
+
+  The 0 h outlier matters too: restarting reduces the rate but does not
+  eliminate the fault, whose origin is the client-side proxy abort.
 
 .NOTES
   The tunnel task runs S4U, so its processes cannot be stopped from an
@@ -40,7 +47,7 @@
 [CmdletBinding()]
 param(
     [switch]$Force,
-    [int]$MaxUptimeHours = 40,
+    [int]$MaxUptimeHours = 8,
     [string]$TaskName = 'VSCodeTunnel-dragos'
 )
 

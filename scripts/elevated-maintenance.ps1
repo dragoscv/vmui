@@ -2,8 +2,9 @@
 <#
 .SYNOPSIS
   Fixed maintenance operations that need elevation, runnable from an
-  unelevated session without a UAC prompt.
-
+            Desc = 'Restart the VS Code tunnel service once uptime exceeds 8h. Seven of eight recorded failures occurred above 10h uptime. Threshold-guarded, so a run on a fresh tunnel is a no-op.'
+            Daily = '05:00'
+            Repeat = '04:00'
 .DESCRIPTION
   The problem: several recurring operations need administrator rights —
   restarting the tunnel service (its task runs S4U, so unelevated
@@ -136,7 +137,18 @@ if ($Register) {
             Description = $t.Desc
             Force       = $true
         }
-        if ($t.Daily) { $params.Trigger = New-ScheduledTaskTrigger -Daily -At $t.Daily }
+        if ($t.Daily) {
+            $trigger = New-ScheduledTaskTrigger -Daily -At $t.Daily
+            if ($t.Repeat) {
+                # A once-a-day refresh cannot hold uptime under 8 h. Repeat
+                # through the day; each run is threshold-guarded, so it is a
+                # no-op unless the tunnel is actually old enough to degrade.
+                $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At $t.Daily `
+                    -RepetitionInterval (New-TimeSpan -Hours 4) `
+                    -RepetitionDuration (New-TimeSpan -Days 1)).Repetition
+            }
+            $params.Trigger = $trigger
+        }
 
         Register-ScheduledTask @params | Out-Null
         $when = if ($t.Daily) { "daily at $($t.Daily)" } else { 'on demand' }
