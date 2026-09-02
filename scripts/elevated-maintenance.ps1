@@ -2,9 +2,8 @@
 <#
 .SYNOPSIS
   Fixed maintenance operations that need elevation, runnable from an
-            Desc = 'Restart the VS Code tunnel service once uptime exceeds 8h. Seven of eight recorded failures occurred above 10h uptime. Threshold-guarded, so a run on a fresh tunnel is a no-op.'
+            Desc = 'Restart the VS Code tunnel service once uptime exceeds 24h. Hygiene only: normalised by time spent, the failure rate does NOT rise with uptime (0.42/h at 0-4h vs 0.00/h at 4-8h). Threshold-guarded, so a run on a fresh tunnel is a no-op.'
             Daily = '05:00'
-            Repeat = '04:00'
 .DESCRIPTION
   The problem: several recurring operations need administrator rights —
   restarting the tunnel service (its task runs S4U, so unelevated
@@ -35,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -116,6 +115,13 @@ if ($Register) {
             Name = 'CodaiMaint-WatchExtensionHost'
             Op   = 'WatchExtensionHost'
             Desc = 'Check whether the VM''s remote extension host has permanently given up reconnecting. Detection only; it does not reload.'
+            Daily = $null
+        }
+        ,
+        @{
+            Name = 'CodaiMaint-InstallVmSshKey'
+            Op   = 'InstallVmSshKey'
+            Desc = 'Install the VM''s public key into administrators_authorized_keys so the VM can SSH into this host, replacing the tunnel.'
             Daily = $null
         }
     )
@@ -201,6 +207,54 @@ switch ($Operation) {
         & (Join-Path $root 'watch-extension-host.ps1') -Once
         Write-Log "WatchExtensionHost finished, exit $LASTEXITCODE"
         exit $LASTEXITCODE
+    }
+
+    'InstallVmSshKey' {
+        # The VM connects INTO this host (the host is where the workspaces and
+        # the code-tunnel server live; the VM is only ever the client). That is
+        # the direction that replaces the tunnel.
+        #
+        # Because this account is in Administrators, sshd ignores
+        # ~/.ssh/authorized_keys and reads only this file, which is writable
+        # solely by Administrators+SYSTEM -- hence an elevated operation.
+        $keyFile = Join-Path $env:USERPROFILE '.codai\vm-ssh-key.pub'
+        if (-not (Test-Path $keyFile)) {
+            Write-Log "InstallVmSshKey: $keyFile not found"
+            exit 1
+        }
+        $key = (Get-Content $keyFile -Raw).Trim()
+        if (-not $key.StartsWith('ssh-')) {
+            Write-Log 'InstallVmSshKey: file does not contain a public key'
+            exit 1
+        }
+
+        $dir = 'C:\ProgramData\ssh'
+        $auth = Join-Path $dir 'administrators_authorized_keys'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+        $existing = if (Test-Path $auth) { Get-Content $auth -Raw } else { '' }
+        if ($existing -match [regex]::Escape($key)) {
+            Write-Log 'InstallVmSshKey: key already present'
+        }
+        else {
+            Add-Content -Path $auth -Value $key -Encoding ascii
+            Write-Log 'InstallVmSshKey: key added'
+        }
+
+        # sshd refuses the file outright if inheritance is left on or any
+        # non-admin principal can write it.
+        icacls $auth /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F' 2>&1 | Out-Null
+
+        # Manual start means no SSH after a reboot, which would strand the VM.
+        $svc = Get-Service sshd -ErrorAction SilentlyContinue
+        if ($svc -and $svc.StartType -ne 'Automatic') {
+            Set-Service sshd -StartupType Automatic
+            Write-Log 'InstallVmSshKey: sshd set to Automatic'
+        }
+        if ($svc -and $svc.Status -ne 'Running') { Start-Service sshd }
+
+        Write-Log "InstallVmSshKey done, keys=$((Get-Content $auth).Count)"
+        exit 0
     }
 
     'TunnelForceRestart' {
