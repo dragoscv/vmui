@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -124,6 +124,13 @@ if ($Register) {
             Desc = 'Install the VM''s public key into administrators_authorized_keys so the VM can SSH into this host, replacing the tunnel.'
             Daily = $null
         }
+        ,
+        @{
+            Name = 'CodaiMaint-FixSshShell'
+            Op   = 'FixSshShell'
+            Desc = 'Set sshd DefaultShell to cmd.exe. With pwsh as the default, Remote-SSH''s `powershell` invocation starts 5.1 interactively and its banner breaks the handshake.'
+            Daily = $null
+        }
     )
 
     foreach ($t in $tasks) {
@@ -207,6 +214,35 @@ switch ($Operation) {
         & (Join-Path $root 'watch-extension-host.ps1') -Once
         Write-Log "WatchExtensionHost finished, exit $LASTEXITCODE"
         exit $LASTEXITCODE
+    }
+
+    'FixSshShell' {
+        # Remote-SSH runs `ssh -T <host> powershell` and pipes its install
+        # script over stdin. sshd's DefaultShell was pwsh 7, so that chain
+        # started Windows PowerShell 5.1 INTERACTIVELY, which printed
+        #
+        #     Windows PowerShell / Copyright (C) Microsoft ... / PS C:\Users\vladu>
+        #
+        # into stdout. Remote-SSH parses that reply, saw a banner instead of
+        # its handshake, and reported "Connecting with SSH timed out".
+        #
+        # cmd.exe is what Remote-SSH expects; it executes the requested command
+        # without a banner or a prompt. Interactive `ssh dragos` sessions can
+        # still just type pwsh.
+        $k = 'HKLM:\SOFTWARE\OpenSSH'
+        $old = (Get-ItemProperty $k -Name DefaultShell -ErrorAction SilentlyContinue).DefaultShell
+        Write-Log "FixSshShell: DefaultShell was '$old'"
+
+        if ($old) {
+            Set-ItemProperty -Path $k -Name 'DefaultShellBackup' -Value $old -Force
+        }
+        Set-ItemProperty -Path $k -Name 'DefaultShell' -Value 'C:\Windows\System32\cmd.exe' -Force
+
+        Restart-Service sshd -Force
+        Start-Sleep -Seconds 2
+        $svc = Get-Service sshd
+        Write-Log "FixSshShell: DefaultShell=cmd.exe, sshd=$($svc.Status)"
+        exit 0
     }
 
     'InstallVmSshKey' {
