@@ -69,6 +69,11 @@ param(
     [Parameter(ParameterSetName = 'Create')]
     [string[]]$ReadOnly = @(),
 
+    # A collaborator generates their own keypair and sends only the public
+    # half. Their private key must never touch this machine.
+    [Parameter(ParameterSetName = 'Create')]
+    [string]$PublicKey,
+
     [string]$Root = 'E:\gh',
 
     [Parameter(ParameterSetName = 'Remove')]
@@ -189,13 +194,24 @@ $keyPriv = Join-Path $sshDir "id_ed25519_$Name"
 $keyOut = Join-Path $env:USERPROFILE ".codai\ssh-keys\$Name"
 New-Item -ItemType Directory -Force -Path (Split-Path $keyOut) | Out-Null
 
-if (-not (Test-Path "$keyOut")) {
+if ($PublicKey) {
+    # Either the key text itself or a path to a .pub file.
+    $pub = if (Test-Path $PublicKey) { (Get-Content $PublicKey -Raw).Trim() } else { $PublicKey.Trim() }
+    if (-not $pub.StartsWith('ssh-')) {
+        Write-Host '  -PublicKey is not an OpenSSH public key (must start with ssh-).' -ForegroundColor Red
+        exit 1
+    }
+    Write-Host '  using the supplied public key (no private key on this machine)' -ForegroundColor Green
+}
+elseif (-not (Test-Path "$keyOut")) {
     & ssh-keygen.exe -t ed25519 -f $keyOut -N '""' -C "$Name@$env:COMPUTERNAME" 2>&1 | Out-Null
     Write-Host "  generated key: $keyOut" -ForegroundColor Green
+    $pub = (Get-Content "$keyOut.pub" -Raw).Trim()
 }
-else { Write-Host "  reusing key: $keyOut" }
-
-$pub = (Get-Content "$keyOut.pub" -Raw).Trim()
+else {
+    Write-Host "  reusing key: $keyOut"
+    $pub = (Get-Content "$keyOut.pub" -Raw).Trim()
+}
 $authFile = Join-Path $sshDir 'authorized_keys'
 $existing = if (Test-Path $authFile) { Get-Content $authFile -Raw } else { '' }
 if ($existing -notmatch [regex]::Escape($pub)) {
@@ -266,18 +282,38 @@ if ($cfgText -notmatch '(?m)^\s*AllowGroups|^\s*AllowUsers') {
 }
 
 Write-Host ''
-Write-Host 'Give the other machine this private key:' -ForegroundColor Cyan
-Write-Host "  $keyOut"
+if (-not $PublicKey) {
+    Write-Host 'Send them this PRIVATE key over a secure channel:' -ForegroundColor Cyan
+    Write-Host "  $keyOut"
+    Write-Host '  (better: ask them to run ssh-keygen and re-run this with -PublicKey)' -ForegroundColor DarkGray
+}
+else {
+    Write-Host 'They already hold the private key. Nothing to send.' -ForegroundColor Green
+}
+
+$lan = (Get-NetIPAddress -AddressFamily IPv4 |
+    Where-Object { $_.IPAddress -like '192.168.*' } | Select-Object -First 1).IPAddress
+$ts = (Get-NetIPAddress -AddressFamily IPv4 |
+    Where-Object { $_.IPAddress -like '100.*' } | Select-Object -First 1).IPAddress
+
 Write-Host ''
 Write-Host 'Their ~/.ssh/config entry:' -ForegroundColor Cyan
-$ip = (Get-NetIPAddress -AddressFamily IPv4 |
-    Where-Object { $_.IPAddress -like '192.168.*' } | Select-Object -First 1).IPAddress
+Write-Host '  # AddressFamily inet matters: a bare hostname can resolve to an'
+Write-Host '  # IPv6 link-local address first and time out before reaching sshd.'
 @"
   Host $Name
-      HostName $ip
+      HostName $(if ($ts) { $ts } else { $lan })
       User $Name
       IdentityFile ~/.ssh/id_ed25519_$Name
-      ServerAliveInterval 30
       AddressFamily inet
+      ServerAliveInterval 30
+      ServerAliveCountMax 6
 "@ | Write-Host
+if ($ts) {
+    Write-Host "  # $ts is Tailscale, reachable from anywhere once they join the tailnet."
+    Write-Host "  # On the same LAN, $lan is faster."
+}
+Write-Host ''
+Write-Host 'They must also add, in their VS Code settings:' -ForegroundColor Cyan
+Write-Host "  `"remote.SSH.remotePlatform`": { `"$Name`": `"windows`" }"
 Write-Host "Verify:  ssh-user.ps1 -Name $Name -Status" -ForegroundColor Yellow
