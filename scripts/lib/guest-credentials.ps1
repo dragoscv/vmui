@@ -9,24 +9,30 @@
 #
 # Precedence: an existing environment variable always wins, so a one-off
 # `$env:WIN_GUEST_PASS = '...'` overrides the file without editing it.
+#
+# Every variable below is $private: on purpose. This file is DOT-SOURCED, so it
+# executes in the CALLER's scope: a bare `$name` here overwrites the caller's
+# own `$Name`. That actually happened -- a script's -Name parameter was
+# silently replaced by the last key read from the file ("TS_OAUTH_SECRET") and
+# it built a VM under that name. Never introduce an unscoped variable here.
 
-$script:VmuiCredCandidates = @(
+$private:vmuiCredCandidates = @(
   $env:VMUI_CREDENTIALS_FILE,
   (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) '.private\credentials.env'),
   'E:\gh\vmui\.private\credentials.env',
   (Join-Path $HOME '.vmui\credentials.env')
 ) | Where-Object { $_ }
 
-foreach ($candidate in $script:VmuiCredCandidates) {
-  if (-not (Test-Path -LiteralPath $candidate)) { continue }
-  foreach ($line in Get-Content -LiteralPath $candidate) {
-    if ($line -match '^\s*#' -or $line -notmatch '=') { continue }
-    $name, $value = $line -split '=', 2
-    $name = $name.Trim()
-    if (-not $name) { continue }
+foreach ($private:vmuiCandidate in $private:vmuiCredCandidates) {
+  if (-not (Test-Path -LiteralPath $private:vmuiCandidate)) { continue }
+  foreach ($private:vmuiLine in Get-Content -LiteralPath $private:vmuiCandidate) {
+    if ($private:vmuiLine -match '^\s*#' -or $private:vmuiLine -notmatch '=') { continue }
+    $private:vmuiKey, $private:vmuiValue = $private:vmuiLine -split '=', 2
+    $private:vmuiKey = $private:vmuiKey.Trim()
+    if (-not $private:vmuiKey) { continue }
     # Do not clobber a value already present in the environment.
-    if ([Environment]::GetEnvironmentVariable($name)) { continue }
-    Set-Item -Path "env:$name" -Value $value.Trim()
+    if ([Environment]::GetEnvironmentVariable($private:vmuiKey)) { continue }
+    Set-Item -Path "env:$($private:vmuiKey)" -Value $private:vmuiValue.Trim()
   }
   break
 }

@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -138,6 +138,13 @@ if ($Register) {
             Desc = 'Create a restricted SSH account from ~/.codai/ssh-user-request.json. The no-UAC path for creating users.'
             Daily = $null
         }
+        ,
+        @{
+            Name = 'CodaiMaint-ExposeDevServices'
+            Op   = 'ExposeDevServices'
+            Desc = 'Open the brivio Docker stack ports to the Tailscale range only, so fleet VMs can reach postgres/redis/dss/stalwart on this host.'
+            Daily = $null
+        }
     )
 
     foreach ($t in $tasks) {
@@ -221,6 +228,28 @@ switch ($Operation) {
         & (Join-Path $root 'watch-extension-host.ps1') -Once
         Write-Log "WatchExtensionHost finished, exit $LASTEXITCODE"
         exit $LASTEXITCODE
+    }
+
+    'ExposeDevServices' {
+        # Docker cannot run inside the guests: Virtualization-Based Security is
+        # active on this host and keeps the virtualization extensions, so a
+        # nested guest cannot hand them to WSL2. Proven by the fact that a VM
+        # which was never modified fails identically. The brivio stack
+        # therefore stays here and the fleet reaches it over Tailscale.
+        #
+        # Ports are hardcoded, matching infra/docker-compose.yml. The rule is
+        # scoped to 100.64.0.0/10 (Tailscale CGNAT), so nothing is reachable
+        # from the LAN or the internet.
+        $rule = 'brivio-dev-services-tailscale'
+        $ports = 22143, 22432, 22479, 22480, 22525, 22580, 22587
+        if (Get-NetFirewallRule -Name $rule -ErrorAction SilentlyContinue) {
+            Remove-NetFirewallRule -Name $rule
+        }
+        New-NetFirewallRule -Name $rule -DisplayName 'Brivio dev services (Tailscale only)' `
+            -Enabled True -Direction Inbound -Protocol TCP -LocalPort $ports `
+            -RemoteAddress '100.64.0.0/10' -Action Allow | Out-Null
+        Write-Log "ExposeDevServices: $($ports -join ',') deschise doar din 100.64.0.0/10"
+        exit 0
     }
 
     'FixSshShell' {
