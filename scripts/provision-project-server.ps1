@@ -23,7 +23,7 @@
   cost an afternoon to find on the host -- do not undo it.
 #>
 param(
-    [string]$Repo = 'https://github.com/dragos-vladulescu/brivio.git',
+    [string]$Repo = 'https://github.com/dragoscv/brivio.git',
     [string]$Dest = 'E:\gh\brivio',
     [string[]]$Users = @('dragos', 'mihai')
 )
@@ -115,7 +115,17 @@ foreach ($u in $Users) {
 Step '5. repository'
 if (-not (Test-Path $Dest)) {
     New-Item -ItemType Directory -Force -Path (Split-Path $Dest) | Out-Null
+    # The repo is private. Without this, git-credential-manager pops a GUI
+    # prompt nobody can see over PowerShell Direct and the clone hangs forever
+    # at 0% CPU, looking exactly like a slow network.
+    $env:GIT_TERMINAL_PROMPT = '0'
+    $env:GCM_INTERACTIVE = 'never'
     git clone $Repo $Dest
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host '    clone failed -- the repo is private and no credential is available.' -ForegroundColor Red
+        Write-Host '    Re-run with a token:  -Repo https://<token>@github.com/dragoscv/brivio.git' -ForegroundColor Red
+        exit 1
+    }
     Ok "cloned into $Dest"
 }
 else { Skip "$Dest already exists" }
