@@ -274,8 +274,25 @@ switch ($Operation) {
         if ($req.PublicKey) { $userArgs += @('-PublicKey', $req.PublicKey) }
 
         Write-Log "CreateSshUser: $($req.Name) allow=$($req.Allow -join ',')"
-        & (Join-Path $root 'ssh-user.ps1') @userArgs
+        if ($req.AclOnly) {
+            $o = & pwsh -NoProfile -ExecutionPolicy Bypass `
+                -File (Join-Path $root '_apply-mihai-acl.ps1') `
+                -Name $req.Name -Allow ($req.Allow -join ',') 2>&1
+            foreach ($l in $o) { Write-Log "  | $l" }
+            Remove-Item $reqFile -Force -ErrorAction SilentlyContinue
+            Write-Log "CreateSshUser: acl-only finished, exit $LASTEXITCODE"
+            exit 0
+        }
+        # Run it as a SEPARATE process, not with `&`. ssh-user.ps1 ends every
+        # branch with `exit`, and `&` runs it in the CURRENT process -- so the
+        # first `exit` killed this script too, before it could log anything or
+        # clean up. That looked like a silent hang: a start line and nothing
+        # else. A child process keeps the elevated token, so isolation is not
+        # lost.
+        $output = & pwsh -NoProfile -ExecutionPolicy Bypass `
+            -File (Join-Path $root 'ssh-user.ps1') @userArgs 2>&1
         $rc = $LASTEXITCODE
+        foreach ($line in $output) { Write-Log "  | $line" }
 
         # The request can name folders, so do not leave it lying around.
         Remove-Item $reqFile -Force -ErrorAction SilentlyContinue

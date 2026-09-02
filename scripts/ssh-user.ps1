@@ -117,7 +117,11 @@ if ($List) {
     Write-Host "  $($managed.Count) managed account(s):" -ForegroundColor Cyan
     foreach ($u in $managed) {
         $keyFile = "C:\Users\$($u.Name)\.ssh\authorized_keys"
-        $keys = if (Test-Path $keyFile) { @(Get-Content $keyFile | Where-Object { $_.Trim() }).Count } else { 0 }
+        $keys = if (-not (Test-Path $keyFile)) { '0' }
+        else {
+            try { "$(@(Get-Content $keyFile -ErrorAction Stop | Where-Object { $_.Trim() }).Count)" }
+            catch { 'locked' }
+        }
 
         $folders = @()
         foreach ($d in Get-ChildItem $Root -Directory -ErrorAction SilentlyContinue) {
@@ -151,8 +155,15 @@ if ($Status) {
     Write-Host "  admin   : $isAdmin$(if ($isAdmin) { '   <- BREAKS ISOLATION, sshd would use administrators_authorized_keys' })" `
         -ForegroundColor $(if ($isAdmin) { 'Red' } else { 'Gray' })
 
+    # The file is locked to that user + SYSTEM + Administrators, so an
+    # unelevated check cannot read it. That denial IS the healthy state.
     $keyFile = "C:\Users\$Name\.ssh\authorized_keys"
-    Write-Host "  key     : $(if (Test-Path $keyFile) { "installed ($((Get-Content $keyFile).Count))" } else { 'MISSING' })"
+    $keyState = if (-not (Test-Path $keyFile)) { 'MISSING' }
+    else {
+        try { "installed ($((Get-Content $keyFile -ErrorAction Stop).Count) key(s))" }
+        catch { 'installed (locked down - cannot read unelevated, which is correct)' }
+    }
+    Write-Host "  key     : $keyState"
 
     Write-Host ''
     Write-Host '  folders it can reach:' -ForegroundColor Cyan
