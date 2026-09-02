@@ -59,7 +59,9 @@
 #>
 [CmdletBinding(DefaultParameterSetName = 'Create')]
 param(
-    [Parameter(Mandatory, Position = 0)]
+    [Parameter(Mandatory, Position = 0, ParameterSetName = 'Create')]
+    [Parameter(Mandatory, Position = 0, ParameterSetName = 'Remove')]
+    [Parameter(Mandatory, Position = 0, ParameterSetName = 'Status')]
     [ValidatePattern('^[a-zA-Z][a-zA-Z0-9\-_]{2,19}$')]
     [string]$Name,
 
@@ -80,7 +82,12 @@ param(
     [switch]$Remove,
 
     [Parameter(ParameterSetName = 'Status')]
-    [switch]$Status
+    [switch]$Status,
+
+    # List every account this script manages. No -Name, so it can run as a
+    # one-click task.
+    [Parameter(Mandatory, ParameterSetName = 'List')]
+    [switch]$List
 )
 
 $ErrorActionPreference = 'Stop'
@@ -92,6 +99,45 @@ function Test-Elevated {
 
 function Resolve-Target([string]$p) {
     if ([IO.Path]::IsPathRooted($p)) { $p } else { Join-Path $Root $p }
+}
+
+# ------------------------------------------------------------------ list ----
+if ($List) {
+    # Matched on the description this script stamps, so unrelated local
+    # accounts are never shown or offered for deletion.
+    $managed = @(Get-LocalUser -ErrorAction SilentlyContinue |
+        Where-Object { $_.Description -match 'managed by ssh-user\.ps1' })
+
+    if (-not $managed) {
+        Write-Host '  no managed SSH accounts yet.' -ForegroundColor DarkGray
+        Write-Host '  create one:  ssh-user.ps1 -Name dev-brivio -Allow brivio' -ForegroundColor DarkGray
+        exit 0
+    }
+
+    Write-Host "  $($managed.Count) managed account(s):" -ForegroundColor Cyan
+    foreach ($u in $managed) {
+        $keyFile = "C:\Users\$($u.Name)\.ssh\authorized_keys"
+        $keys = if (Test-Path $keyFile) { @(Get-Content $keyFile | Where-Object { $_.Trim() }).Count } else { 0 }
+
+        $folders = @()
+        foreach ($d in Get-ChildItem $Root -Directory -ErrorAction SilentlyContinue) {
+            $acl = Get-Acl $d.FullName -ErrorAction SilentlyContinue
+            $ace = @($acl.Access | Where-Object {
+                    $_.IdentityReference -match "\\$($u.Name)$" -and $_.AccessControlType -eq 'Allow'
+                })
+            if ($ace) {
+                $ro = ($ace[0].FileSystemRights -notmatch 'Modify|Write|FullControl')
+                $folders += "$($d.Name)$(if ($ro) { ' (ro)' })"
+            }
+        }
+
+        Write-Host ''
+        Write-Host ("  {0}" -f $u.Name) -ForegroundColor White
+        Write-Host ("    enabled : {0}   keys: {1}" -f $u.Enabled, $keys) `
+            -ForegroundColor $(if ($u.Enabled -and $keys) { 'Gray' } else { 'Yellow' })
+        Write-Host ("    access  : {0}" -f $(if ($folders) { $folders -join ', ' } else { 'NONE' }))
+    }
+    exit 0
 }
 
 # ---------------------------------------------------------------- status ----
