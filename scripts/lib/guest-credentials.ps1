@@ -34,6 +34,7 @@ foreach ($candidate in $script:VmuiCredCandidates) {
 if (-not $env:MAC_GUEST_USER)    { $env:MAC_GUEST_USER = 'dragos' }
 if (-not $env:WIN_GUEST_USER)    { $env:WIN_GUEST_USER = 'dragos' }
 if (-not $env:UBUNTU_GUEST_USER) { $env:UBUNTU_GUEST_USER = 'dragos' }
+if (-not $env:FLEET_GUEST_USER)  { $env:FLEET_GUEST_USER = 'brivio' }
 
 function Get-VmuiGuestCredential {
   <#
@@ -47,18 +48,21 @@ function Get-VmuiGuestCredential {
   #>
   [CmdletBinding()]
   param(
-    [Parameter(Mandatory)][ValidateSet('mac', 'win', 'ubuntu')][string]$Kind
+    [Parameter(Mandatory)][ValidateSet('mac', 'win', 'ubuntu', 'fleet')][string]$Kind
   )
 
   $userVar = switch ($Kind) {
     'mac'    { 'MAC_GUEST_USER' }
     'win'    { 'WIN_GUEST_USER' }
     'ubuntu' { 'UBUNTU_GUEST_USER' }
+    # mihai-dev / brivio-dev: cloned from an older image, different password.
+    'fleet'  { 'FLEET_GUEST_USER' }
   }
   $passVar = switch ($Kind) {
     'mac'    { 'MAC_GUEST_PASS' }
     'win'    { 'WIN_GUEST_PASS' }
     'ubuntu' { 'UBUNTU_GUEST_PASS' }
+    'fleet'  { 'FLEET_GUEST_PASS' }
   }
 
   $user = [Environment]::GetEnvironmentVariable($userVar)
