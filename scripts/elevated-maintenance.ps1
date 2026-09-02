@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -129,6 +129,13 @@ if ($Register) {
             Name = 'CodaiMaint-FixSshShell'
             Op   = 'FixSshShell'
             Desc = 'Set sshd DefaultShell to cmd.exe. With pwsh as the default, Remote-SSH''s `powershell` invocation starts 5.1 interactively and its banner breaks the handshake.'
+            Daily = $null
+        }
+        ,
+        @{
+            Name = 'CodaiMaint-CreateSshUser'
+            Op   = 'CreateSshUser'
+            Desc = 'Create a restricted SSH account from ~/.codai/ssh-user-request.json. The no-UAC path for creating users.'
             Daily = $null
         }
     )
@@ -243,6 +250,37 @@ switch ($Operation) {
         $svc = Get-Service sshd
         Write-Log "FixSshShell: DefaultShell=cmd.exe, sshd=$($svc.Status)"
         exit 0
+    }
+
+    'CreateSshUser' {
+        # A scheduled task takes no arguments, so the request is left in a
+        # JSON file and read here. This is the no-UAC path: the VS Code task
+        # uses Start-Process -Verb RunAs instead, which is fine when a human
+        # is at the keyboard but unanswerable from an automated session.
+        $reqFile = Join-Path $env:USERPROFILE '.codai\ssh-user-request.json'
+        if (-not (Test-Path $reqFile)) {
+            Write-Log "CreateSshUser: no request at $reqFile"
+            exit 1
+        }
+
+        $req = Get-Content $reqFile -Raw | ConvertFrom-Json
+        if (-not $req.Name) { Write-Log 'CreateSshUser: request has no Name'; exit 1 }
+
+        # NOT $args -- that is an automatic variable and assigning to it
+        # shadows the script's own argument array.
+        $userArgs = @('-Name', $req.Name)
+        if ($req.Allow) { $userArgs += @('-Allow', ($req.Allow -join ',')) }
+        if ($req.ReadOnly) { $userArgs += @('-ReadOnly', ($req.ReadOnly -join ',')) }
+        if ($req.PublicKey) { $userArgs += @('-PublicKey', $req.PublicKey) }
+
+        Write-Log "CreateSshUser: $($req.Name) allow=$($req.Allow -join ',')"
+        & (Join-Path $root 'ssh-user.ps1') @userArgs
+        $rc = $LASTEXITCODE
+
+        # The request can name folders, so do not leave it lying around.
+        Remove-Item $reqFile -Force -ErrorAction SilentlyContinue
+        Write-Log "CreateSshUser finished, exit $rc"
+        exit $rc
     }
 
     'InstallVmSshKey' {
