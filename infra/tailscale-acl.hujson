@@ -1,0 +1,70 @@
+// Tailscale policy for the dragos-pc dev fleet.
+//
+// Model: one VM per user, because Windows 11 Pro allows only ONE interactive
+// RDP session per machine. Workstations are personal; project servers are
+// shared and hold the repo + Docker stack.
+//
+// Onboarding a new developer is two edits here:
+//   1. add them to "group:dev"
+//   2. (optional) give them a workstation tagged tag:workstation
+// They then reach every project server automatically. Nothing else to wire.
+//
+// Source of truth: E:\gh\vmui\infra\tailscale-acl.hujson
+// Apply with:      scripts\tailscale-fleet.ps1 -ApplyAcl
+{
+	"groups": {
+		// Full access, including project servers and admin surfaces.
+		"group:dev": [
+			"brivio.ro@gmail.com",
+		],
+	},
+
+	"tagOwners": {
+		// A tag must OWN ITSELF for an OAuth client to mint auth keys for it.
+		// Measured: with ["group:dev"] or ["autogroup:admin"] the API refuses
+		// with "requested tags are invalid or not permitted" -- an OAuth client
+		// is not a user, so it matches neither a user group nor an autogroup.
+		// Self-ownership is what Tailscale's own automation docs use.
+		// Personal machines. One human each.
+		"tag:workstation":    ["tag:workstation"],
+		// Shared per-project boxes: repo, Docker stack, database.
+		"tag:project-server": ["tag:project-server"],
+	},
+
+	"grants": [
+		// Developers reach every fleet machine.
+		{"src": ["group:dev"], "dst": ["tag:workstation", "tag:project-server"], "ip": ["*"]},
+
+		// Project servers may call back to a workstation (debuggers, reverse
+		// tunnels, hot-reload clients).
+		{"src": ["tag:project-server"], "dst": ["tag:workstation"], "ip": ["*"]},
+
+		// A user always reaches their own devices.
+		{"src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"]},
+	],
+
+	"ssh": [
+		// Tailscale SSH into fleet machines without distributing keys.
+		// "accept" rather than "check": these are LAN-local dev boxes and a
+		// re-auth prompt every 12h breaks unattended agent sessions.
+		{
+			"action": "accept",
+			"src":    ["group:dev"],
+			"dst":    ["tag:workstation", "tag:project-server"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+		{
+			"action": "check",
+			"src":    ["autogroup:member"],
+			"dst":    ["autogroup:self"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+	],
+
+	"tests": [
+		{
+			"src":    "brivio.ro@gmail.com",
+			"accept": ["tag:project-server:22", "tag:workstation:3389"],
+		},
+	],
+}
