@@ -51,9 +51,27 @@ param(
     [Parameter(ParameterSetName = 'NewProject')]
     [string]$FromTemplate,
 
-    [string]$DiskRoot = 'H:\Hyper-V'
+    # E: is the development SSD (CT2000P3PSSD8). Do NOT default to H: -- it has
+    # the most free space but is a WD Elements external HDD, and a dev VM on
+    # spinning rust makes every build crawl.
+    [string]$DiskRoot = 'E:\Hyper-V'
 )
 $ErrorActionPreference = 'Stop'
+
+function Assert-SsdPath([string]$path) {
+    $letter = $path.Substring(0, 1)
+    $media = (Get-PhysicalDisk | Where-Object {
+            (Get-Partition -DiskNumber $_.DeviceId -ErrorAction SilentlyContinue |
+            Where-Object DriveLetter).DriveLetter -contains $letter
+        }).MediaType
+
+    if ($media -eq 'HDD') {
+        Write-Host "  ${letter}: is an HDD. A dev VM there would be unusably slow." -ForegroundColor Red
+        Write-Host '  Pass -DiskRoot with an SSD path, or accept the default E:\Hyper-V.' -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  disk: ${letter}: [$media]" -ForegroundColor DarkGray
+}
 
 # Machines are classified by name, so the convention is load-bearing:
 #   *-dev that is a person   -> workstation
@@ -119,6 +137,8 @@ switch ($PSCmdlet.ParameterSetName) {
             Write-Host "  $NewProject already exists" -ForegroundColor Red; exit 1
         }
 
+        Assert-SsdPath $DiskRoot
+
         $dir = Join-Path $DiskRoot $NewProject
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
         $vhd = Join-Path $dir "$NewProject.vhdx"
@@ -139,9 +159,12 @@ switch ($PSCmdlet.ParameterSetName) {
 
         $sw = (Get-VMSwitch | Where-Object { $_.SwitchType -eq 'External' } | Select-Object -First 1).Name
         New-VM -Name $NewProject -MemoryStartupBytes ($MemoryGB * 1GB) -Generation 2 `
-            -VHDPath $vhd -SwitchName $sw | Out-Null
+            -VHDPath $vhd -SwitchName $sw -Path $DiskRoot | Out-Null
+        # Automatic checkpoints turn the disk into an .avhdx chain on first
+        # boot, which slows I/O and complicates moving the machine later.
         Set-VM -Name $NewProject -ProcessorCount $Cpu `
-            -AutomaticStartAction StartIfRunning -AutomaticStopAction Save
+            -AutomaticStartAction StartIfRunning -AutomaticStopAction Save `
+            -AutomaticCheckpointsEnabled $false
         Set-VMMemory -VMName $NewProject -DynamicMemoryEnabled $false
 
         Write-Host "  created VM ${NewProject}: $MemoryGB GB, $Cpu vCPU, switch '$sw'" -ForegroundColor Green
