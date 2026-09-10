@@ -453,11 +453,11 @@ export async function addScalewayAccount(
 const localKvmSchema = z
   .object({
     name: z.string().min(1, "Name is required").max(64),
-    kind: z.enum(["mac", "win", "ubuntu", "hyperv-win"], {
-      message: "Pick a guest kind: mac, win, ubuntu or hyperv-win",
+    kind: z.enum(["mac", "win", "ubuntu", "hyperv-win", "hyperv-haos"], {
+      message: "Pick a guest kind: mac, win, ubuntu, hyperv-win or hyperv-haos",
     }),
     distro: z.string().min(1, "WSL distro is required").max(64),
-    // For "hyperv-win" vmDir is unused; the form posts an empty string and
+    // For Hyper-V kinds vmDir is unused; the form posts an empty string and
     // we relax the regex below via .superRefine().
     vmDir: z.string().max(512),
     hostLabel: z.string().min(1).max(120),
@@ -488,15 +488,17 @@ const localKvmSchema = z
       .or(z.literal("").transform(() => undefined)),
   })
   .superRefine((v, ctx) => {
+    // Keep in sync with HYPERV_KINDS in src/lib/providers/local-kvm.ts.
+    const isHyperV = v.kind === "hyperv-win" || v.kind === "hyperv-haos";
     // KVM kinds need a real Linux path. Hyper-V doesn't.
-    if (v.kind !== "hyperv-win" && !/^\/[^\0]+$/.test(v.vmDir)) {
+    if (!isHyperV && !/^\/[^\0]+$/.test(v.vmDir)) {
       ctx.addIssue({
         code: "custom",
         path: ["vmDir"],
         message: "Must be an absolute Linux path",
       });
     }
-    if (v.kind !== "hyperv-win") {
+    if (!isHyperV) {
       for (const f of ["vncPort", "qmpPort", "sshPort", "wsPort"] as const) {
         if (!v[f] || v[f] < 1) {
           ctx.addIssue({

@@ -361,7 +361,7 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS git_sources (
 sqlite.exec(`CREATE TABLE IF NOT EXISTS git_apply_history (
   id TEXT PRIMARY KEY,
   source_id TEXT NOT NULL REFERENCES git_sources(id) ON DELETE CASCADE,
-  commit TEXT NOT NULL,
+  "commit" TEXT NOT NULL,
   path TEXT NOT NULL,
   status TEXT NOT NULL,
   message TEXT,

@@ -39,7 +39,14 @@ const execFileP = promisify(execFile);
  * (no shell quoting).
  */
 
-export type LocalKvmKind = "mac" | "win" | "ubuntu" | "hyperv-win";
+export type LocalKvmKind = "mac" | "win" | "ubuntu" | "hyperv-win" | "hyperv-haos";
+
+/**
+ * Kinds that run on Microsoft Hyper-V rather than QEMU-in-WSL. They share
+ * every lifecycle path (PowerShell cmdlets, no QMP, no noVNC), so the
+ * dispatch below tests this set rather than a single literal.
+ */
+export const HYPERV_KINDS: readonly LocalKvmKind[] = ["hyperv-win", "hyperv-haos"];
 
 export interface LocalKvmCredentials {
   /** Guest kind. Drives all kind-specific defaults / paths. */
@@ -166,6 +173,24 @@ export const KIND_DEFAULTS: Record<LocalKvmKind, KindDefaults> = {
     platform: "windows",
     hostLabelHint: "Local Windows 11 (Hyper-V)",
     vmIdSuffix: "hyperv-win",
+  },
+  // Home Assistant OS appliance on Hyper-V. Built and operated by
+  // scripts/homeassistant.ps1; this entry only makes it visible and
+  // start/stoppable from vmui. It has no RDP and no console worth showing —
+  // the thing you actually want is its web UI on port 80, so sshPort carries
+  // that instead.
+  "hyperv-haos": {
+    vmDir: "",
+    vncPort: 0,
+    qmpPort: 0,
+    sshPort: 22222, // HAOS developer SSH; the web UI is on 80
+    wsPort: 0,
+    ramMb: 6144,
+    cores: 4,
+    threads: 4,
+    platform: "linux",
+    hostLabelHint: "Home Assistant (Hyper-V)",
+    vmIdSuffix: "hyperv-haos",
   },
 };
 
@@ -353,6 +378,23 @@ const TEMPLATES_BY_KIND: Record<LocalKvmKind, InstanceTemplate[]> = {
       ],
     },
   ],
+  "hyperv-haos": [
+    {
+      id: "local-home-assistant-hyperv",
+      label: "Home Assistant OS (Local Hyper-V)",
+      platform: "linux",
+      description:
+        "Home Assistant OS 18.2 appliance on Microsoft Hyper-V. Gen2, Secure Boot OFF, no vTPM, External switch so mDNS/SSDP device discovery works.",
+      recommendedTypes: ["4c-8g"],
+      notes: [
+        "Run scripts/homeassistant.ps1 -Build (elevated) — downloads the VHDX, verifies its SHA-256 and creates the VM.",
+        "Secure Boot MUST stay off and the switch MUST be External; NAT breaks smart-device discovery.",
+        "Then scripts/ha-configure.ps1 -All installs Tailscale, Mosquitto, File editor, Samba and SSH.",
+        "Web UI on port 80 (NOT 8123 — HAOS 18 changed this).",
+        "Remote access: Tailscale Serve on :8443 plus NGINX on :443 for the custom domain.",
+      ],
+    },
+  ],
 };
 
 /** Build a RealVNC / TightVNC / UltraVNC compatible .vnc connection file. */
@@ -402,7 +444,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   async verify(): Promise<ProviderAccountInfo> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       // Probe Hyper-V availability. `Get-VMHost` succeeds only when the
       // current security context can use Hyper-V cmdlets (admin OR member
       // of "Hyper-V Administrators"); a friendly message explains the fix.
@@ -518,7 +560,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   private async getState(): Promise<NormalizedInstance> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       return await this.getStateHyperV();
     }
 
@@ -579,7 +621,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   async startInstance(): Promise<void> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       const vmName = this.hypervVmName;
       await psExec(
         `try { Start-VM -Name '${vmName}' -ErrorAction Stop } catch { if ($_.Exception.Message -notmatch 'already in') { throw } }`,
@@ -688,7 +730,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   async stopInstance(): Promise<void> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       // Graceful first; if integration services aren't up yet (mid-install),
       // fall through to TurnOff.
       await psExec(
@@ -708,7 +750,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   async rebootInstance(): Promise<void> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       await psExec(`Restart-VM -Name '${this.hypervVmName}' -Force -ErrorAction Stop`);
       return;
     }
@@ -716,7 +758,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   async terminateInstance(): Promise<void> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       await psExec(
         `Stop-VM -Name '${this.hypervVmName}' -TurnOff -Force -ErrorAction SilentlyContinue`,
       );
@@ -741,7 +783,7 @@ export class LocalKvmProvider implements CloudProvider {
   }
 
   async getConnectionInfo(): Promise<ConnectionInfo> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       return await this.getConnectionInfoHyperV();
     }
 
@@ -756,6 +798,8 @@ export class LocalKvmProvider implements CloudProvider {
           return "(set during macOS install)";
         case "win":
         case "ubuntu":
+        default:
+          // Hyper-V kinds returned above; the default keeps the switch total.
           return this.creds.osUsername?.trim() || "dragos";
       }
     })();
@@ -811,9 +855,20 @@ export class LocalKvmProvider implements CloudProvider {
     return this.creds;
   }
 
-  /** Hyper-V VM name with sensible default. Only meaningful for kind === "hyperv-win". */
+  /**
+   * True for any kind backed by Microsoft Hyper-V rather than QEMU-in-WSL.
+   * Every lifecycle branch tests this, so adding a Hyper-V kind means adding
+   * it to HYPERV_KINDS and nothing else.
+   */
+  get isHyperV(): boolean {
+    return HYPERV_KINDS.includes(this.kind);
+  }
+
+  /** Hyper-V VM name with sensible default. Only meaningful when isHyperV. */
   get hypervVmName(): string {
-    return this.creds.hypervVmName?.trim() || "vmui-win";
+    const explicit = this.creds.hypervVmName?.trim();
+    if (explicit) return explicit;
+    return this.kind === "hyperv-haos" ? "homeassistant" : "vmui-win";
   }
 
   /** Per-kind pidfile — exposed so server actions can poll without reimplementing. */
@@ -840,7 +895,7 @@ export class LocalKvmProvider implements CloudProvider {
   async getScreenshot(
     maxWidth = 480,
   ): Promise<{ width: number; height: number; rgbBase64: string; format: "rgb" } | null> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       // Hyper-V doesn't expose a stable RGB interface from PowerShell, so
       // we just return null for now — the UI shows a placeholder and the
       // user can use vmconnect.
@@ -925,7 +980,7 @@ export class LocalKvmProvider implements CloudProvider {
 
   /** Whether websockify is running and listening on wsPort. */
   async isBridgeRunning(): Promise<boolean> {
-    if (this.kind === "hyperv-win") return false;
+    if (this.isHyperV) return false;
     try {
       const out = await wslExec(
         this.creds.distro,
@@ -943,7 +998,7 @@ export class LocalKvmProvider implements CloudProvider {
    * Returns the ws URL.
    */
   async startBridge(): Promise<string> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       // Hyper-V uses vmconnect / RDP — no noVNC bridge.
       throw new Error(
         "noVNC bridge is not supported for Hyper-V VMs. Use vmconnect.exe or RDP instead.",
@@ -967,7 +1022,7 @@ export class LocalKvmProvider implements CloudProvider {
 
   /** Stop the websockify bridge, if running. */
   async stopBridge(): Promise<void> {
-    if (this.kind === "hyperv-win") return;
+    if (this.isHyperV) return;
     try {
       await wslExec(
         this.creds.distro,
@@ -995,7 +1050,7 @@ export class LocalKvmProvider implements CloudProvider {
     qemuMemBytes: number;
     vcpus: number;
   } | null> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       return await this.getStatsRawHyperV();
     }
     try {
@@ -1035,7 +1090,7 @@ export class LocalKvmProvider implements CloudProvider {
 
   /** Number of vCPUs configured for the QEMU process (parses -smp from cmdline). */
   async getVcpuCount(): Promise<number> {
-    if (this.kind === "hyperv-win") {
+    if (this.isHyperV) {
       try {
         const out = await psExec(
           `(Get-VM -Name '${this.hypervVmName}' -ErrorAction Stop).ProcessorCount`,

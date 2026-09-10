@@ -25,6 +25,15 @@ Implemented in [src/lib/providers/](src/lib/providers/) with the `CloudProvider`
 | Scaleway | bare-metal Mac minis | n/a (no resource graph) | full | REST via fetch; 24h minimum lease |
 | local-kvm | full | n/a | full | qemu/QMP under the hood |
 
+`local-kvm` also carries the Hyper-V kinds `hyperv-win` and `hyperv-haos`
+(Home Assistant OS). They share every lifecycle branch via `isHyperV` /
+`HYPERV_KINDS` in [local-kvm.ts](src/lib/providers/local-kvm.ts) — adding a
+Hyper-V kind means adding it to that list, its `KIND_DEFAULTS`, the Zod enum
+in `actions/accounts.ts`, and the UI card. Operations for the appliance live
+in `scripts/homeassistant.ps1` + `scripts/ha-configure.ps1`; read
+[docs/home-assistant.md](docs/home-assistant.md) before touching it — its
+traps section is the list of things that took the instance down.
+
 VM ids:
 - AWS: `i-…` (raw EC2 instance id).
 - Azure: `{resourceGroup}/{name}` short form.

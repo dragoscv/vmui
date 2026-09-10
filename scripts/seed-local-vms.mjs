@@ -85,6 +85,29 @@ const KINDS = [
     accountId: "wsl-local-ubuntu",
     label: "Local Ubuntu LTS (KVM)",
   },
+  {
+    // Home Assistant OS appliance on Hyper-V. The WSL/QEMU fields are
+    // meaningless for it but the credential shape must stay uniform. Built
+    // by scripts/homeassistant.ps1 -Build; this row only makes it visible.
+    kind: "hyperv-haos",
+    name: "Home Assistant (Hyper-V)",
+    creds: {
+      kind: "hyperv-haos",
+      distro: "-",
+      vmDir: "",
+      hostLabel: "Home Assistant (Hyper-V)",
+      vncPort: 0,
+      qmpPort: 0,
+      sshPort: 22222,
+      wsPort: 0,
+      ramMb: 6144,
+      cores: 4,
+      threads: 4,
+      hypervVmName: "homeassistant",
+    },
+    accountId: "hyperv-local-haos",
+    label: "Home Assistant (Hyper-V)",
+  },
 ];
 
 // detect existing rows by decrypting metadata is overkill — instead match on

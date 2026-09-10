@@ -375,9 +375,11 @@
   backdrop-filter: blur(8px) saturate(120%);
   -webkit-backdrop-filter: blur(8px) saturate(120%);
   transition: border-color 180ms ease, box-shadow 220ms ease;
-}
-@utility surface:hover {
-  border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+  /* Tailwind 4.2 rejects `@utility surface:hover` as an invalid name; the
+     hover state has to live inside the utility body instead. */
+  &:hover {
+    border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+  }
 }
 
 /* Crisper focus ring for keyboard nav */

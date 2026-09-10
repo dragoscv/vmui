@@ -1,0 +1,18 @@
+# pnpm 11 no longer reads `pnpm.onlyBuiltDependencies` from package.json --
+# the allow-list lives here. Until this file was filled in it held generated
+# "set this to true or false" placeholders, so every install silently skipped
+# these build scripts. That left better-sqlite3 without its native binding,
+# which the app needs to open the database at all.
+allowBuilds:
+  # The database. Without its .node binding nothing in vmui works.
+  better-sqlite3: true
+  # SSH bridge: ssh2 plus its optional native accelerator.
+  ssh2: true
+  cpu-features: true
+  # Build/runtime tooling that ships prebuilt binaries.
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  # Pulled in transitively by the Google Cloud SDKs; its install script only
+  # generates JS, so allowing it is safe and silences a warning every install.
+  protobufjs: true

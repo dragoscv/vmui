@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, Apple, MonitorCog, Terminal } from "lucide-react";
+import { Loader2, ShieldCheck, Apple, MonitorCog, Terminal, HousePlug } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { addLocalKvmAccount, type LocalKvmAccountFormState } from "@/server/acti
 
 const initial: LocalKvmAccountFormState = {};
 
-type Kind = "mac" | "win" | "ubuntu" | "hyperv-win";
+type Kind = "mac" | "win" | "ubuntu" | "hyperv-win" | "hyperv-haos";
 
 interface KindPreset {
   vmDir: string;
@@ -97,6 +97,24 @@ const PRESETS: Record<Kind, KindPreset> = {
       "Builds the autounattend ISO with oscdimg and creates a Gen2 Hyper-V VM (vTPM, Secure Boot, nested virt).",
     pidPath: "(Hyper-V — no pidfile)",
   },
+  // Home Assistant OS appliance. Unlike the Windows guests there is no
+  // console and no RDP: the thing you open is its web UI on port 80.
+  "hyperv-haos": {
+    vmDir: "",
+    hostLabel: "Home Assistant (Hyper-V)",
+    vncPort: 0,
+    qmpPort: 0,
+    sshPort: 22222,
+    wsPort: 0,
+    ramMb: 6144,
+    cores: 4,
+    threads: 4,
+    bootScript: "homeassistant.ps1",
+    setupScript: "scripts/homeassistant.ps1 -Build",
+    setupHint:
+      "Downloads Home Assistant OS, verifies its SHA-256 and creates a Gen2 VM with Secure Boot OFF on an External switch.",
+    pidPath: "(Hyper-V — no pidfile)",
+  },
 };
 
 const KIND_LABELS: Record<Kind, { label: string; sub: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -104,6 +122,7 @@ const KIND_LABELS: Record<Kind, { label: string; sub: string; icon: React.Compon
   win: { label: "Windows 11 (KVM)", sub: "WSL2 + QEMU + swtpm", icon: MonitorCog },
   ubuntu: { label: "Ubuntu LTS", sub: "Desktop with autoinstall", icon: Terminal },
   "hyperv-win": { label: "Windows 11 (Hyper-V)", sub: "Native Gen2 + vTPM", icon: MonitorCog },
+  "hyperv-haos": { label: "Home Assistant", sub: "HAOS appliance, web UI :80", icon: HousePlug },
 };
 
 export function LocalKvmAccountConnect() {

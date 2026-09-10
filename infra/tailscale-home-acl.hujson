@@ -1,0 +1,55 @@
+// Tailscale policy for the PERSONAL tailnet (vladulescu.catalin@gmail.com,
+// taild1532d.ts.net). This is the home network: Home Assistant, phones, the
+// host PC and the personal workstation VM.
+//
+// It is deliberately a different tailnet from infra/tailscale-acl.hujson
+// (brivio.ro, the business fleet). The two cannot see each other, and that
+// is the point: a compromised smart bulb must not be one hop from a project
+// server holding a customer database.
+//
+// Source of truth: E:\gh\vmui\infra\tailscale-home-acl.hujson
+// Apply with:      scripts\tailscale-home.ps1 -ApplyAcl
+{
+	"tagOwners": {
+		// Self-owned so the OAuth client can mint pre-authorised keys for it.
+		// See the note in tailscale-acl.hujson: a tag owned by a user group or
+		// autogroup:admin is refused for OAuth-minted keys.
+		"tag:appliance": ["tag:appliance"],
+	},
+
+	// No "nodeAttrs" with "funnel" on purpose. Tailscale Serve (HTTPS inside
+	// the tailnet) needs only MagicDNS + HTTPS certificates enabled on the DNS
+	// page. Funnel would publish Home Assistant on the open internet, which
+	// defeats the reason for using a tailnet at all.
+
+	"grants": [
+		// The tailnet owner reaches everything, including the HA admin UI, SSH
+		// into the OS shell (port 22222 is the HAOS developer SSH), and the
+		// add-on ports (Mosquitto 1883, Zigbee2MQTT 8099, ESPHome 6052).
+		{"src": ["autogroup:member"], "dst": ["tag:appliance"], "ip": ["*"]},
+
+		// Members always reach their own devices.
+		{"src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"]},
+
+		// Home Assistant may call back to member devices: mobile app push
+		// via the Companion local endpoint, and Chromecast/DLNA discovery
+		// for devices that also carry a Tailscale client.
+		{"src": ["tag:appliance"], "dst": ["autogroup:member"], "ip": ["*"]},
+	],
+
+	"ssh": [
+		{
+			"action": "check",
+			"src":    ["autogroup:member"],
+			"dst":    ["autogroup:self"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+	],
+
+	"tests": [
+		{
+			"src":    "vladulescu.catalin@gmail.com",
+			"accept": ["tag:appliance:8123", "tag:appliance:443"],
+		},
+	],
+}

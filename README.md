@@ -107,6 +107,16 @@ See [docs/local-kvm-macos.md](docs/local-kvm-macos.md) for architecture, the
 two start paths (web UI vs VS Code task), QEMU 8.2 compatibility notes, and
 the HiDPI / "everything is huge" fix using `displayplacer` + a LaunchAgent.
 
+## Home Assistant (Hyper-V appliance)
+
+Home Assistant OS runs as a Hyper-V VM and is registered in vmui as the
+`hyperv-haos` kind of the `local-kvm` provider. Build with
+`scripts\homeassistant.ps1 -Build`, configure add-ons, Tailscale and the
+custom domain with `scripts\ha-configure.ps1`. See
+[docs/home-assistant.md](docs/home-assistant.md) — in particular the traps
+section: the UI is on **port 80**, `http:` YAML is ignored on HA 2026.9, and
+putting HA itself on 443 boots it into recovery mode.
+
 ## Security notes
 
 - vmui binds to `127.0.0.1` only — change ports/host with care
