@@ -18,16 +18,16 @@ and a 30 s delay.
 
 ## Layout
 
-| what | where |
-|---|---|
-| VM | `homeassistant`, Gen2, 6 GB / 4 vCPU / 64 GB, `E:\Hyper-V\homeassistant` |
-| switch | **External** (`Windows 11 Enterprise`) — see below |
-| LAN | `192.168.100.232` (reserve the MAC in the router) |
-| tailnet | `100.80.94.97`, `homeassistant.taild1532d.ts.net`, `tag:appliance` |
-| web UI | `http://192.168.100.232` — **port 80, not 8123** |
-| custom domain | `https://home.dragoscatalin.ro` (tailnet only) |
-| host OS shell | `ssh -p 22222 root@192.168.100.232` |
-| add-on shell | `ssh root@192.168.100.232` |
+| what          | where                                                                    |
+| ------------- | ------------------------------------------------------------------------ |
+| VM            | `homeassistant`, Gen2, 6 GB / 4 vCPU / 64 GB, `E:\Hyper-V\homeassistant` |
+| switch        | **External** (`Windows 11 Enterprise`) — see below                       |
+| LAN           | `192.168.100.232` (reserve the MAC in the router)                        |
+| tailnet       | `100.80.94.97`, `homeassistant.taild1532d.ts.net`, `tag:appliance`       |
+| web UI        | `http://192.168.100.232` — **port 80, not 8123**                         |
+| custom domain | `https://home.dragoscatalin.ro` (tailnet only)                           |
+| host OS shell | `ssh -p 22222 root@192.168.100.232`                                      |
+| add-on shell  | `ssh root@192.168.100.232`                                               |
 
 ### Three listeners, deliberately non-overlapping
 
@@ -105,7 +105,7 @@ Switch the integrations find nothing and report no error while doing it.
 
 **Supervisor REST is not usable from outside.** `/api/hassio/...` returns 401
 for a long-lived token; only the WebSocket command `supervisor/api` accepts
-one. Also, `POST /addons/<slug>/options` *replaces* the whole options object
+one. Also, `POST /addons/<slug>/options` _replaces_ the whole options object
 and complains about one missing key per attempt — read, merge, write back.
 
 ## Remote access
@@ -132,6 +132,19 @@ expiry.
 **Hyper-V has no USB passthrough on Gen2 guests, and cannot pass a Bluetooth
 radio at all.** A Zigbee stick in the host is invisible to the appliance.
 
+- **Bluetooth is solved**: `bluetooth-proxy-1` (ESP32, `192.168.100.120`) is
+  an ESPHome Bluetooth Proxy in *active* mode, so HA can connect to BLE
+  devices, not just hear them. Built and flashed by
+  `scripts\ha-devices.ps1 -FlashProxy -ComPort COMx` — the firmware is
+  compiled inside the ESPHome add-on and flashed from the host, the only
+  machine that can see the USB port. Add more proxies for range; HA merges
+  them.
+- **BLE LED strips** (MELK / ELK-BLEDOM / LEDBLE — the "Lotus Lantern",
+  "duoCo Strip", "Happy Lighting" apps): HACS `elkbledom`, added with
+  `-AddBleLed -Mac .. -Name .. -Model MELK-OA10`. Only one client may be
+  connected at a time — force-close the phone app or HA cannot connect.
+  Live state is not read back from the strip; control it from HA only.
+
 - **Best long-term: an Ethernet coordinator** — SMLIGHT SLZB-06 / SLZB-06M
   (~30 EUR, PoE). It sits on the LAN, advertises over mDNS, and Zigbee2MQTT
   finds it with `port: mdns://slzb-06`. No host process, no bridge, survives
@@ -144,9 +157,42 @@ radio at all.** A Zigbee stick in the host is invisible to the appliance.
   scripts\zigbee-bridge.ps1 -List
   scripts\zigbee-bridge.ps1 -Install -ComPort COM6
   ```
-- **Bluetooth (BLE sensors, presence)**: use an **ESPHome Bluetooth Proxy** —
-  a ~5 EUR ESP32 flashed from the HA web UI. Several of them give better
-  coverage than one radio ever would.
+
+## Devices and how each was added (2026-09-12)
+
+```powershell
+scripts\ha-devices.ps1 -Inventory                # LAN + BLE + pending flows
+scripts\ha-devices.ps1 -InstallCustomIntegrations   # HACS, elkbledom, connectlife
+scripts\ha-devices.ps1 -ConfirmDiscovered        # DLNA, Samsung, MQTT, ESPHome
+scripts\ha-devices.ps1 -AddTuya                  # QR -> scan -> re-run
+scripts\ha-devices.ps1 -AddConnectLife           # Hisense AC
+scripts\ha-devices.ps1 -AddBleLed -Mac BE:69:83:00:C4:0B -Name 'LED ARGB'
+scripts\ha-devices.ps1 -PairAndroidTv -TvName 'Kitchen TV' -Pin 123456
+```
+
+| device | integration | how |
+|---|---|---|
+| Nest Hub, Chromecast HD ×2 | Google Cast | auto |
+| Chromecast HD ×2 (remote control) | Android TV Remote | discovered; **PIN on the TV**, still pending |
+| Samsung Odyssey OLED G8 | Samsung TV + DLNA | discovered, confirm |
+| Desk Light Bar (Ustellar), Star Projector, door + window contact sensors, presence sensor, temp/humidity | **Tuya** | Smart Life `User Code` → QR scanned in the app |
+| Hisense AC ×2 (Bedroom, Living room) | **ConnectLife** (HACS `oyvindwe/connectlife-ha`) | email + password |
+| LED ARGB strip (MELK-OA10) | **elkbledom** (HACS) via Bluetooth proxy | mac + model, flicker test |
+| Mosquitto | MQTT | discovered from the add-on |
+| AlecoAir purifier | Tuya | **pending**: it lives in the AlecoAir app; re-pair it in Smart Life and it appears automatically |
+
+Tuya quirks: the temperature sensor reports °F by default — switched to °C in
+the entity registry (`options_domain: sensor`). The integration is cloud;
+devices still work locally from their own app if the cloud is down, HA does not.
+
+Discovery duplicates: after a BLE device is configured manually, HA may still
+raise a Bluetooth discovery for the same MAC. Dismiss it (`DELETE
+/api/config/config_entries/flow/<id>`); `-Inventory` shows it.
+
+**Supervisor WebSocket gotchas met here**: `config_entries/flow` is
+POST/GET-only over REST — listing pending flows is WS `config_entries/flow/progress`;
+entity option updates need `options_domain` + `options`, not a nested map;
+`$Input` is a PowerShell automatic variable and silently breaks a parameter.
 
 ## Backups
 

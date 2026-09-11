@@ -33,9 +33,44 @@ param(
     # Populate the ARP table by touching every host in the subnet first.
     # Without this, only devices that talked recently show up.
     [switch]$Sweep,
-    [int]$MdnsSeconds = 6
+    [int]$MdnsSeconds = 6,
+    # Only list BLE advertisements relayed by the ESPHome Bluetooth proxy
+    # through Home Assistant. This is the radio HA actually has; the host's
+    # own Bluetooth (below) is invisible to the Hyper-V appliance.
+    [switch]$BleOnly,
+    [int]$BleSeconds = 20
 )
 $ErrorActionPreference = 'Continue'
+
+if ($BleOnly) {
+    $env:HA_URL = $null
+    . (Join-Path $PSScriptRoot 'lib\guest-credentials.ps1') | Out-Null
+    $uri = [Uri](($env:HA_URL -replace '^http', 'ws') + '/api/websocket')
+    $ws = [Net.WebSockets.ClientWebSocket]::new()
+    $cts = [Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds($BleSeconds + 20))
+    $ws.ConnectAsync($uri, $cts.Token).GetAwaiter().GetResult() | Out-Null
+    $recv = { $b = [byte[]]::new(2MB); $sb = [Text.StringBuilder]::new(); do { $r = $ws.ReceiveAsync([ArraySegment[byte]]::new($b), $cts.Token).GetAwaiter().GetResult(); [void]$sb.Append([Text.Encoding]::UTF8.GetString($b, 0, $r.Count)) } while (-not $r.EndOfMessage); $sb.ToString() | ConvertFrom-Json }
+    $send = { param($o) $x = [Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Compress)); $ws.SendAsync([ArraySegment[byte]]::new($x), 'Text', $true, $cts.Token).GetAwaiter().GetResult() | Out-Null }
+    & $recv | Out-Null; & $send @{ type = 'auth'; access_token = $env:HA_TOKEN }; & $recv | Out-Null
+    & $send @{ id = 1; type = 'bluetooth/subscribe_advertisements' }
+    $seen = @{}
+    $deadline = (Get-Date).AddSeconds($BleSeconds)
+    while ((Get-Date) -lt $deadline) {
+        try { $m = & $recv } catch { break }
+        if ($m.type -ne 'event') { continue }
+        foreach ($a in @($m.event.add)) {
+            if ($a.address) { $seen[$a.address] = [pscustomobject]@{ address = $a.address; name = $a.name; rssi = $a.rssi; via = $a.source } }
+        }
+    }
+    $ws.Dispose()
+    Write-Host ("  {0,-18} {1,-28} {2,5}  {3}" -f 'address', 'name', 'rssi', 'via proxy')
+    foreach ($d in ($seen.Values | Sort-Object rssi -Descending)) {
+        $named = $d.name -and $d.name -ne $d.address
+        Write-Host ("  {0,-18} {1,-28} {2,5}  {3}" -f $d.address, $(if ($named) { $d.name } else { '-' }), $d.rssi, $d.via) -ForegroundColor $(if ($named) { 'Green' } else { 'Gray' })
+    }
+    Write-Host "  $($seen.Count) BLE device(s)" -ForegroundColor DarkGray
+    return
+}
 
 function Head($t) {
     Write-Host ''
