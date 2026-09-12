@@ -133,7 +133,7 @@ expiry.
 radio at all.** A Zigbee stick in the host is invisible to the appliance.
 
 - **Bluetooth is solved**: `bluetooth-proxy-1` (ESP32, `192.168.100.120`) is
-  an ESPHome Bluetooth Proxy in *active* mode, so HA can connect to BLE
+  an ESPHome Bluetooth Proxy in _active_ mode, so HA can connect to BLE
   devices, not just hear them. Built and flashed by
   `scripts\ha-devices.ps1 -FlashProxy -ComPort COMx` — the firmware is
   compiled inside the ESPHome add-on and flashed from the host, the only
@@ -170,16 +170,16 @@ scripts\ha-devices.ps1 -AddBleLed -Mac BE:69:83:00:C4:0B -Name 'LED ARGB'
 scripts\ha-devices.ps1 -PairAndroidTv -TvName 'Kitchen TV' -Pin 123456
 ```
 
-| device | integration | how |
-|---|---|---|
-| Nest Hub, Chromecast HD ×2 | Google Cast | auto |
-| Chromecast HD ×2 (remote control) | Android TV Remote | discovered; **PIN on the TV**, still pending |
-| Samsung Odyssey OLED G8 | Samsung TV + DLNA | discovered, confirm |
-| Desk Light Bar (Ustellar), Star Projector, door + window contact sensors, presence sensor, temp/humidity | **Tuya** | Smart Life `User Code` → QR scanned in the app |
-| Hisense AC ×2 (Bedroom, Living room) | **ConnectLife** (HACS `oyvindwe/connectlife-ha`) | email + password |
-| LED ARGB strip (MELK-OA10) | **elkbledom** (HACS) via Bluetooth proxy | mac + model, flicker test |
-| Mosquitto | MQTT | discovered from the add-on |
-| AlecoAir purifier | Tuya | **pending**: it lives in the AlecoAir app; re-pair it in Smart Life and it appears automatically |
+| device                                                                                                   | integration                                      | how                                                                                              |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Nest Hub, Chromecast HD ×2                                                                               | Google Cast                                      | auto                                                                                             |
+| Chromecast HD ×2 (remote control)                                                                        | Android TV Remote                                | discovered; **PIN on the TV**, still pending                                                     |
+| Samsung Odyssey OLED G8                                                                                  | Samsung TV + DLNA                                | discovered, confirm                                                                              |
+| Desk Light Bar (Ustellar), Star Projector, door + window contact sensors, presence sensor, temp/humidity | **Tuya**                                         | Smart Life `User Code` → QR scanned in the app                                                   |
+| Hisense AC ×2 (Bedroom, Living room)                                                                     | **ConnectLife** (HACS `oyvindwe/connectlife-ha`) | email + password                                                                                 |
+| LED ARGB strip (MELK-OA10)                                                                               | **elkbledom** (HACS) via Bluetooth proxy         | mac + model, flicker test                                                                        |
+| Mosquitto                                                                                                | MQTT                                             | discovered from the add-on                                                                       |
+| AlecoAir purifier                                                                                        | Tuya                                             | **pending**: it lives in the AlecoAir app; re-pair it in Smart Life and it appears automatically |
 
 Tuya quirks: the temperature sensor reports °F by default — switched to °C in
 the entity registry (`options_domain: sensor`). The integration is cloud;
@@ -194,6 +194,52 @@ POST/GET-only over REST — listing pending flows is WS `config_entries/flow/pro
 entity option updates need `options_domain` + `options`, not a nested map;
 `$Input` is a PowerShell automatic variable and silently breaks a parameter.
 
+## Ambilight: screen → every light (2026-09-12)
+
+`scripts/ambilight.ps1` owns this. DX Light (the vendor app for the 65-LED
+monitor strip) is replaced by **HyperHDR 22** because DX Light drives one strip
+from one screen with no API; HyperHDR captures the same DX11 frames, does HDR
+tone-mapping properly, and fans out to everything through standard outputs.
+
+```
+HyperHDR (this PC, DX11 grabber 60 fps, HDR→SDR, monitor_nits 250)
+  inst 0  DX Light (monitor)     udpraw :19446 → ambilight/dxlight_bridge.py → USB HID, 65 LEDs, ~59 fps
+  inst 1  PC glow (OpenRGB)      udpraw :19447 → ambilight/openrgb_bridge.py → OpenRGB SDK :6742
+                                 (3 regions: left / whole / right → case strips, GPU, board)
+  inst 2  Room lights (HA)       home_assistant driver → Desk Light Bar (top), BLE strip (whole)
+  MQTT client ──────────────────► Mosquitto add-on, topic HyperHDR/JsonAPI
+Home Assistant ◄─ ha-scenes.yaml package: movie / music / off, notify flash, webhooks,
+                  phone-notification colours (Companion "Last notification" sensor)
+```
+
+Four logon tasks (`vmui-ambilight-*`) start HyperHDR `--service`, OpenRGB
+`--server`, and the two Python bridges; each restarts on failure. `-Status`
+shows task/process state and what each instance is currently showing.
+
+Traps:
+
+- **HyperHDR's HA driver assumes `:8123`.** This appliance serves on `:80`, so
+  `homeAssistantHost` must be `ip:80` or every request is a `408 Timeout`.
+- **`/json-rpc` over HTTP only ever addresses instance 0** and rejects an
+  `instance` field. MQTT is the multi-instance path: one message carries an
+  array, and `instance/switchTo` inside the array retargets the commands that
+  follow. `script.ambilight_all` builds that array for `[0,1,2]`.
+- **`R` and `S` are PowerShell aliases** (`Invoke-History`, `Set-Variable`).
+  A helper named `R` re-ran the terminal history. Use longer names.
+- **The DX Light strip is a raw HID device** that DX Light and HyperHDR both
+  open; whichever writes last wins and it flickers. `-Install` removes DX
+  Light from `HKCU\...\Run` and kills it.
+- **OpenRGB closes when its window closes** even with `minimize_on_close`;
+  the bridge reconnects with backoff instead of dying.
+- **Companion "Last notification" never fires for HA's own notifications**,
+  so `notify.mobile_app_*` cannot be used to test it. Entity appears in HA
+  only after the first notification from an allow-listed app.
+- Mosquitto add-on options via Supervisor WS need `data.options = {...}`;
+  posting the options object flat returns "extra keys not allowed".
+
+The MELK BLE controller is one colour for the whole strip and can never be a
+real ambilight target — `ambilight/wled-strip.md` is the WLED replacement.
+
 ## Backups
 
 `ha backups new` inside the appliance, or Settings → System → Backups. The
@@ -207,4 +253,7 @@ the host. Credentials are in `.private/credentials.env` (`HA_SAMBA_PASS`).
 - `scripts/tailscale-home.ps1` — personal-tailnet ACL, auth keys, device list
 - `scripts/scan-smart-devices.ps1` — ARP + mDNS + SSDP + Bluetooth inventory
 - `scripts/zigbee-bridge.ps1` — USB coordinator over TCP
+- `scripts/ambilight.ps1` — HyperHDR instances, logon tasks, HA scenes, modes
+- `ambilight/` — bridges (`dxlight_bridge.py`, `openrgb_bridge.py`), layout
+  helper, `ha-scenes.yaml` package, WLED upgrade notes
 - `infra/tailscale-home-acl.hujson` — tailnet policy (source of truth)

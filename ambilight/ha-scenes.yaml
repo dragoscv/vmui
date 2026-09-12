@@ -1,0 +1,178 @@
+# Home Assistant package for the ambilight rig.
+# Installed by scripts/ambilight.ps1 -InstallHaScenes into
+# /config/packages/ambilight.yaml, then core config is reloaded.
+#
+# Transport: HA -> Mosquitto -> HyperHDR MQTT client, topic HyperHDR/JsonAPI.
+# One MQTT message may carry an ARRAY of JSON-API commands, and
+# instance/switchTo inside the array retargets the following commands, so a
+# single publish addresses every instance. The HTTP /json-rpc endpoint only
+# hits instance 0 and cannot switch -- that is why MQTT.
+#
+# HyperHDR priorities (lower wins): screen grabber 245, HA light 50,
+# effects we start here 40, notify flash 10.
+
+script:
+  ambilight_all:
+    alias: "Ambilight: send JSON-API to all instances"
+    mode: queued
+    fields:
+      commands:
+        description: JSON list of HyperHDR commands, applied to each instance
+        example: '[{"command":"clear","priority":40}]'
+    sequence:
+      - action: mqtt.publish
+        data:
+          topic: HyperHDR/JsonAPI
+          payload: >-
+            {% set cmds = (commands | from_json) if commands is string else (commands | list) %}
+            {% set ns = namespace(out=[]) %}
+            {% for i in [0, 1, 2] %}
+              {% set ns.out = ns.out + [{"command": "instance", "subcommand": "switchTo", "instance": i}] + cmds %}
+            {% endfor %}
+            {{ ns.out | to_json }}
+
+  movie_mode_on:
+    alias: "Movie mode ON"
+    icon: mdi:movie-open
+    sequence:
+      - action: light.turn_off
+        target: { entity_id: light.hyperhdr }
+      - action: script.ambilight_all
+        data:
+          commands:
+            - { command: clear, priority: 40 }
+            - {
+                command: componentstate,
+                componentstate: { component: SYSTEMGRABBER, state: true },
+              }
+      - action: light.turn_off
+        target: { entity_id: light.star_projector }
+
+  movie_mode_off:
+    alias: "Movie mode OFF (warm room)"
+    icon: mdi:lightbulb-group
+    sequence:
+      - action: script.ambilight_all
+        data:
+          commands:
+            - { command: clear, priority: 40 }
+            - {
+                command: componentstate,
+                componentstate: { component: SYSTEMGRABBER, state: false },
+              }
+      - delay: { milliseconds: 600 }
+      - action: light.turn_on
+        target: { entity_id: [light.desk_light_bar, light.led_argb] }
+        data: { kelvin: 3000, brightness_pct: 60 }
+
+  music_mode:
+    alias: "Music mode"
+    icon: mdi:music
+    fields:
+      effect:
+        description: HyperHDR music effect name
+        default: "Music: stereo for LED strip (MULTI COLOR)"
+    sequence:
+      # Priority 40 already beats the grabber (245); leaving the grabber
+      # running means "movie" is one `clear` away instead of a restart.
+      - action: script.ambilight_all
+        data:
+          commands: >-
+            {{ [{"command": "effect", "effect": {"name": effect | default("Music: stereo for LED strip (MULTI COLOR)")}, "priority": 40}] | to_json }}
+
+  notify_flash:
+    alias: "Notify flash"
+    icon: mdi:bell-ring
+    mode: queued
+    fields:
+      color:
+        description: RGB list, e.g. [0,120,255]
+        default: [0, 120, 255]
+      duration_ms:
+        default: 1500
+    sequence:
+      # Short-lived colour at a priority that beats everything; HyperHDR
+      # falls straight back to whatever was showing. No state to restore.
+      - action: script.ambilight_all
+        data:
+          commands: >-
+            {{ [{"command": "color", "color": color | default([0,120,255]), "priority": 10, "duration": duration_ms | default(1500) | int}] | to_json }}
+
+automation:
+  - id: ambilight_webhook_notify
+    alias: "Ambilight: webhook -> notify flash"
+    description: >
+      POST https://home.dragoscatalin.ro/api/webhook/ambilight-notify
+      with JSON {"color":[r,g,b],"duration_ms":1500}. Used by the phone
+      (BuzzKill / Tasker / MacroDroid) for notification categories.
+    triggers:
+      - trigger: webhook
+        webhook_id: ambilight-notify
+        allowed_methods: [POST]
+        local_only: false
+    actions:
+      - action: script.notify_flash
+        data:
+          color: "{{ trigger.json.color | default([0,120,255]) }}"
+          duration_ms: "{{ trigger.json.duration_ms | default(1500) }}"
+
+  - id: ambilight_webhook_mode
+    alias: "Ambilight: webhook -> mode"
+    description: 'POST /api/webhook/ambilight-mode {"mode":"movie"|"music"|"off"}'
+    triggers:
+      - trigger: webhook
+        webhook_id: ambilight-mode
+        allowed_methods: [POST]
+        local_only: false
+    actions:
+      - choose:
+          - conditions: "{{ trigger.json.mode == 'movie' }}"
+            sequence: [{ action: script.movie_mode_on }]
+          - conditions: "{{ trigger.json.mode == 'music' }}"
+            sequence: [{ action: script.music_mode }]
+        default: [{ action: script.movie_mode_off }]
+
+  - id: ambilight_door_opened_flash
+    alias: "Ambilight: main door opened -> amber flash"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.main_door_door
+        to: "on"
+    actions:
+      - action: script.notify_flash
+        data: { color: [255, 140, 0], duration_ms: 2500 }
+
+  - id: ambilight_phone_notification_flash
+    alias: "Ambilight: phone notification -> colour by app"
+    description: >
+      Companion app "Last notification" sensor (allow list on the phone:
+      WhatsApp, Phone, Messages, Gmail). Colour per app, only while the
+      screen grabber is what is showing, so a film never gets interrupted
+      for longer than the flash.
+    mode: queued
+    max: 5
+    triggers:
+      - trigger: state
+        entity_id: sensor.dragos_s_s25_ultra_last_notification
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.to_state is not none and trigger.to_state.attributes.package is defined }}"
+      - condition: template
+        value_template: "{{ not trigger.to_state.attributes.is_ongoing | default(false) }}"
+    actions:
+      - variables:
+          pkg: "{{ trigger.to_state.attributes.package }}"
+          palette:
+            com.whatsapp: [37, 211, 102]
+            com.samsung.android.dialer: [0, 120, 255]
+            com.google.android.dialer: [0, 120, 255]
+            com.samsung.android.messaging: [120, 80, 255]
+            com.google.android.apps.messaging: [120, 80, 255]
+            com.google.android.gm: [234, 67, 53]
+          color: "{{ palette[pkg] | default([255, 255, 255]) }}"
+          # Calls keep ringing; everything else is a short pulse.
+          duration: "{{ 6000 if 'dialer' in pkg else 1200 }}"
+      - action: script.notify_flash
+        data:
+          color: "{{ color }}"
+          duration_ms: "{{ duration }}"
