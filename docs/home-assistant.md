@@ -240,6 +240,45 @@ Traps:
 The MELK BLE controller is one colour for the whole strip and can never be a
 real ambilight target — `ambilight/wled-strip.md` is the WLED replacement.
 
+## The `/home` page and https://mui.dragoscatalin.ro (2026-09-12)
+
+vmui has a phone-first smart-home surface at `/home`: a floor plan of the
+four rooms with each device as a dot that glows in its live colour, a Devices
+list, and an Ambilight tab (movie/music/warm modes, screen capture on/off,
+HyperHDR effects, notification flash test, per-instance status). State is
+pushed over SSE from HA's WebSocket (`/api/home/events`); mutations are Server
+Actions in `src/server/actions/home.ts`, whitelisted against the catalog in
+`src/lib/home/catalog.ts` and audit-logged under account `home`. Dot
+positions are saved per device in `home_layout` (Arrange mode).
+
+Reaching it from the phone:
+
+- `scripts/vmui-service.ps1 -Install` — production `next start` on
+  `127.0.0.1:3737` as a logon task. The launcher (`vmui-service-run.mjs`)
+  spawns next **detached** and exits, because a Task Scheduler console
+  delivered Ctrl+C to the server ~75 s after start
+  (exit `0xC000013A`). The task re-fires every 5 min; the launcher is a no-op
+  while the port answers. `-Status` shows pid and uptime.
+- `scripts/publish-vmui.ps1` — Vercel DNS `mui` A → PC tailnet IP, Let's
+  Encrypt via lego DNS-01 (Vercel), and a Caddy route to :3737. Because
+  brivio's elevated Caddy already owns :443, the route and certificate are
+  **attached to it through its admin API** (:22019, `@id vmui-mui`). A
+  5-minute task `vmui-publish-ensure` re-attaches after that Caddy restarts,
+  or starts our own Caddy if :443 becomes free. `-Status`, `-Renew`,
+  `-Remove`. Only tailnet devices can reach the IP; the name is public.
+
+Traps:
+
+- The Tuya Desk Light Bar reports `hs` colour support but its firmware
+  `work_mode` enum is `['music','white']`, so any colour call is an HA 500
+  ("Server got itself in trouble"). Catalog `whiteOnly: true` hides the
+  colour picker; the action refuses rgb for it. Warmth/brightness work.
+- Caddy admin: `PUT` creates (fails if the key exists), `PATCH` replaces,
+  `POST` appends. A `POST` to `load_files` nests an array and the whole
+  config load is rejected.
+- No `/api/error_log` on this HA build; read tracebacks with
+  `ssh -p 22222 root@… 'ha core logs'`.
+
 ## Backups
 
 `ha backups new` inside the appliance, or Settings → System → Backups. The
@@ -256,4 +295,6 @@ the host. Credentials are in `.private/credentials.env` (`HA_SAMBA_PASS`).
 - `scripts/ambilight.ps1` — HyperHDR instances, logon tasks, HA scenes, modes
 - `ambilight/` — bridges (`dxlight_bridge.py`, `openrgb_bridge.py`), layout
   helper, `ha-scenes.yaml` package, WLED upgrade notes
+- `scripts/vmui-service.ps1` + `vmui-service-run.mjs` — production vmui task
+- `scripts/publish-vmui.ps1` — DNS + certificate + Caddy for mui.dragoscatalin.ro
 - `infra/tailscale-home-acl.hujson` — tailnet policy (source of truth)

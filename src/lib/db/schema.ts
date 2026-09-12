@@ -1204,3 +1204,13 @@ export const cisCheckResults = sqliteTable("cis_check_results", {
   ranAt: integer("ran_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type CisCheckRow = typeof cisCheckResults.$inferSelect;
+
+/** Where each smart-home device sits on the floor plan (percent of room box). */
+export const homeLayout = sqliteTable("home_layout", {
+  deviceId: text("device_id").primaryKey(),
+  room: text("room").notNull(),
+  x: real("x").notNull(),
+  y: real("y").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type HomeLayoutRow = typeof homeLayout.$inferSelect;

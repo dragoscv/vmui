@@ -1,8 +1,8 @@
-import "server-only";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import "server-only";
 import { env } from "../env";
 import { redactQuiet } from "../secret-redactor";
 import * as schema from "./schema";
@@ -876,11 +876,19 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS cis_check_results (
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_cis_target ON cis_check_results(account_id, provider_instance_id, ran_at)`);
 
+sqlite.exec(`CREATE TABLE IF NOT EXISTS home_layout (
+  device_id TEXT PRIMARY KEY,
+  room TEXT NOT NULL,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);
 }
 
 export const db = drizzle(sqlite, { schema });
-export { schema };
-export { sqlite as rawSqlite };
+export { sqlite as rawSqlite, schema };
+

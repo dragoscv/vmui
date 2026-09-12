@@ -32,14 +32,14 @@ export function Topbar() {
   }
 
   return (
-    <header data-vmui-topbar className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-bg)_70%,transparent)] px-6 backdrop-blur-md lg:px-10">
-      <div className="text-sm text-muted">
+    <header data-vmui-topbar className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-bg)_70%,transparent)] px-4 backdrop-blur-md sm:px-6 lg:px-10">
+      <div className="min-w-0 truncate text-sm text-muted">
         <span className="font-medium text-[var(--color-fg)]">Control plane</span>
         <span className="mx-2 opacity-40">/</span>
         <span>localhost</span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <NotificationsBell />
 
         <VibeSwitcher />
@@ -79,8 +79,8 @@ export function Topbar() {
         </Tooltip>
 
         <Button asChild size="sm">
-          <Link href="/instances/new">
-            <Plus className="h-4 w-4" /> New instance
+          <Link href="/instances/new" aria-label="New instance">
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New instance</span>
           </Link>
         </Button>
       </div>

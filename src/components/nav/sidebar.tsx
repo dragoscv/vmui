@@ -1,12 +1,13 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { Activity, AlertTriangle, Archive, BarChart3, Bell, Bot, Boxes, Clock, Cloud, Container, FileSearch, FileStack, GitBranch, Globe, Hammer, History, House, KeyRound, LineChart, Lock, Network, Package, PiggyBank, RotateCcw, Server, Settings, ShieldAlert, Ship, Sparkles, Spline, Tag, TerminalSquare, TrendingUp, Trophy, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Server, KeyRound, Activity, Cloud, Settings, Boxes, BarChart3, Sparkles, Tag, Clock, ShieldAlert, Bell, Archive, AlertTriangle, Network, FileSearch, Package, Container, FileStack, TerminalSquare, Hammer, GitBranch, Lock, LineChart, Spline, PiggyBank, Ship, RotateCcw, Bot, Trophy, History, TrendingUp, Zap, Globe, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Instances", icon: Server },
+  { href: "/home", label: "Home", icon: House },
   { href: "/resources", label: "Resources", icon: Boxes },
   { href: "/containers", label: "Containers", icon: Container },
   { href: "/compose", label: "Compose", icon: FileStack },

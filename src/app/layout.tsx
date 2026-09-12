@@ -83,7 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <PullToRefresh>
                     <div className="flex min-h-screen">
                       <Sidebar />
-                      <div className="flex flex-1 flex-col">
+                      <div className="flex min-w-0 flex-1 flex-col">
                         <div className="relative">
                           <Topbar />
                           <UserMenuSlot />
