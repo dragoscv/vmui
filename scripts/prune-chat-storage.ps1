@@ -19,9 +19,15 @@
   keeping the workspace id and dir name, so a plain Move-Item restores them.
   Nothing is deleted.
 
+  While VS Code is running (the normal state on a 40 h dev session), only
+  sessions whose newest file is older than -IdleHours are touched: the live
+  session is written continuously, so it is never selected. Recurrence seen
+  2026-09-13: the same workspace re-grew to 4 sessions / 1572 entries / 1.27 GB
+  in 40 h with only the logon task in place.
+
 .PARAMETER Register
-  Register a logon scheduled task (current user, 90 s delay) running this
-  script with the same thresholds, so it runs before VS Code opens.
+  Register a scheduled task (current user) that runs at logon (+90 s) and then
+  every -RepeatMinutes, with the same thresholds.
 
 .EXAMPLE
   pwsh -File scripts\prune-chat-storage.ps1 -WhatIf
@@ -32,6 +38,8 @@
 param(
   [int]$MaxAgeDays = 2,
   [int]$MaxEntries = 100,
+  [double]$IdleHours = 2,
+  [int]$RepeatMinutes = 30,
   [string[]]$Edition = @("Code - Insiders", "Code"),
   [switch]$Register,
   [switch]$Force
@@ -42,24 +50,25 @@ $ErrorActionPreference = "Stop"
 if ($Register) {
   $pwshExe = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
   if (-not $pwshExe) { $pwshExe = (Get-Command powershell).Source }
-  $action = New-ScheduledTaskAction -Execute $pwshExe -Argument ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`" -MaxAgeDays {1} -MaxEntries {2}" -f $PSCommandPath, $MaxAgeDays, $MaxEntries)
-  $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-  $trigger.Delay = "PT90S"
+  $action = New-ScheduledTaskAction -Execute $pwshExe -Argument ("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"{0}`" -MaxAgeDays {1} -MaxEntries {2} -IdleHours {3}" -f $PSCommandPath, $MaxAgeDays, $MaxEntries, $IdleHours)
+  $logon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+  $logon.Delay = "PT90S"
+  $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes $RepeatMinutes)
   $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -StartWhenAvailable
-  Register-ScheduledTask -TaskName "VmuiPruneChatStorage" -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
-  Write-Host "Registered task VmuiPruneChatStorage (logon, +90s): $pwshExe -File $PSCommandPath"
+  $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U
+  Register-ScheduledTask -TaskName "VmuiPruneChatStorage" -Action $action -Trigger @($logon, $repeat) -Settings $settings -Principal $principal -Force | Out-Null
+  Write-Host "Registered task VmuiPruneChatStorage (logon +90s, every $RepeatMinutes min): $pwshExe -File $PSCommandPath"
   return
 }
 
 $running = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $Edition -contains $_.ProcessName })
-if ($running.Count -gt 0 -and -not $Force) {
-  Write-Host ("VS Code is running ({0} processes) - skipping. Moving state under a live window would corrupt it. Use -Force only after closing it." -f $running.Count)
-  exit 3
-}
+$live = $running.Count -gt 0 -and -not $Force
+$idleCutoff = (Get-Date).AddHours(-$IdleHours)
+if ($live) { Write-Host ("VS Code is running ({0} processes) - only sessions idle for more than {1} h are eligible." -f $running.Count, $IdleHours) }
 
 $archiveRoot = Join-Path $env:LOCALAPPDATA "vmui-archive\chatEditingSessions"
 $cutoff = (Get-Date).AddDays(-$MaxAgeDays)
-$moved = 0; $movedBytes = 0L; $kept = 0
+$moved = 0; $movedBytes = 0L; $kept = 0; $skippedLive = 0
 
 foreach ($ed in $Edition) {
   $wsRoot = Join-Path $env:APPDATA "$ed\User\workspaceStorage"
@@ -76,11 +85,15 @@ foreach ($ed in $Edition) {
           if ($st.recentSnapshot) { $entries = @($st.recentSnapshot.entries).Count }
         } catch { $entries = -1 }
       }
-      $old = $sess.LastWriteTime -lt $cutoff
+      $files = @(Get-ChildItem $sess.FullName -Recurse -File)
+      $newest = $sess.LastWriteTime
+      foreach ($f in $files) { if ($f.LastWriteTime -gt $newest) { $newest = $f.LastWriteTime } }
+      $old = $newest -lt $cutoff
       $big = $entries -gt $MaxEntries
       if (-not ($old -or $big)) { $kept++; continue }
+      if ($live -and $newest -gt $idleCutoff) { $skippedLive++; continue }
 
-      $size = (Get-ChildItem $sess.FullName -Recurse -File | Measure-Object Length -Sum).Sum
+      $size = ($files | Measure-Object Length -Sum).Sum
       $dest = Join-Path $archiveRoot ("{0}\{1}\{2}" -f $ed, $ws.Name, $sess.Name)
       $reason = @(); if ($old) { $reason += "age" }; if ($big) { $reason += "entries=$entries" }
       if ($PSCmdlet.ShouldProcess($sess.FullName, "archive to $dest [$($reason -join ',')]")) {
@@ -93,4 +106,4 @@ foreach ($ed in $Edition) {
   }
 }
 
-Write-Host ("archived {0} editing sessions ({1} MB) to {2}; kept {3}" -f $moved, [int]($movedBytes / 1MB), $archiveRoot, $kept)
+Write-Host ("archived {0} editing sessions ({1} MB) to {2}; kept {3}; deferred (active) {4}" -f $moved, [int]($movedBytes / 1MB), $archiveRoot, $kept, $skippedLive)

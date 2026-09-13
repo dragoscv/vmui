@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -145,6 +145,13 @@ if ($Register) {
             Desc = 'Open the brivio Docker stack ports to the Tailscale range only, so fleet VMs can reach postgres/redis/dss/stalwart on this host.'
             Daily = $null
         }
+        ,
+        @{
+            Name = 'CodaiMaint-DisableSystemRestore'
+            Op   = 'DisableSystemRestore'
+            Desc = 'Turn off System Restore on C:. Its VSS snapshots freeze the Remote-SSH server for 20+ s and drop every VM client session.'
+            Daily = $null
+        }
     )
 
     foreach ($t in $tasks) {
@@ -249,6 +256,21 @@ switch ($Operation) {
             -Enabled True -Direction Inbound -Protocol TCP -LocalPort $ports `
             -RemoteAddress '100.64.0.0/10' -Action Allow | Out-Null
         Write-Log "ExposeDevServices: $($ports -join ',') deschise doar din 100.64.0.0/10"
+        exit 0
+    }
+
+    'DisableSystemRestore' {
+        # Every Windows Update (including Store app updates) creates a restore
+        # point. VSS snapshot creation stalls file I/O on C: long enough that
+        # the VS Code server stops acknowledging messages for >20 s, the VM's
+        # Remote-SSH client declares the socket dead, the reconnect races the
+        # old exec server, the remote ext host dies, and the user is stuck on
+        # "Initializing...". VERIFIED 2026-09-13: both stalls (20:24:16 and
+        # 20:25:57) coincide with VSS 8231 + System Restore 8194 to the second.
+        # Real backups live elsewhere; restore points buy nothing here.
+        Disable-ComputerRestore -Drive 'C:\'
+        $rp = Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Measure-Object
+        Write-Log "DisableSystemRestore: C: disabled, $($rp.Count) restore points remain listed"
         exit 0
     }
 
