@@ -315,6 +315,9 @@ switch ($Operation) {
         & wsl --shutdown
         Start-Sleep -Seconds 8
         # Docker Desktop holds its own vhdx open; stop it or Optimize-VHD fails with "in use".
+        # It is relaunched at the end via explorer.exe so the GUI runs UNELEVATED —
+        # an elevated Docker Desktop shows no window and cannot be stopped from a
+        # normal session (2026-09-14: "Docker nu porneste" was exactly this).
         Get-Process 'Docker Desktop', 'com.docker.backend', 'com.docker.build' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 5
 
@@ -330,6 +333,8 @@ switch ($Operation) {
         }
         $after = 0; foreach ($d in $wslDisks) { $after += (Get-Item $d).Length }
         Write-Log ("CompactWslDisks: {0:N1} GB after, reclaimed {1:N1} GB" -f ($after/1GB), (($before-$after)/1GB))
+        & explorer.exe "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+        Write-Log 'CompactWslDisks: Docker Desktop relaunched (unelevated via explorer)'
         exit 0
     }
 
