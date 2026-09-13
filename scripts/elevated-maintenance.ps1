@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'CompactWslDisks', 'KillIdleRemoteShells', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -152,6 +152,20 @@ if ($Register) {
             Desc = 'Turn off System Restore on C:. Its VSS snapshots freeze the Remote-SSH server for 20+ s and drop every VM client session.'
             Daily = $null
         }
+        ,
+        @{
+            Name = 'CodaiMaint-CompactWslDisks'
+            Op   = 'CompactWslDisks'
+            Desc = 'docker system prune, then wsl --shutdown and Optimize-VHD every WSL/Docker ext4.vhdx. DISRUPTIVE: stops every WSL distro and container. On demand only.'
+            Daily = $null
+        }
+        ,
+        @{
+            Name = 'CodaiMaint-KillIdleRemoteShells'
+            Op   = 'KillIdleRemoteShells'
+            Desc = 'Kill leaf pwsh/cmd shells under the Remote-SSH server that are idle (no children, >1 h). They belong to the sshd logon session, so an unelevated Stop-Process gets Access denied.'
+            Daily = $null
+        }
     )
 
     foreach ($t in $tasks) {
@@ -160,8 +174,11 @@ if ($Register) {
         # S4U: runs whether or not you are logged in, and needs no stored
         # password. Highest supplies the elevated token.
         $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType S4U -RunLevel Highest
+        # Optimize-VHD over ~750 GB of WSL disks needs far more than 10 min;
+        # the default limit killed it mid-compaction (task result 267014).
+        $limit = if ($t.Op -eq 'CompactWslDisks') { New-TimeSpan -Hours 3 } else { New-TimeSpan -Minutes 10 }
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
-            -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
+            -ExecutionTimeLimit $limit -MultipleInstances IgnoreNew
 
         $params = @{
             TaskName    = $t.Name
@@ -271,6 +288,86 @@ switch ($Operation) {
         Disable-ComputerRestore -Drive 'C:\'
         $rp = Get-ComputerRestorePoint -ErrorAction SilentlyContinue | Measure-Object
         Write-Log "DisableSystemRestore: C: disabled, $($rp.Count) restore points remain listed"
+        exit 0
+    }
+
+    'CompactWslDisks' {
+        # WSL virtual disks grow on demand and never shrink. Measured
+        # 2026-09-14 on C:: docker_data.vhdx 404 GB, Ubuntu-24.04 236 GB,
+        # Ubuntu 117 GB, while the guests reported 48 GB used. Optimize-VHD
+        # needs the disk detached, so every distro is shut down; the brivio
+        # docker stack (restart: unless-stopped) comes back on next wsl start.
+        $wslDisks = @()
+        foreach ($k in Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss' -ErrorAction SilentlyContinue) {
+            $bp = (Get-ItemProperty $k.PSPath).BasePath -replace '^\\\\\?\\', ''
+            $v = Join-Path $bp 'ext4.vhdx'
+            if (Test-Path $v) { $wslDisks += $v }
+        }
+        $wslDisks += Get-ChildItem "$env:LOCALAPPDATA\Docker\wsl" -Recurse -Filter *.vhdx -ErrorAction SilentlyContinue | ForEach-Object FullName
+        $wslDisks = $wslDisks | Sort-Object -Unique
+
+        $before = 0; foreach ($d in $wslDisks) { $before += (Get-Item $d).Length }
+        Write-Log ("CompactWslDisks: {0} disks, {1:N1} GB before" -f $wslDisks.Count, ($before/1GB))
+
+        $prune = & wsl -d Ubuntu -u root -- docker system prune -f 2>&1 | Select-Object -Last 1
+        Write-Log "CompactWslDisks: docker prune -> $prune"
+
+        & wsl --shutdown
+        Start-Sleep -Seconds 8
+        # Docker Desktop holds its own vhdx open; stop it or Optimize-VHD fails with "in use".
+        Get-Process 'Docker Desktop', 'com.docker.backend', 'com.docker.build' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 5
+
+        foreach ($d in $wslDisks) {
+            $sz = (Get-Item $d).Length
+            try {
+                Optimize-VHD -Path $d -Mode Full -ErrorAction Stop
+                $new = (Get-Item $d).Length
+                Write-Log ("  {0}: {1:N1} -> {2:N1} GB" -f $d, ($sz/1GB), ($new/1GB))
+            } catch {
+                Write-Log "  $d FAILED: $($_.Exception.Message)"
+            }
+        }
+        $after = 0; foreach ($d in $wslDisks) { $after += (Get-Item $d).Length }
+        Write-Log ("CompactWslDisks: {0:N1} GB after, reclaimed {1:N1} GB" -f ($after/1GB), (($before-$after)/1GB))
+        exit 0
+    }
+
+    'KillIdleRemoteShells' {
+        # Terminals opened from the VM live under the Remote-SSH server tree
+        # (sshd -> cmd -> node server -> node ptyHost -> pwsh). 76 of them had
+        # accumulated at 0 s CPU each, and the ptyHost replayed all of them on
+        # every reconnect. Unelevated Stop-Process fails with Access denied
+        # because they run in sshd's logon session. Leaf-only: a shell with a
+        # non-conhost child is running something and is left alone.
+        $all = Get-CimInstance Win32_Process
+        $byId = @{}; foreach ($p in $all) { $byId[$p.ProcessId] = $p }
+        # The server root is a cmd.exe whose sshd parent has already exited,
+        # so walking up to sshd finds nothing. Root = the VS Code server's
+        # node processes (cli\servers\...\server-main.js) or any cmd/node with
+        # a dead parent.
+        $roots = @($all | Where-Object {
+            ($_.Name -in 'cmd.exe', 'node.exe') -and -not $byId[$_.ParentProcessId]
+        } | ForEach-Object ProcessId)
+        $roots += @($all | Where-Object { $_.Name -eq 'sshd.exe' } | ForEach-Object ProcessId)
+        $now = Get-Date
+        $targets = foreach ($s in ($all | Where-Object { $_.Name -in 'pwsh.exe', 'powershell.exe', 'cmd.exe' })) {
+            if ($all | Where-Object { $_.ParentProcessId -eq $s.ProcessId -and $_.Name -ne 'conhost.exe' }) { continue }
+            if (-not $s.CreationDate -or ($now - $s.CreationDate).TotalHours -lt 1) { continue }
+            $a = $s.ParentProcessId; $depth = 0; $under = $false
+            while ($a -and $byId[$a] -and $depth -lt 8) {
+                if ($roots -contains $a) { $under = $true; break }
+                $a = $byId[$a].ParentProcessId; $depth++
+            }
+            # orphans of a dead parent are stale by definition
+            if ($under -or -not $byId[$s.ParentProcessId]) { $s }
+        }
+        $n = 0
+        foreach ($t in $targets) {
+            try { Stop-Process -Id $t.ProcessId -Force -ErrorAction Stop; $n++ }
+            catch { Write-Log "  could not kill $($t.ProcessId) $($t.Name): $($_.Exception.Message)" }
+        }
+        Write-Log "KillIdleRemoteShells: killed $n of $(@($targets).Count) candidates"
         exit 0
     }
 
