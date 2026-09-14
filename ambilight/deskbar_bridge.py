@@ -41,6 +41,13 @@ CLOUD_HZ = 2.0  # Tuya free tier: keep well under the per-day quota
 LAN_HZ = 10.0  # 65 ms per write measured; 10 Hz leaves the socket idle half the time
 MIN_DELTA_CLOUD = 12  # 0..255 per channel; smaller changes are not worth a cloud call
 MIN_DELTA_LAN = 3
+V_MAX = 600  # colour_data v ceiling (0..1000): the bar is 30 cm from the eyes
+V_MIN = 25  # never fully off mid-session: switch_led toggles are what flashed
+# The firmware applies every colour_data as a hard cut (no internal fade in
+# music mode), so the bridge does the easing: each 10 Hz tick moves the
+# emitted HSV this fraction of the way to the target. 0.18 @ 10 Hz ~ 0.5 s
+# to 90 %, which on top of HyperHDR's own smoothing reads as a glide.
+SLEW = 0.18
 IDLE_WHITE = {"temp_value": 374, "bright_value": 356}  # what HA left it at
 DP = {"switch_led": 20, "work_mode": 21, "bright_value": 22, "temp_value": 23, "colour_data": 24}
 
@@ -84,6 +91,9 @@ class DeskBar:
         self.music = False
         self.last: tuple[int, int, int] | None = None
         self.on = True
+        self._last_h = 0.08  # warm amber until the first frame
+        self.target: tuple[float, float, float] | None = None  # hsv 0..1
+        self.cur: tuple[float, float, float] | None = None
 
     @property
     def use_lan(self) -> bool:
@@ -146,18 +156,38 @@ class DeskBar:
             print(f"  tuya: {r}")
         return ok
 
-    def apply(self, rgb: tuple[int, int, int]) -> None:
+    def set_target(self, rgb: tuple[int, int, int]) -> None:
         r, g, b = rgb
-        if max(rgb) < 8:
-            if self.on:
-                self._send([{"code": "switch_led", "value": False}])
-                self.on = False
-                self.last = rgb
-            return
-        min_delta = MIN_DELTA_LAN if self.use_lan else MIN_DELTA_CLOUD
-        if self.last is not None and self.on and max(abs(a - c) for a, c in zip(rgb, self.last)) < min_delta:
-            return
         h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+        if max(rgb) < 8:
+            # Dark scene: dim to a floor, keep the last hue. Toggling the relay
+            # (switch_led) here was the "lightning" the user saw -- the
+            # firmware pops to full brightness on the way back on.
+            h, s, v = self._last_h, 1.0, V_MIN / 1000
+        else:
+            self._last_h = h
+            v = max(V_MIN / 1000, min(v, 1.0) * V_MAX / 1000)
+        self.target = (h, s, v)
+        self.last = rgb
+
+    def tick(self) -> None:
+        """One step towards the target; call at max_hz. No-op when settled."""
+        if self.target is None:
+            return
+        if self.cur is None or not self.use_lan:
+            self.cur = self.target  # cloud path: 2 Hz is too slow to ease, just jump
+        else:
+            th, ts, tv = self.target
+            ch, cs, cv = self.cur
+            dh = ((th - ch + 0.5) % 1.0) - 0.5  # shortest way round the hue circle
+            self.cur = ((ch + dh * SLEW) % 1.0, cs + (ts - cs) * SLEW, cv + (tv - cv) * SLEW)
+            if abs(dh) < 0.002 and abs(ts - cs) < 0.005 and abs(tv - cv) < 0.005:
+                self.cur = self.target
+        h, s, v = self.cur
+        step = {"h": int(h * 360), "s": int(s * 1000), "v": int(v * 1000)}
+        if step == getattr(self, "_sent", None) and self.on and self.music:
+            return
+        self._sent = step
         cmds: list[dict] = []
         if not self.on:
             cmds.append({"code": "switch_led", "value": True})
@@ -165,9 +195,14 @@ class DeskBar:
         if not self.music:
             cmds.append({"code": "work_mode", "value": "music"})
             self.music = True
-        cmds.append({"code": "colour_data", "value": json.dumps({"h": int(h * 360), "s": int(s * 1000), "v": int(v * 1000)})})
-        if self._send(cmds):
-            self.last = rgb
+        cmds.append({"code": "colour_data", "value": json.dumps(step)})
+        self._send(cmds)
+
+    def apply(self, rgb: tuple[int, int, int]) -> None:
+        """Immediate set (tests / cloud path)."""
+        self.set_target(rgb)
+        self.cur = None
+        self.tick()
 
     def release(self) -> None:
         """Back to plain white so HA's colour_temp scenes take effect again."""
@@ -211,31 +246,37 @@ def run_listen(bar: DeskBar, port: int) -> None:
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("127.0.0.1", port))
-    sock.settimeout(1.0)
+    tick_s = 1 / bar.max_hz
+    sock.settimeout(tick_s)
     print(f"  listening udp://127.0.0.1:{port} (1 region = 3 bytes/frame, <= {bar.max_hz:g} Hz via {'LAN' if bar.use_lan else 'cloud'})")
-    next_at = 0.0
+    next_tick = time.monotonic()
     last_rx = time.monotonic()
     released = True
     while True:
         try:
             data, _ = sock.recvfrom(64)
         except socket.timeout:
+            data = b""
+        now = time.monotonic()
+        if len(data) >= 3:
+            last_rx = now
+            released = False
+            rgb = tuple(ambient(bytes(data[:3]) * 3)[:3])  # ambient() works on 3 regions; feed one thrice
+            bar.set_target(rgb)  # type: ignore[arg-type]
+        if now >= next_tick:
+            next_tick = now + tick_s
+            if not released:
+                try:
+                    bar.tick()
+                except Exception as e:  # noqa: BLE001 -- one bad write must not kill the loop
+                    print(f"  tick: {e}", flush=True)
             # HyperHDR sends one black frame then silence when the source goes
             # away; 5 s without frames = movie over -> hand the bar back to HA.
-            if not released and time.monotonic() - last_rx > 5:
+            if not released and now - last_rx > 5:
                 bar.release()
                 released = True
+                bar.target = bar.cur = None
                 print("  idle -> white mode", flush=True)
-            continue
-        if len(data) < 3:
-            continue
-        last_rx = time.monotonic()
-        if last_rx < next_at:
-            continue
-        next_at = last_rx + 1 / bar.max_hz
-        rgb = tuple(ambient(bytes(data[:3]) * 3)[:3])  # ambient() works on 3 regions; feed one thrice
-        bar.apply(rgb)  # type: ignore[arg-type]
-        released = False
 
 
 def main() -> int:

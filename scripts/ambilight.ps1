@@ -45,6 +45,8 @@
                    honoured -- HybridRgbInterpolator is a spring that ignores
                    time_ms entirely (stiffness/damping only), which is why the
                    PC glow used to snap on every cut.
+    roomBrightness 0-255 cap for the Calex bulbs in movie mode (HA device
+                   constantBrightness). Default 90 ~ 35 %.
     idleStripHex / idleGlowHex / idleAfterSec
                    colour each output shows after idleAfterSec with no frames
                    from HyperHDR (movie mode off, or nothing moving on screen
@@ -79,7 +81,7 @@ $env:HA_URL = $null
 . (Join-Path $Amb 'hyperhdr-layout.ps1')
 
 $SettingsPath = Join-Path $Amb 'settings.json'
-$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; idleStripHex = '#000000'; idleGlowHex = '#000000'; idleAfterSec = 20 }
+$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; roomBrightness = 90; idleStripHex = '#000000'; idleGlowHex = '#000000'; idleAfterSec = 20 }
 function Get-Settings {
     $s = [ordered]@{} + $Defaults
     if (Test-Path $SettingsPath) { (Get-Content $SettingsPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } }
@@ -227,7 +229,9 @@ function Configure-HyperHdr {
             # HyperHDR assumes :8123; this appliance serves on :80.
             homeAssistantHost = (($env:HA_URL -replace '^https?://', '') + ':80')
             longLivedAccessToken = $env:HA_TOKEN
-            transition = 300; constantBrightness = 200; restoreOriginalState = $true; maxRetry = 60
+            # constantBrightness 0-255: the Calex bulbs at 200 lit the whole
+            # room and washed the picture; ~90 (35 %) is a glow, not a lamp.
+            transition = 300; constantBrightness = [int]$Settings.roomBrightness; restoreOriginalState = $true; maxRetry = 60
             lamps = $lamps; hardwareLedCount = $lamps.Count; colorOrder = 'rgb'; refreshTime = 0
         }
         leds      = @() + (New-RegionLayout full) + (New-RegionLayout left3) + (New-RegionLayout mid)
@@ -245,6 +249,11 @@ function Configure-HyperHdr {
     Set-HyperConfig -Instance $bar -Config @{
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19448; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 1 }
         leds      = @() + (New-RegionLayout top3)
+        # Same wall as the DX Light strip: without this the bar throws pure
+        # screen colour at a blue wall while the strip throws pre-compensated
+        # (red-heavy) colour, and where the two overlap the right half of the
+        # wall reads red against the left. gamma 1 -- the bar has its own.
+        color     = New-WallCompensation -WallHex $Settings.wallHex -Strength ([double]$Settings.wallStrength) -Gamma 1.0 -Saturation ([double]$Settings.saturation) -Luminance 1.0
         # LAN write is ~65 ms, bridge caps at 10 Hz; same feel as the case glow.
         smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 20
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
