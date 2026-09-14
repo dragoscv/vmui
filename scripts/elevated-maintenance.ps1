@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'CompactWslDisks', 'KillIdleRemoteShells', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'CompactWslDisks', 'KillIdleRemoteShells', 'RestartRemoteExtHost', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -164,6 +164,13 @@ if ($Register) {
             Name = 'CodaiMaint-KillIdleRemoteShells'
             Op   = 'KillIdleRemoteShells'
             Desc = 'Kill leaf pwsh/cmd shells under the Remote-SSH server that are idle (no children, >1 h). They belong to the sshd logon session, so an unelevated Stop-Process gets Access denied.'
+            Daily = $null
+        }
+        ,
+        @{
+            Name = 'CodaiMaint-RestartRemoteExtHost'
+            Op   = 'RestartRemoteExtHost'
+            Desc = 'Kill a wedged Remote-SSH extension host (client reconnecting every 20 s). The VM window restarts it automatically; chat sessions live in the renderer and survive.'
             Daily = $null
         }
     )
@@ -373,6 +380,60 @@ switch ($Operation) {
             catch { Write-Log "  could not kill $($t.ProcessId) $($t.Name): $($_.Exception.Message)" }
         }
         Write-Log "KillIdleRemoteShells: killed $n of $(@($targets).Count) candidates"
+        exit 0
+    }
+
+    'RestartRemoteExtHost' {
+        # Symptom in the VM: "Initializing..." / Copilot stuck, renderer.log
+        # shows `socket timeout (unacknowledgedMessage, unacknowledgedMsgCount:
+        # 300+)` -> `reconnected!` every 20 s, and the host remoteagent.log
+        # shows `The client has reconnected.` at the same cadence. The ext host
+        # process is alive but no longer drains its socket. It runs in sshd's
+        # logon session, so an unelevated Stop-Process gets Access denied.
+        #
+        # Only the wedged ext host is killed -- never the server, ptyHost or
+        # the VM's renderer -- so open chats and editors are untouched; the
+        # renderer logs "Extension host (Remote) terminated unexpectedly" and
+        # restarts it within ~10 s.
+        $logRoot = Join-Path $env:USERPROFILE '.vscode-server-insiders\data\logs'
+        $dir = Get-ChildItem $logRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName 'remoteagent.log') } |
+            Sort-Object { (Get-Item (Join-Path $_.FullName 'remoteagent.log')).LastWriteTime } -Descending |
+            Select-Object -First 1
+        if (-not $dir) { Write-Log 'RestartRemoteExtHost: no remoteagent.log found'; exit 1 }
+        $log = Join-Path $dir.FullName 'remoteagent.log'
+        $tail = Get-Content $log -Tail 400
+
+        # Discriminator: >= 3 reconnects in the last 2 minutes. A healthy
+        # session has zero; the ECONNREFUSED agent-host lines are benign noise.
+        $cutoff = (Get-Date).AddMinutes(-2)
+        $recent = @($tail | Where-Object { $_ -match 'The client has reconnected' } | ForEach-Object {
+            if ($_ -match '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})') { [datetime]$Matches[1] } } | Where-Object { $_ -gt $cutoff })
+        # Newest launched ext host pid, and its connection id, from the same log.
+        $launch = $tail | Where-Object { $_ -match '\[(\w+)\]\[ExtensionHostConnection\] <(\d+)> Launched Extension Host Process' } | Select-Object -Last 1
+        if (-not $launch) { Write-Log 'RestartRemoteExtHost: no launched ext host in log'; exit 1 }
+        $null = $launch -match '<(\d+)> Launched'
+        $extPid = [int]$Matches[1]
+        $proc = Get-Process -Id $extPid -ErrorAction SilentlyContinue
+        if (-not $proc -or $proc.Name -ne 'node') { Write-Log "RestartRemoteExtHost: ext host $extPid not running (already restarted?)"; exit 0 }
+
+        # A scheduled task takes no arguments; unfreeze-remote-vscode.ps1 -Force
+        # drops this marker instead. Consumed on read so it cannot linger.
+        $marker = Join-Path $env:USERPROFILE '.codai\force-restart-exthost'
+        $force = Test-Path $marker
+        if ($force) { Remove-Item $marker -Force -ErrorAction SilentlyContinue }
+        if ($recent.Count -lt 3 -and -not $force) {
+            Write-Log "RestartRemoteExtHost: ext host $extPid looks healthy ($($recent.Count) reconnects in 2 min) - not killed. Use unfreeze-remote-vscode.ps1 -Force to override."
+            exit 0
+        }
+        # Children first (tsserver, language servers): they would otherwise
+        # outlive the host as orphans holding memory.
+        $kids = Get-CimInstance Win32_Process -Filter "ParentProcessId=$extPid" | Where-Object Name -eq 'node.exe'
+        foreach ($k in $kids) { Stop-Process -Id $k.ProcessId -Force -ErrorAction SilentlyContinue }
+        Stop-Process -Id $extPid -Force -ErrorAction Stop
+        Start-Sleep -Seconds 12
+        $after = Get-Content $log -Tail 20 | Where-Object { $_ -match 'Launched Extension Host Process|exited with code' } | Select-Object -Last 2
+        Write-Log ("RestartRemoteExtHost: killed ext host {0} (+{1} children) after {2} reconnects/2min; log: {3}" -f $extPid, @($kids).Count, $recent.Count, ($after -join ' || '))
         exit 0
     }
 
