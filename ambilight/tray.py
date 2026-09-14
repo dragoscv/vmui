@@ -93,7 +93,7 @@ def hyper(commands: list[dict], instance: int = 0, timeout: float = 4.0) -> list
         ws.close()
 
 
-def hyper_all(commands: list[dict], instances: tuple[int, ...] = (0, 1, 2)) -> None:
+def hyper_all(commands: list[dict], instances: tuple[int, ...] = (0, 1, 2, 3)) -> None:
     for i in instances:
         try:
             hyper(commands, i)
@@ -176,7 +176,7 @@ class Tray:
         new = not bool(self.grabber)
         # Instance 0 (strip behind the Odyssey) always follows the screen;
         # this switch is for the case (1) and the room bulbs (2).
-        hyper_all([{"command": "componentstate", "componentstate": {"component": "SYSTEMGRABBER", "state": new}}], (1, 2))
+        hyper_all([{"command": "componentstate", "componentstate": {"component": "SYSTEMGRABBER", "state": new}}], (1, 2, 3))
         self.grabber = new
         self.refresh()
 

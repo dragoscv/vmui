@@ -87,6 +87,9 @@ function New-RegionLayout {
         'left3'  { @{ hmin = 0.12; hmax = 0.42; vmin = 0.2; vmax = 0.8 } }
         'right3' { @{ hmin = 0.58; hmax = 0.88; vmin = 0.2; vmax = 0.8 } }
         'mid'    { @{ hmin = 0.3; hmax = 0.7; vmin = 0.15; vmax = 0.85 } }
+        # Upper band of the picture, letterbox-safe: what a monitor light bar
+        # sitting on the top bezel should echo.
+        'top3'   { @{ hmin = 0.12; hmax = 0.88; vmin = 0.12; vmax = 0.4 } }
         default  { @{ hmin = 0.0; hmax = 1.0; vmin = 0.0; vmax = 1.0 } }
     }
     $r.group = 0

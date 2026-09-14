@@ -237,16 +237,31 @@ function Configure-HyperHdr {
     }
     Enable-Grabber $ha
 
+    Write-Step 'instance 3: Desk Light Bar via Tuya Cloud (upper band of the picture)'
+    # HA cannot colour this bar (its Tuya integration sends control_data ->
+    # "type is incorrect"); ambilight/deskbar_bridge.py talks to Tuya Cloud
+    # directly with colour_data in music mode. One LED = top3 region.
+    $bar = Ensure-Instance 'Desk bar (Tuya)'
+    Set-HyperConfig -Instance $bar -Config @{
+        device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19448; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 1 }
+        leds      = @() + (New-RegionLayout top3)
+        # Cloud round-trip is ~0.4 s and the bridge caps at 2 Hz; smooth long
+        # so the 2 Hz samples are already settled colours, not flicker.
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
+        backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
+    }
+    Enable-Grabber $bar
+
     # systemGrabber is global and reverts to defaults when instances 1/2 are
     # written after instance 0 (measured: fps=20, hdr=false, reorder=0 every
     # time). A setconfig with ONLY systemGrabber resets `device` to file, so
     # re-send the whole instance-0 config last, then bounce the grabber.
     Set-HyperConfig -Instance 0 -Config $Inst0
-    foreach ($i in 0, $pc, $ha) {
+    foreach ($i in 0, $pc, $ha, $bar) {
         Invoke-Hyper @(@{ command = 'componentstate'; componentstate = @{ component = 'SYSTEMGRABBER'; state = $false } }) -Instance $i | Out-Null
     }
     Start-Sleep 1
-    foreach ($i in 0, $pc, $ha) { Enable-Grabber $i }
+    foreach ($i in 0, $pc, $ha, $bar) { Enable-Grabber $i }
     $g = (Get-HyperConfig -Instance 0).systemGrabber
     if ($g.fps -ne $SystemGrabber.fps -or $g.reorder_displays -ne $SystemGrabber.reorder_displays) { throw "systemGrabber did not persist: fps=$($g.fps) reorder=$($g.reorder_displays)" }
     Write-Ok 'HyperHDR configured'

@@ -36,7 +36,7 @@ script:
     mode: queued
     fields:
       commands:
-        description: JSON list of HyperHDR commands, applied to instances 1 and 2
+        description: JSON list of HyperHDR commands, applied to instances 1, 2 and 3 (case, room, desk bar)
     sequence:
       - action: mqtt.publish
         data:
@@ -44,7 +44,7 @@ script:
           payload: >-
             {% set cmds = (commands | from_json) if commands is string else (commands | list) %}
             {% set ns = namespace(out=[]) %}
-            {% for i in [1, 2] %}
+            {% for i in [1, 2, 3] %}
               {% set ns.out = ns.out + [{"command": "instance", "subcommand": "switchTo", "instance": i}] + cmds %}
             {% endfor %}
             {{ ns.out | to_json }}
@@ -67,12 +67,9 @@ script:
               }
       - action: light.turn_off
         target: { entity_id: light.star_projector }
-      # The bar cannot take colour from HA (its work_mode enum has no
-      # "colour", so hs_color -> 500). Amber, dim: complements the blue wall
-      # and does not wash out the DX Light strip beside it.
-      - action: light.turn_on
-        target: { entity_id: light.desk_light_bar }
-        data: { color_temp_kelvin: 2700, brightness_pct: 35 }
+      # Desk Light Bar: NOT touched here. HyperHDR instance 3 -> Tuya Cloud
+      # (ambilight/deskbar_bridge.py) colours it from the top of the picture
+      # while movie mode is on; a colour_temp call now would fight it.
 
   movie_mode_off:
     alias: "Movie mode OFF (warm room)"
@@ -86,7 +83,9 @@ script:
                 command: componentstate,
                 componentstate: { component: SYSTEMGRABBER, state: false },
               }
-      - delay: { milliseconds: 600 }
+      # The desk-bar bridge hands the bar back to white mode ~5 s after the
+      # last frame; wait for that before setting a colour temperature.
+      - delay: { seconds: 7 }
       - action: light.turn_on
         target: { entity_id: [light.desk_light_bar, light.led_argb] }
         data: { color_temp_kelvin: 3000, brightness_pct: 60 }

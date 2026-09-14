@@ -1,0 +1,187 @@
+"""HyperHDR udpraw -> Tuya Cloud: the Desk Light Bar follows the top of the screen.
+
+The bar (Tuya category `dd`, product "Smart Monitor Light Bar") has RGB LEDs
+that Home Assistant cannot drive: its `light.turn_on` with hs_color 500s on
+this device because HA's Tuya integration sends `control_data`, which the
+firmware rejects with "type is incorrect". The bar DOES accept `colour_data`
+(HSV, s/v 0..1000) while `work_mode` = "music" -- verified 2026-09-14 with
+red/green/blue via tinytuya.Cloud.
+
+  HyperHDR inst 3 "Desk bar (Tuya)"  udpraw :19448  1 LED = top region
+      -> this bridge -> Tuya Cloud (EU)  colour_data at <= MAX_HZ
+
+Cloud, not LAN: the bar's local key is not on this machine and the cloud
+round-trip is ~0.4 s, which is fine for a lamp that lights a wall. Idle: when
+frames stop (movie off, grabber off) the bar is put back in "white" mode so
+the HA scenes' colour_temp_kelvin calls keep working; the ambient() gate
+turns it off on dark scenes exactly like the case LEDs.
+
+  python deskbar_bridge.py --test          # red / green / blue / off
+  python deskbar_bridge.py --listen 19448
+"""
+from __future__ import annotations
+
+import argparse
+import colorsys
+import json
+import os
+import socket
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+
+DEVICE_ID = "bf965a6835d854af14xkxb"  # Desk Light Bar (Smart Life)
+MAX_HZ = 2.0  # Tuya free tier: keep well under the per-day quota
+MIN_DELTA = 12  # 0..255 per channel; smaller changes are not worth a cloud call
+IDLE_WHITE = {"temp_value": 374, "bright_value": 356}  # what HA left it at
+
+
+def _credentials() -> tuple[str, str]:
+    key, sec = os.environ.get("TUYA_ACCESS_ID"), os.environ.get("TUYA_ACCESS_SECRET")
+    if key and sec:
+        return key, sec
+    env = os.path.join(os.path.dirname(HERE), ".private", "credentials.env")
+    vals: dict[str, str] = {}
+    try:
+        with open(env, encoding="utf-8") as fh:
+            for line in fh:
+                if "=" in line and not line.lstrip().startswith("#"):
+                    k, v = line.split("=", 1)
+                    vals[k.strip()] = v.strip()
+    except OSError:
+        pass
+    key, sec = vals.get("TUYA_ACCESS_ID"), vals.get("TUYA_ACCESS_SECRET")
+    if not key or not sec:
+        raise SystemExit("TUYA_ACCESS_ID / TUYA_ACCESS_SECRET missing (.private/credentials.env)")
+    return key, sec
+
+
+class DeskBar:
+    def __init__(self) -> None:
+        import tinytuya  # noqa: PLC0415 -- optional dependency, only this bridge needs it
+
+        key, sec = _credentials()
+        self.cloud = tinytuya.Cloud(apiRegion="eu", apiKey=key, apiSecret=sec)
+        self.music = False
+        self.last: tuple[int, int, int] | None = None
+        self.on = True
+
+    def describe(self) -> None:
+        st = self.cloud.getstatus(DEVICE_ID)
+        if not isinstance(st, dict) or not st.get("success"):
+            raise RuntimeError(f"Tuya getstatus failed: {st}")
+        mode = next((x["value"] for x in st["result"] if x["code"] == "work_mode"), "?")
+        print(f"  Desk Light Bar: work_mode={mode}")
+
+    def _send(self, cmds: list[dict]) -> bool:
+        r = self.cloud.sendcommand(DEVICE_ID, {"commands": cmds})
+        ok = isinstance(r, dict) and bool(r.get("success"))
+        if not ok:
+            print(f"  tuya: {r}")
+        return ok
+
+    def apply(self, rgb: tuple[int, int, int]) -> None:
+        r, g, b = rgb
+        if max(rgb) < 8:
+            if self.on:
+                self._send([{"code": "switch_led", "value": False}])
+                self.on = False
+                self.last = rgb
+            return
+        if self.last is not None and self.on and max(abs(a - c) for a, c in zip(rgb, self.last)) < MIN_DELTA:
+            return
+        h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+        cmds: list[dict] = []
+        if not self.on:
+            cmds.append({"code": "switch_led", "value": True})
+            self.on = True
+        if not self.music:
+            cmds.append({"code": "work_mode", "value": "music"})
+            self.music = True
+        cmds.append({"code": "colour_data", "value": json.dumps({"h": int(h * 360), "s": int(s * 1000), "v": int(v * 1000)})})
+        if self._send(cmds):
+            self.last = rgb
+
+    def release(self) -> None:
+        """Back to plain white so HA's colour_temp scenes take effect again."""
+        if not self.music and self.on:
+            return
+        self._send(
+            [
+                {"code": "switch_led", "value": True},
+                {"code": "work_mode", "value": "white"},
+                {"code": "temp_value", "value": IDLE_WHITE["temp_value"]},
+                {"code": "bright_value", "value": IDLE_WHITE["bright_value"]},
+            ]
+        )
+        self.music = False
+        self.on = True
+        self.last = None
+
+    def close(self) -> None:
+        try:
+            self.release()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def run_test(bar: DeskBar) -> None:
+    for name, rgb in (("red", (200, 0, 0)), ("green", (0, 200, 0)), ("blue", (0, 0, 200)), ("off", (0, 0, 0))):
+        print(f"  {name}")
+        bar.apply(rgb)
+        time.sleep(2.5)
+    bar.release()
+    print("  released to white")
+
+
+def run_listen(bar: DeskBar, port: int) -> None:
+    from openrgb_bridge import ambient  # same dark->off / chroma rules as the case LEDs
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", port))
+    sock.settimeout(1.0)
+    print(f"  listening udp://127.0.0.1:{port} (1 region = 3 bytes/frame, <= {MAX_HZ:g} Hz to cloud)")
+    min_interval = 1 / MAX_HZ
+    next_at = 0.0
+    last_rx = time.monotonic()
+    released = True
+    while True:
+        try:
+            data, _ = sock.recvfrom(64)
+        except socket.timeout:
+            # HyperHDR sends one black frame then silence when the source goes
+            # away; 5 s without frames = movie over -> hand the bar back to HA.
+            if not released and time.monotonic() - last_rx > 5:
+                bar.release()
+                released = True
+                print("  idle -> white mode", flush=True)
+            continue
+        if len(data) < 3:
+            continue
+        last_rx = time.monotonic()
+        if last_rx < next_at:
+            continue
+        next_at = last_rx + min_interval
+        rgb = tuple(ambient(bytes(data[:3]) * 3)[:3])  # ambient() works on 3 regions; feed one thrice
+        bar.apply(rgb)  # type: ignore[arg-type]
+        released = False
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--test", action="store_true")
+    ap.add_argument("--listen", type=int, metavar="PORT")
+    a = ap.parse_args()
+    bar = DeskBar()
+    bar.describe()
+    if a.test:
+        run_test(bar)
+    elif a.listen:
+        run_listen(bar, a.listen)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
