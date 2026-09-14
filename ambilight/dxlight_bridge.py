@@ -159,5 +159,11 @@ def main() -> int:
     return 0
 
 
+if sys.stdout is None:  # pythonw: no console, keep the prints somewhere readable
+    import os
+    _log = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".copilot-tmp", "service-logs")
+    os.makedirs(_log, exist_ok=True)
+    sys.stdout = sys.stderr = open(os.path.join(_log, "dxlight-bridge.log"), "a", buffering=1, encoding="utf-8")
+
 if __name__ == "__main__":
     sys.exit(main())

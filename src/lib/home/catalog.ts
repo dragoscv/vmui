@@ -61,7 +61,8 @@ export const DEVICES: CatalogDevice[] = [
     notes: "HyperHDR captures this display (DX11, HDR tone-mapped, 60 fps)." },
   { id: "dxlight", name: "DX Light strip (65 LEDs)", kind: "strip", room: "bedroom", x: 22, y: 44, ambilight: "full", via: "USB HID → HyperHDR",
     notes: "Behind the monitor. Right 17 · top 31 · left 17, driven per-LED at ~59 fps." },
-  { id: "desk_bar", name: "Desk Light Bar", kind: "light", entity: "light.desk_light_bar", room: "bedroom", x: 22, y: 30, ambilight: "top", via: "Tuya", whiteOnly: true },
+  { id: "desk_bar", name: "Desk Light Bar", kind: "light", entity: "light.desk_light_bar", room: "bedroom", x: 22, y: 30, via: "Tuya", whiteOnly: true,
+    notes: "White only: the firmware rejects colour, so movie mode just dims it warm." },
   { id: "led_argb", name: "LED ARGB strip (MELK)", kind: "strip", entity: "light.led_argb", room: "bedroom", x: 8, y: 20, ambilight: "full", via: "Bluetooth proxy · elkbledom",
     entities: ["switch.mic_enable_led_argb", "select.mic_effect_led_argb", "select.brightness_mode_led_argb"],
     notes: "One colour for the whole strip (controller limit) — WLED upgrade documented." },
@@ -110,7 +111,7 @@ export const AMBIENT_EFFECTS = [
 export const HYPERHDR_INSTANCES = [
   { id: 0, name: "DX Light (monitor)", target: "65-LED strip behind the OLED", fps: 60 },
   { id: 1, name: "PC glow (OpenRGB)", target: "Case strips · GPU · board", fps: 20 },
-  { id: 2, name: "Room lights (HA)", target: "Desk Light Bar · MELK strip", fps: 3 },
+  { id: 2, name: "Room lights (HA)", target: "MELK strip (whole screen)", fps: 3 },
 ] as const;
 
 export const NOTIFY_PALETTE: Array<{ app: string; label: string; color: [number, number, number] }> = [

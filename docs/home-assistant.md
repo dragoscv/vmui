@@ -206,7 +206,7 @@ HyperHDR (this PC, DX11 grabber 60 fps, HDR→SDR, monitor_nits 250)
   inst 0  DX Light (monitor)     udpraw :19446 → ambilight/dxlight_bridge.py → USB HID, 65 LEDs, ~59 fps
   inst 1  PC glow (OpenRGB)      udpraw :19447 → ambilight/openrgb_bridge.py → OpenRGB SDK :6742
                                  (3 regions: left / whole / right → case strips, GPU, board)
-  inst 2  Room lights (HA)       home_assistant driver → Desk Light Bar (top), BLE strip (whole)
+  inst 2  Room lights (HA)       home_assistant driver → BLE strip (whole); bar is white-only, set by the scenes
   MQTT client ──────────────────► Mosquitto add-on, topic HyperHDR/JsonAPI
 Home Assistant ◄─ ha-scenes.yaml package: movie / music / off, notify flash, webhooks,
                   phone-notification colours (Companion "Last notification" sensor)
@@ -273,6 +273,22 @@ Traps:
   `work_mode` enum is `['music','white']`, so any colour call is an HA 500
   ("Server got itself in trouble"). Catalog `whiteOnly: true` hides the
   colour picker; the action refuses rgb for it. Warmth/brightness work.
+  It must also stay OUT of HyperHDR's `lamps`: one 500 disables the whole
+  `home_assistant` device, strip included, and the room goes static
+  (symptom seen 2026-09-14).
+- **Capture follows the Windows PRIMARY display** (`device: auto`). The
+  film monitor (Odyssey) is the secondary, so `reorder_displays = 1`. Wrong
+  value shows as an endless `AcquireNextFrame didn't return the frame` and
+  every light static. `systemGrabber` is global: write it as part of the
+  full instance-0 config, LAST — a setconfig containing only
+  `systemGrabber` resets every instance's `device` to `file`.
+- `ambilight.ps1 -Status` now shows device type, LEDDEVICE state, grabber
+  display/fps and the bridge's last fps line. "task=Running" alone proved
+  nothing: all four tasks were running while no frame moved.
+- Task Scheduler consoles deliver Ctrl+C to console apps started as tasks
+  (`0xC000013A`). The Python bridges run under `pythonw.exe` and log to
+  `.copilot-tmp/service-logs/*-bridge.log`; HyperHDR/OpenRGB are GUI apps
+  and were never affected.
 - Caddy admin: `PUT` creates (fails if the key exists), `PATCH` replaces,
   `POST` appends. A `POST` to `load_files` nests an array and the whole
   config load is rejected.

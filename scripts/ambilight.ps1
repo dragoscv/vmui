@@ -51,7 +51,10 @@ $env:HA_URL = $null
 
 $HyperExe = "$env:ProgramFiles\HyperHDR\bin\hyperhdr.exe"
 $OpenRgbExe = "$env:ProgramFiles\OpenRGB\OpenRGB.exe"
-$Python = (Get-Command python).Source
+# pythonw, not python: a Task Scheduler console delivered Ctrl+C to the
+# bridges (exit 0xC000013A) and the room went static. No console, no signal.
+# The bridges write their own log under .copilot-tmp/service-logs.
+$Python = Join-Path (Split-Path (Get-Command python).Source) 'pythonw.exe'
 $Tasks = @(
     @{ Name = 'vmui-ambilight-hyperhdr'; Exe = $HyperExe;   Args = '--service'; Delay = 5 },
     @{ Name = 'vmui-ambilight-openrgb';  Exe = $OpenRgbExe; Args = '--server --startminimized --profile Dragos'; Delay = 10 },
@@ -86,19 +89,24 @@ function Enable-Grabber([int]$Instance) {
 }
 
 function Configure-HyperHdr {
+    $SystemGrabber = @{
+        device = 'auto'; hardware = $true; fps = 60; videoMode = 512
+        # Windows HDR capture returns scRGB floats; without tone-mapping
+        # every colour is washed out. 250 nits matches the Odyssey OLED.
+        hdrToneMapping = $true; monitor_nits = 250
+        cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0
+        # `auto` grabs the Windows PRIMARY display, which is the Philips.
+        # The film runs on the Odyssey (left, DISPLAY2) so shift by one.
+        # Wrong value = "AcquireNextFrame didn't return the frame" forever
+        # and every light stays static while a film plays next door.
+        signalDetection = $false; reorder_displays = 1
+        redSignalThreshold = 5; greenSignalThreshold = 5; blueSignalThreshold = 5; noSignalCounterThreshold = 200
+        sDHOffsetMin = 0.25; sDHOffsetMax = 0.75; sDVOffsetMin = 0.25; sDVOffsetMax = 0.75
+    }
     Write-Step 'instance 0: DX Light on the movie monitor (right 17, top 31, left 17)'
-    Set-HyperConfig -Instance 0 -Config @{
+    $Inst0 = @{
         general       = @{ name = 'DX Light (monitor)'; disableOnLocked = $true; disableLedsStartup = $false; showOptHelp = $false; version = 6 }
-        systemGrabber = @{
-            device = 'auto'; hardware = $true; fps = 60; videoMode = 512
-            # Windows HDR capture returns scRGB floats; without tone-mapping
-            # every colour is washed out. 250 nits matches the Odyssey OLED.
-            hdrToneMapping = $true; monitor_nits = 250
-            cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0
-            signalDetection = $false; reorder_displays = 0
-            redSignalThreshold = 5; greenSignalThreshold = 5; blueSignalThreshold = 5; noSignalCounterThreshold = 200
-            sDHOffsetMin = 0.25; sDHOffsetMax = 0.75; sDVOffsetMin = 0.25; sDVOffsetMax = 0.75
-        }
+        systemGrabber = $SystemGrabber
         videoGrabber  = @{ enable = $false }
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
         leds          = New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08
@@ -106,6 +114,7 @@ function Configure-HyperHdr {
         soundEffect   = @{ device = 'Voicemeeter Out B1 (VB-Audio Vo'; enable = $true; enable_smoothing = $true }
         mqtt          = @{ enable = $true; host = ($env:HA_URL -replace '^https?://', ''); port = 1883; username = $env:MQTT_HYPERHDR_USER; password = $env:MQTT_HYPERHDR_PASS; is_ssl = $false; ignore_ssl_errors = $true; custom_topic = 'HyperHDR'; disableApiAccess = $false; maxRetry = 120 }
     }
+    Set-HyperConfig -Instance 0 -Config $Inst0
     Enable-Grabber 0
 
     Write-Step 'instance 1: PC glow under the desk (left / whole / right regions)'
@@ -122,9 +131,12 @@ function Configure-HyperHdr {
     # Order of lamps == order of leds. Add bulbs here once they are in HA:
     #   @{ name = 'light.moodlight'; colorModel = 1 }      -> New-RegionLayout left
     #   @{ name = 'light.ambient_light'; colorModel = 1 }  -> New-RegionLayout right
+    # NOT light.desk_light_bar: HA advertises `hs` for it but the Tuya firmware
+    # work_mode enum is ['music','white'], so every hs_color POST is a 500 and
+    # HyperHDR disables the WHOLE device (strip included) on the first one.
+    # The bar gets its movie look from script.movie_mode_on (warm, dim).
     $lamps = @(
-        @{ name = 'light.desk_light_bar'; colorModel = 1 },
-        @{ name = 'light.led_argb';       colorModel = 0 }
+        @{ name = 'light.led_argb'; colorModel = 0 }
     )
     Set-HyperConfig -Instance $ha -Config @{
         device    = @{
@@ -135,10 +147,23 @@ function Configure-HyperHdr {
             transition = 300; constantBrightness = 200; restoreOriginalState = $true; maxRetry = 60
             lamps = $lamps; hardwareLedCount = $lamps.Count; colorOrder = 'rgb'; refreshTime = 0
         }
-        leds      = @() + (New-RegionLayout top) + (New-RegionLayout full)
+        leds      = @() + (New-RegionLayout full)
         smoothing = @{ enable = $true; type = 'HybridRgbInterpolator'; time_ms = 800; updateFrequency = 3; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
     }
     Enable-Grabber $ha
+
+    # systemGrabber is global and reverts to defaults when instances 1/2 are
+    # written after instance 0 (measured: fps=20, hdr=false, reorder=0 every
+    # time). A setconfig with ONLY systemGrabber resets `device` to file, so
+    # re-send the whole instance-0 config last, then bounce the grabber.
+    Set-HyperConfig -Instance 0 -Config $Inst0
+    foreach ($i in 0, $pc, $ha) {
+        Invoke-Hyper @(@{ command = 'componentstate'; componentstate = @{ component = 'SYSTEMGRABBER'; state = $false } }) -Instance $i | Out-Null
+    }
+    Start-Sleep 1
+    foreach ($i in 0, $pc, $ha) { Enable-Grabber $i }
+    $g = (Get-HyperConfig -Instance 0).systemGrabber
+    if ($g.fps -ne $SystemGrabber.fps -or $g.reorder_displays -ne $SystemGrabber.reorder_displays) { throw "systemGrabber did not persist: fps=$($g.fps) reorder=$($g.reorder_displays)" }
     Write-Ok 'HyperHDR configured'
 }
 
@@ -211,13 +236,28 @@ function Show-Status {
     try {
         $si = Get-HyperServerInfo
         foreach ($i in $si.instance) {
-            $p = (Invoke-Hyper @(@{ command = 'serverinfo' }) -Instance ([int]$i.instance)).info.priorities
-            Write-Host ("  [{0}] {1,-30} {2}" -f $i.instance, $i.friendly_name, (($p | ForEach-Object { "$($_.componentId)@$($_.priority)" }) -join ' '))
+            $inf = (Invoke-Hyper @(@{ command = 'serverinfo' }) -Instance ([int]$i.instance)).info
+            $dev = (Get-HyperConfig -Instance ([int]$i.instance)).device.type
+            $led = ($inf.components | Where-Object name -eq 'LEDDEVICE').enabled
+            $prio = ($inf.priorities | ForEach-Object { "$($_.componentId)@$($_.priority)" }) -join ' '
+            # `file` = a partial setconfig wiped the device; LEDDEVICE=False = HA
+            # driver disabled itself after an HTTP error. Both looked "fine" before.
+            $bad = ($dev -eq 'file') -or (-not $led) -or ($prio -notmatch 'SYSTEMGRABBER')
+            Write-Host ("  [{0}] {1,-30} {2,-22} device={3} leddevice={4}" -f $i.instance, $i.friendly_name, $prio, $dev, $led) -ForegroundColor $(if ($bad) { 'Yellow' } else { 'Gray' })
         }
+        $g = (Get-HyperConfig -Instance 0).systemGrabber
+        Write-Host ("  grabber: display #{0} (0 = Windows primary) fps={1} hdr={2}" -f $g.reorder_displays, $g.fps, $g.hdrToneMapping) -ForegroundColor $(if ($g.reorder_displays -eq 1 -and $g.fps -ge 30) { 'Gray' } else { 'Yellow' })
         $snd = $si.sound
         Write-Host ("  audio: {0} ({1})" -f $snd.device, $(if ($snd.active) { 'active' } else { 'inactive' }))
     }
     catch { Write-Warn "HyperHDR not reachable: $_" }
+    # Frames actually reaching the strip: the bridge prints fps every 600 frames.
+    $blog = Join-Path $Root '.copilot-tmp\service-logs\dxlight-bridge.log'
+    if (Test-Path $blog) {
+        $age = [int]((Get-Date) - (Get-Item $blog).LastWriteTime).TotalSeconds
+        $last = (Get-Content $blog -Tail 1).Trim()
+        Write-Host ("  frames:  {0} ({1}s ago)" -f $last, $age) -ForegroundColor $(if ($age -lt 60 -and $last -match 'fps') { 'Green' } else { 'Yellow' })
+    }
     $dx = Get-Process 'DX Light' -ErrorAction SilentlyContinue
     if ($dx) { Write-Warn 'DX Light app is running and will fight HyperHDR for the strip' }
     Write-Host ''
