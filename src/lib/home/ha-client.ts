@@ -60,6 +60,13 @@ export const ha = {
     }),
   runScript: (name: string, data: Record<string, unknown> = {}) =>
     rest(`/services/script/${name}`, { method: "POST", body: JSON.stringify(data) }),
+  /** State history for one entity since `since` (ISO). Minimal response = [{s, lu}]-style compact rows. */
+  history: (entityId: string, since: Date) =>
+    rest<HaState[][]>(`/history/period/${since.toISOString()}?filter_entity_id=${encodeURIComponent(entityId)}&minimal_response&no_attributes`),
+  calendarEvents: (entityId: string, start: Date, end: Date) =>
+    rest<Array<{ summary: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; location?: string }>>(
+      `/calendars/${entityId}?start=${start.toISOString()}&end=${end.toISOString()}`,
+    ),
 };
 
 /** Server-Sent Events stream of `state_changed` from HA's WebSocket API. */

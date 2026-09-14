@@ -1,5 +1,5 @@
 import { HomeDashboard } from "@/components/home/home-dashboard";
-import { loadTurzxSettings } from "@/lib/turzx/settings";
+import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { homeAvailability, listPlacedDevices, loadHomeStates, wallSetting } from "@/server/queries/home";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Home — vmui" };
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const [{ tab }, devices, states, avail, wall, turzx] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings()]);
+  const [{ tab }, devices, states, avail, wall, turzx, pomodoro] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings(), loadPomodoro()]);
   const initialTab = tab === "devices" || tab === "ambilight" || tab === "displays" ? tab : "plan";
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -38,7 +38,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} />
+      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} />
     </div>
   );
 }

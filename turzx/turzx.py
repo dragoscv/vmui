@@ -1,12 +1,15 @@
 """Turzx desk-screen renderer.
 
   pythonw turzx.py            # logon task vmui-turzx
-  python  turzx.py --once    # render one frame of each view to .copilot-tmp/turzx/*.png (no hardware)
+  python  turzx.py --once    # render each view (every skin) to .copilot-tmp/turzx/*.png, no hardware
+  python  turzx.py --once --skin glass
 
-Loop: poll vmui /api/turzx/state every 3 s (settings + HA + lists), sample
-PC metrics locally every 0.5 s, tick the active view at `fps`, rotate after
-`dwellSec` with a `transitionMs` transition, and send only dirty row bands
-over USB. Brightness follows the night window from settings.
+Loop: poll vmui /api/turzx/state every 3 s (settings + HA + feeds), sample
+PC metrics locally, tick the active view at `fps`, rotate after the view's
+own dwell with a strip-wipe transition, and send only changed pixels over
+USB within a per-frame byte budget (link ≈ 365 KB/s). Photo backgrounds are
+swapped only at view entry, so the one 300 KB repaint coincides with the
+transition that repaints everything anyway.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -27,14 +31,17 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent))
 from anim import Clock, dirty_rects, transition  # noqa: E402
+from backgrounds import Backgrounds  # noqa: E402
 from lcd import TurzxLcd  # noqa: E402
-from views import BG, FG, MUTED, TZ, VIEWS, W, H, F_SMALL, F_TINY, hex_rgb  # noqa: E402
+from skins import build as build_skin, font  # noqa: E402
+from views import BG, TZ, VIEWS, H, W, hex_rgb  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / ".copilot-tmp" / "service-logs" / "turzx.log"
 VMUI = "http://127.0.0.1:3737"
 DEBUG = bool(os.environ.get("TURZX_DEBUG"))
 LINK_BPS = 365_000  # measured 2026-09-14: 300 KB in 0.823 s, linear down to 3 KB
+MIN_DWELL = 5
 
 try:  # 1 ms scheduler tick; default ~15.6 ms makes 20 fps pacing jitter by a whole frame
     import ctypes
@@ -67,7 +74,13 @@ def token() -> str:
     raise RuntimeError("ESP_DISPLAY_TOKEN missing")
 
 
-DEFAULT_SETTINGS = {"views": list(VIEWS), "dwellSec": 12, "fps": 20, "transitionMs": 600, "brightness": 60, "nightBrightness": 15, "nightFrom": "23:00", "nightTo": "07:30", "accent": "#7c9cff", "flip": False}
+DEFAULT_BG = {"mode": "none", "sources": [], "folder": "", "dim": 0.45, "blur": 0}
+DEFAULT_SETTINGS = {
+    "version": 2,
+    "views": [{"id": k, "enabled": k in ("clock", "weather", "home", "pc", "media"), "dwellSec": 12, "skin": "minimal", "background": None, "options": {}} for k in VIEWS],
+    "fps": 20, "transitionMs": 600, "brightness": 60, "nightBrightness": 15, "nightFrom": "23:00", "nightTo": "07:30",
+    "accent": "#7c9cff", "flip": False, "background": DEFAULT_BG, "bgRotateMin": 30,
+}
 
 
 class State:
@@ -88,9 +101,6 @@ class State:
         return d
 
 
-_cpu_last = 0.0
-
-
 def pc_metrics() -> dict:
     out = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent}
     if _GPU is not None:
@@ -104,15 +114,16 @@ def pc_metrics() -> dict:
     return out
 
 
-def poller(st: State, tok: str, stop: threading.Event) -> None:
+def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) -> None:
     while not stop.is_set():
         try:
-            with urllib.request.urlopen(f"{VMUI}/api/turzx/state?k={tok}", timeout=4) as r:
+            with urllib.request.urlopen(f"{VMUI}/api/turzx/state?k={tok}", timeout=6) as r:
                 data = json.loads(r.read())
             with st.lock:
                 st.data = data
                 st.online = True
-            # album art (best effort, only when URL changes)
+            if bgs is not None:
+                bgs.set_online(data.get("photos") or [])
             m = next((x for x in data.get("media") or [] if x.get("art")), None)
             url = m["art"] if m else None
             if url and url.startswith("/"):
@@ -140,64 +151,136 @@ def night(settings: dict) -> bool:
     return (a <= now or now < b) if a > b else (a <= now < b)
 
 
+_F_TINY = font(15, "r")
+
+
 def offline_badge(c: Image.Image, online: bool) -> None:
     if online:
         return
     d = ImageDraw.Draw(c)
     d.rounded_rectangle((W - 118, H - 30, W - 8, H - 8), radius=8, fill=(60, 24, 24))
-    d.text((W - 63, H - 19), "vmui offline", font=F_TINY, fill=(252, 165, 165), anchor="mm")
+    d.text((W - 63, H - 19), "vmui offline", font=_F_TINY, fill=(252, 165, 165), anchor="mm")
 
 
-def dots(c: Image.Image, i: int, n: int, accent) -> None:
+def dots(c: Image.Image, i: int, n: int, accent, muted) -> None:
+    if n <= 1:
+        return
     d = ImageDraw.Draw(c)
     x0 = W // 2 - (n * 12) // 2
     for k in range(n):
         r = 4 if k == i else 2
-        d.ellipse((x0 + k * 12 - r, H - 6 - r, x0 + k * 12 + r, H - 6 + r), fill=accent if k == i else (60, 62, 76))
+        d.ellipse((x0 + k * 12 - r, H - 6 - r, x0 + k * 12 + r, H - 6 + r), fill=accent if k == i else muted)
 
 
 class Renderer:
-    def __init__(self, st: State, lcd: TurzxLcd | None) -> None:
+    def __init__(self, st: State, lcd: TurzxLcd | None, bgs: Backgrounds | None) -> None:
         self.st = st
         self.lcd = lcd
-        self.settings = dict(DEFAULT_SETTINGS)
-        self.accent = hex_rgb(self.settings["accent"])
+        self.bgs = bgs
+        self.settings: dict = {}
+        self.accent = hex_rgb(DEFAULT_SETTINGS["accent"])
         self.views = {k: V(self.accent) for k, V in VIEWS.items()}
-        self.order = list(self.settings["views"])
+        self.cfg: dict[str, dict] = {}  # view id -> its config block
+        self.order: list[str] = []  # enabled ids in order
         self.idx = 0
         self.dwell_t = time.perf_counter()
-        self.trans: tuple[Image.Image, float, str] | None = None  # (from frame, start, kind)
+        self.trans: tuple[Image.Image, float, str] | None = None
         self.prev: Image.Image | None = None
         self.bright = -1
         self.clock = Clock()
+        # background state for the current view
+        self.bg_img: Image.Image | None = None
+        self.bg_meta: dict = {}
+        self.bg_at = 0.0
+        self.bg_key: str | None = None
+        self.apply_settings(DEFAULT_SETTINGS)
 
+    # ---- settings
     def apply_settings(self, s: dict) -> None:
         if s == self.settings:
             return
+        if s.get("version") != 2:  # a stale/old-format row: keep defaults
+            s = DEFAULT_SETTINGS
         self.settings = {**DEFAULT_SETTINGS, **s}
-        acc = hex_rgb(self.settings["accent"])
-        if acc != self.accent:
-            self.accent = acc
-            for v in self.views.values():
-                v.accent = acc
-        order = [v for v in self.settings["views"] if v in self.views] or list(VIEWS)
+        self.accent = hex_rgb(self.settings["accent"])
+        cfgs = [c for c in self.settings["views"] if c.get("id") in self.views]
+        self.cfg = {c["id"]: c for c in cfgs}
+        for vid, c in self.cfg.items():
+            self.views[vid].configure(c.get("skin") or "minimal", self.accent, c.get("options") or {})
+        order = [c["id"] for c in cfgs if c.get("enabled")] or ["clock"]
         if order != self.order:
+            cur = self.order[self.idx % len(self.order)] if self.order else None
             self.order = order
-            self.idx = 0
+            self.idx = order.index(cur) if cur in order else 0
         flip = bool(self.settings.get("flip"))
         if self.lcd and flip != self.lcd.flip:
             self.lcd.set_orientation(True, flip)
-            self.prev = None  # force a full repaint in the new orientation
+            self.prev = None
 
     def current(self):
         return self.views[self.order[self.idx % len(self.order)]]
 
-    def render(self, now: float, dt: float, data: dict) -> Image.Image:
-        c = Image.new("RGB", (W, H), BG)
+    def dwell_of(self, vid: str) -> float:
+        return max(MIN_DWELL, float(self.cfg.get(vid, {}).get("dwellSec") or 12))
+
+    def bg_cfg(self, vid: str) -> dict:
+        own = self.cfg.get(vid, {}).get("background")
+        g = own or self.settings.get("background") or DEFAULT_BG
+        if vid == "photo" and g.get("mode") != "photo":
+            # the photo view IS the photo; with no photo config it still shows the online pool
+            return {**g, "mode": "photo", "sources": g.get("sources") or ["apod", "met", "artic", "commons"]}
+        return g
+
+    # ---- rotation
+    def advance(self, data: dict) -> None:
+        """Next enabled view whose visible() says yes; may stay on the same one."""
+        n = len(self.order)
+        for k in range(1, n + 1):
+            j = (self.idx + k) % n
+            if self.views[self.order[j]].visible(data):
+                self.idx = j
+                return
+        self.idx = (self.idx + 1) % n
+
+    def enter_view(self, data: dict, now: float) -> None:
         v = self.current()
+        v.enter()
+        v.update(data, 0.0)
+        self.dwell_t = now
+        self.refresh_background(v, force_new=(v.id == "photo"))
+
+    def refresh_background(self, v, force_new: bool = False) -> None:
+        cfg = self.bg_cfg(v.id)
+        want_photo = cfg.get("mode") == "photo" and (v.wants_photo or v.id == "photo") and v.sk.photo_ok and self.bgs is not None
+        if not want_photo:
+            self.bg_img, self.bg_meta, self.bg_key = None, {}, None
+            return
+        rotate_s = max(60.0, float(self.settings.get("bgRotateMin") or 30) * 60)
+        if self.bg_img is not None and not force_new and time.time() - self.bg_at < rotate_s:
+            return
+        srcs = list(cfg.get("sources") or [])
+        if self.bgs is not None:
+            self.bgs.set_folder(str(cfg.get("folder") or ""))
+            got = self.bgs.pick(srcs, exclude=self.bg_key)
+            if got:
+                self.bg_img, self.bg_meta = got
+                self.bg_key = self.bg_meta.get("key")
+                self.bg_at = time.time()
+
+    # ---- frame
+    def render(self, now: float, dt: float, data: dict) -> Image.Image:
+        v = self.current()
+        cfg = self.bg_cfg(v.id)
+        photo = self.bg_img if (cfg.get("mode") == "photo" and (v.wants_photo or v.id == "photo")) else None
+        dim = float(cfg.get("dim") or 0) if v.id != "photo" else 0.0
+        blur = int(cfg.get("blur") or 0) if v.id != "photo" else 0
+        c = v.sk.base((W, H), photo, dim, blur)
+        data["_bgmeta"] = self.bg_meta
+        data["_night"] = night(self.settings)
         v.update(data, dt)
-        v.draw(c, now - v.t0)
-        dots(c, self.idx % len(self.order), len(self.order), self.accent)
+        progress = 1.0 - min(1.0, (now - self.dwell_t) / self.dwell_of(v.id))
+        v.draw(c, now - v.t0, progress)
+        dots(c, self.idx % len(self.order), len(self.order), v.sk.accent, v.sk.track)
         offline_badge(c, self.st.online)
         return c
 
@@ -206,15 +289,17 @@ class Renderer:
         now = time.perf_counter()
         data = self.st.snapshot()
         self.apply_settings(data.get("settings") or {})
-        # rotate
-        if now - self.dwell_t >= self.settings["dwellSec"] and len(self.order) > 1 and self.trans is None:
+        v = self.current()
+        due = now - self.dwell_t >= self.dwell_of(v.id)
+        # a view that became invisible mid-dwell (pomodoro stopped) leaves early
+        gone = not v.visible(data) and len(self.order) > 1
+        if (due or gone) and len(self.order) > 1 and self.trans is None:
             old = self.render(now, dt, data)
-            self.idx = (self.idx + 1) % len(self.order)
-            self.current().enter()
-            # pre-tick the new view so its tweens do not start at 0
-            self.current().update(data, 0.0)
+            self.advance(data)
+            self.enter_view(data, now)
             self.trans = (old, now, self.current().transition)
-            self.dwell_t = now
+        elif self.bg_img is None and self.bg_cfg(v.id).get("mode") == "photo":
+            self.refresh_background(v)  # a photo became ready after we entered
         frame = self.render(now, dt, data)
         if self.trans is not None:
             old, t0, kind = self.trans
@@ -224,7 +309,6 @@ class Renderer:
                 self.trans = None
             else:
                 frame = transition(old, frame, p, kind)
-        # brightness
         want = self.settings["nightBrightness"] if night(self.settings) else self.settings["brightness"]
         if self.lcd and want != self.bright:
             self.lcd.set_brightness(int(want))
@@ -232,31 +316,27 @@ class Renderer:
         return frame
 
     def push(self, frame: Image.Image) -> int:
-        """Send what changed, but never more than the link can move in one
-        frame period (~365 KB/s measured). Rects that do not fit are sliced
-        into row bands and pushed on later frames, from `self.prev`'s
-        perspective they stay dirty until they land, so nothing is lost."""
+        """Send what changed, capped at what the link moves in one frame period.
+        Rects that do not fit are sliced into row bands and finished on later
+        frames; `self.prev` tracks what is actually on the panel, so nothing is lost."""
         if not self.lcd:
             return 0
         t0 = time.perf_counter()
         budget = int(LINK_BPS / max(5, min(30, self.settings["fps"])))
         rects = dirty_rects(self.prev, frame)
-        # biggest first when everything fits; when it does not, smallest first
-        # so the many little live elements keep moving while a big one streams
         total = sum((x1 - x0) * (y1 - y0) * 2 for x0, y0, x1, y1 in rects)
         rects.sort(key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=total <= budget)
         if self.prev is None:
-            self.prev = Image.new("RGB", frame.size, (1, 2, 3))  # anything ≠ frame → all dirty
+            self.prev = Image.new("RGB", frame.size, (1, 2, 3))
         shown = self.prev.copy()
         sent = 0
         for (x0, y0, x1, y1) in rects:
             size = (x1 - x0) * (y1 - y0) * 2
             if sent + size > budget:
-                left = budget - sent
-                rows = left // ((x1 - x0) * 2)
+                rows = (budget - sent) // ((x1 - x0) * 2)
                 if rows < 4:
                     break
-                y1 = y0 + rows  # partial band; the rest stays dirty for next frame
+                y1 = y0 + rows
             region = frame.crop((x0, y0, x1, y1))
             sent += self.lcd.blit(region, x0, y0)
             shown.paste(region, (x0, y0))
@@ -271,29 +351,44 @@ class Renderer:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="render each view to PNG, no hardware")
+    ap.add_argument("--skin", help="with --once: force this skin for every view")
+    ap.add_argument("--all-skins", action="store_true", help="with --once: one PNG per view per skin")
     ap.add_argument("--port")
     args = ap.parse_args()
 
     st = State()
     stop = threading.Event()
-    threading.Thread(target=poller, args=(st, token(), stop), daemon=True).start()
+    bgs = Backgrounds(ROOT / ".copilot-tmp" / "turzx" / "bg")
+    threading.Thread(target=poller, args=(st, token(), stop, bgs), daemon=True).start()
     time.sleep(1.5)
 
     if args.once:
         out = ROOT / ".copilot-tmp" / "turzx"
         out.mkdir(parents=True, exist_ok=True)
-        r = Renderer(st, None)
-        data = st.snapshot()
-        for vid in r.order:
-            v = r.views[vid]
-            for _ in range(30):  # let tweens settle
-                v.update(data, 0.1)
-            c = Image.new("RGB", (W, H), BG)
-            v.draw(c, 1.7)
-            dots(c, r.order.index(vid), len(r.order), r.accent)
-            offline_badge(c, st.online)
-            c.save(out / f"{vid}.png")
-            print("wrote", out / f"{vid}.png")
+        r = Renderer(st, None, bgs)
+        r.apply_settings((st.snapshot().get("settings") or {}))
+        skins = ["minimal", "glass", "neon", "editorial", "terminal", "paper"] if args.all_skins else [args.skin] if args.skin else [None]
+        time.sleep(6)  # let a couple of backgrounds download
+        for vid in VIEWS:
+            for sk in skins:
+                v = r.views[vid]
+                if sk:
+                    v.configure(sk, r.accent, r.cfg.get(vid, {}).get("options") or {})
+                r.idx = r.order.index(vid) if vid in r.order else 0
+                r.order = list(dict.fromkeys([*r.order, vid]))
+                r.idx = r.order.index(vid)
+                data = st.snapshot()
+                data["pomodoro"] = data.get("pomodoro") if (data.get("pomodoro") or {}).get("phase", "idle") != "idle" else {"phase": "work", "startedAt": time.time() * 1000 - 300000, "endsAt": time.time() * 1000 + 1200000, "round": 2}
+                r.enter_view(data, time.perf_counter())
+                if r.bg_img is None and r.bg_cfg(vid).get("mode") == "photo":
+                    r.refresh_background(v, force_new=True)
+                for _ in range(30):
+                    v.update(data, 0.1)
+                r.dwell_t = time.perf_counter() - r.dwell_of(vid) * 0.35
+                c = r.render(time.perf_counter(), 0.1, data)
+                name = f"{vid}{'-' + sk if sk else ''}.png"
+                c.save(out / name)
+                print("wrote", out / name)
         return 0
 
     while True:
@@ -301,7 +396,8 @@ def main() -> int:
             lcd = TurzxLcd(args.port, landscape=True, flip=bool((st.snapshot().get("settings") or {}).get("flip")))
             lcd.init(60)
             log(f"connected {lcd.ser.port} (rev A protocol)")
-            r = Renderer(st, lcd)
+            r = Renderer(st, lcd, bgs)
+            r.enter_view(st.snapshot(), time.perf_counter())
             frames = 0
             t_stat = time.perf_counter()
             px = 0
@@ -312,15 +408,12 @@ def main() -> int:
                 px += r.push(frame)
                 frames += 1
                 if t - t_stat >= 60:
-                    log(f"{frames/60:.1f} fps, {px/60/1024:.0f} KB/s, view={r.current().id}")
+                    log(f"{frames/60:.1f} fps, {px/60/1024:.0f} KB/s, view={r.current().id} skin={r.current().sk.id}")
                     frames, px, t_stat = 0, 0, t
-                # Fixed cadence: animations sample wall-clock time, so a frame
-                # that lands late looks like a skip. Sleep coarse, then spin the
-                # last ~2 ms (Windows sleep granularity is ~15 ms otherwise).
                 budget = 1.0 / max(5, min(30, r.settings["fps"]))
                 next_t += budget
                 now = time.perf_counter()
-                if now > next_t + budget:  # fell behind (big repaint): resync, do not burst
+                if now > next_t + budget:
                     next_t = now
                 rem = next_t - now
                 if rem > 0.003:
@@ -330,7 +423,8 @@ def main() -> int:
         except KeyboardInterrupt:
             return 0
         except Exception as e:
-            log(f"lcd: {e.__class__.__name__}: {e}; reconnecting in 5 s")
+            tb = traceback.extract_tb(e.__traceback__)[-1]
+            log(f"lcd: {e.__class__.__name__}: {e} @ {Path(tb.filename).name}:{tb.lineno}; reconnecting in 5 s")
             try:
                 lcd.close()  # type: ignore[possibly-undefined]
             except Exception:

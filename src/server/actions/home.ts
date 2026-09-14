@@ -6,7 +6,7 @@ import { auditLog, homeLayout } from "@/lib/db/schema";
 import { setAmbilightSettings } from "@/lib/home/ambilight-settings";
 import { AMBILIGHT_MODES, DEVICES, ROOMS } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
-import { saveTurzxSettings, turzxSettingsSchema, type TurzxSettings } from "@/lib/turzx/settings";
+import { loadPomodoro, loadTurzxSettings, POMODORO_IDLE, savePomodoro, saveTurzxSettings, turzxSettingsSchema, type TurzxSettings } from "@/lib/turzx/settings";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -200,8 +200,26 @@ export async function setWallCompensationAction(input: { wallHex: string; streng
 export async function saveTurzxSettingsAction(input: TurzxSettings): Promise<Result> {
   const p = turzxSettingsSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
-  return run("turzx.settings", "turzx", `${p.data.views.length} views, ${p.data.dwellSec}s, ${p.data.fps}fps`, async () => {
+  return run("turzx.settings", "turzx", `${p.data.views.filter((v) => v.enabled).length} views on, ${p.data.fps}fps`, async () => {
     await saveTurzxSettings(p.data);
+    revalidatePath("/home");
+  });
+}
+
+/** Pomodoro on the desk screen: start work, skip to break, or stop. */
+export async function pomodoroAction(cmd: "start" | "break" | "stop"): Promise<Result> {
+  const p = z.enum(["start", "break", "stop"]).safeParse(cmd);
+  if (!p.success) return { ok: false, error: "Invalid command" };
+  return run("turzx.pomodoro", "turzx", p.data, async () => {
+    const s = await loadTurzxSettings();
+    const o = s.views.find((v) => v.id === "pomodoro")?.options ?? {};
+    const workMin = typeof o.workMin === "number" ? o.workMin : 25;
+    const breakMin = typeof o.breakMin === "number" ? o.breakMin : 5;
+    const cur = await loadPomodoro();
+    const now = Date.now();
+    if (p.data === "stop") await savePomodoro(POMODORO_IDLE);
+    else if (p.data === "start") await savePomodoro({ phase: "work", startedAt: now, endsAt: now + workMin * 60_000, round: cur.phase === "idle" ? 1 : cur.round + 1 });
+    else await savePomodoro({ phase: "break", startedAt: now, endsAt: now + breakMin * 60_000, round: cur.round });
     revalidatePath("/home");
   });
 }

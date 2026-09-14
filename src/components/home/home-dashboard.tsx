@@ -2,8 +2,8 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { HaState } from "@/lib/home/ha-client";
+import type { Pomodoro, TurzxSettings } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
-import type { TurzxSettings } from "@/lib/turzx/settings";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { DoorOpen, Droplets, Lightbulb, Radar, Thermometer } from "lucide-react";
 import * as React from "react";
@@ -21,6 +21,7 @@ export function HomeDashboard({
   initialTab = "plan",
   wall,
   turzx,
+  pomodoro,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
@@ -28,6 +29,7 @@ export function HomeDashboard({
   initialTab?: "plan" | "devices" | "ambilight" | "displays";
   wall: WallSetting;
   turzx: TurzxSettings;
+  pomodoro: Pomodoro;
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -53,7 +55,7 @@ export function HomeDashboard({
             <AmbilightPanel wall={wall} />
           </TabsContent>
           <TabsContent value="displays">
-            <TurzxCard initial={turzx} />
+            <TurzxCard initial={turzx} pomodoro={pomodoro} />
           </TabsContent>
         </Tabs>
       </div>

@@ -379,10 +379,38 @@ writes one PNG per view to `.copilot-tmp/turzx/` for layout checks without
 the hardware; the log is `.copilot-tmp/service-logs/turzx.log` (fps and KB/s
 once a minute).
 
-Settings live in the `turzx_settings` table (`src/lib/turzx/settings.ts`) and
-are edited from `/home?tab=displays`: which views and in what order, seconds
-per view, fps, transition length, day/night brightness and window, accent
-colour. The renderer applies them within one poll.
+Settings (`turzx_settings` row 1, schema v2 in `src/lib/turzx/settings.ts`,
+catalog of views/skins/sources in `src/lib/turzx/catalog.ts`) are edited from
+`/home?tab=displays` — the **view manager**: per view enable/order, its own
+dwell (min 5 s), skin, optional own background and view-specific options
+(currencies, coins, calendars, countdown dates, ping host, pomodoro
+lengths…); global fps, transition, day/night brightness and window, accent,
+180° flip, global background and how often photos rotate. The header
+underline is the **dwell progress bar** — full on entry, shrinking to the
+left until the view changes. Pomodoro is started/stopped from the same tab
+(row 2 of the table, `pomodoroAction`); the view only appears while running.
+
+**Views (19)**: clock, weather, home, ambilight, pc, activity, media, lists,
+fx (BNR via `curs.bnr.ro` — `www.bnr.ro` returns HTML), crypto (CoinGecko),
+photo (full-screen picture + caption), fleet (vmui instances), climate (24 h
+HA history), calendar (HA `calendar.*`), pomodoro, network (ping, psutil
+throughput, Tailscale peers), countdown, quote, ambient (night-only clock).
+
+**Skins (6)** in `turzx/skins.py`: minimal, glass (translucent panels over a
+photo, 1 px text shadow), neon (accent outlines + glow), editorial (one
+dominant figure, uppercase labels), terminal (amber monospace, scanlines,
+ignores photos), paper (light, Georgia). A view never hard-codes colour or
+font; `--once --all-skins` renders all 114 combinations to
+`.copilot-tmp/turzx/` and `.copilot-tmp/uicheck/sheet.py` tiles them.
+
+**Backgrounds** (`turzx/backgrounds.py`): local folder (recursive, ≤ 2000
+files) and the online pool the API pre-fetches from dashy's licence-vetted
+free sources (NASA APOD, Met CC0, Art Institute, Commons POTD;
+`src/lib/turzx/feeds.ts`). Downloads land pre-cropped to 480×320 in
+`.copilot-tmp/turzx/bg/`. A photo is swapped **only at view entry** (that
+300 KB repaint coincides with the transition) and at most every
+`bgRotateMin`; `dim`/`blur` keep text legible. Long strings render through
+`anim.Marquee` — clipped to their slot and scrolled when they do not fit.
 
 **Trap — which port is the Turzx.** COM6 (`1a86:ca21`, "CT21INCH") and COM7
 (`1d6b:0121`, sn `20080411`) are a _different_ Turing-family screen (rev C,

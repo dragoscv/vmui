@@ -190,6 +190,67 @@ def dirty_rects(prev: Image.Image | None, cur: Image.Image, gap: int = 12) -> li
     return out
 
 
+class Marquee:
+    """Text that scrolls horizontally inside a box when it does not fit.
+
+    Pauses at the start, scrolls left at `speed` px/s, pauses at the end,
+    snaps back. Position is quantised to whole pixels and advanced only every
+    `hold` seconds' worth of pixels, so a still marquee costs zero bandwidth
+    and a moving one repaints only its own box. Renders via a cached glyph
+    strip so each frame is one crop+paste, not a text() call.
+    """
+
+    def __init__(self, speed: float = 36.0, pause: float = 1.6, gap: int = 40) -> None:
+        self.speed, self.pause, self.gap = speed, pause, gap
+        self.text = ""
+        self.t = 0.0
+        self.strip: Image.Image | None = None
+        self.key: tuple | None = None
+
+    def set(self, text: str) -> None:
+        if text != self.text:
+            self.text, self.t, self.strip, self.key = text, 0.0, None, None
+
+    def step(self, dt: float) -> None:
+        self.t += dt
+
+    def draw(self, canvas: Image.Image, box: tuple[int, int, int, int], font, fill, bg, anchor_left: bool = True) -> None:
+        """box = (x0, y0, x1, y1). Text is vertically centred in the box."""
+        from PIL import ImageDraw  # local import keeps anim.py free of PIL.ImageDraw at module load
+
+        x0, y0, x1, y1 = box
+        bw, bh = x1 - x0, y1 - y0
+        key = (font.path, font.size, fill, bg)
+        if self.strip is None or self.key != key:
+            probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+            tw = int(probe.textlength(self.text, font=font)) + 2
+            ascent, descent = font.getmetrics()
+            th = ascent + descent
+            self.strip = Image.new("RGB", (max(1, tw), th), bg)
+            ImageDraw.Draw(self.strip).text((1, 0), self.text, font=font, fill=fill)
+            self.key = key
+            self.fits = tw <= bw
+        strip = self.strip
+        ty = y0 + (bh - strip.height) // 2
+        if self.fits:
+            region = strip
+            canvas.paste(region.crop((0, 0, min(strip.width, bw), strip.height)), (x0 if anchor_left else x1 - strip.width, ty))
+            return
+        travel = strip.width - bw + self.gap // 2
+        cycle = self.pause + travel / self.speed + self.pause
+        ph = self.t % cycle
+        if ph < self.pause:
+            off = 0
+        elif ph < self.pause + travel / self.speed:
+            off = int((ph - self.pause) * self.speed)
+        else:
+            off = travel
+        off = min(off, strip.width - 1)
+        view = Image.new("RGB", (bw, strip.height), bg)
+        view.paste(strip.crop((off, 0, min(strip.width, off + bw), strip.height)), (0, 0))
+        canvas.paste(view, (x0, ty))
+
+
 @dataclass
 class Clock:
     """Frame clock with dt clamp so a hiccup does not teleport animations."""

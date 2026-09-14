@@ -5,7 +5,8 @@ import { espAuthorized } from "@/lib/esp/auth";
 import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
-import { loadTurzxSettings } from "@/lib/turzx/settings";
+import { bnrRates, calendarEvents, coinPrices, fleet, haHistory, photoPool, quoteOfTheDay } from "@/lib/turzx/feeds";
+import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -31,6 +32,23 @@ export async function GET(req: NextRequest) {
     // HA down -> home/weather blocks null, renderer shows offline badge
   }
   const settings = await loadTurzxSettings();
+  const enabled = new Set(settings.views.filter((v) => v.enabled).map((v) => v.id));
+  const opt = (id: (typeof settings.views)[number]["id"]) => settings.views.find((v) => v.id === id)?.options ?? {};
+  const list = (v: unknown, fallback: string[]) => (Array.isArray(v) && v.length ? v.map(String) : fallback);
+  const str = (v: unknown, fallback: string) => (typeof v === "string" && v ? v : fallback);
+  const bgSources = new Set(settings.background.sources);
+  for (const v of settings.views) if (v.enabled && v.background) for (const s of v.background.sources) bgSources.add(s);
+  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro] = await Promise.all([
+    enabled.has("fx") ? bnrRates(list(opt("fx").currencies, ["EUR", "USD", "GBP"])) : null,
+    enabled.has("crypto") ? coinPrices(list(opt("crypto").coins, ["bitcoin", "ethereum"]), str(opt("crypto").vs, "usd")) : null,
+    bgSources.size || enabled.has("photo") ? photoPool([...bgSources]) : [],
+    enabled.has("fleet") ? fleet() : null,
+    enabled.has("climate") ? haHistory("sensor.temperature_and_humidity_sensor_temperature") : null,
+    enabled.has("climate") ? haHistory("sensor.temperature_and_humidity_sensor_humidity") : null,
+    enabled.has("calendar") ? calendarEvents(list(opt("calendar").entities, [...states.keys()].filter((k) => k.startsWith("calendar.")))) : null,
+    enabled.has("quote") ? quoteOfTheDay(str(opt("quote").lang, "ro") === "en" ? "en" : "ro") : null,
+    loadPomodoro(),
+  ]);
   const amb = await ambilightSettings();
   const lights = [...states.values()].filter((s) => s.entity_id.startsWith("light."));
   const media = [...states.values()].filter((s) => s.entity_id.startsWith("media_player.") && (s.state === "playing" || s.state === "paused"));
@@ -72,6 +90,15 @@ export async function GET(req: NextRequest) {
       actions: actions.map((a) => ({ action: a.action.replace(/^home\./, ""), target: (a.target ?? "").split(".").pop() ?? "", at: a.at ? new Date(a.at).getTime() : null })),
       shopping,
       esp: { rssi: pick(states, "sensor.office_bluetooth_proxy_1_wifi_signal"), heap: pick(states, "sensor.office_bluetooth_proxy_1_heap_free"), uptime: pick(states, "sensor.office_bluetooth_proxy_1_uptime") },
+      fx,
+      crypto,
+      photos,
+      fleet: vms,
+      climate: tempHist || humHist ? { temp: tempHist ?? [], hum: humHist ?? [] } : null,
+      calendar: cal,
+      quote,
+      pomodoro,
+      phoneNotification: pick(states, "sensor.dragos_s_s25_ultra_last_notification"),
     },
     { headers: { "Cache-Control": "no-store" } },
   );
