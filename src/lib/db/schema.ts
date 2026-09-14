@@ -1214,3 +1214,11 @@ export const homeLayout = sqliteTable("home_layout", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type HomeLayoutRow = typeof homeLayout.$inferSelect;
+
+/** Turzx desk display preferences: one row, validated JSON (see lib/turzx/settings.ts). */
+export const turzxSettings = sqliteTable("turzx_settings", {
+  id: integer("id").primaryKey(),
+  json: text("json").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+

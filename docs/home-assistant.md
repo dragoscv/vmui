@@ -351,6 +351,39 @@ wallHex=… wallStrength=…` (`src/lib/home/ambilight-settings.ts`), so
 `ambilight/settings.json` stays the single source and the formula lives once,
 in `New-WallCompensation`.
 
+## Turzx 3.5" desk screen (2026-09-14)
+
+The USB LCD next to the ESP32 is a **XuanFang/Turzx 3.5" rev B**, 320×480:
+VID `1a86` PID `5722`, serial `USB35INCHIPSV2`, COM11, sub-revision `0xA01`
+(brightness only, no backlight RGB). It is a dumb framebuffer: 10-byte
+zero-padded commands — `CA` hello, `CB` orientation (`1` = landscape), `CC`
+bitmap with big-endian `x0 y0 x1 y1` followed by RGB565 little-endian pixels,
+`CE` brightness. Driver: `turzx/lcd_rev_b.py`. Measured: a full 480×320 frame
+takes 0.83 s, so `turzx/anim.py::dirty_rects` pushes only the changed 40 px
+row bands — that is what makes 12–20 fps on a 12 fps-per-full-frame link.
+
+`turzx/turzx.py` (task `vmui-turzx`, pythonw, restarts on failure and
+reconnects when the screen is unplugged) polls
+`GET /api/turzx/state?k=ESP_DISPLAY_TOKEN` every 3 s and rotates the views in
+`turzx/views.py`: morphing clock, animated weather, home, live ambilight
+colour, PC gauges (psutil + NVML), HA activity, now playing with album art,
+shopping/actions lists. Metric everywhere. `python turzx\turzx.py --once`
+writes one PNG per view to `.copilot-tmp/turzx/` for layout checks without
+the hardware; the log is `.copilot-tmp/service-logs/turzx.log` (fps and KB/s
+once a minute).
+
+Settings live in the `turzx_settings` table (`src/lib/turzx/settings.ts`) and
+are edited from `/home?tab=displays`: which views and in what order, seconds
+per view, fps, transition length, day/night brightness and window, accent
+colour. The renderer applies them within one poll.
+
+**Trap — which port is the Turzx.** COM6 (`1a86:ca21`, "CT21INCH") and COM7
+(`1d6b:0121`, sn `20080411`) are a *different* Turing-family screen (rev C,
+"chs_5inch"). Sending rev-B-sized frames to it wedged its CDC endpoint (CTS
+low, write timeouts) until an elevated PnP disable/enable. Identify a screen
+by unplug/replug (`.copilot-tmp/uicheck/usb-watch.py`) before writing to it.
+COM10 is the ESP32's CH340.
+
 ## Backups
 
 `ha backups new` inside the appliance, or Settings → System → Backups. The

@@ -6,6 +6,7 @@ const PUBLIC_PREFIXES = [
   "/api/events",
   "/api/v1",
   "/api/esp",   // ESP32 display: token-authenticated, no session cookie
+  "/api/turzx", // Turzx desk screen renderer: same shared token
   "/_next",
   "/icons",
   "/favicon",

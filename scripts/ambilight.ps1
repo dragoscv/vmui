@@ -37,6 +37,14 @@
     wallStrength   0 = off, 1 = full inverse-reflectance correction
     gamma / saturation / luminance  HyperHDR channel adjustment for the strip
     grabberFps / hdrToneMapping     DX11 capture; lower = gentler on the GPU
+    stripSmoothMs / glowSmoothMs / roomSmoothMs
+                   time constant (tau) of the colour follow per output. The
+                   monitor strip can be quick; the case and room are a mood
+                   glow and should drift, not track. Uses HyperHDR's
+                   ExponentialInterpolator, the only type where time_ms is
+                   honoured -- HybridRgbInterpolator is a spring that ignores
+                   time_ms entirely (stiffness/damping only), which is why the
+                   PC glow used to snap on every cut.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Status')]
 param(
@@ -60,7 +68,7 @@ $env:HA_URL = $null
 . (Join-Path $Amb 'hyperhdr-layout.ps1')
 
 $SettingsPath = Join-Path $Amb 'settings.json'
-$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true }
+$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500 }
 function Get-Settings {
     $s = [ordered]@{} + $Defaults
     if (Test-Path $SettingsPath) { (Get-Content $SettingsPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } }
@@ -80,12 +88,17 @@ $Tasks = @(
     @{ Name = 'vmui-ambilight-openrgb';  Exe = $OpenRgbExe; Args = '--server --startminimized --profile Dragos'; Delay = 10 },
     @{ Name = 'vmui-ambilight-dxlight';  Exe = $Python;     Args = "`"$Amb\dxlight_bridge.py`" --listen 19446"; Delay = 20 },
     @{ Name = 'vmui-ambilight-pcglow';   Exe = $Python;     Args = "`"$Amb\openrgb_bridge.py`" --listen 19447"; Delay = 25 },
-    @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 }
+    @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 },
+    @{ Name = 'vmui-turzx';              Exe = $Python;     Args = "`"$Root\turzx\turzx.py`""; Delay = 35 }
 )
 
 function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
 function Write-Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
 function Write-Step($m) { Write-Host "  $m" -ForegroundColor Cyan }
+
+function New-Smoothing([int]$TimeMs, [int]$Hz) {
+    @{ enable = $true; type = 'ExponentialInterpolator'; time_ms = [Math]::Max(25, $TimeMs); updateFrequency = $Hz; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+}
 
 function Ensure-Instance([string]$Name) {
     $ex = (Get-HyperServerInfo).instance | Where-Object friendly_name -eq $Name
@@ -133,7 +146,7 @@ function Configure-HyperHdr {
         color         = New-WallCompensation -WallHex $Settings.wallHex -Strength ([double]$Settings.wallStrength) -Gamma ([double]$Settings.gamma) -Saturation ([double]$Settings.saturation) -Luminance ([double]$Settings.luminance)
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
         leds          = New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08
-        smoothing     = @{ enable = $true; type = 'HybridRgbInterpolator'; time_ms = 60; updateFrequency = 60; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+        smoothing     = New-Smoothing -TimeMs ([int]$Settings.stripSmoothMs) -Hz 60
         soundEffect   = @{ device = 'Voicemeeter Out B1 (VB-Audio Vo'; enable = $true; enable_smoothing = $true }
         mqtt          = @{ enable = $true; host = ($env:HA_URL -replace '^https?://', ''); port = 1883; username = $env:MQTT_HYPERHDR_USER; password = $env:MQTT_HYPERHDR_PASS; is_ssl = $false; ignore_ssl_errors = $true; custom_topic = 'HyperHDR'; disableApiAccess = $false; maxRetry = 120 }
     }
@@ -147,7 +160,7 @@ function Configure-HyperHdr {
         # Picture-safe thirds, not screen edges: the outer 35 % is black bars
         # or player chrome most of the time and the case only pulsed.
         leds      = @() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3)
-        smoothing = @{ enable = $true; type = 'HybridRgbInterpolator'; time_ms = 250; updateFrequency = 25; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 25
     }
     Enable-Grabber $pc
 
@@ -173,7 +186,9 @@ function Configure-HyperHdr {
             lamps = $lamps; hardwareLedCount = $lamps.Count; colorOrder = 'rgb'; refreshTime = 0
         }
         leds      = @() + (New-RegionLayout full)
-        smoothing = @{ enable = $true; type = 'HybridRgbInterpolator'; time_ms = 800; updateFrequency = 3; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+        # Schema minimum is 20 Hz; the HA driver's own `transition` (300 ms)
+        # is what actually throttles the bulbs.
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
     }
     Enable-Grabber $ha
 

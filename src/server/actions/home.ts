@@ -6,6 +6,7 @@ import { auditLog, homeLayout } from "@/lib/db/schema";
 import { setAmbilightSettings } from "@/lib/home/ambilight-settings";
 import { AMBILIGHT_MODES, DEVICES, ROOMS } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
+import { saveTurzxSettings, turzxSettingsSchema, type TurzxSettings } from "@/lib/turzx/settings";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -191,6 +192,16 @@ export async function setWallCompensationAction(input: { wallHex: string; streng
   const { wallHex, strength } = p.data;
   return run("ambilight.wall", "instance-0", `${wallHex} @ ${Math.round(strength * 100)}%`, async () => {
     await setAmbilightSettings({ wallHex: wallHex.toLowerCase(), wallStrength: Math.round(strength * 100) / 100 });
+    revalidatePath("/home");
+  });
+}
+
+/** Turzx desk-screen preferences; the renderer picks them up within ~3 s. */
+export async function saveTurzxSettingsAction(input: TurzxSettings): Promise<Result> {
+  const p = turzxSettingsSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
+  return run("turzx.settings", "turzx", `${p.data.views.length} views, ${p.data.dwellSec}s, ${p.data.fps}fps`, async () => {
+    await saveTurzxSettings(p.data);
     revalidatePath("/home");
   });
 }

@@ -883,6 +883,11 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS home_layout (
   y REAL NOT NULL,
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS turzx_settings (
+  id INTEGER PRIMARY KEY,
+  json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
 
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {

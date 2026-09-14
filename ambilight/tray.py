@@ -34,7 +34,7 @@ VMUI = "http://127.0.0.1:3737"
 PUBLIC = "https://mui.dragoscatalin.ro/home"
 HYPER_UI = "http://127.0.0.1:8090"
 
-TASKS = ["vmui-ambilight-hyperhdr", "vmui-ambilight-openrgb", "vmui-ambilight-dxlight", "vmui-ambilight-pcglow", "vmui-service"]
+TASKS = ["vmui-ambilight-hyperhdr", "vmui-ambilight-openrgb", "vmui-ambilight-dxlight", "vmui-ambilight-pcglow", "vmui-service", "vmui-turzx"]
 
 
 def log(msg: str) -> None:

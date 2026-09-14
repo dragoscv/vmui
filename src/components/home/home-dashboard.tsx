@@ -3,6 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { HaState } from "@/lib/home/ha-client";
 import { cn } from "@/lib/utils";
+import type { TurzxSettings } from "@/lib/turzx/settings";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { DoorOpen, Droplets, Lightbulb, Radar, Thermometer } from "lucide-react";
 import * as React from "react";
@@ -10,6 +11,7 @@ import { AmbilightPanel } from "./ambilight-panel";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
 import { FloorPlan } from "./floor-plan";
+import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
 
 export function HomeDashboard({
@@ -18,12 +20,14 @@ export function HomeDashboard({
   haUrl,
   initialTab = "plan",
   wall,
+  turzx,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
   haUrl: string | null;
-  initialTab?: "plan" | "devices" | "ambilight";
+  initialTab?: "plan" | "devices" | "ambilight" | "displays";
   wall: WallSetting;
+  turzx: TurzxSettings;
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -37,6 +41,7 @@ export function HomeDashboard({
             <TabsTrigger value="plan">Floor plan</TabsTrigger>
             <TabsTrigger value="devices">Devices</TabsTrigger>
             <TabsTrigger value="ambilight">Ambilight</TabsTrigger>
+            <TabsTrigger value="displays">Displays</TabsTrigger>
           </TabsList>
           <TabsContent value="plan">
             <FloorPlan devices={devices} selected={selected} onSelect={setSelected} />
@@ -46,6 +51,9 @@ export function HomeDashboard({
           </TabsContent>
           <TabsContent value="ambilight">
             <AmbilightPanel wall={wall} />
+          </TabsContent>
+          <TabsContent value="displays">
+            <TurzxCard initial={turzx} />
           </TabsContent>
         </Tabs>
       </div>
