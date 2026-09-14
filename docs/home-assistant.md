@@ -353,14 +353,21 @@ in `New-WallCompensation`.
 
 ## Turzx 3.5" desk screen (2026-09-14)
 
-The USB LCD next to the ESP32 is a **XuanFang/Turzx 3.5" rev B**, 320×480:
-VID `1a86` PID `5722`, serial `USB35INCHIPSV2`, COM11, sub-revision `0xA01`
-(brightness only, no backlight RGB). It is a dumb framebuffer: 10-byte
-zero-padded commands — `CA` hello, `CB` orientation (`1` = landscape), `CC`
-bitmap with big-endian `x0 y0 x1 y1` followed by RGB565 little-endian pixels,
-`CE` brightness. Driver: `turzx/lcd_rev_b.py`. Measured: a full 480×320 frame
-takes 0.83 s, so `turzx/anim.py::dirty_rects` pushes only the changed 40 px
-row bands — that is what makes 12–20 fps on a 12 fps-per-full-frame link.
+The USB LCD next to the ESP32 is a **Turzx 3.5"** 320×480, VID `1a86` PID
+`5722`, serial `USB35INCHIPSV2`, COM11. Despite the rev-B-looking IDs it
+answers **only the 6-byte "rev A" command word** (the one in selfie-screen's
+`TuringLcd.kt`): bytes 0–4 pack `x y ex ey` at 10 bits each, byte 5 is the
+command — `102` clear, `108/109` off/on, `110` brightness (0 = brightest),
+`121` orientation (16-byte form), `197` bitmap followed by RGB565
+**little-endian** pixels. The rev B 10-byte protocol (`CA/CB/CC/CE`) is
+accepted silently and draws nothing — an afternoon lost. Driver:
+`turzx/lcd.py`; landscape is done by rotating each rect onto the native
+portrait framebuffer. Link rate measured at **~365 KB/s** and linear (300 KB
+full frame in 0.82 s, 3 KB in 8.5 ms), so `anim.dirty_rects` sends exact
+row runs narrowed to changed columns and `Renderer.push` caps bytes per frame
+at link-rate/fps, streaming the remainder on later frames. Continuous
+effects are quantised (`Pulse(steps=)`, `qsin`) so a breathing underline does
+not repaint every frame; view transitions are strip wipes, never blends.
 
 `turzx/turzx.py` (task `vmui-turzx`, pythonw, restarts on failure and
 reconnects when the screen is unplugged) polls
@@ -378,7 +385,7 @@ per view, fps, transition length, day/night brightness and window, accent
 colour. The renderer applies them within one poll.
 
 **Trap — which port is the Turzx.** COM6 (`1a86:ca21`, "CT21INCH") and COM7
-(`1d6b:0121`, sn `20080411`) are a *different* Turing-family screen (rev C,
+(`1d6b:0121`, sn `20080411`) are a _different_ Turing-family screen (rev C,
 "chs_5inch"). Sending rev-B-sized frames to it wedged its CDC endpoint (CTS
 low, write timeouts) until an elevated PnP disable/enable. Identify a screen
 by unplug/replug (`.copilot-tmp/uicheck/usb-watch.py`) before writing to it.
