@@ -91,3 +91,9 @@ export async function frameFor(name: string, ambilightMode: string): Promise<Fra
   }
   return renderView(VIEW_ORDER[n.index]!, { states: await states(), now: new Date(), node: name, paused: n.paused, ambilightMode });
 }
+
+/** Render one view without advancing or touching the node's gallery state. */
+export async function previewView(name: string, id: ViewId, ambilightMode: string): Promise<Framebuffer> {
+  ensureActivityFeed();
+  return renderView(id, { states: await states(), now: new Date(), node: name, paused: false, ambilightMode });
+}

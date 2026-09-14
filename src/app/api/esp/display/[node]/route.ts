@@ -1,5 +1,6 @@
 import { espAuthorized } from "@/lib/esp/auth";
-import { frameFor } from "@/lib/esp/gallery";
+import { frameFor, previewView } from "@/lib/esp/gallery";
+import { VIEW_ORDER, type ViewId } from "@/lib/esp/views";
 import { ha } from "@/lib/home/ha-client";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -18,6 +19,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ node
     mode = h.state === "on" ? "movie" : "off";
   } catch {
     // HA down: views degrade on their own
+  }
+  // ?fmt=ascii[&view=clock] — text preview for the terminal; does not touch gallery state.
+  const sp = req.nextUrl.searchParams;
+  if (sp.get("fmt") === "ascii") {
+    const view = sp.get("view");
+    const fb = view && (VIEW_ORDER as string[]).includes(view) ? await previewView(node, view as ViewId, mode) : await frameFor(node, mode);
+    return new NextResponse(fb.toAscii(), { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   }
   const fb = await frameFor(node, mode);
   const bmp = fb.toBmp();

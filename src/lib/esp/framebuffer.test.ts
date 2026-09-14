@@ -1,6 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { Framebuffer, H, W } from "@/lib/esp/framebuffer";
-import { fit, text, textWidth, wrap } from "@/lib/esp/font";
+import { fit, text, textScroll, textWidth, wrap } from "@/lib/esp/font";
+
+function litColumns(fb: Framebuffer, y0: number, y1: number): number[] {
+  const cols: number[] = [];
+  for (let x = 0; x < W; x++) for (let y = y0; y <= y1; y++) if (fb.get(x, y)) { cols.push(x); break; }
+  return cols;
+}
+
+describe("esp textScroll", () => {
+  it("draws short text exactly like text()", () => {
+    const a = new Framebuffer(); const b = new Framebuffer();
+    text(a, 10, 20, "salut");
+    textScroll(b, 10, 20, 100, "salut", 123456);
+    expect(b.toAscii()).toBe(a.toAscii());
+  });
+  it("never lights a pixel outside the clip window and moves over time", () => {
+    const long = "aceasta este o linie mult prea lunga pentru ecran";
+    expect(textWidth(long)).toBeGreaterThan(90);
+    const f0 = new Framebuffer(); textScroll(f0, 34, 20, 90, long, 0);
+    const c0 = litColumns(f0, 20, 27);
+    expect(Math.min(...c0)).toBeGreaterThanOrEqual(34);
+    expect(Math.max(...c0)).toBeLessThan(34 + 90);
+    const f1 = new Framebuffer(); textScroll(f1, 34, 20, 90, long, 3000);
+    expect(f1.toAscii()).not.toBe(f0.toAscii());
+    const c1 = litColumns(f1, 20, 27);
+    expect(Math.min(...c1)).toBeGreaterThanOrEqual(34);
+    expect(Math.max(...c1)).toBeLessThan(34 + 90);
+    // fully scrolled: the tail is visible, start is not
+    const f2 = new Framebuffer(); textScroll(f2, 34, 20, 90, long, 1500 + 60_000);
+    expect(litColumns(f2, 20, 27).length).toBeGreaterThan(0);
+  });
+});
 
 describe("esp framebuffer", () => {
   it("encodes a 1-bit bottom-up BMP of exactly 1086 bytes", () => {

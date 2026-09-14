@@ -80,6 +80,46 @@ export function textRight(fb: Framebuffer, x1: number, y: number, s: string, siz
   text(fb, x1 - textWidth(fold(s), size) + 1, y, s, size, on);
 }
 
+const SCROLL_PX_PER_S = 18;
+const SCROLL_HOLD_MS = 1500;
+const SCROLL_GAP_PX = 18;
+
+/**
+ * Text that fits is drawn as-is; text wider than `maxPx` becomes a horizontal
+ * marquee clipped to [x, x+maxPx): hold at the start, scroll left until the
+ * tail is visible, hold, restart. `t` is wall time so successive frames (3-4 s
+ * apart) advance deterministically without per-node state.
+ */
+export function textScroll(fb: Framebuffer, x: number, y: number, maxPx: number, s: string, t: number, size: Size = 1, on = true): void {
+  const f = fold(s);
+  const w = textWidth(f, size);
+  if (w <= maxPx) return void text(fb, x, y, f, size, on);
+  const travel = w - maxPx + SCROLL_GAP_PX;
+  const scrollMs = (travel / SCROLL_PX_PER_S) * 1000;
+  const period = SCROLL_HOLD_MS + scrollMs + SCROLL_HOLD_MS;
+  const phase = t % period;
+  const off = phase < SCROLL_HOLD_MS ? 0 : phase < SCROLL_HOLD_MS + scrollMs ? Math.round(((phase - SCROLL_HOLD_MS) / scrollMs) * travel) : travel;
+  const clip = (px: number, py: number, o: boolean) => { if (px >= x && px < x + maxPx) fb.set(px, py, o); };
+  let cx = x - Math.min(off, w - maxPx);
+  for (const ch of f) {
+    if (cx + glyphWidth(size) >= x && cx < x + maxPx) drawCharClipped(clip, cx, y, ch, size, on);
+    cx += glyphWidth(size);
+  }
+}
+
+function drawCharClipped(set: (x: number, y: number, on: boolean) => void, x: number, y: number, ch: string, size: Size, on: boolean): void {
+  const code = ch.charCodeAt(0);
+  if (code < 0x20 || code > 0x7e) return;
+  const base = (code - 0x20) * 5;
+  for (let col = 0; col < 5; col++) {
+    const bits = FONT5x7[base + col] ?? 0;
+    for (let row = 0; row < 7; row++) {
+      if (!((bits >> row) & 1)) continue;
+      for (let sy = 0; sy < size; sy++) for (let sx = 0; sx < size; sx++) set(x + col * size + sx, y + row * size + sy, on);
+    }
+  }
+}
+
 /** Truncate with a trailing '.' so it fits `maxPx`. */
 export function fit(s: string, maxPx: number, size: Size = 1): string {
   const t = fold(s);

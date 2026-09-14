@@ -4,7 +4,7 @@ import { ha, type HaState } from "@/lib/home/ha-client";
 import { desc } from "drizzle-orm";
 import "server-only";
 import { recentActivity } from "./activity";
-import { fit, text, textCentered, textRight, wrap } from "./font";
+import { text, textCentered, textRight, textScroll, textWidth, wrap } from "./font";
 import { Framebuffer, H, W, YELLOW_ROWS } from "./framebuffer";
 
 // Each view paints a 128x64 frame. The top 16 rows are the yellow band on the
@@ -22,9 +22,10 @@ export type ViewContext = {
   ambilightMode: string;
 };
 
-function band(fb: Framebuffer, title: string, right?: string): void {
+function band(fb: Framebuffer, title: string, right?: string, t = 0): void {
   fb.fill(0, 0, W, YELLOW_ROWS, true);
-  text(fb, 2, 4, title, 1, false);
+  const rightW = right ? textWidth(right) + 6 : 0;
+  textScroll(fb, 2, 4, W - 4 - rightW, title, t, 1, false);
   if (right) textRight(fb, 125, 4, right, 1, false);
 }
 
@@ -37,6 +38,32 @@ const MONTHS = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "
 
 function st(ctx: ViewContext, id: string): HaState | undefined {
   return ctx.states.get(id);
+}
+
+// HA is configured metric, but be explicit: convert if an entity reports °F / mph / inHg.
+function celsius(v: unknown, unit?: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return unit === "°F" ? (n - 32) / 1.8 : n;
+}
+function kmh(v: unknown, unit?: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return unit === "mph" ? n * 1.609344 : unit === "m/s" ? n * 3.6 : n;
+}
+function hpa(v: unknown, unit?: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return unit === "inHg" ? n * 33.8639 : unit === "psi" ? n * 68.9476 : n;
+}
+function fmtC(n: number | null, digits = 0): string {
+  return n === null ? "--" : `${n.toFixed(digits)}*C`;
+}
+
+/** One body line: label fixed, value scrolls if it does not fit the remaining width. */
+function line(fb: Framebuffer, y: number, label: string, value: string, ctx: ViewContext): void {
+  const lx = text(fb, 0, y, label) + 4;
+  textScroll(fb, lx, y, W - lx, value, ctx.now.getTime());
 }
 function num(s: HaState | undefined, digits = 0): string {
   if (!s || s.state === "unavailable" || s.state === "unknown") return "--";
@@ -54,8 +81,9 @@ function viewClock(fb: Framebuffer, ctx: ViewContext): void {
   const temp = st(ctx, "sensor.temperature_and_humidity_sensor_temperature");
   const hum = st(ctx, "sensor.temperature_and_humidity_sensor_humidity");
   const w = st(ctx, "weather.forecast_home");
-  const out = w ? `${Math.round(Number(w.attributes.temperature))}*` : "--";
-  text(fb, 0, 54, `in ${num(temp, 1)}* ${num(hum)}%`);
+  const out = w ? fmtC(celsius(w.attributes.temperature, w.attributes.temperature_unit)) : "--";
+  const inside = fmtC(celsius(temp?.state, temp?.attributes.unit_of_measurement), 1);
+  text(fb, 0, 54, `in ${inside} ${num(hum)}%`);
   textRight(fb, 127, 54, `afara ${out}`);
 }
 
@@ -70,11 +98,16 @@ function viewWeather(fb: Framebuffer, ctx: ViewContext): void {
   band(fb, "Vremea", "Home");
   if (!w) return void textCentered(fb, 34, "fara date meteo");
   const a = w.attributes as Record<string, number | string>;
-  text(fb, 2, 20, `${Math.round(Number(a.temperature))}*`, 3);
-  text(fb, 62, 20, fit(WEATHER_RO[w.state] ?? w.state, 64));
+  const tC = celsius(a.temperature, a.temperature_unit);
+  const big = tC === null ? "--" : `${Math.round(tC)}`;
+  const bx = text(fb, 2, 20, big, 3);
+  text(fb, bx + 2, 20, "*C");
+  textScroll(fb, 62, 20, 66, WEATHER_RO[w.state] ?? w.state, ctx.now.getTime());
   text(fb, 62, 30, `umid ${a.humidity ?? "--"}%`);
-  text(fb, 62, 40, `vant ${Math.round(Number(a.wind_speed ?? 0))} km/h`);
-  text(fb, 2, 54, `pres ${Math.round(Number(a.pressure ?? 0))} hPa`);
+  const wind = kmh(a.wind_speed ?? 0, a.wind_speed_unit);
+  text(fb, 62, 40, `vant ${wind === null ? "--" : Math.round(wind)} km/h`);
+  const p = hpa(a.pressure ?? 0, a.pressure_unit);
+  text(fb, 2, 54, `${p === null ? "--" : Math.round(p)} hPa`);
   const sun = st(ctx, "sun.sun");
   if (sun) {
     const next = sun.state === "above_horizon" ? sun.attributes.next_setting : sun.attributes.next_rising;
@@ -82,7 +115,7 @@ function viewWeather(fb: Framebuffer, ctx: ViewContext): void {
   }
 }
 
-function viewActivity(fb: Framebuffer, _ctx: ViewContext): void {
+function viewActivity(fb: Framebuffer, ctx: ViewContext): void {
   const items = recentActivity(6);
   band(fb, "Activitate", `${items.length}`);
   if (!items.length) return void textCentered(fb, 34, "nimic recent");
@@ -90,7 +123,7 @@ function viewActivity(fb: Framebuffer, _ctx: ViewContext): void {
   for (const it of items.slice(0, 5)) {
     const t = hhmm(new Date(it.at));
     text(fb, 0, y, t);
-    text(fb, 34, y, fit(it.text, 94));
+    textScroll(fb, 34, y, W - 34, it.text, ctx.now.getTime());
     y += 9;
   }
 }
@@ -103,11 +136,12 @@ function viewHome(fb: Framebuffer, ctx: ViewContext): void {
   const ac = st(ctx, "climate.bedroom_ac");
   const ac2 = st(ctx, "climate.living_room_ac_mami");
   const person = st(ctx, "person.dragos");
-  text(fb, 0, 18, `usa: ${door ? (door.state === "on" ? "DESCHISA" : "inchisa") : "--"}`);
-  text(fb, 0, 27, `dormitor: ${pres ? (pres.state === "on" ? "cineva" : "gol") : "--"}`);
-  text(fb, 0, 36, `AC dorm: ${ac ? (ac.state === "off" ? "oprit" : `${ac.state} ${ac.attributes.temperature ?? ""}*`) : "--"}`);
-  text(fb, 0, 45, `AC living: ${ac2 ? (ac2.state === "off" ? "oprit" : `${ac2.state} ${ac2.attributes.temperature ?? ""}*`) : "--"}`);
-  text(fb, 0, 54, `Dragos: ${person ? (person.state === "home" ? "acasa" : "plecat") : "--"}`);
+  const acText = (c: HaState | undefined) => (c ? (c.state === "off" ? "oprit" : `${c.state} ${fmtC(celsius(c.attributes.temperature, c.attributes.temperature_unit))} (acum ${fmtC(celsius(c.attributes.current_temperature, c.attributes.temperature_unit))})`) : "--");
+  line(fb, 18, "usa:", door ? (door.state === "on" ? "DESCHISA" : "inchisa") : "--", ctx);
+  line(fb, 27, "dormitor:", pres ? (pres.state === "on" ? "cineva" : "gol") : "--", ctx);
+  line(fb, 36, "AC dorm:", acText(ac), ctx);
+  line(fb, 45, "AC living:", acText(ac2), ctx);
+  line(fb, 54, "Dragos:", person ? (person.state === "home" ? "acasa" : person.state === "not_home" ? "plecat" : person.state) : "--", ctx);
 }
 
 function viewAmbilight(fb: Framebuffer, ctx: ViewContext): void {
@@ -115,34 +149,37 @@ function viewAmbilight(fb: Framebuffer, ctx: ViewContext): void {
   const bar = st(ctx, "light.desk_light_bar");
   const strip = st(ctx, "light.led_argb");
   const hyper = st(ctx, "light.hyperhdr");
-  text(fb, 0, 18, `HyperHDR: ${hyper ? hyper.state : "--"}`);
-  text(fb, 0, 27, `bara birou: ${bar ? (bar.state === "on" ? `${Math.round(Number(bar.attributes.brightness ?? 0) / 2.55)}%` : "stinsa") : "--"}`);
-  text(fb, 0, 36, `banda MELK: ${strip ? (strip.state === "on" ? "on" : strip.state) : "--"}`);
+  line(fb, 18, "HyperHDR:", hyper ? hyper.state : "--", ctx);
+  line(fb, 27, "bara birou:", bar ? (bar.state === "on" ? `${Math.round(Number(bar.attributes.brightness ?? 0) / 2.55)}%` : "stinsa") : "--", ctx);
+  line(fb, 36, "banda MELK:", strip ? (strip.state === "on" ? "on" : strip.state) : "--", ctx);
   if (strip?.state === "on" && Array.isArray(strip.attributes.rgb_color)) {
     const [r, g, b] = strip.attributes.rgb_color as number[];
-    text(fb, 0, 45, `culoare ${r},${g},${b}`);
+    line(fb, 45, "culoare", `${r},${g},${b}`, ctx);
   }
-  text(fb, 0, 54, "lung=movie/off  dublu=pauza");
+  textScroll(fb, 0, 54, W, "BOOT: scurt=urmator  dublu=pauza  lung=movie on/off", ctx.now.getTime());
 }
 
-async function viewTodo(fb: Framebuffer, _ctx: ViewContext): Promise<void> {
+async function viewTodo(fb: Framebuffer, ctx: ViewContext): Promise<void> {
   band(fb, "Cumparaturi");
   try {
     const r = (await ha.callService("todo", "get_items", { entity_id: "todo.shopping_list", status: "needs_action" })) as unknown as Record<string, { items?: Array<{ summary: string }> }>;
     const items = r["todo.shopping_list"]?.items ?? [];
     if (!items.length) return void textCentered(fb, 34, "lista goala");
     let y = 18;
-    for (const it of items.slice(0, 5)) {
-      text(fb, 0, y, `- ${fit(it.summary, 118)}`);
+    const more = items.length > 5 ? `+${items.length - 5}` : "";
+    for (const [i, it] of items.slice(0, 5).entries()) {
+      text(fb, 0, y, "-");
+      const reserve = i === 4 && more ? textWidth(more) + 4 : 0;
+      textScroll(fb, 8, y, W - 8 - reserve, it.summary, ctx.now.getTime());
       y += 9;
     }
-    if (items.length > 5) textRight(fb, 125, 54, `+${items.length - 5}`);
+    if (more) textRight(fb, 125, 54, more);
   } catch {
     textCentered(fb, 34, "todo indisponibil");
   }
 }
 
-async function viewNotes(fb: Framebuffer, _ctx: ViewContext): Promise<void> {
+async function viewNotes(fb: Framebuffer, ctx: ViewContext): Promise<void> {
   // Notes = the last things the operator did in vmui (audit log), which
   // doubles as a "what did I change" reminder on the desk.
   band(fb, "Ultimele actiuni", "vmui");
@@ -152,7 +189,7 @@ async function viewNotes(fb: Framebuffer, _ctx: ViewContext): Promise<void> {
   for (const r of rows) {
     const t = r.createdAt ? hhmm(new Date(r.createdAt)) : "";
     text(fb, 0, y, t);
-    text(fb, 34, y, fit(`${r.action.replace(/^home\./, "")} ${(r.target ?? "").split(".").pop() ?? ""}`, 94));
+    textScroll(fb, 34, y, W - 34, `${r.action.replace(/^home\./, "")} ${(r.target ?? "").split(".").pop() ?? ""}`, ctx.now.getTime());
     y += 9;
   }
 }
@@ -163,11 +200,11 @@ function viewSystem(fb: Framebuffer, ctx: ViewContext): void {
   const unavailable = [...ctx.states.values()].filter((s) => s.state === "unavailable").length;
   const rssi = st(ctx, `sensor.${ctx.node.replace(/-/g, "_")}_wifi_signal`);
   const bat = st(ctx, "sensor.dragos_s_s25_ultra_battery_level");
-  text(fb, 0, 18, `HA entitati: ${ctx.states.size}  indisp: ${unavailable}`);
-  text(fb, 0, 27, `update-uri: ${upd}`);
-  text(fb, 0, 36, `wifi esp: ${rssi ? `${rssi.state} dBm` : "--"}`);
-  text(fb, 0, 45, `telefon: ${bat ? `${bat.state}%` : "--"}`);
-  text(fb, 0, 54, `mui.dragoscatalin.ro`);
+  line(fb, 18, "HA:", `${ctx.states.size} entitati, ${unavailable} indisponibile`, ctx);
+  line(fb, 27, "update-uri:", `${upd}`, ctx);
+  line(fb, 36, "wifi esp:", rssi ? `${rssi.state} dBm` : "--", ctx);
+  line(fb, 45, "telefon:", bat ? `${bat.state}%` : "--", ctx);
+  text(fb, 0, 54, "mui.dragoscatalin.ro");
 }
 
 export async function renderView(id: ViewId, ctx: ViewContext): Promise<Framebuffer> {
