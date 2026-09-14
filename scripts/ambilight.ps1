@@ -245,9 +245,8 @@ function Configure-HyperHdr {
     Set-HyperConfig -Instance $bar -Config @{
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19448; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 1 }
         leds      = @() + (New-RegionLayout top3)
-        # Cloud round-trip is ~0.4 s and the bridge caps at 2 Hz; smooth long
-        # so the 2 Hz samples are already settled colours, not flicker.
-        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
+        # LAN write is ~65 ms, bridge caps at 10 Hz; same feel as the case glow.
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 20
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
     }
     Enable-Grabber $bar

@@ -10,11 +10,15 @@ red/green/blue via tinytuya.Cloud.
   HyperHDR inst 3 "Desk bar (Tuya)"  udpraw :19448  1 LED = top region
       -> this bridge -> Tuya Cloud (EU)  colour_data at <= MAX_HZ
 
-Cloud, not LAN: the bar's local key is not on this machine and the cloud
-round-trip is ~0.4 s, which is fine for a lamp that lights a wall. Idle: when
-frames stop (movie off, grabber off) the bar is put back in "white" mode so
-the HA scenes' colour_temp_kelvin calls keep working; the ambient() gate
-turns it off on dark scenes exactly like the case LEDs.
+Transport: LAN first (tinytuya protocol 3.3, ~65 ms per write, no quota;
+needs TUYA_DESKBAR_IP / _VERSION / _LOCAL_KEY in .private/credentials.env,
+written by the one-off cloud lookup), Tuya Cloud as fallback (~0.4 s, 2 Hz
+cap). Idle: when frames stop (movie off, grabber off) the bar is put back in
+"white" mode so the HA scenes' colour_temp_kelvin calls keep working; the
+ambient() gate turns it off on dark scenes exactly like the case LEDs.
+
+Raw DP ids (protocol 3.3): 20 switch_led, 21 work_mode, 22 bright_value,
+23 temp_value, 24 colour_data as 12-hex hhhhssssvvvv (h 0-360, s/v 0-1000).
 
   python deskbar_bridge.py --test          # red / green / blue / off
   python deskbar_bridge.py --listen 19448
@@ -33,15 +37,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 DEVICE_ID = "bf965a6835d854af14xkxb"  # Desk Light Bar (Smart Life)
-MAX_HZ = 2.0  # Tuya free tier: keep well under the per-day quota
-MIN_DELTA = 12  # 0..255 per channel; smaller changes are not worth a cloud call
+CLOUD_HZ = 2.0  # Tuya free tier: keep well under the per-day quota
+LAN_HZ = 10.0  # 65 ms per write measured; 10 Hz leaves the socket idle half the time
+MIN_DELTA_CLOUD = 12  # 0..255 per channel; smaller changes are not worth a cloud call
+MIN_DELTA_LAN = 3
 IDLE_WHITE = {"temp_value": 374, "bright_value": 356}  # what HA left it at
+DP = {"switch_led": 20, "work_mode": 21, "bright_value": 22, "temp_value": 23, "colour_data": 24}
 
 
-def _credentials() -> tuple[str, str]:
-    key, sec = os.environ.get("TUYA_ACCESS_ID"), os.environ.get("TUYA_ACCESS_SECRET")
-    if key and sec:
-        return key, sec
+def _credentials() -> dict[str, str]:
     env = os.path.join(os.path.dirname(HERE), ".private", "credentials.env")
     vals: dict[str, str] = {}
     try:
@@ -52,30 +56,90 @@ def _credentials() -> tuple[str, str]:
                     vals[k.strip()] = v.strip()
     except OSError:
         pass
-    key, sec = vals.get("TUYA_ACCESS_ID"), vals.get("TUYA_ACCESS_SECRET")
-    if not key or not sec:
-        raise SystemExit("TUYA_ACCESS_ID / TUYA_ACCESS_SECRET missing (.private/credentials.env)")
-    return key, sec
+    for k in ("TUYA_ACCESS_ID", "TUYA_ACCESS_SECRET", "TUYA_DESKBAR_IP", "TUYA_DESKBAR_VERSION", "TUYA_DESKBAR_LOCAL_KEY"):
+        if os.environ.get(k):
+            vals[k] = os.environ[k]
+    if not (vals.get("TUYA_DESKBAR_LOCAL_KEY") or (vals.get("TUYA_ACCESS_ID") and vals.get("TUYA_ACCESS_SECRET"))):
+        raise SystemExit("Tuya credentials missing (.private/credentials.env)")
+    return vals
 
 
 class DeskBar:
     def __init__(self) -> None:
         import tinytuya  # noqa: PLC0415 -- optional dependency, only this bridge needs it
 
-        key, sec = _credentials()
-        self.cloud = tinytuya.Cloud(apiRegion="eu", apiKey=key, apiSecret=sec)
+        v = _credentials()
+        self.local = None
+        if v.get("TUYA_DESKBAR_LOCAL_KEY") and v.get("TUYA_DESKBAR_IP"):
+            self.local = tinytuya.BulbDevice(DEVICE_ID, v["TUYA_DESKBAR_IP"], v["TUYA_DESKBAR_LOCAL_KEY"])
+            self.local.set_version(float(v.get("TUYA_DESKBAR_VERSION") or 3.3))
+            self.local.set_socketPersistent(True)
+            self.local.set_socketTimeout(2)
+        self.cloud = (
+            tinytuya.Cloud(apiRegion="eu", apiKey=v["TUYA_ACCESS_ID"], apiSecret=v["TUYA_ACCESS_SECRET"])
+            if v.get("TUYA_ACCESS_ID") and v.get("TUYA_ACCESS_SECRET")
+            else None
+        )
+        self.lan_failures = 0
         self.music = False
         self.last: tuple[int, int, int] | None = None
         self.on = True
 
+    @property
+    def use_lan(self) -> bool:
+        return self.local is not None and self.lan_failures < 3
+
+    @property
+    def max_hz(self) -> float:
+        return LAN_HZ if self.use_lan else CLOUD_HZ
+
     def describe(self) -> None:
+        if self.local is not None:
+            st = self.local.status()
+            if isinstance(st, dict) and "dps" in st:
+                print(f"  Desk Light Bar: LAN {self.local.address} v{self.local.version} work_mode={st['dps'].get('21', '?')}")
+                self.music = st["dps"].get("21") == "music"
+                self.on = bool(st["dps"].get("20", True))
+                return
+            print(f"  Desk Light Bar: LAN status failed ({st}), falling back to cloud")
+            self.lan_failures = 3
+        if self.cloud is None:
+            raise RuntimeError("no LAN and no cloud credentials")
         st = self.cloud.getstatus(DEVICE_ID)
         if not isinstance(st, dict) or not st.get("success"):
             raise RuntimeError(f"Tuya getstatus failed: {st}")
         mode = next((x["value"] for x in st["result"] if x["code"] == "work_mode"), "?")
-        print(f"  Desk Light Bar: work_mode={mode}")
+        print(f"  Desk Light Bar: cloud work_mode={mode}")
 
     def _send(self, cmds: list[dict]) -> bool:
+        if self.use_lan:
+            dps = {}
+            for c in cmds:
+                val = c["value"]
+                if c["code"] == "colour_data":
+                    j = json.loads(val)
+                    val = "%04x%04x%04x" % (j["h"], j["s"], j["v"])
+                dps[str(DP[c["code"]])] = val
+            # Tuya 3.3 firmware holds ONE TCP session: any other client
+            # (HA polling, a diagnostic status()) evicts ours. Wait for the
+            # reply so a dead socket is seen here and reopened on the next
+            # frame instead of failing silently forever.
+            r = self.local.set_multiple_values(dps)
+            if not isinstance(r, dict) or "Error" in r or "dps" not in r:
+                self.lan_failures += 1
+                print(f"  lan: {r} ({self.lan_failures}/3)", flush=True)
+                try:
+                    self.local.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                if self.lan_failures >= 3 and self.cloud is not None:
+                    print("  lan: giving up, cloud fallback", flush=True)
+                    return self._send(cmds)
+                return False
+            self.lan_failures = 0
+            return True
+        if self.cloud is None:
+            return False
         r = self.cloud.sendcommand(DEVICE_ID, {"commands": cmds})
         ok = isinstance(r, dict) and bool(r.get("success"))
         if not ok:
@@ -90,7 +154,8 @@ class DeskBar:
                 self.on = False
                 self.last = rgb
             return
-        if self.last is not None and self.on and max(abs(a - c) for a, c in zip(rgb, self.last)) < MIN_DELTA:
+        min_delta = MIN_DELTA_LAN if self.use_lan else MIN_DELTA_CLOUD
+        if self.last is not None and self.on and max(abs(a - c) for a, c in zip(rgb, self.last)) < min_delta:
             return
         h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
         cmds: list[dict] = []
@@ -125,6 +190,11 @@ class DeskBar:
             self.release()
         except Exception:  # noqa: BLE001
             pass
+        if self.local is not None:
+            try:
+                self.local.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def run_test(bar: DeskBar) -> None:
@@ -142,8 +212,7 @@ def run_listen(bar: DeskBar, port: int) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("127.0.0.1", port))
     sock.settimeout(1.0)
-    print(f"  listening udp://127.0.0.1:{port} (1 region = 3 bytes/frame, <= {MAX_HZ:g} Hz to cloud)")
-    min_interval = 1 / MAX_HZ
+    print(f"  listening udp://127.0.0.1:{port} (1 region = 3 bytes/frame, <= {bar.max_hz:g} Hz via {'LAN' if bar.use_lan else 'cloud'})")
     next_at = 0.0
     last_rx = time.monotonic()
     released = True
@@ -163,7 +232,7 @@ def run_listen(bar: DeskBar, port: int) -> None:
         last_rx = time.monotonic()
         if last_rx < next_at:
             continue
-        next_at = last_rx + min_interval
+        next_at = last_rx + 1 / bar.max_hz
         rgb = tuple(ambient(bytes(data[:3]) * 3)[:3])  # ambient() works on 3 regions; feed one thrice
         bar.apply(rgb)  # type: ignore[arg-type]
         released = False
