@@ -76,6 +76,9 @@ export async function POST(req: NextRequest) {
   }
   if (p.light && s.lights.length && !quiet && !movie) {
     try {
+      // Snapshot "before" only when no alert is running (the script checks),
+      // and wait for it: the direct service form blocks until it completes.
+      await ha.callService("script", "copilot_snapshot", { lights: s.lights });
       await ha.callService("script", "turn_on", { entity_id: `script.${HA_SCRIPT[event]}`, variables: { lights: s.lights, color: hexToRgb(p.color) } });
       out.light = true;
     } catch (e) {

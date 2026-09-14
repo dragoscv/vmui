@@ -124,7 +124,36 @@ script:
   # `lights` = list of light entity ids, `color` = [r,g,b].
   # Every script snapshots the bulbs into scene.copilot_before and restores
   # it at the end, so a bulb that was warm-white 40 % comes back exactly so.
+  # The snapshot is taken by the CALLER (vmui /api/copilot/event) via
+  # script.copilot_snapshot BEFORE the alert script starts, and only when no
+  # alert is running: a snapshot taken mid-pulse captures the alert colour as
+  # the "original", and every later restore leaves the bulb stuck orange
+  # (seen 2026-09-14). Calling it from inside the alert cannot work: the
+  # alert script is already `on`, so the condition is always false.
   # ---------------------------------------------------------------------
+  copilot_snapshot:
+    alias: "Copilot: snapshot bulbs unless an alert is already showing"
+    mode: queued
+    fields:
+      lights: { description: light entity ids }
+    sequence:
+      - if:
+          - condition: state
+            entity_id: script.copilot_ask
+            state: "off"
+          - condition: state
+            entity_id: script.copilot_done
+            state: "off"
+          - condition: state
+            entity_id: script.copilot_blocked
+            state: "off"
+          - condition: state
+            entity_id: script.copilot_failed
+            state: "off"
+        then:
+          - action: scene.create
+            data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
+
   copilot_ask:
     alias: "Copilot: asteapta raspuns (puls agresiv)"
     icon: mdi:robot-confused
@@ -134,8 +163,6 @@ script:
         { description: light entity ids, example: '["light.ambience_light"]' }
       color: { default: [255, 90, 31] }
     sequence:
-      - action: scene.create
-        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
       # Fast double-pulse, repeated until script.copilot_clear stops us
       # (mode: restart + a `stop` in copilot_clear via script.turn_off).
       - repeat:
@@ -185,8 +212,6 @@ script:
     sequence:
       - action: script.turn_off
         target: { entity_id: script.copilot_ask }
-      - action: scene.create
-        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
       - action: light.turn_on
         target: { entity_id: "{{ lights }}" }
         data: { rgb_color: "{{ color }}", brightness_pct: 70, transition: 1.5 }
@@ -207,8 +232,6 @@ script:
       lights: { description: light entity ids }
       color: { default: [255, 45, 45] }
     sequence:
-      - action: scene.create
-        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
       - repeat:
           count: 3
           sequence:
@@ -234,8 +257,6 @@ script:
       lights: { description: light entity ids }
       color: { default: [255, 196, 0] }
     sequence:
-      - action: scene.create
-        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
       - repeat:
           count: 2
           sequence:
