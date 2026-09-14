@@ -47,7 +47,8 @@ def _creds() -> tuple[str, str]:
 
 
 def adb(*args: str, timeout: float = 15) -> str:
-    r = subprocess.run(["adb", "-s", SERIAL, *args], capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace")
+    # pythonw has no console; without CREATE_NO_WINDOW every adb call flashes a terminal window
+    r = subprocess.run(["adb", "-s", SERIAL, *args], capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace", creationflags=0x08000000)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip() or f"adb exit {r.returncode}")
     return r.stdout
