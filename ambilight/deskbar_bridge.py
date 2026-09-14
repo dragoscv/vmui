@@ -4,7 +4,12 @@ The bar (Tuya category `dd`, product "Smart Monitor Light Bar") has RGB LEDs
 that Home Assistant cannot drive: its `light.turn_on` with hs_color 500s on
 this device because HA's Tuya integration sends `control_data`, which the
 firmware rejects with "type is incorrect". The bar DOES accept `colour_data`
-(HSV, s/v 0..1000) while `work_mode` = "music" -- verified 2026-09-14 with
+(HSV, s/v 0..1000) while `work_mode` = "color" -- an enum value the cloud
+schema does not list (it says music|white) but the firmware accepts over LAN
+(verified 2026-09-15). "music" also takes colour_data but keeps the built-in
+microphone reactive, which made the bar pulse to room sound in idle. Cloud
+fallback still has to use "music": the cloud validates against its schema.
+First verified 2026-09-14 with
 red/green/blue via tinytuya.Cloud.
 
   HyperHDR inst 3 "Desk bar (Tuya)"  udpraw :19448  1 LED = top region
@@ -89,7 +94,7 @@ class DeskBar:
             else None
         )
         self.lan_failures = 0
-        self.music = False
+        self.colour_mode = False
         self.last: tuple[int, int, int] | None = None
         self.on = True
         self._last_h = 0.08  # warm amber until the first frame
@@ -109,7 +114,7 @@ class DeskBar:
             st = self.local.status()
             if isinstance(st, dict) and "dps" in st:
                 print(f"  Desk Light Bar: LAN {self.local.address} v{self.local.version} work_mode={st['dps'].get('21', '?')}")
-                self.music = st["dps"].get("21") == "music"
+                self.colour_mode = st["dps"].get("21") == "color"  # "music" must be re-sent as "color"
                 self.on = bool(st["dps"].get("20", True))
                 return
             print(f"  Desk Light Bar: LAN status failed ({st}), falling back to cloud")
@@ -196,16 +201,16 @@ class DeskBar:
                 self.cur = self.target
         h, s, v = self.cur
         step = {"h": int(h * 360), "s": int(s * 1000), "v": int(v * 1000)}
-        if step == getattr(self, "_sent", None) and self.on and self.music:
+        if step == getattr(self, "_sent", None) and self.on and self.colour_mode:
             return
         self._sent = step
         cmds: list[dict] = []
         if not self.on:
             cmds.append({"code": "switch_led", "value": True})
             self.on = True
-        if not self.music:
-            cmds.append({"code": "work_mode", "value": "music"})
-            self.music = True
+        if not self.colour_mode:
+            cmds.append({"code": "work_mode", "value": "color" if self.use_lan else "music"})
+            self.colour_mode = True
         cmds.append({"code": "colour_data", "value": json.dumps(step)})
         self._send(cmds)
 
@@ -217,7 +222,7 @@ class DeskBar:
 
     def release(self) -> None:
         """Back to plain white so HA's colour_temp scenes take effect again."""
-        if not self.music and self.on:
+        if not self.colour_mode and self.on:
             return
         self._send(
             [
@@ -227,7 +232,7 @@ class DeskBar:
                 {"code": "bright_value", "value": IDLE_WHITE["bright_value"]},
             ]
         )
-        self.music = False
+        self.colour_mode = False
         self.on = True
         self.last = None
 
