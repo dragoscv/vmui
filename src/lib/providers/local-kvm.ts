@@ -1059,7 +1059,7 @@ export class LocalKvmProvider implements CloudProvider {
         const proc = execFile(
           "wsl.exe",
           ["-d", this.creds.distro, "--", "bash", "-s"],
-          { timeout: 5000, maxBuffer: 64 * 1024 },
+          { timeout: 5000, maxBuffer: 64 * 1024, windowsHide: true },
           (err, stdout) => (err ? reject(err) : resolve(stdout)),
         );
         proc.stdin?.end(script);
