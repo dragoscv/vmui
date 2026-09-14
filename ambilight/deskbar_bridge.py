@@ -47,7 +47,8 @@ V_MIN = 25  # never fully off mid-session: switch_led toggles are what flashed
 # music mode), so the bridge does the easing: each 10 Hz tick moves the
 # emitted HSV this fraction of the way to the target. 0.18 @ 10 Hz ~ 0.5 s
 # to 90 %, which on top of HyperHDR's own smoothing reads as a glide.
-SLEW = 0.18
+SLEW = 0.12
+CHROMA_HUE = 0.10  # (max-min)/255 below which the hue is noise and is frozen
 IDLE_WHITE = {"temp_value": 374, "bright_value": 356}  # what HA left it at
 DP = {"switch_led": 20, "work_mode": 21, "bright_value": 22, "temp_value": 23, "colour_data": 24}
 
@@ -81,7 +82,7 @@ class DeskBar:
             self.local = tinytuya.BulbDevice(DEVICE_ID, v["TUYA_DESKBAR_IP"], v["TUYA_DESKBAR_LOCAL_KEY"])
             self.local.set_version(float(v.get("TUYA_DESKBAR_VERSION") or 3.3))
             self.local.set_socketPersistent(True)
-            self.local.set_socketTimeout(2)
+            self.local.set_socketTimeout(0.5)  # a dead session must not stall the 10 Hz loop for 2 s
         self.cloud = (
             tinytuya.Cloud(apiRegion="eu", apiKey=v["TUYA_ACCESS_ID"], apiSecret=v["TUYA_ACCESS_SECRET"])
             if v.get("TUYA_ACCESS_ID") and v.get("TUYA_ACCESS_SECRET")
@@ -159,13 +160,23 @@ class DeskBar:
     def set_target(self, rgb: tuple[int, int, int]) -> None:
         r, g, b = rgb
         h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
-        if max(rgb) < 8:
-            # Dark scene: dim to a floor, keep the last hue. Toggling the relay
-            # (switch_led) here was the "lightning" the user saw -- the
-            # firmware pops to full brightness on the way back on.
-            h, s, v = self._last_h, 1.0, V_MIN / 1000
-        else:
+        # Hue is meaningless when the region is near-black: (11,10,3) and
+        # (11,19,17) are both "dark" yet 120 deg apart, and a film's dark
+        # scene wanders between them every frame. Traced 2026-09-15: the
+        # green/blue "lightning" on the bar was exactly this -- v ~ 27/1000
+        # with the hue spinning 165 -> 45 deg in one second. Only let the
+        # hue move when there is real chroma; below that hold the last hue
+        # and fade saturation out so the bar just dims to warm-neutral.
+        chroma = (max(rgb) - min(rgb)) / 255
+        if chroma >= CHROMA_HUE:
             self._last_h = h
+        h = self._last_h
+        if max(rgb) < 8:
+            # Toggling the relay (switch_led) here also flashed -- the firmware
+            # pops to full brightness on the way back on. Dim, never off.
+            s, v = 0.3, V_MIN / 1000
+        else:
+            s = s * min(1.0, chroma / CHROMA_HUE) if chroma < CHROMA_HUE else s
             v = max(V_MIN / 1000, min(v, 1.0) * V_MAX / 1000)
         self.target = (h, s, v)
         self.last = rgb
