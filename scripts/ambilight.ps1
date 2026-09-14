@@ -45,6 +45,13 @@
                    honoured -- HybridRgbInterpolator is a spring that ignores
                    time_ms entirely (stiffness/damping only), which is why the
                    PC glow used to snap on every cut.
+    idleStripHex / idleGlowHex
+                   colour each output shows when NOTHING else is driving it
+                   (movie mode off => grabber disabled). HyperHDR's
+                   backgroundEffect, so it needs no extra process and never
+                   fights the grabber: the moment a higher-priority source
+                   appears it yields. '#000000' = off. Room lights are not
+                   given an idle colour; movie_mode_off sets them warm via HA.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Status')]
 param(
@@ -68,7 +75,7 @@ $env:HA_URL = $null
 . (Join-Path $Amb 'hyperhdr-layout.ps1')
 
 $SettingsPath = Join-Path $Amb 'settings.json'
-$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500 }
+$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; idleStripHex = '#000000'; idleGlowHex = '#000000' }
 function Get-Settings {
     $s = [ordered]@{} + $Defaults
     if (Test-Path $SettingsPath) { (Get-Content $SettingsPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } }
@@ -85,7 +92,10 @@ $OpenRgbExe = "$env:ProgramFiles\OpenRGB\OpenRGB.exe"
 $Python = Join-Path (Split-Path (Get-Command python).Source) 'pythonw.exe'
 $Tasks = @(
     @{ Name = 'vmui-ambilight-hyperhdr'; Exe = $HyperExe;   Args = '--service'; Delay = 5 },
-    @{ Name = 'vmui-ambilight-openrgb';  Exe = $OpenRgbExe; Args = '--server --startminimized --profile Dragos'; Delay = 10 },
+    # Elevated: OpenRGB 1.0 reaches the DRAM sticks over SMBus through the
+    # PawnIO driver, which refuses an unelevated caller ("Permission Denied,
+    # PawnIO initialization aborted") and the RAM silently never appears.
+    @{ Name = 'vmui-ambilight-openrgb';  Exe = $OpenRgbExe; Args = '--server --startminimized --profile Dragos'; Delay = 10; Elevated = $true },
     @{ Name = 'vmui-ambilight-dxlight';  Exe = $Python;     Args = "`"$Amb\dxlight_bridge.py`" --listen 19446"; Delay = 20 },
     @{ Name = 'vmui-ambilight-pcglow';   Exe = $Python;     Args = "`"$Amb\openrgb_bridge.py`" --listen 19447"; Delay = 25 },
     @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 },
@@ -96,8 +106,39 @@ function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
 function Write-Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
 function Write-Step($m) { Write-Host "  $m" -ForegroundColor Cyan }
 
+$OrgbEffectProfiles = "$env:APPDATA\OpenRGB\plugins\settings\effect-profiles"
+function Get-OrgbAutostartEffects {
+    <# Effects-plugin effects armed to start with OpenRGB. Each one is a second
+       writer on the same LEDs at 60 fps: the bridge sets a colour, the effect
+       overwrites it a frame later, and the case looks like lightning. #>
+    if (-not (Test-Path $OrgbEffectProfiles)) { return @() }
+    foreach ($f in Get-ChildItem $OrgbEffectProfiles -File | Where-Object Name -notmatch '\.bak') {
+        $p = Get-Content $f.FullName -Raw | ConvertFrom-Json -AsHashtable
+        foreach ($e in @($p['Effects'])) { if ($e['AutoStart']) { [pscustomobject]@{ Profile = $f.Name; Effect = ($e['EffectClassName'] ?? $e['EffectName']) } } }
+    }
+}
+function Disable-OrgbAutostartEffects {
+    $armed = @(Get-OrgbAutostartEffects)
+    if (-not $armed) { return }
+    foreach ($f in Get-ChildItem $OrgbEffectProfiles -File | Where-Object Name -notmatch '\.bak') {
+        $p = Get-Content $f.FullName -Raw | ConvertFrom-Json -AsHashtable
+        $changed = $false
+        foreach ($e in @($p['Effects'])) { if ($e['AutoStart']) { $e['AutoStart'] = $false; $changed = $true } }
+        if ($changed) { ($p | ConvertTo-Json -Depth 20) | Set-Content $f.FullName -Encoding utf8 }
+    }
+    Write-Ok "OpenRGB Effects autostart disabled: $(($armed | ForEach-Object { "$($_.Profile)/$($_.Effect)" }) -join ', ')"
+    $orgb = Get-Process OpenRGB -ErrorAction SilentlyContinue
+    if ($orgb) { $orgb | Stop-Process -Force; Start-Sleep 2; Start-ScheduledTask -TaskName 'vmui-ambilight-openrgb' -ErrorAction SilentlyContinue; Start-Sleep 6 }
+}
+
 function New-Smoothing([int]$TimeMs, [int]$Hz) {
     @{ enable = $true; type = 'ExponentialInterpolator'; time_ms = [Math]::Max(25, $TimeMs); updateFrequency = $Hz; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+}
+
+function New-Background([string]$Hex) {
+    $h = $Hex.TrimStart('#')
+    $rgb = @([Convert]::ToInt32($h.Substring(0, 2), 16), [Convert]::ToInt32($h.Substring(2, 2), 16), [Convert]::ToInt32($h.Substring(4, 2), 16))
+    @{ enable = (($rgb | Measure-Object -Sum).Sum -gt 0); type = 'color'; color = $rgb; effect = 'Rainbow swirl fast' }
 }
 
 function Ensure-Instance([string]$Name) {
@@ -123,6 +164,7 @@ function Enable-Grabber([int]$Instance) {
 }
 
 function Configure-HyperHdr {
+    Disable-OrgbAutostartEffects
     $SystemGrabber = @{
         device = 'auto'; hardware = $true; fps = [int]$Settings.grabberFps; videoMode = 512
         # Windows HDR capture returns scRGB floats; without tone-mapping
@@ -147,6 +189,7 @@ function Configure-HyperHdr {
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
         leds          = New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08
         smoothing     = New-Smoothing -TimeMs ([int]$Settings.stripSmoothMs) -Hz 60
+        backgroundEffect = New-Background $Settings.idleStripHex
         soundEffect   = @{ device = 'Voicemeeter Out B1 (VB-Audio Vo'; enable = $true; enable_smoothing = $true }
         mqtt          = @{ enable = $true; host = ($env:HA_URL -replace '^https?://', ''); port = 1883; username = $env:MQTT_HYPERHDR_USER; password = $env:MQTT_HYPERHDR_PASS; is_ssl = $false; ignore_ssl_errors = $true; custom_topic = 'HyperHDR'; disableApiAccess = $false; maxRetry = 120 }
     }
@@ -161,6 +204,7 @@ function Configure-HyperHdr {
         # or player chrome most of the time and the case only pulsed.
         leds      = @() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3)
         smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 25
+        backgroundEffect = New-Background $Settings.idleGlowHex
     }
     Enable-Grabber $pc
 
@@ -208,17 +252,25 @@ function Configure-HyperHdr {
 }
 
 function Install-Tasks {
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole('Administrators')
     foreach ($t in $Tasks) {
         if (-not (Test-Path $t.Exe)) { throw "$($t.Exe) not found" }
+        if ($t.Elevated -and -not $isAdmin) {
+            $cur = Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue
+            if ($cur.Principal.RunLevel -eq 'Highest') { Write-Ok "task $($t.Name) (elevated, kept)"; continue }
+            Write-Warn "task $($t.Name) needs RunLevel Highest; run once from an ADMIN shell:  pwsh -File `"$PSCommandPath`" -Install"
+            continue
+        }
         $action = New-ScheduledTaskAction -Execute $t.Exe -Argument $t.Args -WorkingDirectory $Amb
         $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
         $trigger.Delay = "PT$($t.Delay)S"
         $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
             -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew -Hidden
         Unregister-ScheduledTask -TaskName $t.Name -Confirm:$false -ErrorAction SilentlyContinue
-        Register-ScheduledTask -TaskName $t.Name -Action $action -Trigger $trigger -Settings $settings `
-            -Description 'vmui ambilight stack (scripts/ambilight.ps1)' | Out-Null
-        Write-Ok "task $($t.Name)"
+        $reg = @{ TaskName = $t.Name; Action = $action; Trigger = $trigger; Settings = $settings; Description = 'vmui ambilight stack (scripts/ambilight.ps1)' }
+        if ($t.Elevated) { $reg.Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest }
+        Register-ScheduledTask @reg | Out-Null
+        Write-Ok "task $($t.Name)$(if ($t.Elevated) { ' (elevated)' })"
     }
     # DX Light and HyperHDR both open the HID device; the last writer wins
     # and the strip flickers. HyperHDR replaces it.
@@ -302,6 +354,16 @@ function Show-Status {
     }
     $dx = Get-Process 'DX Light' -ErrorAction SilentlyContinue
     if ($dx) { Write-Warn 'DX Light app is running and will fight HyperHDR for the strip' }
+    $fx = @(Get-OrgbAutostartEffects)
+    if ($fx) { Write-Warn "OpenRGB Effects autostart armed ($(($fx | ForEach-Object Effect) -join ', ')) -- case LEDs will flash; run -Configure" }
+    # OpenRGB 1.0's installer registers an "OpenRGB SDK Server" Windows service
+    # (LocalSystem, session 0). It grabs the same AORUS/GPU controllers as the
+    # vmui-ambilight-openrgb task instance and both write the LEDs -> flicker.
+    # Seen 2026-09-14 right after a winget upgrade.
+    $svc = Get-Service OpenRGB -ErrorAction SilentlyContinue
+    if ($svc -and ($svc.Status -eq 'Running' -or $svc.StartType -ne 'Disabled')) {
+        Write-Warn "OpenRGB Windows service is $($svc.Status)/$($svc.StartType) -- a second controller instance; from an ADMIN shell: Stop-Service OpenRGB; Set-Service OpenRGB -StartupType Disabled"
+    }
     Write-Host ''
 }
 
