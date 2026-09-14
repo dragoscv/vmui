@@ -331,9 +331,10 @@ function Install-HaScenes {
     $HostSsh = "root@$($env:HA_URL -replace '^https?://','')"
     Get-Content -Raw (Join-Path $Amb 'ha-scenes.yaml') | ssh -o BatchMode=yes -p 22222 $HostSsh 'C=/mnt/data/supervisor/homeassistant; mkdir -p $C/packages && cat > $C/packages/ambilight.yaml && (grep -q "packages:" $C/configuration.yaml || printf "\nhomeassistant:\n  packages: !include_dir_named packages\n" >> $C/configuration.yaml)'
     . (Join-Path $PSScriptRoot 'lib\ha-ws.ps1')
-    Invoke-HaRest -Path '/api/services/script/reload' -Method POST -Body @{} | Out-Null
-    Invoke-HaRest -Path '/api/services/automation/reload' -Method POST -Body @{} | Out-Null
-    Write-Ok 'ha-scenes.yaml installed as package + scripts/automations reloaded'
+    # reload_all covers script/automation/template/input_* -- the package also
+    # defines sensors and helpers, which script.reload alone never picks up.
+    Invoke-HaRest -Path '/api/services/homeassistant/reload_all' -Method POST -Body @{} | Out-Null
+    Write-Ok 'ha-scenes.yaml installed as package + reload_all'
 }
 
 function Set-Mode([string]$m) {

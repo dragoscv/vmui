@@ -12,6 +12,18 @@
 # effects we start here 40, notify flash 10.
 
 script:
+  # ---------------------------------------------------------------------
+  # Daylight: the LED idle colours (DX Light red, case red) only make sense
+  # in a dark room. Source of truth is binary_sensor.room_is_bright below;
+  # the UDP bridges (ambilight/dxlight_bridge.py IdleGate) poll it every
+  # minute and swap the idle frame for black while it is on. Movie mode is
+  # NOT gated: the strips follow the picture whenever a source is on.
+  #
+  # Preference order: A51 light sensor (HA Companion app on the desk phone,
+  # Settings -> Companion app -> Manage sensors -> Light sensor ON) when it
+  # has reported in the last 30 min, else the sun. Nest Hub has a light
+  # sensor but Google exposes it in no API, so it cannot be used.
+  # ---------------------------------------------------------------------
   ambilight_all:
     alias: "Ambilight: send JSON-API to all instances"
     mode: queued
@@ -370,3 +382,70 @@ automation:
         data:
           color: "{{ color }}"
           duration_ms: "{{ duration }}"
+
+# ---------------------------------------------------------------------------
+# Daylight sensing (see the note above `script:`).
+# ---------------------------------------------------------------------------
+input_number:
+  room_bright_lux:
+    name: "Room is bright above (lux)"
+    min: 5
+    max: 500
+    step: 5
+    initial: 40
+    unit_of_measurement: lx
+    icon: mdi:brightness-6
+  room_dark_lux:
+    name: "Room is dark below (lux)"
+    min: 1
+    max: 400
+    step: 1
+    initial: 15
+    unit_of_measurement: lx
+    icon: mdi:brightness-4
+
+input_boolean:
+  ambilight_daylight_gate:
+    name: "Ambilight: turn idle LEDs off in daylight"
+    icon: mdi:weather-sunny
+    initial: true
+
+template:
+  - binary_sensor:
+      - name: "Room is bright"
+        unique_id: ambilight_room_is_bright
+        device_class: light
+        icon: mdi:white-balance-sunny
+        # Hysteresis so a passing cloud does not flap the LEDs: switch ON above
+        # room_bright_lux, OFF below room_dark_lux, hold in between. Phone lux
+        # wins when it is fresh; otherwise sun elevation (> 3 deg = day, with
+        # the same hold band down to -3 deg).
+        state: >-
+          {% set lux = states('sensor.a51_light') %}
+          {% set fresh = states.sensor.a51_light is not none
+             and (now() - states.sensor.a51_light.last_updated).total_seconds() < 1800
+             and is_number(lux) %}
+          {% set was = is_state('binary_sensor.room_is_bright', 'on') %}
+          {% if fresh %}
+            {% set hi = states('input_number.room_bright_lux') | float(40) %}
+            {% set lo = states('input_number.room_dark_lux') | float(15) %}
+            {{ (lux | float) > hi or (was and (lux | float) >= lo) }}
+          {% else %}
+            {% set el = state_attr('sun.sun', 'elevation') | float(-90) %}
+            {{ el > 3 or (was and el >= -3) }}
+          {% endif %}
+        attributes:
+          source: >-
+            {% set s = states.sensor.a51_light %}
+            {{ 'a51' if s is not none and (now() - s.last_updated).total_seconds() < 1800 and is_number(s.state) else 'sun' }}
+          lux: "{{ states('sensor.a51_light') }}"
+          sun_elevation: "{{ state_attr('sun.sun', 'elevation') }}"
+  - binary_sensor:
+      - name: "Ambilight idle allowed"
+        unique_id: ambilight_idle_allowed
+        icon: mdi:led-strip-variant
+        # What the bridges actually read: idle colours are allowed unless the
+        # gate is enabled AND the room is bright.
+        state: >-
+          {{ not (is_state('input_boolean.ambilight_daylight_gate', 'on')
+                  and is_state('binary_sensor.room_is_bright', 'on')) }}

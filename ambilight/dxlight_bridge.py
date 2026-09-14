@@ -62,6 +62,58 @@ def is_black(data: bytes) -> bool:
     return not any(data)
 
 
+class DaylightGate:
+    """Polls HA `binary_sensor.ambilight_idle_allowed` (ha-scenes.yaml).
+
+    off  -> room is bright (A51 lux or sun) and the user wants idle LEDs off
+    on / unreachable -> idle colours as configured. HA down must not make
+    the rig go dark, so failures count as allowed.
+    """
+
+    ENTITY = "binary_sensor.ambilight_idle_allowed"
+
+    def __init__(self, every_s: float = 60.0) -> None:
+        self.every_s = every_s
+        self.allowed = True
+        self._next = 0.0
+        self._url, self._tok = self._creds()
+
+    @staticmethod
+    def _creds() -> tuple[str, str]:
+        env = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".private", "credentials.env")
+        vals: dict[str, str] = {}
+        try:
+            with open(env, encoding="utf-8") as fh:
+                for line in fh:
+                    if "=" in line and not line.lstrip().startswith("#"):
+                        k, v = line.split("=", 1)
+                        vals[k.strip()] = v.strip()
+        except OSError:
+            pass
+        return os.environ.get("HA_URL") or vals.get("HA_URL", ""), os.environ.get("HA_TOKEN") or vals.get("HA_TOKEN", "")
+
+    def poll(self) -> bool:
+        """Returns True when the value CHANGED."""
+        now = time.monotonic()
+        if now < self._next or not self._url or not self._tok:
+            return False
+        self._next = now + self.every_s
+        import urllib.request  # noqa: PLC0415
+
+        try:
+            req = urllib.request.Request(f"{self._url}/api/states/{self.ENTITY}", headers={"Authorization": f"Bearer {self._tok}"})
+            with urllib.request.urlopen(req, timeout=4) as r:
+                state = json.load(r).get("state")
+        except Exception:  # noqa: BLE001 -- HA unreachable: keep current decision
+            return False
+        if state not in ("on", "off"):
+            return False
+        new = state == "on"
+        changed = new != self.allowed
+        self.allowed = new
+        return changed
+
+
 class IdleGate:
     """Shared idle policy for the UDP bridges.
 
@@ -75,14 +127,28 @@ class IdleGate:
     """
 
     def __init__(self, idle_frame: bytes, idle_after: float, steps: int = 40) -> None:
+        self.configured_idle = idle_frame
         self.idle_frame = idle_frame
         self.idle_after = idle_after
         self.steps = steps
         self.last: bytes | None = None
         self.last_rx = time.monotonic()
         self.idle = False
+        self.daylight = DaylightGate()
+
+    def _refresh_daylight(self, apply) -> None:
+        if not self.daylight.poll():
+            return
+        self.idle_frame = self.configured_idle if self.daylight.allowed else bytes(len(self.configured_idle))
+        print(f"  daylight: idle {'allowed' if self.daylight.allowed else 'OFF (room is bright)'}", flush=True)
+        if self.idle and self.last != self.idle_frame:
+            for f in fade_frames(self.last or bytes(len(self.idle_frame)), self.idle_frame, self.steps):
+                apply(f)
+                time.sleep(0.05)
+            self.last = self.idle_frame
 
     def on_timeout(self, apply) -> None:
+        self._refresh_daylight(apply)
         if not self.idle and time.monotonic() - self.last_rx >= self.idle_after and self.last != self.idle_frame:
             for f in fade_frames(self.last or bytes(len(self.idle_frame)), self.idle_frame, self.steps):
                 apply(f)
