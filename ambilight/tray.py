@@ -34,7 +34,8 @@ VMUI = "http://127.0.0.1:3737"
 PUBLIC = "https://mui.dragoscatalin.ro/home"
 HYPER_UI = "http://127.0.0.1:8090"
 
-TASKS = ["vmui-ambilight-hyperhdr", "vmui-ambilight-openrgb", "vmui-ambilight-dxlight", "vmui-ambilight-pcglow", "vmui-service", "vmui-turzx"]
+TASKS = ["vmui-ambilight-hyperhdr", "vmui-ambilight-openrgb", "vmui-ambilight-bridges", "vmui-service", "vmui-turzx"]
+AMBILIGHT = [t for t in TASKS if t.startswith("vmui-ambilight-")]
 
 
 def log(msg: str) -> None:
@@ -181,10 +182,10 @@ class Tray:
         hyper_all([{"command": "clear", "priority": 40}])
 
     def restart_stack(self, _icon, _item):
-        for t in TASKS[:4]:
+        for t in AMBILIGHT:
             subprocess.run(["taskkill", "/f", "/im", {"vmui-ambilight-hyperhdr": "hyperhdr.exe", "vmui-ambilight-openrgb": "OpenRGB.exe"}.get(t, "__none__")],
                            capture_output=True, creationflags=0x08000000)
-        for t in TASKS[:4]:
+        for t in AMBILIGHT:
             start_task(t)
             time.sleep(2)
         self.refresh()
@@ -228,7 +229,7 @@ class Tray:
             self.grabber = comps.get("SYSTEMGRABBER")
             prio = next((p for p in info.get("priorities", []) if p.get("visible")), None)
             src = (prio or {}).get("componentId", "idle")
-            missing = [t for t in TASKS[:4] if not task_running(t)]
+            missing = [t for t in AMBILIGHT if not task_running(t)]
             if missing or not vm:
                 self.state = "warn"
                 self.detail = ("vmui down · " if not vm else "") + (", ".join(m.replace("vmui-ambilight-", "") for m in missing) + " stopped" if missing else "")

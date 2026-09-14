@@ -50,14 +50,24 @@ $ErrorActionPreference = "Stop"
 if ($Register) {
   $pwshExe = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
   if (-not $pwshExe) { $pwshExe = (Get-Command powershell).Source }
-  $action = New-ScheduledTaskAction -Execute $pwshExe -Argument ("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"{0}`" -MaxAgeDays {1} -MaxEntries {2} -IdleHours {3}" -f $PSCommandPath, $MaxAgeDays, $MaxEntries, $IdleHours)
+  # wscript + hidden-run.vbs: under an Interactive token a console exe flashes
+  # a window for a few hundred ms on every run (-WindowStyle Hidden and the
+  # task's Hidden flag do not prevent it). S4U would avoid the console but
+  # registering an S4U task needs elevation on this host.
+  $vbs = Join-Path $PSScriptRoot "hidden-run.vbs"
+  $inner = ("`"{0}`" -NoProfile -ExecutionPolicy Bypass -File `"{1}`" -MaxAgeDays {2} -MaxEntries {3} -IdleHours {4}" -f $pwshExe, $PSCommandPath, $MaxAgeDays, $MaxEntries, $IdleHours)
+  $action = if (Test-Path $vbs) {
+    New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$vbs`" $inner"
+  } else {
+    New-ScheduledTaskAction -Execute $pwshExe -Argument ($inner -replace '^"[^"]+"\s*', '')
+  }
   $logon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
   $logon.Delay = "PT90S"
   $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes $RepeatMinutes)
-  $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -StartWhenAvailable
-  $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U
+  $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -StartWhenAvailable -Hidden
+  $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
   Register-ScheduledTask -TaskName "VmuiPruneChatStorage" -Action $action -Trigger @($logon, $repeat) -Settings $settings -Principal $principal -Force | Out-Null
-  Write-Host "Registered task VmuiPruneChatStorage (logon +90s, every $RepeatMinutes min): $pwshExe -File $PSCommandPath"
+  Write-Host "Registered task VmuiPruneChatStorage (logon +90s, every $RepeatMinutes min, hidden via wscript): $pwshExe -File $PSCommandPath"
   return
 }
 

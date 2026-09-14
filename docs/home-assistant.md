@@ -433,7 +433,7 @@ the host. Credentials are in `.private/credentials.env` (`HA_SAMBA_PASS`).
 - `scripts/scan-smart-devices.ps1` — ARP + mDNS + SSDP + Bluetooth inventory
 - `scripts/zigbee-bridge.ps1` — USB coordinator over TCP
 - `scripts/ambilight.ps1` — HyperHDR instances, logon tasks, HA scenes, modes
-- `ambilight/` — bridges (`dxlight_bridge.py`, `openrgb_bridge.py`), layout
+- `ambilight/` — bridges (`bridges.py` hosts `dxlight_bridge.py` + `openrgb_bridge.py` in one process), layout
   helper, `ha-scenes.yaml` package, WLED upgrade notes
 - `scripts/vmui-service.ps1` + `vmui-service-run.mjs` — production vmui task
 - `scripts/publish-vmui.ps1` — DNS + certificate + Caddy for mui.dragoscatalin.ro

@@ -96,8 +96,9 @@ $Tasks = @(
     # PawnIO driver, which refuses an unelevated caller ("Permission Denied,
     # PawnIO initialization aborted") and the RAM silently never appears.
     @{ Name = 'vmui-ambilight-openrgb';  Exe = $OpenRgbExe; Args = '--server --startminimized --profile Dragos'; Delay = 10; Elevated = $true },
-    @{ Name = 'vmui-ambilight-dxlight';  Exe = $Python;     Args = "`"$Amb\dxlight_bridge.py`" --listen 19446"; Delay = 20 },
-    @{ Name = 'vmui-ambilight-pcglow';   Exe = $Python;     Args = "`"$Amb\openrgb_bridge.py`" --listen 19447"; Delay = 25 },
+    # One process hosts both udpraw bridges (19446 DX Light, 19447 OpenRGB)
+    # and restarts whichever dies; replaced the separate dxlight/pcglow tasks.
+    @{ Name = 'vmui-ambilight-bridges';  Exe = $Python;     Args = "`"$Amb\bridges.py`""; Delay = 20 },
     @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 },
     @{ Name = 'vmui-turzx';              Exe = $Python;     Args = "`"$Root\turzx\turzx.py`""; Delay = 35 }
 )
@@ -266,11 +267,29 @@ function Install-Tasks {
         $trigger.Delay = "PT$($t.Delay)S"
         $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
             -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew -Hidden
-        Unregister-ScheduledTask -TaskName $t.Name -Confirm:$false -ErrorAction SilentlyContinue
-        $reg = @{ TaskName = $t.Name; Action = $action; Trigger = $trigger; Settings = $settings; Description = 'vmui ambilight stack (scripts/ambilight.ps1)' }
+        # -Force overwrites in place. Unregister+Register fails on a task that
+        # was registered from an elevated shell (Unregister: Access denied,
+        # then Register: file already exists) and left the loop half done.
+        $reg = @{ TaskName = $t.Name; Action = $action; Trigger = $trigger; Settings = $settings; Description = 'vmui ambilight stack (scripts/ambilight.ps1)'; Force = $true }
         if ($t.Elevated) { $reg.Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest }
-        Register-ScheduledTask @reg | Out-Null
-        Write-Ok "task $($t.Name)$(if ($t.Elevated) { ' (elevated)' })"
+        try {
+            Register-ScheduledTask @reg -ErrorAction Stop | Out-Null
+            Write-Ok "task $($t.Name)$(if ($t.Elevated) { ' (elevated)' })"
+        }
+        catch {
+            $cur = Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue
+            if ($cur -and ($cur.Actions[0].Arguments -eq $t.Args)) { Write-Ok "task $($t.Name) (unchanged, kept)" }
+            else { Write-Warn "task $($t.Name): $($_.Exception.Message) -- re-run from an ADMIN shell" }
+        }
+    }
+    # Tasks this script no longer defines (consolidated into bridges.py).
+    foreach ($old in 'vmui-ambilight-dxlight', 'vmui-ambilight-pcglow') {
+        if (Get-ScheduledTask -TaskName $old -ErrorAction SilentlyContinue) {
+            Stop-ScheduledTask -TaskName $old -ErrorAction SilentlyContinue
+            Unregister-ScheduledTask -TaskName $old -Confirm:$false -ErrorAction SilentlyContinue
+            Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'dxlight_bridge\.py|openrgb_bridge\.py' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            Write-Ok "task $old removed (replaced by vmui-ambilight-bridges)"
+        }
     }
     # DX Light and HyperHDR both open the HID device; the last writer wins
     # and the strip flickers. HyperHDR replaces it.
@@ -290,7 +309,7 @@ function Install-Tasks {
 
 function Uninstall-Tasks {
     foreach ($t in $Tasks) { Unregister-ScheduledTask -TaskName $t.Name -Confirm:$false -ErrorAction SilentlyContinue }
-    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'dxlight_bridge|openrgb_bridge' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+    Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'dxlight_bridge|openrgb_bridge|ambilight\\bridges\.py' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
     Write-Ok 'tasks removed; HyperHDR/OpenRGB left installed'
 }
 
@@ -346,10 +365,11 @@ function Show-Status {
     }
     catch { Write-Warn "HyperHDR not reachable: $_" }
     # Frames actually reaching the strip: the bridge prints fps every 600 frames.
-    $blog = Join-Path $Root '.copilot-tmp\service-logs\dxlight-bridge.log'
+    $blog = Join-Path $Root '.copilot-tmp\service-logs\bridges.log'
     if (Test-Path $blog) {
         $age = [int]((Get-Date) - (Get-Item $blog).LastWriteTime).TotalSeconds
-        $last = (Get-Content $blog -Tail 1).Trim()
+        # Both bridges share the log; the DX Light one prints the fps lines.
+        $last = ((Get-Content $blog -Tail 40 | Where-Object { $_ -match 'fps' } | Select-Object -Last 1) ?? (Get-Content $blog -Tail 1)).Trim()
         Write-Host ("  frames:  {0} ({1}s ago)" -f $last, $age) -ForegroundColor $(if ($age -lt 60 -and $last -match 'fps') { 'Green' } else { 'Yellow' })
     }
     $dx = Get-Process 'DX Light' -ErrorAction SilentlyContinue
