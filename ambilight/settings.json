@@ -1,16 +1,16 @@
 {
-  "roomSmoothMs": 2500,
-  "glowSmoothMs": 700,
-  "idleGlowHex": "#500000",
-  "gamma": 1.5,
-  "roomBrightness": 60,
+  "grabberFps": 60,
   "stripSmoothMs": 150,
-  "idleStripHex": "#a00000",
+  "idleGlowHex": "#500000",
   "hdrToneMapping": true,
-  "saturation": 1.0,
-  "idleAfterSec": 20,
+  "luminance": 2.0,
   "wallStrength": 0.5,
-  "luminance": 1.0,
+  "roomBrightness": 60,
+  "glowSmoothMs": 700,
+  "gamma": 1.0,
+  "idleAfterSec": 20,
+  "roomSmoothMs": 2500,
   "wallHex": "#439ebf",
-  "grabberFps": 60
+  "idleStripHex": "#a00000",
+  "saturation": 1.0
 }
