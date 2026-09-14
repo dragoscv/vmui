@@ -31,13 +31,33 @@ script:
             {% endfor %}
             {{ ns.out | to_json }}
 
+  ambilight_room:
+    alias: "Ambilight: send JSON-API to case + room only (not the monitor strip)"
+    mode: queued
+    fields:
+      commands:
+        description: JSON list of HyperHDR commands, applied to instances 1 and 2
+    sequence:
+      - action: mqtt.publish
+        data:
+          topic: HyperHDR/JsonAPI
+          payload: >-
+            {% set cmds = (commands | from_json) if commands is string else (commands | list) %}
+            {% set ns = namespace(out=[]) %}
+            {% for i in [1, 2] %}
+              {% set ns.out = ns.out + [{"command": "instance", "subcommand": "switchTo", "instance": i}] + cmds %}
+            {% endfor %}
+            {{ ns.out | to_json }}
+
   movie_mode_on:
     alias: "Movie mode ON"
     icon: mdi:movie-open
     sequence:
       - action: light.turn_off
         target: { entity_id: light.hyperhdr }
-      - action: script.ambilight_all
+      # Instance 0 (the strip behind the Odyssey) always follows the screen;
+      # movie mode only decides whether the case and the room join in.
+      - action: script.ambilight_room
         data:
           commands:
             - { command: clear, priority: 40 }
@@ -52,7 +72,7 @@ script:
     alias: "Movie mode OFF (warm room)"
     icon: mdi:lightbulb-group
     sequence:
-      - action: script.ambilight_all
+      - action: script.ambilight_room
         data:
           commands:
             - { command: clear, priority: 40 }

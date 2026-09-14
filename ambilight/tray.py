@@ -93,8 +93,8 @@ def hyper(commands: list[dict], instance: int = 0, timeout: float = 4.0) -> list
         ws.close()
 
 
-def hyper_all(commands: list[dict]) -> None:
-    for i in (0, 1, 2):
+def hyper_all(commands: list[dict], instances: tuple[int, ...] = (0, 1, 2)) -> None:
+    for i in instances:
         try:
             hyper(commands, i)
         except Exception as e:  # one dead instance must not block the others
@@ -174,7 +174,9 @@ class Tray:
 
     def toggle_grabber(self, _icon, _item):
         new = not bool(self.grabber)
-        hyper_all([{"command": "componentstate", "componentstate": {"component": "SYSTEMGRABBER", "state": new}}])
+        # Instance 0 (strip behind the Odyssey) always follows the screen;
+        # this switch is for the case (1) and the room bulbs (2).
+        hyper_all([{"command": "componentstate", "componentstate": {"component": "SYSTEMGRABBER", "state": new}}], (1, 2))
         self.grabber = new
         self.refresh()
 
