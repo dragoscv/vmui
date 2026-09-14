@@ -30,3 +30,5 @@ vmui-cli.exe
 test-results/
 playwright-report/
 playwright/.cache/
+
+__pycache__/
