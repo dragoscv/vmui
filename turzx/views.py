@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from anim import MorphText, Pulse, Tween, ease_out_back, ease_out_cubic, lerp, lerp_rgb
+from anim import MorphText, Pulse, Tween, ease_out_back, ease_out_cubic, lerp, lerp_rgb, qsin
 
 W, H = 480, 320
 TZ = ZoneInfo("Europe/Bucharest")
@@ -70,8 +70,8 @@ def header(d: ImageDraw.ImageDraw, title: str, right: str, accent: tuple[int, in
     d.text((22, 14), title, font=F_MID, fill=FG)
     if right:
         d.text((W - 22, 20), right, font=F_SMALL, fill=MUTED, anchor="ra")
-    # breathing accent underline
-    p = Pulse(3.2).at(t)
+    # breathing accent underline (6 discrete widths)
+    p = Pulse(3.2, steps=6).at(t)
     d.rounded_rectangle((22, 52, 22 + 46 + int(24 * p), 55), radius=2, fill=accent)
 
 
@@ -89,11 +89,27 @@ def bar(d: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, value01: float, 
         d.rounded_rectangle((x, y, x + fw, y + h), radius=h // 2, fill=color)
 
 
+_GLOW_CACHE: dict[tuple, Image.Image] = {}
+
+
 def glow(canvas: Image.Image, cx: int, cy: int, r: int, color, alpha: int = 90) -> None:
-    layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-    ImageDraw.Draw(layer).ellipse((cx - r, cy - r, cx + r, cy + r), fill=(*color, alpha))
-    layer = layer.filter(ImageFilter.GaussianBlur(r // 2))
-    canvas.paste(Image.alpha_composite(canvas.convert("RGBA"), layer).convert("RGB"))
+    """Soft radial glow. Inputs are quantised and the blurred sprite cached, so
+    a slowly-changing glow costs no bandwidth until it visibly changes."""
+    r = max(8, int(r) // 4 * 4)
+    alpha = int(alpha) // 8 * 8
+    color = tuple(int(c) // 8 * 8 for c in color)
+    key = (r, color, alpha)
+    sprite = _GLOW_CACHE.get(key)
+    if sprite is None:
+        pad = r * 2
+        sprite = Image.new("RGBA", (pad * 2, pad * 2), (0, 0, 0, 0))
+        ImageDraw.Draw(sprite).ellipse((pad - r, pad - r, pad + r, pad + r), fill=(*color, alpha))
+        sprite = sprite.filter(ImageFilter.GaussianBlur(r // 2))
+        if len(_GLOW_CACHE) > 64:
+            _GLOW_CACHE.clear()
+        _GLOW_CACHE[key] = sprite
+    pad = sprite.width // 2
+    canvas.paste(sprite, (cx - pad, cy - pad), sprite)
 
 
 def morph_text(d: ImageDraw.ImageDraw, x: int, y: int, mt: MorphText, f: ImageFont.FreeTypeFont, fill, advance: int) -> None:
@@ -165,7 +181,7 @@ class ClockView(View):
         morph_text(d, 26, 84, self.hhmm, F_HUGE, FG, advance=76)
         # seconds + blinking colon feel: seconds fade with sub-second phase
         sub = n.microsecond / 1e6
-        secfill = lerp_rgb(self.accent, MUTED, 0.5 + 0.5 * math.cos(2 * math.pi * sub))
+        secfill = lerp_rgb(self.accent, MUTED, round((0.5 + 0.5 * math.cos(2 * math.pi * sub)) * 4) / 4)
         morph_text(d, 410, 130, self.sec, F_BIG, secfill, advance=28)
         # bottom row: inside / outside
         y = 262
@@ -213,19 +229,19 @@ class WeatherView(View):
         rainy = cond in ("rainy", "pouring", "lightning-rainy", "snowy-rainy")
         cloudy = cond in ("cloudy", "partlycloudy", "fog", "rainy", "pouring", "lightning", "lightning-rainy", "snowy", "snowy-rainy")
         if sunny:
-            r = 30 + 3 * Pulse(3.0).at(t)
+            r = 30 + 3 * Pulse(3.0, steps=3).at(t)
             col = (250, 204, 21) if cond != "clear-night" else (203, 213, 225)
-            glow(c, cx - 14, cy - 10, int(r * 1.8), col, 70)
+            glow(c, cx - 14, cy - 10, 56, col, 70)
             d = ImageDraw.Draw(c)
             d.ellipse((cx - 14 - r, cy - 10 - r, cx - 14 + r, cy - 10 + r), fill=col)
             if cond != "clear-night":
                 for k in range(8):
-                    ang = t * 0.6 + k * math.pi / 4
+                    ang = round(t * 0.6 * 16) / 16 + k * math.pi / 4  # ~10 fps ray rotation
                     x0, y0 = cx - 14 + math.cos(ang) * (r + 10), cy - 10 + math.sin(ang) * (r + 10)
                     x1, y1 = cx - 14 + math.cos(ang) * (r + 20), cy - 10 + math.sin(ang) * (r + 20)
                     d.line((x0, y0, x1, y1), fill=col, width=4)
         if cloudy:
-            drift = math.sin(t * 0.8) * 6
+            drift = qsin(t * 0.8, 6) * 6
             ox = cx + 8 + drift
             col = (226, 232, 240) if cond == "partlycloudy" else (148, 163, 184)
             for (dx, dy, rr) in ((-22, 14, 20), (0, 2, 28), (24, 14, 20)):
@@ -240,7 +256,7 @@ class WeatherView(View):
         if cond in ("snowy", "snowy-rainy"):
             for k in range(8):
                 ph = (t * 0.6 + k * 0.29) % 1.0
-                x = cx - 30 + k * 10 + math.sin(t * 2 + k) * 4
+                x = cx - 30 + k * 10 + qsin(t * 2 + k, 4) * 4
                 y = cy + 40 + ph * 40
                 d.ellipse((x - 3, y - 3, x + 3, y + 3), fill=(241, 245, 249))
         if cond in ("lightning", "lightning-rainy") and (t * 2) % 3 < 0.25:
@@ -309,7 +325,7 @@ class HomeView(View):
         # status rows with animated dots
         y = 78
         for i, (k, v, col) in enumerate(self.rows):
-            p = Pulse(2.0, i).at(t)
+            p = Pulse(2.0, i, steps=6).at(t)
             r = 5 + 2 * p if col in (BAD, OK, self.accent) else 5
             d.ellipse((200 - r, y + 12 - r, 200 + r, y + 12 + r), fill=col)
             d.text((216, y), k, font=F_TINY, fill=MUTED)
@@ -356,6 +372,7 @@ class AmbilightView(View):
         rgb = tuple(int(tw.value) for tw in self.col)
         # live glow of the strip colour behind a "monitor"
         glow(c, 150, 150, 120, rgb, int(40 + 60 * (self.bri.value / 255)))
+        # Tweens settle to exact targets, so once the strip colour is steady the glow is free.
         d = ImageDraw.Draw(c)
         header(d, "Ambilight", self.mode, self.accent, t)
         d.rounded_rectangle((60, 92, 240, 208), radius=8, fill=(8, 8, 12), outline=rgb, width=3)
@@ -373,7 +390,7 @@ class AmbilightView(View):
         d.text((276, 234), "aprinsă" if self.bar_on else "stinsă", font=F_SMALL, fill=OK if self.bar_on else MUTED)
         # animated equalizer-ish strip along the bottom reflecting the colour
         for i in range(24):
-            hgt = 6 + 14 * (0.5 + 0.5 * math.sin(t * 3 + i * 0.5)) * (self.bri.value / 255 + 0.15)
+            hgt = 6 + 14 * (0.5 + 0.5 * qsin(t * 3 + i * 0.5, 4)) * (round(self.bri.value / 255, 1) + 0.15)
             x = 22 + i * 18
             d.rounded_rectangle((x, 300 - hgt, x + 10, 300), radius=3, fill=lerp_rgb(rgb, BG, 0.25))
 
@@ -438,9 +455,12 @@ class ActivityView(View):
         for it in self.items:
             key = f"{it.get('at')}|{it.get('text')}"
             age = now - self.seen.get(key, now)
-            e = ease_out_back(min(1.0, age / 0.6))
+            if age >= 0.6:
+                e, alpha = 1.0, 1.0
+            else:
+                e = ease_out_back(age / 0.6)
+                alpha = min(1.0, age / 0.4)
             x = int(22 + (1 - e) * 60)
-            alpha = min(1.0, age / 0.4)
             hh = datetime.fromtimestamp((it.get("at") or 0) / 1000, TZ).strftime("%H:%M")
             kind = it.get("kind") or ""
             col = {"assist": (168, 85, 247), "door": WARN, "light": (250, 204, 21)}.get(kind, self.accent)
@@ -487,7 +507,8 @@ class MediaView(View):
             # spinning disc
             for k in range(3):
                 r = 22 + k * 18
-                d.arc((97 - r, 155 - r, 97 + r, 155 + r), int(t * 90) % 360, int(t * 90) % 360 + 200, fill=lerp_rgb(self.accent, BG, 0.3 + k * 0.2), width=4)
+                a0 = (int(t * 90) // 10 * 10) % 360
+                d.arc((97 - r, 155 - r, 97 + r, 155 + r), a0, a0 + 200, fill=lerp_rgb(self.accent, BG, 0.3 + k * 0.2), width=4)
         d.text((196, 96), fit_text(d, str(self.m.get("title") or "—"), F_MID, W - 196 - 22), font=F_MID, fill=FG)
         d.text((196, 132), fit_text(d, str(self.m.get("artist") or ""), F_SMALL, W - 196 - 22), font=F_SMALL, fill=MUTED)
         d.text((196, 160), self.m.get("id", "").replace("media_player.", "").replace("_", " "), font=F_TINY, fill=MUTED)
@@ -499,7 +520,7 @@ class MediaView(View):
         # playing bars
         if self.m.get("state") == "playing":
             for i in range(5):
-                h = 8 + 18 * (0.5 + 0.5 * math.sin(t * 5 + i * 1.1))
+                h = 8 + 18 * (0.5 + 0.5 * qsin(t * 5 + i * 1.1, 4))
                 d.rounded_rectangle((196 + i * 12, 290 - h, 196 + i * 12 + 7, 290), radius=2, fill=self.accent)
         else:
             d.rectangle((198, 268, 204, 290), fill=MUTED); d.rectangle((210, 268, 216, 290), fill=MUTED)
@@ -521,7 +542,7 @@ class ListsView(View):
         header(d, "Cumpărături", f"{len(self.shop)}", self.accent, t)
         y = 74
         for i, s in enumerate(self.shop):
-            p = Pulse(2.5, i * 0.6).at(t)
+            p = Pulse(2.5, i * 0.6, steps=6).at(t)
             d.rounded_rectangle((22, y + 4, 34, y + 16), radius=3, outline=lerp_rgb(MUTED, self.accent, p), width=2)
             d.text((44, y - 2), fit_text(d, s, F_SMALL, 200), font=F_SMALL, fill=FG)
             y += 30

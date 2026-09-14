@@ -67,9 +67,17 @@ class Pulse:
 
     period: float = 2.4
     phase: float = 0.0
+    steps: int = 12  # quantised so most frames leave the pixels untouched
 
     def at(self, t: float) -> float:
-        return 0.5 + 0.5 * math.sin(2 * math.pi * (t / self.period) + self.phase)
+        v = 0.5 + 0.5 * math.sin(2 * math.pi * (t / self.period) + self.phase)
+        return round(v * self.steps) / self.steps
+
+
+def qsin(x: float, steps: int = 8) -> float:
+    """sin() snapped to `steps` levels per unit — the USB link moves ~360 KB/s,
+    so a value that changes every frame is a value that repaints every frame."""
+    return round(math.sin(x) * steps) / steps
 
 
 # ---------------------------------------------------------------- digit morph
@@ -115,62 +123,71 @@ class MorphText:
 
 # ---------------------------------------------------------------- transitions
 def transition(a: Image.Image, b: Image.Image, t: float, kind: str) -> Image.Image:
-    """Blend frame a -> b at progress t (0..1)."""
+    """Reveal frame b over a at progress t (0..1).
+
+    Every kind only changes a strip of the screen per frame: the USB link
+    moves ~360 KB/s, so a full-frame blend (fade/zoom/slide) costs 0.83 s per
+    frame and reads as tearing. Legacy names map onto strip reveals.
+    """
     t = max(0.0, min(1.0, t))
     w, h = a.size
-    if kind == "fade":
-        return Image.blend(a, b, ease_in_out(t))
-    if kind == "slide":
-        e = ease_out_cubic(t)
-        out = Image.new("RGB", a.size)
-        dx = int(w * e)
-        out.paste(a, (-dx, 0))
-        out.paste(b, (w - dx, 0))
-        return out
-    if kind == "zoom":
-        e = ease_in_out(t)
-        out = Image.blend(a, b, e)
-        s = 1.0 + 0.08 * (1 - e)  # b zooms in from slightly larger
-        bw, bh = int(w * s), int(h * s)
-        bz = b.resize((bw, bh), Image.BILINEAR).crop(((bw - w) // 2, (bh - h) // 2, (bw - w) // 2 + w, (bh - h) // 2 + h))
-        return Image.blend(out, bz, e * 0.6)
-    if kind == "wipe":
-        e = ease_in_out(t)
-        out = a.copy()
+    e = ease_in_out(t)
+    out = a.copy()
+    if kind in ("wipe", "fade"):  # left → right
         cut = int(w * e)
         if cut > 0:
             out.paste(b.crop((0, 0, cut, h)), (0, 0))
+        return out
+    if kind in ("wipe-down", "slide"):  # top → bottom
+        cut = int(h * e)
+        if cut > 0:
+            out.paste(b.crop((0, 0, w, cut)), (0, 0))
+        return out
+    if kind in ("curtain", "zoom"):  # centre → edges
+        half = int(w / 2 * e)
+        if half > 0:
+            x0, x1 = w // 2 - half, w // 2 + half
+            out.paste(b.crop((x0, 0, x1, h)), (x0, 0))
         return out
     return b
 
 
 # ---------------------------------------------------------------- dirty rects
-def dirty_rects(prev: Image.Image | None, cur: Image.Image, tile: int = 40) -> list[tuple[int, int, int, int]]:
-    """Coarse tile diff -> merged row-band rectangles worth re-sending."""
+def dirty_rects(prev: Image.Image | None, cur: Image.Image, gap: int = 12) -> list[tuple[int, int, int, int]]:
+    """Exact dirty rectangles: runs of changed rows, each narrowed to the
+    columns that changed. Clean gaps shorter than `gap` rows are absorbed —
+    one extra command + USB round-trip costs more than a few identical rows.
+    Returns (x0, y0, x1, y1) with exclusive x1/y1."""
     if prev is None or prev.size != cur.size:
         return [(0, 0, cur.width, cur.height)]
     diff = ImageChops.difference(prev, cur).convert("L")
     w, h = cur.size
-    rows: list[tuple[int, int, int, int]] = []
-    for ty in range(0, h, tile):
-        band = diff.crop((0, ty, w, min(h, ty + tile)))
-        bbox = band.getbbox()
-        if not bbox:
+    _, ys = diff.getprojection()
+    runs: list[tuple[int, int]] = []
+    y = 0
+    while y < h:
+        if not ys[y]:
+            y += 1
             continue
-        x0, _, x1, _ = bbox
-        # snap x to tile grid so consecutive frames reuse the same command shape
-        x0 = (x0 // tile) * tile
-        x1 = min(w, ((x1 + tile - 1) // tile) * tile)
-        rows.append((x0, ty, x1, min(h, ty + tile)))
-    # merge vertically adjacent bands with overlapping x ranges
-    merged: list[list[int]] = []
-    for r in rows:
-        if merged and merged[-1][3] == r[1] and abs(merged[-1][0] - r[0]) <= tile and abs(merged[-1][2] - r[2]) <= tile:
-            m = merged[-1]
-            m[0], m[2], m[3] = min(m[0], r[0]), max(m[2], r[2]), r[3]
-        else:
-            merged.append(list(r))
-    return [tuple(m) for m in merged]  # type: ignore[misc]
+        y0 = y
+        while y < h:
+            if ys[y]:
+                y += 1
+                continue
+            nxt = y
+            while nxt < h and not ys[nxt]:
+                nxt += 1
+            if nxt < h and nxt - y < gap:
+                y = nxt
+                continue
+            break
+        runs.append((y0, y))
+    out: list[tuple[int, int, int, int]] = []
+    for y0, y1 in runs:
+        bbox = diff.crop((0, y0, w, y1)).getbbox()
+        if bbox:
+            out.append((bbox[0], y0, bbox[2], y1))
+    return out
 
 
 @dataclass

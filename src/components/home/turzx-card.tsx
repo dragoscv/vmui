@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import type { TurzxSettings, TurzxView } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
 import { saveTurzxSettingsAction } from "@/server/actions/home";
@@ -98,6 +99,12 @@ export function TurzxCard({ initial }: { initial: TurzxSettings }) {
         </Field>
         <Field label={`Luminozitate noapte · ${s.nightBrightness}%`}>
           <Slider min={0} max={100} step={5} value={s.nightBrightness} onChange={(v) => setS({ ...s, nightBrightness: v })} aria-label="Luminozitate noapte" />
+        </Field>
+        <Field label="Orientare">
+          <div className="flex items-center gap-3 text-sm">
+            <Switch checked={s.flip} onCheckedChange={(v) => setS({ ...s, flip: v })} aria-label="Rotit 180°" />
+            <span>{s.flip ? "Rotit 180° (cablu pe cealaltă parte)" : "Normal"}</span>
+          </div>
         </Field>
         <Field label="Interval noapte">
           <div className="flex items-center gap-2 text-sm">

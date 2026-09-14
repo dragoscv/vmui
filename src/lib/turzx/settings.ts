@@ -20,6 +20,8 @@ export const turzxSettingsSchema = z.object({
   nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
   nightTo: z.string().regex(/^\d{2}:\d{2}$/),
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  /** Rotate 180° for a screen whose cable exits on the other side. */
+  flip: z.boolean().default(false),
 });
 export type TurzxSettings = z.infer<typeof turzxSettingsSchema>;
 
@@ -33,6 +35,7 @@ export const TURZX_DEFAULTS: TurzxSettings = {
   nightFrom: "23:00",
   nightTo: "07:30",
   accent: "#7c9cff",
+  flip: false,
 };
 
 export async function loadTurzxSettings(): Promise<TurzxSettings> {

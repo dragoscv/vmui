@@ -27,12 +27,21 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent))
 from anim import Clock, dirty_rects, transition  # noqa: E402
-from lcd_rev_b import TurzxLcd  # noqa: E402
+from lcd import TurzxLcd  # noqa: E402
 from views import BG, FG, MUTED, TZ, VIEWS, W, H, F_SMALL, F_TINY, hex_rgb  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / ".copilot-tmp" / "service-logs" / "turzx.log"
 VMUI = "http://127.0.0.1:3737"
+DEBUG = bool(os.environ.get("TURZX_DEBUG"))
+LINK_BPS = 365_000  # measured 2026-09-14: 300 KB in 0.823 s, linear down to 3 KB
+
+try:  # 1 ms scheduler tick; default ~15.6 ms makes 20 fps pacing jitter by a whole frame
+    import ctypes
+
+    ctypes.windll.winmm.timeBeginPeriod(1)
+except Exception:
+    pass
 
 try:
     import pynvml  # type: ignore
@@ -58,7 +67,7 @@ def token() -> str:
     raise RuntimeError("ESP_DISPLAY_TOKEN missing")
 
 
-DEFAULT_SETTINGS = {"views": list(VIEWS), "dwellSec": 12, "fps": 20, "transitionMs": 600, "brightness": 60, "nightBrightness": 15, "nightFrom": "23:00", "nightTo": "07:30", "accent": "#7c9cff"}
+DEFAULT_SETTINGS = {"views": list(VIEWS), "dwellSec": 12, "fps": 20, "transitionMs": 600, "brightness": 60, "nightBrightness": 15, "nightFrom": "23:00", "nightTo": "07:30", "accent": "#7c9cff", "flip": False}
 
 
 class State:
@@ -175,6 +184,10 @@ class Renderer:
         if order != self.order:
             self.order = order
             self.idx = 0
+        flip = bool(self.settings.get("flip"))
+        if self.lcd and flip != self.lcd.flip:
+            self.lcd.set_orientation(True, flip)
+            self.prev = None  # force a full repaint in the new orientation
 
     def current(self):
         return self.views[self.order[self.idx % len(self.order)]]
@@ -219,14 +232,39 @@ class Renderer:
         return frame
 
     def push(self, frame: Image.Image) -> int:
+        """Send what changed, but never more than the link can move in one
+        frame period (~365 KB/s measured). Rects that do not fit are sliced
+        into row bands and pushed on later frames, from `self.prev`'s
+        perspective they stay dirty until they land, so nothing is lost."""
         if not self.lcd:
             return 0
-        rects = dirty_rects(self.prev, frame, tile=40)
+        t0 = time.perf_counter()
+        budget = int(LINK_BPS / max(5, min(30, self.settings["fps"])))
+        rects = dirty_rects(self.prev, frame)
+        # biggest first when everything fits; when it does not, smallest first
+        # so the many little live elements keep moving while a big one streams
+        total = sum((x1 - x0) * (y1 - y0) * 2 for x0, y0, x1, y1 in rects)
+        rects.sort(key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=total <= budget)
+        if self.prev is None:
+            self.prev = Image.new("RGB", frame.size, (1, 2, 3))  # anything ≠ frame → all dirty
+        shown = self.prev.copy()
         sent = 0
         for (x0, y0, x1, y1) in rects:
-            self.lcd.blit(frame.crop((x0, y0, x1, y1)), x0, y0)
-            sent += (x1 - x0) * (y1 - y0)
-        self.prev = frame
+            size = (x1 - x0) * (y1 - y0) * 2
+            if sent + size > budget:
+                left = budget - sent
+                rows = left // ((x1 - x0) * 2)
+                if rows < 4:
+                    break
+                y1 = y0 + rows  # partial band; the rest stays dirty for next frame
+            region = frame.crop((x0, y0, x1, y1))
+            sent += self.lcd.blit(region, x0, y0)
+            shown.paste(region, (x0, y0))
+            if sent >= budget:
+                break
+        self.prev = shown
+        if DEBUG and rects:
+            log(f"t={t0:.3f} push {len(rects)} rects {sent/1024:.1f} KB in {(time.perf_counter()-t0)*1000:.0f} ms")
         return sent
 
 
@@ -260,14 +298,14 @@ def main() -> int:
 
     while True:
         try:
-            lcd = TurzxLcd(args.port)
-            sub = lcd.hello()
+            lcd = TurzxLcd(args.port, landscape=True, flip=bool((st.snapshot().get("settings") or {}).get("flip")))
             lcd.init(60)
-            log(f"connected {lcd.ser.port} sub-rev {sub:#x}")
+            log(f"connected {lcd.ser.port} (rev A protocol)")
             r = Renderer(st, lcd)
             frames = 0
             t_stat = time.perf_counter()
             px = 0
+            next_t = time.perf_counter()
             while True:
                 t = time.perf_counter()
                 frame = r.step()
@@ -276,8 +314,19 @@ def main() -> int:
                 if t - t_stat >= 60:
                     log(f"{frames/60:.1f} fps, {px/60/1024:.0f} KB/s, view={r.current().id}")
                     frames, px, t_stat = 0, 0, t
+                # Fixed cadence: animations sample wall-clock time, so a frame
+                # that lands late looks like a skip. Sleep coarse, then spin the
+                # last ~2 ms (Windows sleep granularity is ~15 ms otherwise).
                 budget = 1.0 / max(5, min(30, r.settings["fps"]))
-                time.sleep(max(0.0, budget - (time.perf_counter() - t)))
+                next_t += budget
+                now = time.perf_counter()
+                if now > next_t + budget:  # fell behind (big repaint): resync, do not burst
+                    next_t = now
+                rem = next_t - now
+                if rem > 0.003:
+                    time.sleep(rem - 0.002)
+                while time.perf_counter() < next_t:
+                    pass
         except KeyboardInterrupt:
             return 0
         except Exception as e:
