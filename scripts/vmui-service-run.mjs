@@ -6,9 +6,9 @@
 // node directly. So this launcher spawns `next start` DETACHED, with no
 // console, then exits. The server has nothing left to receive the signal.
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, openSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { appendFileSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -32,4 +32,5 @@ const child = spawn(
   { cwd: root, env: { ...process.env, NODE_ENV: "production" }, stdio: ["ignore", out, out], detached: true, windowsHide: true },
 );
 child.unref();
+writeFileSync(join(root, ".copilot-tmp", "service-logs", "vmui.pid"), String(child.pid));
 appendFileSync(logPath, `${new Date().toISOString()} launcher pid=${process.pid} spawned next pid=${child.pid} (detached)\n`);

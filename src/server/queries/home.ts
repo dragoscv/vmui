@@ -1,10 +1,18 @@
 import { db } from "@/lib/db";
 import { homeLayout } from "@/lib/db/schema";
+import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { DEVICES, type CatalogDevice } from "@/lib/home/catalog";
 import { ha, type HaState } from "@/lib/home/ha-client";
 import "server-only";
 
 export type PlacedDevice = CatalogDevice & { placed: boolean };
+
+export type WallSetting = { wallHex: string; strength: number };
+
+export async function wallSetting(): Promise<WallSetting> {
+  const s = await ambilightSettings();
+  return { wallHex: s.wallHex, strength: s.wallStrength };
+}
 
 export async function listPlacedDevices(): Promise<PlacedDevice[]> {
   const rows = await db.select().from(homeLayout);

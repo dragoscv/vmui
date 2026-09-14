@@ -1,12 +1,12 @@
 import { HomeDashboard } from "@/components/home/home-dashboard";
-import { homeAvailability, listPlacedDevices, loadHomeStates } from "@/server/queries/home";
+import { homeAvailability, listPlacedDevices, loadHomeStates, wallSetting } from "@/server/queries/home";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home — vmui" };
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const [{ tab }, devices, states, avail] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability()]);
+  const [{ tab }, devices, states, avail, wall] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting()]);
   const initialTab = tab === "devices" || tab === "ambilight" ? tab : "plan";
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -37,7 +37,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} />
+      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} />
     </div>
   );
 }

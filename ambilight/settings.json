@@ -1,0 +1,9 @@
+{
+  "wallStrength": 0.8,
+  "grabberFps": 60,
+  "luminance": 1.0,
+  "hdrToneMapping": true,
+  "gamma": 1.5,
+  "saturation": 1.0,
+  "wallHex": "#439ebf"
+}

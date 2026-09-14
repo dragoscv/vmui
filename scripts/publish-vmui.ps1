@@ -53,6 +53,10 @@ $Email = 'vladulescu.catalin@gmail.com'
 function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
 function Write-Step($m) { Write-Host "  $m" -ForegroundColor Cyan }
 function Write-Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
+function Get-LanIp {
+    # Hyper-V external switch address the ESP32 reaches; same helper as esp32-display.ps1.
+    (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -like '192.168.100.*' } | Select-Object -First 1).IPAddress
+}
 
 # ---------- Vercel DNS ----------
 function Invoke-Vercel([string]$Method, [string]$Path, $Body) {
@@ -133,13 +137,27 @@ https://$Domain {
 		}
 	}
 }
+
+# ESP32 desk display: plain HTTP on the LAN switch address, /api/esp/* only
+# (token-gated upstream). Mirrors esp32-display.ps1 -Publish for the case
+# where our own Caddy owns :443.
+http://$(Get-LanIp):8737 {
+	bind $(Get-LanIp)
+    handle /api/esp/* {
+        reverse_proxy 127.0.0.1:$Upstream
+    }
+    handle {
+        respond 404
+    }
+}
 "@ | Set-Content -Path $Caddyfile -Encoding utf8 -NoNewline
     & $Caddy fmt --overwrite $Caddyfile | Out-Null
     & $Caddy validate --config $Caddyfile 2>&1 | Select-Object -Last 1
 }
 
 function Ensure-CaddyTask {
-    $action = New-ScheduledTaskAction -Execute $Caddy -Argument "run --config `"$Caddyfile`"" -WorkingDirectory $StateDir
+    $vbs = Join-Path $PSScriptRoot 'hidden-run.vbs'
+    $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" `"$Caddy`" run --config `"$Caddyfile`"" -WorkingDirectory $StateDir
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
     $trigger.Delay = 'PT15S'
     $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -MultipleInstances IgnoreNew -Hidden
@@ -147,33 +165,52 @@ function Ensure-CaddyTask {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Description 'vmui: Caddy TLS front for mui.dragoscatalin.ro (scripts/publish-vmui.ps1)' | Out-Null
 
     # Daily renew check; lego exits immediately when >30 days remain.
-    $ra = New-ScheduledTaskAction -Execute 'pwsh' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Renew" -WorkingDirectory $Root
+    $ra = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Renew" -WorkingDirectory $Root
     $rt = New-ScheduledTaskTrigger -Daily -At '04:40'
     Unregister-ScheduledTask -TaskName $RenewTask -Confirm:$false -ErrorAction SilentlyContinue
     Register-ScheduledTask -TaskName $RenewTask -Action $ra -Trigger $rt -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -Hidden) -Description 'vmui: renew mui.dragoscatalin.ro certificate' | Out-Null
 
     # The route lives inside whichever Caddy owns :443. When that one (brivio's
     # dev proxy) restarts, our route is gone until someone re-attaches it.
-    $ea = New-ScheduledTaskAction -Execute 'pwsh' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Ensure" -WorkingDirectory $Root
+    # Interactive logon (not S4U): S4U processes are unkillable from the
+    # desktop and cannot see the user's Caddy admin port; hidden-run.vbs is what
+    # keeps the pwsh window from flashing every 5 min.
+    $ea = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" pwsh -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Ensure" -WorkingDirectory $Root
     $et = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)
+    $ep = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
     Unregister-ScheduledTask -TaskName $EnsureTask -Confirm:$false -ErrorAction SilentlyContinue
-    Register-ScheduledTask -TaskName $EnsureTask -Action $ea -Trigger $et -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -Hidden -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 2)) -Description 'vmui: keep mui.dragoscatalin.ro route attached to the :443 Caddy' | Out-Null
+    Register-ScheduledTask -TaskName $EnsureTask -Action $ea -Trigger $et -Principal $ep -Settings (New-ScheduledTaskSettingsSet -StartWhenAvailable -Hidden -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 2)) -Description 'vmui: keep mui.dragoscatalin.ro route attached to the :443 Caddy' | Out-Null
     Write-Ok "tasks $TaskName, $RenewTask, $EnsureTask"
 }
 
 function Ensure-Attached {
     $foreign = Get-ForeignCaddyAdmin
     if ($foreign) {
-        try { Invoke-RestMethod "http://127.0.0.1:$($foreign.port)/id/vmui-mui" -TimeoutSec 3 | Out-Null; return }
-        catch { Write-Step 'route missing from host caddy; re-attaching' }
-        Attach-ToForeignCaddy $foreign
+        # Caddy answers 200 `null` for an unknown @id, so test the value.
+        $have = $null
+        try { $have = Invoke-RestMethod "http://127.0.0.1:$($foreign.port)/id/vmui-mui" -TimeoutSec 3 } catch {}
+        if (-not $have) { Write-Step 'route missing from host caddy; re-attaching'; Attach-ToForeignCaddy $foreign }
+        # The ESP32 display's plain-HTTP LAN server lives in the same Caddy.
+        $esp = $null
+        try { $esp = Invoke-RestMethod "http://127.0.0.1:$($foreign.port)/config/apps/http/servers/vmui_esp" -TimeoutSec 3 } catch {}
+        if (-not $esp) {
+            Write-Step 'esp server missing; re-publishing'
+            & pwsh -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'esp32-display.ps1') -Publish 2>&1 | Where-Object { $_ -notmatch '^VERBOSE' } | ForEach-Object { Write-Host "    $_" }
+        }
         return
     }
-    # :443 is free now: nothing to attach to, so run our own front.
+    # :443 is free or ours: run our own front (Caddyfile carries mui + the ESP :8737 server).
     if (-not (Get-Process caddy -ErrorAction SilentlyContinue)) {
         Enable-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
         Start-ScheduledTask -TaskName $TaskName
         Write-Step 'no caddy on :443; started own'
+        return
+    }
+    $espUp = (Test-NetConnection -ComputerName (Get-LanIp) -Port 8737 -WarningAction SilentlyContinue -InformationLevel Quiet)
+    if (-not $espUp) {
+        Write-Step 'own caddy up but :8737 (ESP) missing; reloading Caddyfile'
+        Write-Caddyfile | Out-Null
+        try { Invoke-RestMethod -Method POST -Uri 'http://localhost:2019/load' -ContentType 'text/caddyfile' -Body (Get-Content $Caddyfile -Raw) | Out-Null; Write-Ok 'caddy reloaded' } catch { Write-Warn "reload failed: $($_.Exception.Message)" }
     }
 }
 

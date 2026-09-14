@@ -37,25 +37,35 @@ function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
 function Get-Listener { Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 }
 
 function Stop-Service-Tree {
+    # Preferred: the pid the launcher recorded.
+    $pidFile = Join-Path $LogDir 'vmui.pid'
+    if (Test-Path $pidFile) {
+        $recorded = [int](Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+        if ($recorded) { Stop-Process -Id $recorded -Force -ErrorAction SilentlyContinue }
+    }
     $l = Get-Listener
     if (-not $l) { return }
     # next start spawns workers; kill the tree from the listener's root.
-    $pid = $l.OwningProcess
-    $chain = @($pid)
+    $cur = $l.OwningProcess
+    $chain = @($cur)
     for ($i = 0; $i -lt 4; $i++) {
-        $parent = (Get-CimInstance Win32_Process -Filter "ProcessId=$pid" -ErrorAction SilentlyContinue).ParentProcessId
+        $parent = (Get-CimInstance Win32_Process -Filter "ProcessId=$cur" -ErrorAction SilentlyContinue).ParentProcessId
         if (-not $parent) { break }
         $pp = Get-CimInstance Win32_Process -Filter "ProcessId=$parent" -ErrorAction SilentlyContinue
         if ($pp.CommandLine -notmatch 'next|pnpm|node') { break }
-        $chain += $parent; $pid = $parent
+        $chain += $parent; $cur = $parent
     }
     foreach ($id in ($chain | Sort-Object -Descending)) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
     Start-Sleep 1
+    if (Get-Listener) { throw "port $Port still held by pid $((Get-Listener).OwningProcess) — not ours to kill; run: taskkill /PID <pid> /F (admin) or re-run -Install" }
 }
 
 function Install-Task {
     New-Item -ItemType Directory -Force $LogDir | Out-Null
-    $action = New-ScheduledTaskAction -Execute $Node -Argument "`"$Launcher`"" -WorkingDirectory $Root
+    # wscript + hidden-run.vbs: node.exe is a console app and would flash a
+    # window on every 5-min re-check under an interactive token.
+    $vbs = Join-Path $PSScriptRoot 'hidden-run.vbs'
+    $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`" `"$Node`" `"$Launcher`"" -WorkingDirectory $Root
     $logon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
     $logon.Delay = 'PT10S'
     # The launcher spawns next detached and exits, so the scheduler cannot
@@ -63,8 +73,13 @@ function Install-Task {
     # exits at once when :3737 already answers.
     $watch = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 5)
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -StartWhenAvailable -MultipleInstances IgnoreNew -Hidden
+    # Interactive token, NOT S4U: an S4U process lives in session 0 with a
+    # descriptor the desktop user cannot open, so -Restart could not kill it
+    # (needed an admin taskkill once). The launcher spawns next with
+    # windowsHide, so nothing flashes on logon or on the 5-min re-check.
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($logon, $watch) -Settings $settings -Description 'vmui production server on 127.0.0.1:3737 (scripts/vmui-service.ps1)' | Out-Null
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($logon, $watch) -Principal $principal -Settings $settings -Description 'vmui production server on 127.0.0.1:3737 (scripts/vmui-service.ps1)' | Out-Null
     Write-Ok "task $TaskName registered"
 }
 
@@ -80,7 +95,8 @@ function Show-Status {
     $t = (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue).State
     $l = Get-Listener
     Write-Host "  task     $($t ?? 'absent')"
-    $up = if ($l) { $p = Get-Process -Id $l.OwningProcess -ErrorAction SilentlyContinue; "pid $($l.OwningProcess), up $([int]((Get-Date) - $p.StartTime).TotalMinutes) min" } else { 'NOT listening' }
+    # S4U task processes hide StartTime from Get-Process; CIM still reports CreationDate.
+    $up = if ($l) { $p = Get-CimInstance Win32_Process -Filter "ProcessId=$($l.OwningProcess)" -ErrorAction SilentlyContinue; if ($p.CreationDate) { "pid $($p.ProcessId), up $([int]((Get-Date) - $p.CreationDate).TotalMinutes) min" } else { "pid $($l.OwningProcess)" } } else { 'NOT listening' }
     Write-Host "  :$Port    $up"
     if ($l) { $h = curl.exe -s -o NUL -w '%{http_code}' "http://127.0.0.1:$Port/api/health" --max-time 5; Write-Host "  health   $h" }
     if (Test-Path "$LogDir\vmui.log") { Write-Host '  log tail:'; Get-Content "$LogDir\vmui.log" -Tail 3 | ForEach-Object { "    $_" } }

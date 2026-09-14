@@ -295,6 +295,62 @@ Traps:
 - No `/api/error_log` on this HA build; read tracebacks with
   `ssh -p 22222 root@… 'ha core logs'`.
 
+## ESP32 desk display (2026-09-14)
+
+The ideaspark ESP32 that is Home Assistant's Bluetooth radio also has a
+0.96" two-colour SSD1306 (rows 0-15 yellow, 16-63 blue), a BOOT button and
+a blue LED on GPIO2. Firmware = ESPHome from `esp32/home-display.yaml.tmpl`,
+rendered and compiled by `scripts/esp32-display.ps1` inside the ESPHome
+add-on and flashed over OTA or `COM10`.
+
+**Architecture.** The board has ~300 KB heap and no PSRAM, so it renders
+nothing. vmui composes every view as a 1-bit 128x64 BMP (1 086 bytes) at
+`/api/esp/display/<node>?k=ESP_DISPLAY_TOKEN` (`src/lib/esp/`) and the
+board pulls it every 3 s with `online_image`. Caddy exposes only
+`/api/esp/*` on `192.168.100.61:8737` (plain HTTP, LAN) — `-Publish` adds
+that server to the :443 Caddy and `publish-vmui.ps1 -Ensure` re-adds it
+when brivio's Caddy restarts. Offline (PC down) the board shows its own
+clock + wifi/ha status.
+
+**Views** (`src/lib/esp/views.ts`), rotating every 8 s: clock, weather,
+activity (HA state changes + Assist requests, `src/lib/esp/activity.ts`),
+home status, ambilight, shopping list, last vmui actions, system.
+**BOOT**: short = next view, double = pause, long = movie mode on/off
+(`/api/esp/button`). **Blue LED** blinks 40 ms per new frame, steadily while
+WiFi is down. The red LED next to USB is hardwired to 5V.
+
+Traps: OLED is on **GPIO21/22** on this unit (5/4 → `Communication
+failed`); BLE proxy + image download exhausted heap → passive scan,
+`max_connections: 1`, `sram1_as_iram`, log level WARN (INFO log lines go
+through the API overflow buffer, which is where `bad_alloc` hit);
+`online_image` needs `Content-Length` or it reports `Size: 0` and draws
+nothing; opening the COM port resets the board unless DTR/RTS are cleared
+before open; a reboot loop with `rst:0x3 (SW_RESET)` and no backtrace was
+`E BOD: Brownout detector was triggered` (WiFi burst + BLE on the weak 3V3)
+→ `wifi.output_power: 8.5dB`. HA prefixes the entities with the area:
+`sensor.office_bluetooth_proxy_1_*`. vmui's own port needs a persistent
+WinNAT exclusion (`netsh int ipv4 add excludedportrange … 3737/8737`) or a
+reboot can hand it to Hyper-V.
+
+## Tray icon and console-free tasks (2026-09-14)
+
+`ambilight/tray.py` (task `vmui-tray`, pythonw) shows one icon: green =
+HyperHDR + vmui + bridges up, amber = something stopped, red = HyperHDR
+unreachable. Menu: Movie/Music/Off, screen capture, clear effects, open
+mui.dragoscatalin.ro, local `/home`, wall compensation, HyperHDR settings,
+restart stack. Console apps started by tasks (`node`, `pwsh`, `caddy`) go
+through `scripts/hidden-run.vbs` — Task Scheduler's _Hidden_ only hides the
+task, the console still flashes. Tasks run with the **Interactive** token:
+S4U processes cannot be stopped from the desktop (took an admin `taskkill`
+twice) and cannot reach the user's Caddy admin port.
+
+**Wall compensation** (Ambilight tab → _Wall compensation_): the monitor
+strip lights a blue wall, so pick the wall colour and pull the slider until
+white on screen reads white on the wall. The UI calls `ambilight.ps1 -Set
+wallHex=… wallStrength=…` (`src/lib/home/ambilight-settings.ts`), so
+`ambilight/settings.json` stays the single source and the formula lives once,
+in `New-WallCompensation`.
+
 ## Backups
 
 `ha backups new` inside the appliance, or Settings → System → Backups. The
@@ -313,4 +369,7 @@ the host. Credentials are in `.private/credentials.env` (`HA_SAMBA_PASS`).
   helper, `ha-scenes.yaml` package, WLED upgrade notes
 - `scripts/vmui-service.ps1` + `vmui-service-run.mjs` — production vmui task
 - `scripts/publish-vmui.ps1` — DNS + certificate + Caddy for mui.dragoscatalin.ro
+- `scripts/esp32-display.ps1` + `esp32/home-display.yaml.tmpl` — ESP32 OLED firmware
+- `src/lib/esp/` — framebuffer, 5x7 font, views, gallery, activity feed
+- `ambilight/tray.py` — tray icon; `scripts/hidden-run.vbs` — window-less task launcher
 - `infra/tailscale-home-acl.hujson` — tailnet policy (source of truth)

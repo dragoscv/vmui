@@ -1,0 +1,302 @@
+# vmui home display + Bluetooth proxy — ideaspark ESP32 with 0.96" OLED.
+# Rendered by scripts/esp32-display.ps1 (fills ${...} from .private/credentials.env).
+#
+# Board facts (measured on this unit, see docs/esp32-display.md):
+#   OLED  SSD1306 128x64 I2C 0x3C on SDA=GPIO21 SCL=GPIO22 (verified: with 5/4
+#         the display component fails "Communication failed"; some ideaspark
+#         revisions use 5/4 — pass -Sda/-Scl to the script). Two-colour panel:
+#         rows 0-15 light up YELLOW, rows 16-63 BLUE. The server renders with
+#         that split in mind (yellow = title band).
+#   BOOT  GPIO0, active low, pulled up — our only readable button.
+#   EN    hardware reset, not a GPIO.
+#   LED   GPIO2 blue/red status LED next to the module — off when healthy.
+#
+# Architecture: the ESP has ~300 KB free heap and no PSRAM, so it renders
+# nothing. vmui (this PC) composes each "view" as a 1-bit 128x64 BMP
+# (1 086 bytes) at /api/esp/display/${node} and the ESP fetches it every
+# ${refresh}. Offline (PC down) it falls back to a local clock + status page.
+# Button clicks are POSTed to /api/esp/button so vmui can switch views,
+# pause the gallery or toggle ambilight without HA in the loop.
+
+esphome:
+  name: ${node}
+  friendly_name: ${friendly}
+  on_boot:
+    priority: -100
+    then:
+      - lambda: id(boot_ms) = millis();
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    advanced:
+      # Moves code out of DRAM; the log asks for it and it bought ~40 KB heap.
+      sram1_as_iram: true
+      execute_from_psram: false
+
+# WARN, not INFO: every log line is also serialised into the API's overflow
+# buffer for connected HA/log clients, and that heap allocation is exactly
+# where the board aborted (bad_alloc in APIConnection::send_buffer).
+logger:
+  level: WARN
+  baud_rate: 115200   # keep UART on: it is the only way to read a boot loop
+
+api:
+  id: api_id
+  # Two slots: HA + one log/OTA session. Each API client owns a buffer; HA
+  # reconnecting through half-open sockets filled all five default slots
+  # ("Max connections (5), rejecting") right before a bad_alloc abort.
+  max_connections: 2
+  reboot_timeout: 10min
+  encryption:
+    key: "${api_key}"
+  # HA may push a one-off message (e.g. a doorbell) that overrides the gallery.
+  services:
+    - service: show_message
+      variables:
+        title: string
+        body: string
+        seconds: int
+      then:
+        - globals.set: { id: msg_title, value: !lambda 'return title;' }
+        - globals.set: { id: msg_body,  value: !lambda 'return body;' }
+        - globals.set: { id: msg_until, value: !lambda 'return millis() + seconds * 1000;' }
+        - component.update: oled
+
+ota:
+  - platform: esphome
+    password: "${ota_pass}"
+
+wifi:
+  id: wifi_id
+  ssid: "${wifi_ssid}"
+  password: "${wifi_pass}"
+  power_save_mode: none        # BLE proxy + 5 s image polls want the radio awake
+  # Brownout resets ("E BOD: Brownout detector was triggered") when a WiFi
+  # burst lands on top of a BLE window on this board's weak 3.3 V path. The
+  # AP is 3 m away (-33 dBm); 8.5 dBm is plenty and halves the TX current.
+  output_power: 8.5dB
+  # No AP fallback / captive portal: ~12 KB of heap on a board that has none
+  # to spare; the USB port is 30 cm away if WiFi credentials ever change.
+
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Bucharest
+
+# ---- Bluetooth proxy (the reason this board exists) ----------------------
+# Heap is the constraint: BLE stack + WiFi + HTTP client + a 1 KB image on a
+# no-PSRAM ESP32 aborted with bad_alloc under the default 3 active BLE
+# connections. One connection is all our Tuya BLE strip needs.
+# Abort site was BluetoothProxy::flush_pending_advertisements_ -> API
+# overflow buffer new[] -> bad_alloc: advert bursts outran the heap. Passive
+# scan halves the advert volume (no scan-response packets) and the 100/200 ms
+# window still catches the Tuya strip; the display code needs the rest.
+esp32_ble:
+  max_connections: 1
+  disable_bt_logs: true
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+    interval: 320ms
+    window: 100ms
+bluetooth_proxy:
+  active: true
+  connection_slots: 1
+
+# ---- LEDs --------------------------------------------------------------------
+# Blue (GPIO2): one short blink each time a new frame arrives, so a frozen
+# screen is visible at a glance; otherwise dark. It also blinks steadily
+# while WiFi/API are down (see the interval below).
+# Red (next to USB): hardwired to 5V, not a GPIO -- cannot be turned off in
+# software. Tape it or lift it.
+output:
+  - platform: gpio
+    pin: GPIO2
+    id: blue_led
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+            - output.turn_on: blue_led
+            - delay: 100ms
+            - output.turn_off: blue_led
+
+# ---- Display ---------------------------------------------------------------
+i2c:
+  sda: ${sda}
+  scl: ${scl}
+  frequency: 400kHz
+  scan: true
+
+http_request:
+  timeout: 4s
+  verify_ssl: false
+  buffer_size_rx: 1200   # the frame is 1 086 bytes; default 512 forces re-reads
+  buffer_size_tx: 512
+
+globals:
+  - id: boot_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: msg_title
+    type: std::string
+    initial_value: '""'
+  - id: msg_body
+    type: std::string
+    initial_value: '""'
+  - id: msg_until
+    type: uint32_t
+    initial_value: '0'
+  - id: frame_ok
+    type: bool
+    initial_value: 'false'
+  - id: frame_age_ms
+    type: uint32_t
+    initial_value: '0'
+
+image:
+  - platform: online_image
+    id: frame
+    url: "${frame_url}"
+    format: BMP
+    type: BINARY
+    update_interval: ${refresh}
+    on_download_finished:
+      then:
+        - lambda: |-
+            id(frame_ok) = true;
+            id(frame_age_ms) = millis();
+        - component.update: oled
+        - if:
+            condition:
+              lambda: return !cached;
+            then:
+              - output.turn_on: blue_led
+              - delay: 40ms
+              - output.turn_off: blue_led
+    on_error:
+      then:
+        - lambda: id(frame_ok) = false;
+        - component.update: oled
+
+font:
+  - file: "gfonts://Roboto"
+    id: f_small
+    size: 10
+    glyphs: " -.:?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  - file: "gfonts://Roboto"
+    id: f_clock
+    size: 22
+    glyphs: ":0123456789"
+
+display:
+  - platform: ssd1306_i2c
+    id: oled
+    model: SSD1306_128X64
+    address: 0x3C
+    # Redraws are also triggered on frame arrival; this is only the fallback
+    # clock cadence.
+    update_interval: 1s
+    lambda: |-
+      const uint32_t now = millis();
+      // 1) A pushed message beats everything for its duration.
+      if (id(msg_until) > now) {
+        it.printf(64, 2, id(f_small), TextAlign::TOP_CENTER, "%s", id(msg_title).c_str());
+        it.line(0, 15, 127, 15);
+        it.printf(64, 36, id(f_small), TextAlign::CENTER, "%s", id(msg_body).c_str());
+        return;
+      }
+      // 2) Server frame, if it arrived in the last 30 s.
+      if (id(frame_ok) && now - id(frame_age_ms) < 30000) {
+        it.image(0, 0, id(frame), COLOR_ON, COLOR_OFF);
+        return;
+      }
+      // 3) Offline fallback: yellow band = status, blue = clock.
+      const bool wifi_ok = id(wifi_id).is_connected();
+      const bool api_ok = id(api_id).is_connected();
+      it.printf(2, 2, id(f_small), TextAlign::TOP_LEFT, "%s %s",
+                wifi_ok ? "wifi" : "no-wifi", api_ok ? "ha" : "no-ha");
+      it.printf(126, 2, id(f_small), TextAlign::TOP_RIGHT, "pc?");
+      it.line(0, 15, 127, 15);
+      auto t = id(sntp_time).now();
+      if (t.is_valid()) {
+        it.strftime(64, 22, id(f_clock), TextAlign::TOP_CENTER, "%H:%M", t);
+        it.strftime(64, 52, id(f_small), TextAlign::TOP_CENTER, "%a %d %b", t);
+      } else {
+        it.printf(64, 36, id(f_small), TextAlign::CENTER, "syncing time...");
+      }
+
+# ---- BOOT button: one button, three gestures --------------------------------
+binary_sensor:
+  - platform: gpio
+    id: boot_btn
+    name: Button
+    pin:
+      number: GPIO0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 15ms
+    # Latency budget: the gesture decoder must wait for the OFF window to tell
+    # single from double, so keep those windows short. The POST is fire and
+    # forget; the frame refetch starts right after it.
+    on_multi_click:
+      - timing:
+          - ON for at most 350ms
+          - OFF for at least 180ms
+        then:
+          - http_request.post:
+              url: "${button_url}&node=${node}&click=single"
+              max_response_buffer_size: 128
+          - component.update: frame
+      - timing:
+          - ON for at most 350ms
+          - OFF for at most 180ms
+          - ON for at most 350ms
+          - OFF for at least 100ms
+        then:
+          - http_request.post:
+              url: "${button_url}&node=${node}&click=double"
+              max_response_buffer_size: 128
+          - component.update: frame
+      - timing:
+          - ON for at least 1s
+        then:
+          - http_request.post:
+              url: "${button_url}&node=${node}&click=long"
+              max_response_buffer_size: 128
+          - component.update: frame
+  - platform: status
+    name: Status
+
+button:
+  - platform: restart
+    name: Restart
+
+sensor:
+  - platform: template
+    name: Heap Free
+    unit_of_measurement: B
+    accuracy_decimals: 0
+    update_interval: 30s
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 60s
+  - platform: uptime
+    name: Uptime
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: IP

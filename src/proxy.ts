@@ -5,6 +5,7 @@ const PUBLIC_PREFIXES = [
   "/sign-up",
   "/api/events",
   "/api/v1",
+  "/api/esp",   // ESP32 display: token-authenticated, no session cookie
   "/_next",
   "/icons",
   "/favicon",

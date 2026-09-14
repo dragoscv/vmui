@@ -27,7 +27,16 @@
   ambilight.ps1 -InstallHaScenes  # push ha-scenes.yaml to the appliance
   ambilight.ps1 -Mode movie|music|off
   ambilight.ps1 -Notify -Color 0,120,255
+  ambilight.ps1 -Set wallHex=#439ebf wallStrength=0.8   # persist a setting, re-configure
   ambilight.ps1 -Uninstall
+
+.NOTES
+  Tunables live in ambilight/settings.json (gitignored-safe, no secrets):
+    wallHex        colour of the wall behind the Odyssey; light bounced off it
+                   is tinted, so the strip is pre-compensated (New-WallCompensation)
+    wallStrength   0 = off, 1 = full inverse-reflectance correction
+    gamma / saturation / luminance  HyperHDR channel adjustment for the strip
+    grabberFps / hdrToneMapping     DX11 capture; lower = gentler on the GPU
 #>
 [CmdletBinding(DefaultParameterSetName = 'Status')]
 param(
@@ -39,7 +48,8 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Mode')][ValidateSet('movie', 'music', 'off')][string]$Mode,
     [Parameter(Mandatory, ParameterSetName = 'Notify')][switch]$Notify,
     [Parameter(ParameterSetName = 'Notify')][int[]]$Color = @(0, 120, 255),
-    [Parameter(ParameterSetName = 'Notify')][int]$DurationMs = 1500
+    [Parameter(ParameterSetName = 'Notify')][int]$DurationMs = 1500,
+    [Parameter(Mandatory, ParameterSetName = 'Set')][string[]]$Set
 )
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path $PSScriptRoot -Parent
@@ -48,6 +58,16 @@ $env:HA_URL = $null
 . (Join-Path $PSScriptRoot 'lib\guest-credentials.ps1') | Out-Null
 . (Join-Path $PSScriptRoot 'lib\hyperhdr.ps1')
 . (Join-Path $Amb 'hyperhdr-layout.ps1')
+
+$SettingsPath = Join-Path $Amb 'settings.json'
+$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true }
+function Get-Settings {
+    $s = [ordered]@{} + $Defaults
+    if (Test-Path $SettingsPath) { (Get-Content $SettingsPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } }
+    $s
+}
+function Save-Settings([hashtable]$s) { ($s | ConvertTo-Json) | Set-Content $SettingsPath -Encoding utf8 }
+$Settings = Get-Settings
 
 $HyperExe = "$env:ProgramFiles\HyperHDR\bin\hyperhdr.exe"
 $OpenRgbExe = "$env:ProgramFiles\OpenRGB\OpenRGB.exe"
@@ -59,7 +79,8 @@ $Tasks = @(
     @{ Name = 'vmui-ambilight-hyperhdr'; Exe = $HyperExe;   Args = '--service'; Delay = 5 },
     @{ Name = 'vmui-ambilight-openrgb';  Exe = $OpenRgbExe; Args = '--server --startminimized --profile Dragos'; Delay = 10 },
     @{ Name = 'vmui-ambilight-dxlight';  Exe = $Python;     Args = "`"$Amb\dxlight_bridge.py`" --listen 19446"; Delay = 20 },
-    @{ Name = 'vmui-ambilight-pcglow';   Exe = $Python;     Args = "`"$Amb\openrgb_bridge.py`" --listen 19447"; Delay = 25 }
+    @{ Name = 'vmui-ambilight-pcglow';   Exe = $Python;     Args = "`"$Amb\openrgb_bridge.py`" --listen 19447"; Delay = 25 },
+    @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 }
 )
 
 function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
@@ -90,10 +111,10 @@ function Enable-Grabber([int]$Instance) {
 
 function Configure-HyperHdr {
     $SystemGrabber = @{
-        device = 'auto'; hardware = $true; fps = 60; videoMode = 512
+        device = 'auto'; hardware = $true; fps = [int]$Settings.grabberFps; videoMode = 512
         # Windows HDR capture returns scRGB floats; without tone-mapping
         # every colour is washed out. 250 nits matches the Odyssey OLED.
-        hdrToneMapping = $true; monitor_nits = 250
+        hdrToneMapping = [bool]$Settings.hdrToneMapping; monitor_nits = 250
         cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0
         # `auto` grabs the Windows PRIMARY display, which is the Philips.
         # The film runs on the Odyssey (left, DISPLAY2) so shift by one.
@@ -108,6 +129,8 @@ function Configure-HyperHdr {
         general       = @{ name = 'DX Light (monitor)'; disableOnLocked = $true; disableLedsStartup = $false; showOptHelp = $false; version = 6 }
         systemGrabber = $SystemGrabber
         videoGrabber  = @{ enable = $false }
+        # The strip shines on a painted wall; correct for its tint here.
+        color         = New-WallCompensation -WallHex $Settings.wallHex -Strength ([double]$Settings.wallStrength) -Gamma ([double]$Settings.gamma) -Saturation ([double]$Settings.saturation) -Luminance ([double]$Settings.luminance)
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
         leds          = New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08
         smoothing     = @{ enable = $true; type = 'HybridRgbInterpolator'; time_ms = 60; updateFrequency = 60; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
@@ -121,7 +144,9 @@ function Configure-HyperHdr {
     $pc = Ensure-Instance 'PC glow (OpenRGB)'
     Set-HyperConfig -Instance $pc -Config @{
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19447; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 3 }
-        leds      = @() + (New-RegionLayout left) + (New-RegionLayout full) + (New-RegionLayout right)
+        # Picture-safe thirds, not screen edges: the outer 35 % is black bars
+        # or player chrome most of the time and the case only pulsed.
+        leds      = @() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3)
         smoothing = @{ enable = $true; type = 'HybridRgbInterpolator'; time_ms = 250; updateFrequency = 25; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
     }
     Enable-Grabber $pc
@@ -229,7 +254,9 @@ function Show-Status {
     foreach ($t in $Tasks) {
         $st = (Get-ScheduledTask -TaskName $t.Name -ErrorAction SilentlyContinue).State
         $proc = Split-Path $t.Exe -Leaf
-        $live = Get-CimInstance Win32_Process -Filter "Name='$proc'" | Where-Object { $t.Args -notmatch 'listen' -or $_.CommandLine -match [regex]::Escape(($t.Args -split ' ')[-1]) }
+        # pythonw runs several of ours: match on the script name, not just the exe.
+        $key = if ($t.Args -match '\\([a-z_]+\.py)') { $Matches[1] } else { $null }
+        $live = Get-CimInstance Win32_Process -Filter "Name='$proc'" | Where-Object { -not $key -or $_.CommandLine -match [regex]::Escape($key) }
         Write-Host ("  {0,-28} task={1,-9} process={2}" -f $t.Name, ($st ?? 'absent'), $(if ($live) { 'running' } else { 'NOT running' })) -ForegroundColor $(if ($live) { 'Green' } else { 'Yellow' })
     }
     Write-Host ''
@@ -270,5 +297,21 @@ switch ($PSCmdlet.ParameterSetName) {
     'Scenes' { Install-HaScenes }
     'Mode' { Set-Mode $Mode }
     'Notify' { Send-Notify }
+    'Set' {
+        $s = Get-Settings
+        # Invoked with -File the [string[]] arrives as one literal, so split on
+        # commas as well as accepting several positional values.
+        foreach ($kv in ($Set -split ',')) {
+            if (-not $kv.Trim()) { continue }
+            $k, $v = ($kv.Trim("'", '"', ' ') -split '=', 2)
+            $k = $k.Trim("'", '"', ' '); $v = $v.Trim("'", '"', ' ')
+            if (-not $Defaults.Contains($k)) { throw "unknown setting '$k'; known: $($Defaults.Keys -join ', ')" }
+            $s[$k] = switch ($Defaults[$k].GetType().Name) { 'Boolean' { [bool]::Parse($v) } 'Int32' { [int]$v } 'Double' { [double]$v } default { $v } }
+        }
+        Save-Settings $s
+        Write-Ok "settings: $(($s.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ' ')"
+        $Settings = $s
+        Configure-HyperHdr
+    }
     default { Show-Status }
 }

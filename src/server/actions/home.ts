@@ -3,6 +3,7 @@
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLog, homeLayout } from "@/lib/db/schema";
+import { setAmbilightSettings } from "@/lib/home/ambilight-settings";
 import { AMBILIGHT_MODES, DEVICES, ROOMS } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
 import { revalidatePath } from "next/cache";
@@ -175,6 +176,23 @@ export async function setGrabberAction(enabled: boolean): Promise<Result> {
   return run("ambilight.grabber", enabled ? "on" : "off", "SYSTEMGRABBER", () =>
     ha.ambilightAll([{ command: "componentstate", componentstate: { component: "SYSTEMGRABBER", state: enabled } }]),
   );
+}
+
+/**
+ * Wall compensation for the monitor strip. Persisted in ambilight/settings.json
+ * and applied by scripts/ambilight.ps1 -Set (the same writer the logon tasks
+ * and the CLI use), so HyperHDR restarts keep the correction.
+ */
+export async function setWallCompensationAction(input: { wallHex: string; strength: number }): Promise<Result> {
+  const p = z
+    .object({ wallHex: z.string().regex(/^#[0-9a-fA-F]{6}$/), strength: z.number().min(0).max(1) })
+    .safeParse(input);
+  if (!p.success) return { ok: false, error: "Invalid wall colour or strength" };
+  const { wallHex, strength } = p.data;
+  return run("ambilight.wall", "instance-0", `${wallHex} @ ${Math.round(strength * 100)}%`, async () => {
+    await setAmbilightSettings({ wallHex: wallHex.toLowerCase(), wallStrength: Math.round(strength * 100) / 100 });
+    revalidatePath("/home");
+  });
 }
 
 export async function placeDeviceAction(input: { deviceId: string; room: string; x: number; y: number }): Promise<Result> {

@@ -3,7 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { HaState } from "@/lib/home/ha-client";
 import { cn } from "@/lib/utils";
-import type { PlacedDevice } from "@/server/queries/home";
+import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { DoorOpen, Droplets, Lightbulb, Radar, Thermometer } from "lucide-react";
 import * as React from "react";
 import { AmbilightPanel } from "./ambilight-panel";
@@ -17,11 +17,13 @@ export function HomeDashboard({
   initialStates,
   haUrl,
   initialTab = "plan",
+  wall,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
   haUrl: string | null;
   initialTab?: "plan" | "devices" | "ambilight";
+  wall: WallSetting;
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -43,7 +45,7 @@ export function HomeDashboard({
             <DeviceGrid devices={devices} onSelect={setSelected} />
           </TabsContent>
           <TabsContent value="ambilight">
-            <AmbilightPanel />
+            <AmbilightPanel wall={wall} />
           </TabsContent>
         </Tabs>
       </div>

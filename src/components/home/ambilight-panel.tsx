@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { AMBIENT_EFFECTS, AMBILIGHT_MODES, HYPERHDR_INSTANCES, MUSIC_EFFECTS, NOTIFY_PALETTE } from "@/lib/home/catalog";
 import { cn } from "@/lib/utils";
@@ -11,8 +12,10 @@ import {
     runHyperEffectAction,
     setAmbilightModeAction,
     setGrabberAction,
+    setWallCompensationAction,
 } from "@/server/actions/home";
-import { Bell, Clapperboard, Eraser, Lamp, MonitorPlay, Music2, Zap } from "lucide-react";
+import type { WallSetting } from "@/server/queries/home";
+import { Bell, Clapperboard, Eraser, Lamp, MonitorPlay, Music2, PaintRoller, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -20,7 +23,7 @@ import { useEntity, useHomeStates } from "./use-home-states";
 
 const MODE_ICON = { movie: Clapperboard, music: Music2, off: Lamp } as const;
 
-export function AmbilightPanel() {
+export function AmbilightPanel({ wall }: { wall: WallSetting }) {
   const [busy, setBusy] = React.useState<string | null>(null);
   const [mode, setMode] = React.useState<string | null>(null);
   const { live } = useHomeStates();
@@ -115,6 +118,8 @@ export function AmbilightPanel() {
         </div>
       </div>
 
+      <WallCard wall={wall} busy={busy === "wall"} onApply={(w) => act("wall", () => setWallCompensationAction(w), "Wall compensation applied")} />
+
       {/* Effects */}
       <div className="grid gap-4 md:grid-cols-2">
         <EffectGroup title="Music" icon={Music2} effects={MUSIC_EFFECTS} busy={busy} onPick={(e) => act(e, () => runHyperEffectAction({ effect: e }))} strip="Music: " />
@@ -163,6 +168,73 @@ export function AmbilightPanel() {
       </div>
     </section>
   );
+}
+
+/**
+ * The monitor strip lights a painted wall; the eye sees strip × wall
+ * reflectance. Pick the wall colour, pull the slider until white on screen
+ * looks white on the wall.
+ */
+function WallCard({ wall, busy, onApply }: { wall: WallSetting; busy: boolean; onApply: (w: WallSetting) => Promise<boolean> }) {
+  const [hex, setHex] = React.useState(wall.wallHex);
+  const [strength, setStrength] = React.useState(Math.round(wall.strength * 100));
+  const dirty = hex !== wall.wallHex || strength !== Math.round(wall.strength * 100);
+  const commit = (s = strength, h = hex) => onApply({ wallHex: h, strength: s / 100 });
+  return (
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <PaintRoller className="h-4 w-4 text-muted" />
+          <div>
+            <p className="text-sm font-medium">Wall compensation</p>
+            <p className="text-xs text-muted">Corrects the monitor strip for the colour of the wall behind it</p>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-muted">
+          Wall
+          <input
+            type="color"
+            value={hex}
+            onChange={(e) => setHex(e.target.value)}
+            onBlur={() => dirty && commit()}
+            aria-label="Wall colour"
+            className="h-8 w-10 cursor-pointer rounded-md border border-[var(--color-border)] bg-transparent p-0.5"
+          />
+        </label>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <Slider
+          min={0}
+          max={100}
+          step={5}
+          value={strength}
+          onChange={setStrength}
+          onCommit={(v) => commit(v)}
+          aria-label="Compensation strength"
+          track={`linear-gradient(90deg, ${hex} 0%, white 100%)`}
+        />
+        <span className="w-12 text-right text-sm tabular-nums">{strength}%</span>
+        {busy && <span className="pulse-dot" aria-hidden />}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <span className="text-[11px] text-muted">Preview of “white” on the wall:</span>
+        <span className="h-4 w-16 rounded-sm border border-[var(--color-border)]" style={{ background: previewOnWall(hex, strength / 100) }} aria-hidden />
+      </div>
+    </div>
+  );
+}
+
+// Same maths as New-WallCompensation (ambilight/hyperhdr-layout.ps1): the
+// strip's white after per-channel gains, seen through the wall's reflectance.
+function previewOnWall(hex: string, strength: number): string {
+  const refl = [1, 3, 5].map((i) => Math.max(0.2, parseInt(hex.slice(i, i + 2), 16) / 255));
+  const inv = refl.map((r) => 1 / r);
+  const m = Math.max(...inv);
+  const out = refl.map((r, i) => {
+    const k = 1 + strength * ((inv[i] ?? 1) / m - 1);
+    return Math.round(255 * Math.min(1, k * r * 1.6));
+  });
+  return `rgb(${out.join(" ")})`;
 }
 
 function EffectGroup({
