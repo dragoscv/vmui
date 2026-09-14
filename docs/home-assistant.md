@@ -412,6 +412,31 @@ free sources (NASA APOD, Met CC0, Art Institute, Commons POTD;
 `bgRotateMin`; `dim`/`blur` keep text legible. Long strings render through
 `anim.Marquee` — clipped to their slot and scrolled when they do not fit.
 
+**Phone notifications** (`turzx/overlay.py`, settings → _Notificări de pe
+telefon_): while `binary_sensor.human_presence_sensor_occupancy` is on, a
+new entry on `sensor.dragos_s_s25_ultra_last_notification` (Companion app
+"Last notification", allow list = messaging apps) pops a card over the
+current view: sender avatar with the app badge, sender, up to 7 wrapped
+lines then a slow vertical scroll, faded backdrop, slide in/out from the
+nearest edge; position top/centre/bottom, duration, "show text" and the
+package list are configurable. Rotation pauses while a card is up.
+`python turzx\turzx.py --demo-notify` pops a fake WhatsApp card after 5 s.
+The Companion app was installed and granted notification access over adb
+(`cmd notification allow_listener …NotificationSensorManager`, then
+disallow/allow once to force the bind); the sensor entity only appears in
+HA after the first notification from an allowed app.
+
+**Trap — "frozen screen".** Under sustained load the panel occasionally
+stops drawing (and eventually stops ACKing → `SerialTimeoutException`).
+Only the full init sequence (hello + CLEAR + orientation + on) wakes it;
+lighter resyncs and plain rewrites do nothing. `Renderer.push` runs
+`lcd.resync()` + an immediate full repaint on a write timeout and every
+60 s as a watchdog. **Do not** concatenate the 6-byte bitmap header with the
+pixel payload into one `write()` — the panel then ignores the command
+entirely (black screen, every byte ACKed); the header must be its own
+transfer. When the screen goes black after a driver change, replay the
+original minimal test script before theorising.
+
 **Trap — which port is the Turzx.** COM6 (`1a86:ca21`, "CT21INCH") and COM7
 (`1d6b:0121`, sn `20080411`) are a _different_ Turing-family screen (rev C,
 "chs_5inch"). Sending rev-B-sized frames to it wedged its CDC endpoint (CTS

@@ -65,7 +65,10 @@ class TurzxLcd:
         port = port or find_port()
         if not port:
             raise RuntimeError("Turzx (1a86:5722) not found")
-        self.ser = serial.Serial(port, 115200, timeout=1, write_timeout=5)
+        # write_timeout short: when the panel stalls (it stops ACKing bulk
+        # transfers every few minutes under sustained load) we want to notice
+        # in ~1 s and resync, not hang the frame loop for 5 s.
+        self.ser = serial.Serial(port, 115200, timeout=1, write_timeout=1.5)
         self.landscape = landscape
         self.flip = flip
         self.w, self.h = (480, 320) if landscape else (320, 480)
@@ -134,15 +137,12 @@ class TurzxLcd:
         nat, nx, ny = self._to_native(img, x, y)
         nw, nh = nat.size
         data = rgb565le(nat)
-        # Header and pixels in ONE write. Two writes let the CDC driver split
-        # them into separate USB transfers with a gap; the panel's parser then
-        # occasionally takes the first pixel bytes as the next command and
-        # desyncs (observed 2026-09-14: freeze after 1–3 min, recovered only
-        # by re-init). One buffer = one contiguous stream.
-        hdr = bytes((nx >> 2, ((nx & 3) << 6) + (ny >> 4), ((ny & 15) << 4) + ((nx + nw - 1) >> 6), (((nx + nw - 1) & 63) << 2) + ((ny + nh - 1) >> 8), (ny + nh - 1) & 255, CMD_BITMAP))
-        buf = hdr + data
-        for i in range(0, len(buf), CHUNK):
-            self.ser.write(buf[i : i + CHUNK])
+        # The 6-byte header MUST be its own USB transfer. Concatenating it
+        # with the pixel payload (tried 2026-09-14) makes the panel ignore the
+        # command entirely — screen stays black while every write is ACKed.
+        self._cmd(CMD_BITMAP, nx, ny, nx + nw - 1, ny + nh - 1)
+        for i in range(0, len(data), CHUNK):
+            self.ser.write(data[i : i + CHUNK])
         return len(data)
 
     def resync(self) -> None:
@@ -153,15 +153,9 @@ class TurzxLcd:
             self.ser.reset_input_buffer()
         except Exception:
             pass
-        # No CMD_CLEAR here: the caller repaints, so the screen never blanks.
-        self.hello()
-        ori = bytearray(16)
-        ori[5] = CMD_ORIENTATION
-        ori[6] = 100
-        ori[7:11] = struct.pack(">HH", W, H)
-        self.ser.write(bytes(ori))
-        self._cmd(CMD_ON)
-        self.set_brightness(self.brightness)
+        # The full init sequence (hello read + CLEAR + orientation + on) is the
+        # only thing verified to wake a stalled panel; lighter variants did not.
+        self.init(self.brightness)
 
     def full(self, img: Image.Image) -> int:
         assert img.size == (self.w, self.h), f"{img.size} != {(self.w, self.h)}"

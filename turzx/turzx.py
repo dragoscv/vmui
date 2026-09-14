@@ -27,7 +27,8 @@ from datetime import datetime
 from pathlib import Path
 
 import psutil
-from PIL import Image, ImageDraw
+import serial
+from PIL import Image, ImageChops, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).parent))
 from anim import Clock, dirty_rects, transition  # noqa: E402
@@ -220,6 +221,8 @@ class Renderer:
         self.bg_by_view: dict[str, tuple[Image.Image, dict, str, float]] = {}
         self.overlay = NotificationOverlay()
         self.last_full = time.perf_counter()
+        self.since_sync: Image.Image | None = None
+        self.stalls = 0
         self.apply_settings(DEFAULT_SETTINGS)
 
     # ---- settings
@@ -373,13 +376,16 @@ class Renderer:
         # than their sum. The panel occasionally drops a command header when
         # they come densely; every merged pair is one fewer chance to desync.
         rects = merge_rects(rects)
-        # Watchdog: every 20 s, in a quiet frame, resync the panel's command
-        # parser and repaint everything. A desynced panel looks exactly like a
-        # frozen one, and re-init is the only thing that recovers it.
-        if self.prev is not None and time.perf_counter() - self.last_full > 20 and not rects:
-            self.lcd.resync()
-            rects = [(0, 0, W, H)]
+        # Watchdog: every 20 s resync the panel's command parser and repaint
+        # everything. A desynced panel ACKs every byte and draws nothing — it
+        # looks frozen, the log looks healthy, and re-init is the only cure.
+        # Unconditional: waiting for a quiet frame never happens on live views.
+        if self.prev is not None and time.perf_counter() - self.last_full > 60:
+            self.lcd.resync()  # clears the panel → must repaint everything now
             self.last_full = time.perf_counter()
+            self.prev = None
+            rects = [(0, 0, W, H)]
+            budget = W * H * 2  # one full frame, over budget on purpose (~0.8 s once a minute)
         total = sum((x1 - x0) * (y1 - y0) * 2 for x0, y0, x1, y1 in rects)
         rects.sort(key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=total <= budget)
         # a notification card must land whole and first, whatever else is dirty
@@ -400,11 +406,25 @@ class Renderer:
                     break
                 y1 = y0 + rows
             region = frame.crop((x0, y0, x1, y1))
-            sent += self.lcd.blit(region, x0, y0)
+            try:
+                sent += self.lcd.blit(region, x0, y0)
+            except serial.SerialTimeoutException:
+                # Panel stopped ACKing: resync its parser and mark everything
+                # dirty so the next frames repaint it. Counted so a panel that
+                # never comes back still escalates to a full reconnect.
+                self.stalls += 1
+                log(f"panel stall #{self.stalls}: resync")
+                self.lcd.resync()
+                self.prev = None
+                self.last_full = time.perf_counter()
+                if self.stalls >= 5:
+                    raise
+                return sent
             shown.paste(region, (x0, y0))
             if sent >= budget:
                 break
             self.prev = shown
+        self.stalls = 0
         if DEBUG and rects:
             log(f"t={t0:.3f} push {len(rects)} rects {sent/1024:.1f} KB in {(time.perf_counter()-t0)*1000:.0f} ms")
         return sent
