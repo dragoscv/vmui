@@ -67,6 +67,12 @@ script:
               }
       - action: light.turn_off
         target: { entity_id: light.star_projector }
+      # The bar cannot take colour from HA (its work_mode enum has no
+      # "colour", so hs_color -> 500). Amber, dim: complements the blue wall
+      # and does not wash out the DX Light strip beside it.
+      - action: light.turn_on
+        target: { entity_id: light.desk_light_bar }
+        data: { color_temp_kelvin: 2700, brightness_pct: 35 }
 
   movie_mode_off:
     alias: "Movie mode OFF (warm room)"
@@ -164,9 +170,9 @@ script:
         { description: light entity ids, example: '["light.ambience_light"]' }
       color: { default: [255, 90, 31] }
     sequence:
-        # Fast double-pulse, 7 cycles x 1.44 s = ~10 s, then restore. Nothing
-        # runs forever: a missed cancel (hook killed, vmui down) must not leave
-        # the room orange. script.copilot_clear still cuts it short.
+      # Fast double-pulse, 7 cycles x 1.44 s = ~10 s, then restore. Nothing
+      # runs forever: a missed cancel (hook killed, vmui down) must not leave
+      # the room orange. script.copilot_clear still cuts it short.
       - repeat:
           count: 7
           sequence:
