@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (p.esp) {
-    for (const n of listNodes()) showMessage(n.name, TITLE[event], text || source, event === "ask" ? 60 : 8);
+    for (const n of listNodes()) showMessage(n.name, TITLE[event], text || source, event === "ask" ? 10 : 8);
     pushActivity({ at: now, kind: "other", text: `${TITLE[event]}${text ? `: ${text.slice(0, 40)}` : ""}` });
     out.esp = true;
   }

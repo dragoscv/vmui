@@ -37,7 +37,12 @@ export type CopilotSignalState = {
 type Store = { current: CopilotSignalState | null };
 const store: Store = ((globalThis as unknown as { __vmuiCopilotSignal?: Store }).__vmuiCopilotSignal ??= { current: null });
 
+/** No alert outlives this: a missed cancel must not leave a card or a bulb on. */
+export const ASK_TTL_MS = 10_000;
+
 export function currentSignal(): CopilotSignalState | null {
+  const s = store.current;
+  if (s?.active && Date.now() - s.at > ASK_TTL_MS) store.current = { ...s, active: false };
   return store.current;
 }
 

@@ -152,7 +152,8 @@ script:
             state: "off"
         then:
           - action: scene.create
-            data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
+            data:
+              { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
 
   copilot_ask:
     alias: "Copilot: asteapta raspuns (puls agresiv)"
@@ -163,10 +164,11 @@ script:
         { description: light entity ids, example: '["light.ambience_light"]' }
       color: { default: [255, 90, 31] }
     sequence:
-      # Fast double-pulse, repeated until script.copilot_clear stops us
-      # (mode: restart + a `stop` in copilot_clear via script.turn_off).
+        # Fast double-pulse, 7 cycles x 1.44 s = ~10 s, then restore. Nothing
+        # runs forever: a missed cancel (hook killed, vmui down) must not leave
+        # the room orange. script.copilot_clear still cuts it short.
       - repeat:
-          while: "{{ true }}"
+          count: 7
           sequence:
             - action: light.turn_on
               target: { entity_id: "{{ lights }}" }
@@ -188,6 +190,9 @@ script:
               data:
                 { rgb_color: "{{ color }}", brightness_pct: 8, transition: 0 }
             - delay: { milliseconds: 900 }
+      - action: scene.turn_on
+        target: { entity_id: scene.copilot_before }
+        data: { transition: 1 }
 
   copilot_clear:
     alias: "Copilot: opreste alerta si restaureaza"
