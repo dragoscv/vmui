@@ -22,6 +22,29 @@ const pick = (m: Map<string, HaState>, id: string) => {
   return s ? { state: s.state, attributes: s.attributes } : null;
 };
 
+/** Companion "Last notification" sensor → one flat event. `id` changes per
+ *  notification (post time + package), so the renderer pops each exactly once. */
+function phoneNotification(s: HaState | undefined) {
+  if (!s || s.state === "unavailable" || s.state === "unknown") return null;
+  const a = s.attributes as Record<string, unknown>;
+  const str = (k: string) => (typeof a[k] === "string" ? (a[k] as string) : "");
+  const pkg = str("package");
+  if (!pkg) return null;
+  const title = str("android.title");
+  const text = str("android.bigText") || str("android.text") || s.state;
+  const postTime = typeof a.post_time === "number" ? (a.post_time as number) : new Date(s.last_changed ?? Date.now()).getTime();
+  return {
+    id: `${postTime}|${pkg}|${title}`.slice(0, 200),
+    at: postTime,
+    pkg,
+    app: pkg.split(".").filter((p) => !["com", "org", "android", "app", "apps", "google", "samsung"].includes(p)).pop() ?? pkg,
+    title,
+    text,
+    ongoing: Boolean(a.is_ongoing),
+    group: Boolean(a.is_group_summary),
+  };
+}
+
 export async function GET(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   ensureActivityFeed();
@@ -98,7 +121,7 @@ export async function GET(req: NextRequest) {
       calendar: cal,
       quote,
       pomodoro,
-      phoneNotification: pick(states, "sensor.dragos_s_s25_ultra_last_notification"),
+      notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

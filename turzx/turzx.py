@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from anim import Clock, dirty_rects, transition  # noqa: E402
 from backgrounds import Backgrounds  # noqa: E402
 from lcd import TurzxLcd  # noqa: E402
+from overlay import NotificationOverlay  # noqa: E402
 from skins import build as build_skin, font  # noqa: E402
 from views import BG, TZ, VIEWS, H, W, hex_rgb  # noqa: E402
 
@@ -162,6 +163,28 @@ def offline_badge(c: Image.Image, online: bool) -> None:
     d.text((W - 63, H - 19), "vmui offline", font=_F_TINY, fill=(252, 165, 165), anchor="mm")
 
 
+def merge_rects(rects: list[tuple[int, int, int, int]]) -> list[tuple[int, int, int, int]]:
+    """Greedily merge pairs whose bounding union costs < 25% more bytes than
+    sending them apart. Fewer commands, same pixels."""
+    rs = list(rects)
+    changed = True
+    while changed and len(rs) > 1:
+        changed = False
+        for i in range(len(rs)):
+            for j in range(i + 1, len(rs)):
+                a, b = rs[i], rs[j]
+                u = (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+                area = lambda r: (r[2] - r[0]) * (r[3] - r[1])
+                if area(u) <= (area(a) + area(b)) * 1.25:
+                    rs[i] = u
+                    del rs[j]
+                    changed = True
+                    break
+            if changed:
+                break
+    return rs
+
+
 def dots(c: Image.Image, i: int, n: int, accent, muted) -> None:
     if n <= 1:
         return
@@ -193,6 +216,10 @@ class Renderer:
         self.bg_meta: dict = {}
         self.bg_at = 0.0
         self.bg_key: str | None = None
+        # remembered per view so passing through a flat view does not reset the photo timer
+        self.bg_by_view: dict[str, tuple[Image.Image, dict, str, float]] = {}
+        self.overlay = NotificationOverlay()
+        self.last_full = time.perf_counter()
         self.apply_settings(DEFAULT_SETTINGS)
 
     # ---- settings
@@ -216,6 +243,7 @@ class Renderer:
         if self.lcd and flip != self.lcd.flip:
             self.lcd.set_orientation(True, flip)
             self.prev = None
+        self.overlay.configure(self.settings.get("notify") or {})
 
     def current(self):
         return self.views[self.order[self.idx % len(self.order)]]
@@ -256,7 +284,11 @@ class Renderer:
             self.bg_img, self.bg_meta, self.bg_key = None, {}, None
             return
         rotate_s = max(60.0, float(self.settings.get("bgRotateMin") or 30) * 60)
-        if self.bg_img is not None and not force_new and time.time() - self.bg_at < rotate_s:
+        remembered = self.bg_by_view.get(v.id)
+        if remembered and not force_new and time.time() - remembered[3] < rotate_s:
+            self.bg_img, self.bg_meta, self.bg_key, self.bg_at = remembered
+            return
+        if self.bg_img is not None and not force_new and time.time() - self.bg_at < rotate_s and self.bg_key == (remembered or (None, None, None))[2]:
             return
         srcs = list(cfg.get("sources") or [])
         if self.bgs is not None:
@@ -266,6 +298,7 @@ class Renderer:
                 self.bg_img, self.bg_meta = got
                 self.bg_key = self.bg_meta.get("key")
                 self.bg_at = time.time()
+                self.bg_by_view[v.id] = (self.bg_img, self.bg_meta, self.bg_key, self.bg_at)
 
     # ---- frame
     def render(self, now: float, dt: float, data: dict) -> Image.Image:
@@ -309,6 +342,18 @@ class Renderer:
                 self.trans = None
             else:
                 frame = transition(old, frame, p, kind)
+        # phone notifications ride on top of everything
+        present = ((data.get("home") or {}).get("presence") or {}).get("state") == "on"
+        self.overlay.offer(data.get("notification"), present)
+        self.overlay.step(now, dt)
+        if self.overlay.active:
+            self.dwell_t += dt  # pause the rotation while a card is up
+            drew = self.overlay.draw(frame, now)
+            if DEBUG and drew and not getattr(self, "_ov_logged", False):
+                self._ov_logged = True
+                log(f"overlay: showing {self.overlay.cur.get('pkg')} / {self.overlay.cur.get('title')}")
+        elif getattr(self, "_ov_logged", False):
+            self._ov_logged = False
         want = self.settings["nightBrightness"] if night(self.settings) else self.settings["brightness"]
         if self.lcd and want != self.bright:
             self.lcd.set_brightness(int(want))
@@ -324,8 +369,25 @@ class Renderer:
         t0 = time.perf_counter()
         budget = int(LINK_BPS / max(5, min(30, self.settings["fps"])))
         rects = dirty_rects(self.prev, frame)
+        # Fewer commands per frame: merge rects whose union is barely bigger
+        # than their sum. The panel occasionally drops a command header when
+        # they come densely; every merged pair is one fewer chance to desync.
+        rects = merge_rects(rects)
+        # Watchdog: every 20 s, in a quiet frame, resync the panel's command
+        # parser and repaint everything. A desynced panel looks exactly like a
+        # frozen one, and re-init is the only thing that recovers it.
+        if self.prev is not None and time.perf_counter() - self.last_full > 20 and not rects:
+            self.lcd.resync()
+            rects = [(0, 0, W, H)]
+            self.last_full = time.perf_counter()
         total = sum((x1 - x0) * (y1 - y0) * 2 for x0, y0, x1, y1 in rects)
         rects.sort(key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=total <= budget)
+        # a notification card must land whole and first, whatever else is dirty
+        ov = self.overlay.rect if self.overlay.active else None
+        if ov:
+            def hits(r):
+                return not (r[2] <= ov[0] or r[0] >= ov[2] or r[3] <= ov[1] or r[1] >= ov[3])
+            rects.sort(key=lambda r: 0 if hits(r) else 1)
         if self.prev is None:
             self.prev = Image.new("RGB", frame.size, (1, 2, 3))
         shown = self.prev.copy()
@@ -342,7 +404,7 @@ class Renderer:
             shown.paste(region, (x0, y0))
             if sent >= budget:
                 break
-        self.prev = shown
+            self.prev = shown
         if DEBUG and rects:
             log(f"t={t0:.3f} push {len(rects)} rects {sent/1024:.1f} KB in {(time.perf_counter()-t0)*1000:.0f} ms")
         return sent
@@ -354,6 +416,7 @@ def main() -> int:
     ap.add_argument("--skin", help="with --once: force this skin for every view")
     ap.add_argument("--all-skins", action="store_true", help="with --once: one PNG per view per skin")
     ap.add_argument("--port")
+    ap.add_argument("--demo-notify", action="store_true", help="pop a fake WhatsApp card 5 s after start (hardware test)")
     args = ap.parse_args()
 
     st = State()
@@ -398,6 +461,11 @@ def main() -> int:
             log(f"connected {lcd.ser.port} (rev A protocol)")
             r = Renderer(st, lcd, bgs)
             r.enter_view(st.snapshot(), time.perf_counter())
+            if args.demo_notify:
+                r.overlay.primed = True
+                r.overlay.presence_only = False
+                r.overlay.packages = set()
+                threading.Timer(5.0, lambda: r.overlay.queue.append({"id": "demo", "pkg": "com.whatsapp", "app": "whatsapp", "title": "Mama", "text": "Ai mâncat ceva azi? Sună-mă când poți, vreau să te întreb ceva despre weekend."})).start()
             frames = 0
             t_stat = time.perf_counter()
             px = 0

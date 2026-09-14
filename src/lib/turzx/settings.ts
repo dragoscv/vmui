@@ -3,7 +3,7 @@ import { turzxSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import "server-only";
 import { z } from "zod";
-import { TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_IDS, TURZX_VIEW_META } from "./catalog";
+import { NOTIFY_APPS, TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_IDS, TURZX_VIEW_META } from "./catalog";
 
 // The Turzx 3.5" USB screen on the desk. The Python renderer (turzx/turzx.py)
 // pulls this every few seconds, so a change in /home lands on the screen
@@ -32,6 +32,22 @@ export const turzxViewConfigSchema = z.object({
 });
 export type TurzxViewConfig = z.infer<typeof turzxViewConfigSchema>;
 
+/** Phone-notification overlay: shown for a few seconds when the presence
+ *  sensor says someone is at the desk. Package allow-list mirrors the
+ *  Companion app's "Last notification" sensor. */
+export const turzxNotifySchema = z.object({
+  enabled: z.boolean().default(true),
+  /** Only pop while `binary_sensor.human_presence_sensor_occupancy` is on. */
+  presenceOnly: z.boolean().default(true),
+  durationSec: z.number().min(2).max(30).default(6),
+  /** Show message body; off = app + sender only. */
+  showText: z.boolean().default(true),
+  position: z.enum(["top", "center", "bottom"]).default("top"),
+  /** Android package names. */
+  packages: z.array(z.string()).default([]),
+});
+export type TurzxNotify = z.infer<typeof turzxNotifySchema>;
+
 export const turzxSettingsSchema = z.object({
   version: z.literal(2),
   views: z.array(turzxViewConfigSchema).min(1),
@@ -47,6 +63,7 @@ export const turzxSettingsSchema = z.object({
   background: turzxBackgroundSchema,
   /** Minutes between background changes when a view has a photo background. */
   bgRotateMin: z.number().min(1).max(1440).default(30),
+  notify: turzxNotifySchema.default({ enabled: true, presenceOnly: true, durationSec: 6, showText: true, position: "top", packages: NOTIFY_APPS.slice(0, 10).map((a) => a.pkg) }),
 });
 export type TurzxSettings = z.infer<typeof turzxSettingsSchema>;
 
@@ -70,6 +87,7 @@ export const TURZX_DEFAULTS: TurzxSettings = {
   flip: false,
   background: { mode: "none", sources: ["apod", "met", "artic"], folder: "", dim: 0.45, blur: 0 },
   bgRotateMin: 30,
+  notify: { enabled: true, presenceOnly: true, durationSec: 6, showText: true, position: "top", packages: NOTIFY_APPS.slice(0, 10).map((a) => a.pkg) },
 };
 
 /** Any view added to the catalog after the row was saved shows up disabled. */

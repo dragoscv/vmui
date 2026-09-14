@@ -49,6 +49,10 @@ class Backgrounds:
     # ---- worker: prefetch a handful of online photos
     def _loop(self) -> None:
         while True:
+            try:
+                self._scan_folder()
+            except Exception:
+                pass
             with self.lock:
                 todo = [p for p in self.online if p["url"] not in self.ready and p["url"] not in self.failed][:6]
             for p in todo:
@@ -78,19 +82,19 @@ class Backgrounds:
                     files.append(p)
                 if len(files) >= 2000:
                     break
-        self.folder_files = files
+        with self.lock:
+            self.folder_files = files
 
     # ---- picking
     def pick(self, sources: list[str], exclude: str | None = None) -> tuple[Image.Image, dict] | None:
         """One random ready background from the enabled sources. Returns
         (image 480x320, meta{title,credit,source,key}) or None if nothing is ready yet."""
         cands: list[tuple[str, dict]] = []
-        if "folder" in sources:
-            self._scan_folder()
-            for f in self.folder_files:
-                cands.append((str(f), {"title": f.stem.replace("_", " ").replace("-", " "), "credit": "", "source": "folder", "key": str(f)}))
         online = [s for s in sources if s != "folder"]
         with self.lock:
+            if "folder" in sources:
+                for f in self.folder_files:
+                    cands.append((str(f), {"title": f.stem.replace("_", " ").replace("-", " "), "credit": "", "source": "folder", "key": str(f)}))
             for p in self.online:
                 if p.get("source") in online and p["url"] in self.ready:
                     cands.append((str(self.ready[p["url"]]), {"title": p.get("title") or "", "credit": p.get("credit") or "", "source": p["source"], "key": p["url"]}))

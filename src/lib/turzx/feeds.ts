@@ -12,7 +12,9 @@ import type { TurzxBgSource } from "./catalog";
 
 const cache = new Map<string, { at: number; ttl: number; value: unknown; inflight?: Promise<unknown> }>();
 
-async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T | null> {
+/** Never blocks the poll: a cold miss waits at most `waitMs` (default 1.5 s),
+ *  then returns null while the fetch finishes in the background. */
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>, waitMs = 1500): Promise<T | null> {
   const hit = cache.get(key);
   const now = Date.now();
   if (hit && now - hit.at < hit.ttl) return hit.value as T;
@@ -28,7 +30,7 @@ async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
       return (hit?.value as T) ?? null;
     });
   cache.set(key, { at: hit?.at ?? 0, ttl: hit?.ttl ?? 0, value: hit?.value ?? null, inflight });
-  if (!hit) return inflight; // first call: wait
+  if (!hit) return Promise.race([inflight, new Promise<null>((res) => setTimeout(() => res(null), waitMs))]);
   return hit.value as T; // stale-while-revalidate
 }
 

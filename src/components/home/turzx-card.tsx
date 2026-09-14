@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { BG_SOURCE_META, SKIN_META, TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_META, type OptionField, type TurzxBgSource, type TurzxSkin } from "@/lib/turzx/catalog";
+import { BG_SOURCE_META, NOTIFY_APPS, SKIN_META, TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_META, type OptionField, type TurzxBgSource, type TurzxSkin } from "@/lib/turzx/catalog";
 import type { Pomodoro, TurzxBackground, TurzxSettings, TurzxViewConfig } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
 import { pomodoroAction, saveTurzxSettingsAction } from "@/server/actions/home";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Coffee, Image as ImageIcon, MonitorSmartphone, Play, Square } from "lucide-react";
+import { ArrowDown, ArrowUp, BellRing, ChevronDown, ChevronUp, Coffee, Image as ImageIcon, MonitorSmartphone, Play, Square } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -119,6 +119,61 @@ export function TurzxCard({ initial, pomodoro }: { initial: TurzxSettings; pomod
       </div>
 
       <div className="glass rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <BellRing className="size-4 text-primary" aria-hidden />
+            <p className="text-sm font-medium">Notificări de pe telefon</p>
+          </div>
+          <Switch checked={s.notify.enabled} onCheckedChange={(v) => setS({ ...s, notify: { ...s.notify, enabled: v } })} aria-label="Notificări active" />
+        </div>
+        <p className="text-xs text-muted">Un card cu aplicația, expeditorul și mesajul, peste view-ul curent, pentru câteva secunde. Sursa: senzorul „Last notification” din Home Assistant Companion (S25).</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex items-center gap-3 text-sm">
+            <Switch checked={s.notify.presenceOnly} onCheckedChange={(v) => setS({ ...s, notify: { ...s.notify, presenceOnly: v } })} aria-label="Doar când sunt la birou" />
+            <span>Doar când senzorul de prezență mă vede la birou</span>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <Switch checked={s.notify.showText} onCheckedChange={(v) => setS({ ...s, notify: { ...s.notify, showText: v } })} aria-label="Arată textul mesajului" />
+            <span>{s.notify.showText ? "Arată și textul mesajului" : "Discret: doar aplicația + expeditorul"}</span>
+          </div>
+          <Field label="Poziție">
+            <div className="flex gap-1.5">
+              {(["top", "center", "bottom"] as const).map((p) => (
+                <button key={p} type="button" aria-pressed={s.notify.position === p} onClick={() => setS({ ...s, notify: { ...s.notify, position: p } })} className={cn("rounded-lg border px-2.5 py-1 text-xs", s.notify.position === p ? "border-primary bg-primary/15" : "border-border text-muted")}>
+                  {p === "top" ? "Sus" : p === "center" ? "Centru" : "Jos"}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label={`Durată card · ${s.notify.durationSec} s`}>
+            <Slider min={2} max={30} step={1} value={s.notify.durationSec} onChange={(n) => setS({ ...s, notify: { ...s.notify, durationSec: n } })} aria-label="Durată card" />
+          </Field>
+        </div>
+        <div>
+          <p className="text-xs text-muted mb-2">Aplicații afișate (lista trebuie să coincidă cu Allow list din Companion)</p>
+          <div className="flex flex-wrap gap-1.5">
+            {NOTIFY_APPS.map((a) => {
+              const on = s.notify.packages.includes(a.pkg);
+              return (
+                <button key={a.pkg} type="button" aria-pressed={on} onClick={() => setS({ ...s, notify: { ...s.notify, packages: on ? s.notify.packages.filter((p) => p !== a.pkg) : [...s.notify.packages, a.pkg] } })} className={cn("rounded-lg border px-2.5 py-1 text-xs flex items-center gap-1.5", on ? "border-primary bg-primary/15" : "border-border text-muted")}>
+                  <span className="size-2.5 rounded-full" style={{ background: a.color }} aria-hidden />
+                  {a.label}
+                </button>
+              );
+            })}
+          </div>
+          <textarea
+            value={s.notify.packages.filter((p) => !NOTIFY_APPS.some((a) => a.pkg === p)).join("\n")}
+            onChange={(e) => setS({ ...s, notify: { ...s.notify, packages: [...s.notify.packages.filter((p) => NOTIFY_APPS.some((a) => a.pkg === p)), ...e.target.value.split(/\n|,/).map((x) => x.trim()).filter(Boolean)] } })}
+            placeholder="alte pachete Android, unul pe linie (ex. com.example.app)"
+            rows={2}
+            aria-label="Alte pachete"
+            className="mt-2 w-full rounded-lg border border-border bg-surface px-2 py-1 text-xs"
+          />
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-4 sm:p-5 space-y-4">
         <p className="text-xs text-muted">Fundal global (view-urile fără fundal propriu)</p>
         <BackgroundEditor value={s.background} onChange={(background) => setS({ ...s, background })} />
         <Field label={`Schimbă poza la · ${s.bgRotateMin} min`}>
@@ -220,7 +275,7 @@ function OptionInput({ field, value, onChange }: { field: OptionField; value: un
     case "toggle":
       return (
         <div className="flex items-center gap-3 text-sm">
-          <Switch checked={Boolean(value)} onCheckedChange={onChange} aria-label={field.label} />
+          <Switch checked={value === undefined ? Boolean(field.default) : Boolean(value)} onCheckedChange={onChange} aria-label={field.label} />
           <span>{field.label}</span>
         </div>
       );

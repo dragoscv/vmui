@@ -215,7 +215,9 @@ class Marquee:
         self.t += dt
 
     def draw(self, canvas: Image.Image, box: tuple[int, int, int, int], font, fill, bg, anchor_left: bool = True) -> None:
-        """box = (x0, y0, x1, y1). Text is vertically centred in the box."""
+        """box = (x0, y0, x1, y1). Text is vertically centred in the box.
+        The strip is RGBA, so whatever is under the box (photo, panel) shows
+        through — `bg` is only used to key the cache."""
         from PIL import ImageDraw  # local import keeps anim.py free of PIL.ImageDraw at module load
 
         x0, y0, x1, y1 = box
@@ -226,15 +228,15 @@ class Marquee:
             tw = int(probe.textlength(self.text, font=font)) + 2
             ascent, descent = font.getmetrics()
             th = ascent + descent
-            self.strip = Image.new("RGB", (max(1, tw), th), bg)
-            ImageDraw.Draw(self.strip).text((1, 0), self.text, font=font, fill=fill)
+            self.strip = Image.new("RGBA", (max(1, tw), th), (0, 0, 0, 0))
+            ImageDraw.Draw(self.strip).text((1, 0), self.text, font=font, fill=(*fill[:3], 255))
             self.key = key
             self.fits = tw <= bw
         strip = self.strip
         ty = y0 + (bh - strip.height) // 2
         if self.fits:
-            region = strip
-            canvas.paste(region.crop((0, 0, min(strip.width, bw), strip.height)), (x0 if anchor_left else x1 - strip.width, ty))
+            region = strip.crop((0, 0, min(strip.width, bw), strip.height))
+            canvas.paste(region, (x0 if anchor_left else x1 - strip.width, ty), region)
             return
         travel = strip.width - bw + self.gap // 2
         cycle = self.pause + travel / self.speed + self.pause
@@ -246,9 +248,8 @@ class Marquee:
         else:
             off = travel
         off = min(off, strip.width - 1)
-        view = Image.new("RGB", (bw, strip.height), bg)
-        view.paste(strip.crop((off, 0, min(strip.width, off + bw), strip.height)), (0, 0))
-        canvas.paste(view, (x0, ty))
+        view = strip.crop((off, 0, min(strip.width, off + bw), strip.height))
+        canvas.paste(view, (x0, ty), view)
 
 
 @dataclass

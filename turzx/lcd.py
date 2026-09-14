@@ -134,10 +134,34 @@ class TurzxLcd:
         nat, nx, ny = self._to_native(img, x, y)
         nw, nh = nat.size
         data = rgb565le(nat)
-        self._cmd(CMD_BITMAP, nx, ny, nx + nw - 1, ny + nh - 1)
-        for i in range(0, len(data), CHUNK):
-            self.ser.write(data[i : i + CHUNK])
+        # Header and pixels in ONE write. Two writes let the CDC driver split
+        # them into separate USB transfers with a gap; the panel's parser then
+        # occasionally takes the first pixel bytes as the next command and
+        # desyncs (observed 2026-09-14: freeze after 1–3 min, recovered only
+        # by re-init). One buffer = one contiguous stream.
+        hdr = bytes((nx >> 2, ((nx & 3) << 6) + (ny >> 4), ((ny & 15) << 4) + ((nx + nw - 1) >> 6), (((nx + nw - 1) & 63) << 2) + ((ny + nh - 1) >> 8), (ny + nh - 1) & 255, CMD_BITMAP))
+        buf = hdr + data
+        for i in range(0, len(buf), CHUNK):
+            self.ser.write(buf[i : i + CHUNK])
         return len(data)
+
+    def resync(self) -> None:
+        """Recover a panel whose parser lost the command boundary: drain, then
+        re-run the init sequence. Cheap enough to do on a schedule."""
+        try:
+            self.ser.reset_output_buffer()
+            self.ser.reset_input_buffer()
+        except Exception:
+            pass
+        # No CMD_CLEAR here: the caller repaints, so the screen never blanks.
+        self.hello()
+        ori = bytearray(16)
+        ori[5] = CMD_ORIENTATION
+        ori[6] = 100
+        ori[7:11] = struct.pack(">HH", W, H)
+        self.ser.write(bytes(ori))
+        self._cmd(CMD_ON)
+        self.set_brightness(self.brightness)
 
     def full(self, img: Image.Image) -> int:
         assert img.size == (self.w, self.h), f"{img.size} != {(self.w, self.h)}"
