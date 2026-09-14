@@ -112,6 +112,34 @@ class NotificationOverlay:
         self.queue.append(n)
         self.queue = self.queue[-5:]
 
+    def offer_copilot(self, n: dict | None) -> None:
+        """Agent-harness signal from vmui (/api/copilot/event). Not subject to
+        the phone allow-list or presence: it is addressed to whoever sits at
+        this PC. An `ask` stays on screen while `ongoing` is true and drops the
+        moment the hook cancels it (next tool call)."""
+        if not n or not n.get("id"):
+            if self.cur is not None and str(self.cur.get("pkg", "")).startswith("copilot.") and self.cur.get("ongoing"):
+                self.t0 = -1e9  # force "done" on the next step
+            return
+        nid = n["id"]
+        if nid in self.seen:
+            if self.cur is not None and self.cur.get("id") == nid and self.cur.get("ongoing") and not n.get("ongoing"):
+                self.cur["ongoing"] = False
+                self.t0 = time.monotonic() - IN_S - self.hold + 1.0  # short tail, then out
+            return
+        self.seen.add(nid)
+        if not getattr(self, "enabled", True):
+            return
+        n = dict(n)
+        col = n.get("color")
+        if isinstance(col, str) and len(col) == 7:
+            n["_col"] = tuple(int(col[i : i + 2], 16) for i in (1, 3, 5))
+        # jump the queue: a waiting agent beats a WhatsApp
+        self.queue.insert(0, n)
+        self.queue = self.queue[:5]
+        if self.cur is not None and not str(self.cur.get("pkg", "")).startswith("copilot."):
+            self.t0 = -1e9
+
     # ---- state machine
     @property
     def active(self) -> bool:
@@ -121,6 +149,8 @@ class NotificationOverlay:
         el = now - self.t0
         if el < IN_S:
             return "in", el / IN_S
+        if self.cur is not None and self.cur.get("ongoing") and str(self.cur.get("pkg", "")).startswith("copilot."):
+            return "hold", 0.0
         if el < IN_S + self.hold:
             return "hold", (el - IN_S) / self.hold
         if el < IN_S + self.hold + OUT_S:
@@ -159,6 +189,8 @@ class NotificationOverlay:
     # ---- paint
     def _build_card(self, n: dict) -> Image.Image:
         label, col = APPS.get(str(n.get("pkg")), (str(n.get("app") or "telefon").title(), (124, 156, 255)))
+        if n.get("_col"):
+            col = tuple(n["_col"])
         ch = self.card_h
         card = Image.new("RGBA", (CARD_W, ch), (0, 0, 0, 0))
         d = ImageDraw.Draw(card)

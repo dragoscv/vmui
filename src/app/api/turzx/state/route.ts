@@ -1,3 +1,4 @@
+import { currentSignal, loadCopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { ensureActivityFeed, recentActivity } from "@/lib/esp/activity";
@@ -73,6 +74,13 @@ export async function GET(req: NextRequest) {
     loadPomodoro(),
   ]);
   const amb = await ambilightSettings();
+  const sig = currentSignal();
+  const sigCfg = await loadCopilotSignals();
+  // Same shape as a phone notification so the overlay pops it with no new code path.
+  const copilot =
+    sig && sigCfg.enabled && sigCfg.patterns[sig.event].turzx
+      ? { id: sig.id, at: sig.at, pkg: `copilot.${sig.event}`, app: sig.source, title: { ask: "Copilot asteapta raspuns", done: "Copilot a terminat", blocked: "Comanda blocata", failed: "A esuat" }[sig.event], text: sig.text, ongoing: sig.active, group: false, color: sigCfg.patterns[sig.event].color }
+      : null;
   const lights = [...states.values()].filter((s) => s.entity_id.startsWith("light."));
   const media = [...states.values()].filter((s) => s.entity_id.startsWith("media_player.") && (s.state === "playing" || s.state === "paused"));
   const actions = await db.select({ action: auditLog.action, target: auditLog.target, at: auditLog.createdAt }).from(auditLog).orderBy(desc(auditLog.createdAt)).limit(6);
@@ -122,6 +130,7 @@ export async function GET(req: NextRequest) {
       quote,
       pomodoro,
       notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
+      copilot,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

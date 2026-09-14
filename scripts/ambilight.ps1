@@ -45,13 +45,17 @@
                    honoured -- HybridRgbInterpolator is a spring that ignores
                    time_ms entirely (stiffness/damping only), which is why the
                    PC glow used to snap on every cut.
-    idleStripHex / idleGlowHex
-                   colour each output shows when NOTHING else is driving it
-                   (movie mode off => grabber disabled). HyperHDR's
-                   backgroundEffect, so it needs no extra process and never
-                   fights the grabber: the moment a higher-priority source
-                   appears it yields. '#000000' = off. Room lights are not
-                   given an idle colour; movie_mode_off sets them warm via HA.
+    idleStripHex / idleGlowHex / idleAfterSec
+                   colour each output shows after idleAfterSec with no frames
+                   from HyperHDR (movie mode off, or nothing moving on screen
+                   for that long). Applied by the BRIDGES, not by HyperHDR:
+                   HyperHDR's backgroundEffect flips in after only 800 ms
+                   without a new frame, and DX11 delivers no frame while the
+                   screen is static, so a paused film or a still scene made
+                   the case jump idle->picture->idle ("lightning"). The
+                   bridges hold the last frame instead and fade to idle only
+                   after a real silence. '#000000' = off. Room lights get
+                   their idle look from movie_mode_off via HA.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Status')]
 param(
@@ -75,7 +79,7 @@ $env:HA_URL = $null
 . (Join-Path $Amb 'hyperhdr-layout.ps1')
 
 $SettingsPath = Join-Path $Amb 'settings.json'
-$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; idleStripHex = '#000000'; idleGlowHex = '#000000' }
+$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; idleStripHex = '#000000'; idleGlowHex = '#000000'; idleAfterSec = 20 }
 function Get-Settings {
     $s = [ordered]@{} + $Defaults
     if (Test-Path $SettingsPath) { (Get-Content $SettingsPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } }
@@ -107,6 +111,10 @@ function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
 function Write-Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
 function Write-Step($m) { Write-Host "  $m" -ForegroundColor Cyan }
 
+function New-Smoothing([int]$TimeMs, [int]$Hz) {
+    @{ enable = $true; type = 'ExponentialInterpolator'; time_ms = [Math]::Max(25, $TimeMs); updateFrequency = $Hz; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+}
+
 $OrgbEffectProfiles = "$env:APPDATA\OpenRGB\plugins\settings\effect-profiles"
 function Get-OrgbAutostartEffects {
     <# Effects-plugin effects armed to start with OpenRGB. Each one is a second
@@ -130,16 +138,6 @@ function Disable-OrgbAutostartEffects {
     Write-Ok "OpenRGB Effects autostart disabled: $(($armed | ForEach-Object { "$($_.Profile)/$($_.Effect)" }) -join ', ')"
     $orgb = Get-Process OpenRGB -ErrorAction SilentlyContinue
     if ($orgb) { $orgb | Stop-Process -Force; Start-Sleep 2; Start-ScheduledTask -TaskName 'vmui-ambilight-openrgb' -ErrorAction SilentlyContinue; Start-Sleep 6 }
-}
-
-function New-Smoothing([int]$TimeMs, [int]$Hz) {
-    @{ enable = $true; type = 'ExponentialInterpolator'; time_ms = [Math]::Max(25, $TimeMs); updateFrequency = $Hz; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
-}
-
-function New-Background([string]$Hex) {
-    $h = $Hex.TrimStart('#')
-    $rgb = @([Convert]::ToInt32($h.Substring(0, 2), 16), [Convert]::ToInt32($h.Substring(2, 2), 16), [Convert]::ToInt32($h.Substring(4, 2), 16))
-    @{ enable = (($rgb | Measure-Object -Sum).Sum -gt 0); type = 'color'; color = $rgb; effect = 'Rainbow swirl fast' }
 }
 
 function Ensure-Instance([string]$Name) {
@@ -190,7 +188,7 @@ function Configure-HyperHdr {
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
         leds          = New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08
         smoothing     = New-Smoothing -TimeMs ([int]$Settings.stripSmoothMs) -Hz 60
-        backgroundEffect = New-Background $Settings.idleStripHex
+        backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
         soundEffect   = @{ device = 'Voicemeeter Out B1 (VB-Audio Vo'; enable = $true; enable_smoothing = $true }
         mqtt          = @{ enable = $true; host = ($env:HA_URL -replace '^https?://', ''); port = 1883; username = $env:MQTT_HYPERHDR_USER; password = $env:MQTT_HYPERHDR_PASS; is_ssl = $false; ignore_ssl_errors = $true; custom_topic = 'HyperHDR'; disableApiAccess = $false; maxRetry = 120 }
     }
@@ -205,7 +203,7 @@ function Configure-HyperHdr {
         # or player chrome most of the time and the case only pulsed.
         leds      = @() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3)
         smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 25
-        backgroundEffect = New-Background $Settings.idleGlowHex
+        backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
     }
     Enable-Grabber $pc
 
@@ -384,6 +382,12 @@ function Show-Status {
     if ($svc -and ($svc.Status -eq 'Running' -or $svc.StartType -ne 'Disabled')) {
         Write-Warn "OpenRGB Windows service is $($svc.Status)/$($svc.StartType) -- a second controller instance; from an ADMIN shell: Stop-Service OpenRGB; Set-Service OpenRGB -StartupType Disabled"
     }
+    # Pinned to 0.9 (b5f46e3): 1.0's rewritten Gigabyte RGB Fusion 2 USB driver
+    # blanks the ARGB headers on every colour update (case + AIO strobe) --
+    # verified 2026-09-14 with a direct SDK ramp and no other writer. 1.0 also
+    # brought nothing we can use (DDR5 on Z790 stays unreachable, see ram-icue.ps1).
+    $ver = (& $OpenRgbExe --version 2>$null | Select-Object -First 1) -replace '.*OpenRGB\s+', '' -replace ',.*', ''
+    if ($ver -and $ver -notmatch '^0\.9$') { Write-Warn "OpenRGB is $ver -- ARGB headers strobe on 1.x; reinstall 0.9 (codeberg release_0.9, OpenRGB_0.9_Windows_64_b5f46e3.zip)" }
     Write-Host ''
 }
 
@@ -409,6 +413,13 @@ switch ($PSCmdlet.ParameterSetName) {
         Write-Ok "settings: $(($s.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ' ')"
         $Settings = $s
         Configure-HyperHdr
+        # The bridges read idle* once at start-up.
+        if (($Set -join ',') -match 'idle') {
+            Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'bridges\.py' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+            Start-Sleep 2
+            Start-ScheduledTask -TaskName 'vmui-ambilight-bridges' -ErrorAction SilentlyContinue
+            Write-Ok 'bridges restarted with the new idle colours'
+        }
     }
     default { Show-Status }
 }

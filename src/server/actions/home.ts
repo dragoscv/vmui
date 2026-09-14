@@ -1,10 +1,12 @@
 "use server";
 
 import { requireRole } from "@/lib/auth";
+import { copilotSignalsSchema, saveCopilotSignals, type CopilotEvent, type CopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
 import { auditLog, homeLayout } from "@/lib/db/schema";
 import { setAmbilightSettings } from "@/lib/home/ambilight-settings";
 import { AMBILIGHT_MODES, DEVICES, ROOMS } from "@/lib/home/catalog";
+import { credential } from "@/lib/home/credentials";
 import { ha } from "@/lib/home/ha-client";
 import { loadPomodoro, loadTurzxSettings, POMODORO_IDLE, savePomodoro, saveTurzxSettings, turzxSettingsSchema, type TurzxSettings } from "@/lib/turzx/settings";
 import { revalidatePath } from "next/cache";
@@ -207,6 +209,38 @@ export async function saveTurzxSettingsAction(input: TurzxSettings): Promise<Res
 }
 
 /** Pomodoro on the desk screen: start work, skip to break, or stop. */
+export async function saveCopilotSignalsAction(input: CopilotSignals): Promise<Result> {
+  const p = copilotSignalsSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
+  return run("copilot.settings", "copilot", `${p.data.lights.length} lights, ${Object.values(p.data.patterns).filter((x) => x.enabled).length} events on`, async () => {
+    await saveCopilotSignals(p.data);
+    revalidatePath("/home");
+  });
+}
+
+/** Fire one event through the same path the hooks use, so the UI test button proves the whole chain. */
+export async function testCopilotSignalAction(event: CopilotEvent): Promise<Result> {
+  const p = z.enum(["ask", "done", "blocked", "failed"]).safeParse(event);
+  if (!p.success) return { ok: false, error: "Invalid event" };
+  return run("copilot.test", "copilot", p.data, async () => {
+    const tok = credential("ESP_DISPLAY_TOKEN");
+    if (!tok) throw new Error("ESP_DISPLAY_TOKEN missing");
+    const port = process.env.PORT ?? "3737";
+    const r = await fetch(`http://127.0.0.1:${port}/api/copilot/event?k=${encodeURIComponent(tok)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ event: p.data, text: "test din mui", source: "mui" }),
+    });
+    if (!r.ok) throw new Error(`event endpoint ${r.status}`);
+    if (p.data === "ask") {
+      // A test `ask` must not strobe forever: cancel it after 6 s.
+      setTimeout(() => {
+        fetch(`http://127.0.0.1:${port}/api/copilot/event?k=${encodeURIComponent(tok)}`, { method: "DELETE" }).catch(() => undefined);
+      }, 6000);
+    }
+  });
+}
+
 export async function pomodoroAction(cmd: "start" | "break" | "stop"): Promise<Result> {
   const p = z.enum(["start", "break", "stop"]).safeParse(cmd);
   if (!p.success) return { ok: false, error: "Invalid command" };

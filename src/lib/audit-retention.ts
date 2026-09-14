@@ -38,6 +38,10 @@ async function pruneAndArchive(): Promise<void> {
 
 export function ensureAuditRetention(): void {
   if (typeof window !== "undefined") return;
+  // `next build` imports every route in ~30 parallel workers; each would open
+  // the live DB and run the archive concurrently (seen as 28x
+  // SQLITE_CORRUPT_VTAB in the build log). Only the serving process should.
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   if (globalThis.__vmuiAuditRetention__) return;
   pruneAndArchive().catch((err) => console.error("[vmui] audit archive failed", err));
   const interval = setInterval(

@@ -32,9 +32,39 @@ const SECURITY_HEADERS: Array<{ key: string; value: string }> = [
 const config: NextConfig = {
   reactStrictMode: true,
   reactCompiler: true,
-  serverExternalPackages: ["better-sqlite3", "ssh2", "cpu-features", "ws"],
+  // Native bindings must never be bundled. The cloud SDKs are pure server
+  // code that Turbopack was inlining into one 30 MB server chunk (+160 MB
+  // source map) per build; leaving them in node_modules cuts compile time
+  // and .next/server by an order of magnitude with no runtime difference.
+  serverExternalPackages: [
+    "better-sqlite3",
+    "ssh2",
+    "cpu-features",
+    "ws",
+    "@aws-sdk/client-cloudwatch",
+    "@aws-sdk/client-ec2",
+    "@aws-sdk/client-elastic-load-balancing-v2",
+    "@aws-sdk/client-pricing",
+    "@aws-sdk/client-rds",
+    "@aws-sdk/client-route-53",
+    "@aws-sdk/client-s3",
+    "@aws-sdk/client-sts",
+    "@azure/arm-compute",
+    "@azure/arm-dns",
+    "@azure/arm-network",
+    "@azure/arm-resources-subscriptions",
+    "@azure/arm-sql",
+    "@azure/arm-storage",
+    "@azure/identity",
+    "@google-cloud/compute",
+    "@google-cloud/dns",
+    "@google-cloud/storage",
+    "google-auth-library",
+  ],
+  productionBrowserSourceMaps: false,
   experimental: {
     viewTransition: true,
+    serverSourceMaps: false,
   },
   async headers() {
     return [

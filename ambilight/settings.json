@@ -1,9 +1,15 @@
 {
-  "wallStrength": 0.8,
+  "wallHex": "#439ebf",
+  "idleAfterSec": 20,
   "grabberFps": 60,
+  "idleGlowHex": "#500000",
   "luminance": 1.0,
+  "wallStrength": 0.8,
+  "stripSmoothMs": 150,
   "hdrToneMapping": true,
-  "gamma": 1.5,
   "saturation": 1.0,
-  "wallHex": "#439ebf"
+  "gamma": 1.5,
+  "roomSmoothMs": 2500,
+  "glowSmoothMs": 700,
+  "idleStripHex": "#a00000"
 }

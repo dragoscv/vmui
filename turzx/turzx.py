@@ -348,6 +348,7 @@ class Renderer:
         # phone notifications ride on top of everything
         present = ((data.get("home") or {}).get("presence") or {}).get("state") == "on"
         self.overlay.offer(data.get("notification"), present)
+        self.overlay.offer_copilot(data.get("copilot"))
         self.overlay.step(now, dt)
         if self.overlay.active:
             self.dwell_t += dt  # pause the rotation while a card is up

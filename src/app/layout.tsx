@@ -1,38 +1,43 @@
-import type { Metadata, Viewport } from "next";
-import { Toaster } from "sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "@/components/theme-provider";
-import { QueryProvider } from "@/components/query-provider";
-import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { CommandPalette } from "@/components/command-palette";
+import { VibeProvider } from "@/components/dashboard/vibe-provider";
+import { IncidentBanner } from "@/components/incident-banner";
+import { GlobalOverlays } from "@/components/nav/global-overlays";
+import { MobileNav } from "@/components/nav/mobile-nav";
 import { Sidebar } from "@/components/nav/sidebar";
 import { Topbar } from "@/components/nav/topbar";
-import { MobileNav } from "@/components/nav/mobile-nav";
-import { GlobalOverlays } from "@/components/nav/global-overlays";
-import { ServiceWorkerRegister } from "@/components/service-worker-register";
-import { CommandPalette } from "@/components/command-palette";
-import { VoiceCommander } from "@/components/voice-commander";
-import { IncidentBanner } from "@/components/incident-banner";
-import { RealtimeListener } from "@/components/realtime-listener";
-import { VibeProvider } from "@/components/dashboard/vibe-provider";
-import { PullToRefresh } from "@/components/pwa/pull-to-refresh";
-import { ensureSchedulerRunning } from "@/lib/scheduler";
-import { ensureAuditRetention } from "@/lib/audit-retention";
-import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
-import { ensureComplianceScanRunning } from "@/lib/compliance-scheduler";
-import { ensureAlertSchedulerRunning } from "@/lib/alert-engine";
-import { ensureGitopsSchedulerRunning } from "@/lib/gitops";
-import { ensureBackupSchedulerRunning } from "@/lib/backups";
-import { getCurrentUser } from "@/lib/auth";
 import { UserMenu } from "@/components/nav/user-menu";
+import { PullToRefresh } from "@/components/pwa/pull-to-refresh";
+import { QueryProvider } from "@/components/query-provider";
+import { RealtimeListener } from "@/components/realtime-listener";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { VoiceCommander } from "@/components/voice-commander";
+import { ensureAlertSchedulerRunning } from "@/lib/alert-engine";
+import { ensureAuditRetention } from "@/lib/audit-retention";
+import { getCurrentUser } from "@/lib/auth";
+import { ensureBackupSchedulerRunning } from "@/lib/backups";
+import { ensureComplianceScanRunning } from "@/lib/compliance-scheduler";
+import { ensureGitopsSchedulerRunning } from "@/lib/gitops";
+import { ensureSchedulerRunning } from "@/lib/scheduler";
+import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
+import type { Metadata, Viewport } from "next";
+import { Toaster } from "sonner";
 import "./globals.css";
 
-ensureSchedulerRunning();
-ensureAuditRetention();
-startWebhookDispatcher();
-ensureComplianceScanRunning();
-ensureAlertSchedulerRunning();
-ensureGitopsSchedulerRunning();
-ensureBackupSchedulerRunning();
+// Module-load side effects run in every `next build` page-data worker too
+// (~30 of them, each opening the SQLite file and starting timers). Only the
+// real server should.
+if (process.env.NEXT_PHASE !== "phase-production-build") {
+  ensureSchedulerRunning();
+  ensureAuditRetention();
+  startWebhookDispatcher();
+  ensureComplianceScanRunning();
+  ensureAlertSchedulerRunning();
+  ensureGitopsSchedulerRunning();
+  ensureBackupSchedulerRunning();
+}
 
 export const metadata: Metadata = {
   title: "vmui — multi-cloud VM control",

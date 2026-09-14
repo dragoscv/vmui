@@ -30,14 +30,29 @@ from openrgb import OpenRGBClient
 from openrgb.utils import OpenRGBDisconnected, RGBColor
 
 # zone-name substring -> which HyperHDR region (index into the 3-region frame)
+# Names cover both OpenRGB 0.9 ("D_LED1 Bottom", "Motherboard") and 1.0
+# ("D_LED1", "LED_C1", "Chipset Accent"). We run 0.9 on purpose: 1.0's
+# rewritten Gigabyte driver blanks the ARGB headers on every colour update
+# (verified 2026-09-14 with a direct SDK ramp, no other writer) and the case
+# strobes; 0.9 is smooth. Do not "upgrade" without re-testing that.
 ZONE_MAP: dict[str, int] = {
     "D_LED1": 0,
     "D_LED2": 2,
+    "LED_C": 1,
+    "Chipset": 1,
     "Motherboard": 1,
     "GPU": 1,
 }
-# Devices we never touch. The keyboard is for typing, not for mood.
+# ARGB headers come up with 0 LEDs in 1.0 until told their strip length
+# (no-op on 0.9 where the sizes are already right).
+ZONE_SIZES: dict[str, int] = {"D_LED1": 30, "D_LED2": 20}
+# Devices we never touch. The keyboard is for typing, not for mood; the
+# Robobloq strip is HyperHDR's over HID (detector is disabled, belt and braces).
 SKIP_DEVICE_TYPES = {"KEYBOARD", "MOUSE", "MOUSEMAT", "HEADSET"}
+SKIP_DEVICE_NAMES = ("Robobloq",)
+# openrgb-python 0.3.6 negotiates v4 and then blocks forever in
+# requestPluginList against OpenRGB 1.0. v3 has everything we use.
+PROTOCOL = 3
 
 
 class PcGlow:
@@ -46,15 +61,18 @@ class PcGlow:
         self.connect()
 
     def connect(self) -> None:
-        self.client = OpenRGBClient(self.host, self.port, "vmui-ambilight")
+        self.client = OpenRGBClient(self.host, self.port, "vmui-ambilight", protocol_version=PROTOCOL)
         self.targets: list[tuple[object, object, int]] = []  # (device, zone, region)
         for dev in self.client.devices:
-            if dev.type.name in SKIP_DEVICE_TYPES:
+            if dev.type.name in SKIP_DEVICE_TYPES or any(n in dev.name for n in SKIP_DEVICE_NAMES):
                 continue
             direct = next((m for m in dev.modes if m.name == "Direct"), None)
             if direct is not None and dev.active_mode != direct.id:
                 dev.set_mode(direct)
             for zone in dev.zones:
+                want = next((n for k, n in ZONE_SIZES.items() if k.lower() in zone.name.lower()), None)
+                if want and len(zone.leds) != want:
+                    zone.resize(want)
                 region = next((r for k, r in ZONE_MAP.items() if k.lower() in zone.name.lower()), None)
                 if region is None or not zone.leds:
                     continue
@@ -68,11 +86,20 @@ class PcGlow:
 
     def apply(self, regions: list[tuple[int, int, int]]) -> None:
         try:
+            # One UPDATELEDS per device, not one UPDATEZONELEDS per zone: the
+            # Gigabyte driver runs SetStripBuiltinEffectState + ApplyEffect on
+            # every zone commit, so three commits per frame re-arm the strips
+            # three times and the case flashed on each transition.
+            per_dev: dict[int, tuple[object, list[RGBColor]]] = {}
             for dev, zone, region in self.targets:
+                if id(dev) not in per_dev:
+                    per_dev[id(dev)] = (dev, [RGBColor(0, 0, 0)] * len(dev.leds))
                 r, g, b = regions[min(region, len(regions) - 1)]
-                zone.set_color(RGBColor(r, g, b), fast=True)
-            for dev in {t[0] for t in self.targets}:
-                dev.show()
+                colors = per_dev[id(dev)][1]
+                for led in zone.leds:
+                    colors[led.id] = RGBColor(r, g, b)
+            for dev, colors in per_dev.values():
+                dev.set_colors(colors, fast=True)
         except (OpenRGBDisconnected, ConnectionError, OSError):
             # OpenRGB restarts (profile reload, user closes the tray app,
             # SDK server toggled). Reconnect with backoff; the stream keeps
@@ -115,24 +142,71 @@ def run_listen(glow: PcGlow, port: int) -> None:
     sock.bind(("127.0.0.1", port))
     sock.settimeout(1.0)
     print(f"  listening udp://127.0.0.1:{port} (3 regions = 9 bytes/frame)")
-    last: bytes | None = None
+    from dxlight_bridge import IdleGate, idle_config  # same folder, same rules
+    idle_rgb, idle_after = idle_config("idleGlowHex")
+    gate = IdleGate(bytes(idle_rgb) * 3, idle_after)
+    print(f"  idle {idle_rgb} after {idle_after:.0f}s of silence")
     # Case lighting does not need 60 Hz; 20 Hz is invisible to the eye on a
     # diffuse glow and keeps SMBus/USB chatter down.
     min_interval = 1 / 20
     next_at = 0.0
+
+    def apply(frame: bytes) -> None:
+        glow.apply([tuple(frame[i : i + 3]) for i in (0, 3, 6)])  # type: ignore[misc]
+
     while True:
         try:
             data, _ = sock.recvfrom(1024)
         except socket.timeout:
+            gate.on_timeout(apply)
             continue
-        if len(data) < 9 or data == last:
+        if len(data) < 9:
             continue
         now = time.monotonic()
         if now < next_at:
             continue
         next_at = now + min_interval
-        last = data
-        glow.apply([tuple(data[i : i + 3]) for i in (0, 3, 6)])  # type: ignore[misc]
+        gate.on_frame(ambient(data[:9]), apply)
+
+
+def ambient(frame: bytes) -> bytes:
+    """Turn a picture-average into a glow colour.
+
+    Region averages of a film are mostly desaturated mid-grey: a dark scene
+    with subtitles averages to (40,40,40) and the case shows dim WHITE, which
+    reads as 'stuck on'. Two rules per region:
+      * chroma boost: push saturation up so the dominant hue survives;
+      * luma gate: below LUMA_OFF the glow is off, ramping to full by
+        LUMA_FULL, so a dark screen means dark case rather than grey.
+    """
+    out = bytearray()
+    for i in (0, 3, 6):
+        r, g, b = frame[i], frame[i + 1], frame[i + 2]
+        mx, mn = max(r, g, b), min(r, g, b)
+        luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        if mx == 0:
+            out += b"\0\0\0"
+            continue
+        # saturation boost: move each channel away from the mean
+        mean = (r + g + b) / 3
+        sat = (mx - mn) / mx
+        k = 1.0 + SAT_BOOST * (1.0 - sat)
+        r2, g2, b2 = (min(255, max(0, mean + (c - mean) * k)) for c in (r, g, b))
+        # luma gate
+        gain = 0.0 if luma <= LUMA_OFF else min(1.0, (luma - LUMA_OFF) / (LUMA_FULL - LUMA_OFF))
+        gain = gain ** 0.6  # perceptual ease-in so mid-dark scenes still glow a little
+        # grey has no hue to boost; a grey glow is what reads as "white". Fade
+        # it by saturation so only coloured light reaches the case.
+        gain *= 0.25 + 0.75 * min(1.0, sat * 2.5)
+        out += bytes(int(c * gain) for c in (r2, g2, b2))
+    return bytes(out)
+
+
+# Measured on the Odyssey with a night scene + subtitles: average luma ~0.10,
+# which is "black" to the eye; a lit interior ~0.30.
+LUMA_OFF = 0.12
+LUMA_FULL = 0.35
+SAT_BOOST = 1.6
 
 
 def main() -> int:

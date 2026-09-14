@@ -20,13 +20,97 @@ implementations and against this unit):
 Usage:
   python dxlight_bridge.py --test           # red/green/blue sweep, then off
   python dxlight_bridge.py --listen 19446   # HyperHDR udpraw target
+
+Idle: after settings.json `idleAfterSec` (default 20) without a datagram the
+strip fades to `idleStripHex` (default off). HyperHDR's own
+backgroundEffect is NOT used for this: it flips in after 800 ms without a new
+frame, and the DX11 grabber emits no frame while the picture is static, so a
+paused film or a still scene flashed idle/picture/idle. Here the last frame
+is held and idle only wins after a real silence.
 """
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import socket
 import sys
 import time
+
+SETTINGS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+
+
+def idle_config(key: str) -> tuple[tuple[int, int, int], float]:
+    """(rgb, seconds) from ambilight/settings.json; `key` = idleStripHex | idleGlowHex."""
+    try:
+        with open(SETTINGS, encoding="utf-8") as fh:
+            s = json.load(fh)
+    except (OSError, ValueError):
+        s = {}
+    h = str(s.get(key, "#000000")).lstrip("#")
+    rgb = (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)) if len(h) == 6 else (0, 0, 0)
+    return rgb, float(s.get("idleAfterSec", 20))
+
+
+def fade_frames(src: bytes, dst: bytes, steps: int):
+    for i in range(1, steps + 1):
+        t = i / steps
+        yield bytes(int(a + (b - a) * t) for a, b in zip(src, dst))
+
+
+def is_black(data: bytes) -> bool:
+    return not any(data)
+
+
+class IdleGate:
+    """Shared idle policy for the UDP bridges.
+
+    HyperHDR emits ONE all-black frame when it switches the LED device off
+    (no source / grabber stopped) and then goes silent. Applying that frame
+    is the short flash seen on every idle transition: lit -> black -> (20 s
+    later) fade to idle red. Rule: a black frame after real content is not
+    content, it is the off signal -> keep the last picture and let the idle
+    timer run. Leaving idle is faded too, so the first film frame does not
+    pop out of solid red.
+    """
+
+    def __init__(self, idle_frame: bytes, idle_after: float, steps: int = 40) -> None:
+        self.idle_frame = idle_frame
+        self.idle_after = idle_after
+        self.steps = steps
+        self.last: bytes | None = None
+        self.last_rx = time.monotonic()
+        self.idle = False
+
+    def on_timeout(self, apply) -> None:
+        if not self.idle and time.monotonic() - self.last_rx >= self.idle_after and self.last != self.idle_frame:
+            for f in fade_frames(self.last or bytes(len(self.idle_frame)), self.idle_frame, self.steps):
+                apply(f)
+                time.sleep(0.05)
+            self.last = self.idle_frame
+            self.idle = True
+            print("  idle", flush=True)
+
+    def on_frame(self, data: bytes, apply) -> bool:
+        """Returns True if `data` was applied."""
+        if is_black(data) and self.last is not None and not self.idle:
+            # the off signal, not a picture
+            self.last_rx = time.monotonic()
+            return False
+        was_idle = self.idle
+        self.last_rx = time.monotonic()
+        self.idle = False
+        if data == self.last:
+            return False
+        if was_idle:
+            for f in fade_frames(self.last or bytes(len(data)), data, 20):
+                apply(f)
+                time.sleep(0.03)
+        else:
+            apply(data)
+        self.last = data
+        return True
+
 
 import hid  # hidapi
 
@@ -116,20 +200,19 @@ def run_listen(dx: DxLight, port: int) -> None:
     sock.bind(("127.0.0.1", port))
     sock.settimeout(1.0)
     print(f"  listening udp://127.0.0.1:{port} for {LED_COUNT} LEDs ({LED_COUNT * 3} bytes/frame)")
+    idle_rgb, idle_after = idle_config("idleStripHex")
+    gate = IdleGate(bytes(idle_rgb) * LED_COUNT, idle_after)
+    print(f"  idle {idle_rgb} after {idle_after:.0f}s of silence")
     frames, t0 = 0, time.monotonic()
-    last: bytes | None = None
     while True:
         try:
             data, _ = sock.recvfrom(4096)
         except socket.timeout:
-            # HyperHDR stops streaming when it has nothing to show; keep the
-            # last frame rather than blanking, so a paused film stays lit.
+            gate.on_timeout(dx.frame)
             continue
         if len(data) < 3:
             continue
-        if data != last:
-            dx.frame(data)
-            last = data
+        gate.on_frame(data, dx.frame)
         frames += 1
         if frames % 600 == 0:
             now = time.monotonic()

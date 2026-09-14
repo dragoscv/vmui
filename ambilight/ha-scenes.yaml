@@ -63,7 +63,7 @@ script:
       - delay: { milliseconds: 600 }
       - action: light.turn_on
         target: { entity_id: [light.desk_light_bar, light.led_argb] }
-        data: { kelvin: 3000, brightness_pct: 60 }
+        data: { color_temp_kelvin: 3000, brightness_pct: 60 }
 
   music_mode:
     alias: "Music mode"
@@ -97,6 +97,149 @@ script:
         data:
           commands: >-
             {{ [{"command": "color", "color": color | default([0,120,255]), "priority": 10, "duration": duration_ms | default(1500) | int}] | to_json }}
+
+  # ---------------------------------------------------------------------
+  # Copilot / agent-harness signals on the room bulbs (Calex via Smart Life).
+  # Called by vmui /api/copilot/event, which is called by ~/.copilot/hooks.
+  # `lights` = list of light entity ids, `color` = [r,g,b].
+  # Every script snapshots the bulbs into scene.copilot_before and restores
+  # it at the end, so a bulb that was warm-white 40 % comes back exactly so.
+  # ---------------------------------------------------------------------
+  copilot_ask:
+    alias: "Copilot: asteapta raspuns (puls agresiv)"
+    icon: mdi:robot-confused
+    mode: restart
+    fields:
+      lights:
+        { description: light entity ids, example: '["light.ambience_light"]' }
+      color: { default: [255, 90, 31] }
+    sequence:
+      - action: scene.create
+        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
+      # Fast double-pulse, repeated until script.copilot_clear stops us
+      # (mode: restart + a `stop` in copilot_clear via script.turn_off).
+      - repeat:
+          while: "{{ true }}"
+          sequence:
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                { rgb_color: "{{ color }}", brightness_pct: 100, transition: 0 }
+            - delay: { milliseconds: 180 }
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                { rgb_color: "{{ color }}", brightness_pct: 8, transition: 0 }
+            - delay: { milliseconds: 180 }
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                { rgb_color: "{{ color }}", brightness_pct: 100, transition: 0 }
+            - delay: { milliseconds: 180 }
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                { rgb_color: "{{ color }}", brightness_pct: 8, transition: 0 }
+            - delay: { milliseconds: 900 }
+
+  copilot_clear:
+    alias: "Copilot: opreste alerta si restaureaza"
+    icon: mdi:robot-off
+    mode: queued
+    fields:
+      lights: { description: light entity ids }
+    sequence:
+      - action: script.turn_off
+        target: { entity_id: script.copilot_ask }
+      - action: scene.turn_on
+        target: { entity_id: scene.copilot_before }
+        data: { transition: 1 }
+
+  copilot_done:
+    alias: "Copilot: gata (fade calm)"
+    icon: mdi:robot-happy
+    mode: queued
+    fields:
+      lights: { description: light entity ids }
+      color: { default: [46, 204, 113] }
+    sequence:
+      - action: script.turn_off
+        target: { entity_id: script.copilot_ask }
+      - action: scene.create
+        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
+      - action: light.turn_on
+        target: { entity_id: "{{ lights }}" }
+        data: { rgb_color: "{{ color }}", brightness_pct: 70, transition: 1.5 }
+      - delay: { seconds: 2 }
+      - action: light.turn_on
+        target: { entity_id: "{{ lights }}" }
+        data: { rgb_color: "{{ color }}", brightness_pct: 25, transition: 1.5 }
+      - delay: { seconds: 2 }
+      - action: scene.turn_on
+        target: { entity_id: scene.copilot_before }
+        data: { transition: 2 }
+
+  copilot_blocked:
+    alias: "Copilot: comanda blocata (flash rosu)"
+    icon: mdi:robot-dead
+    mode: queued
+    fields:
+      lights: { description: light entity ids }
+      color: { default: [255, 45, 45] }
+    sequence:
+      - action: scene.create
+        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
+      - repeat:
+          count: 3
+          sequence:
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                { rgb_color: "{{ color }}", brightness_pct: 100, transition: 0 }
+            - delay: { milliseconds: 120 }
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                { rgb_color: "{{ color }}", brightness_pct: 5, transition: 0 }
+            - delay: { milliseconds: 120 }
+      - action: scene.turn_on
+        target: { entity_id: scene.copilot_before }
+        data: { transition: 0.5 }
+
+  copilot_failed:
+    alias: "Copilot: build/test esuat (flash galben)"
+    icon: mdi:robot-angry
+    mode: queued
+    fields:
+      lights: { description: light entity ids }
+      color: { default: [255, 196, 0] }
+    sequence:
+      - action: scene.create
+        data: { scene_id: copilot_before, snapshot_entities: "{{ lights }}" }
+      - repeat:
+          count: 2
+          sequence:
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                {
+                  rgb_color: "{{ color }}",
+                  brightness_pct: 100,
+                  transition: 0.3,
+                }
+            - delay: { milliseconds: 500 }
+            - action: light.turn_on
+              target: { entity_id: "{{ lights }}" }
+              data:
+                {
+                  rgb_color: "{{ color }}",
+                  brightness_pct: 10,
+                  transition: 0.3,
+                }
+            - delay: { milliseconds: 500 }
+      - action: scene.turn_on
+        target: { entity_id: scene.copilot_before }
+        data: { transition: 1 }
 
 automation:
   - id: ambilight_webhook_notify

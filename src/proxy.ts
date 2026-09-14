@@ -7,6 +7,7 @@ const PUBLIC_PREFIXES = [
   "/api/v1",
   "/api/esp",   // ESP32 display: token-authenticated, no session cookie
   "/api/turzx", // Turzx desk screen renderer: same shared token
+  "/api/copilot", // agent-harness hooks -> physical signals: same shared token
   "/_next",
   "/icons",
   "/favicon",

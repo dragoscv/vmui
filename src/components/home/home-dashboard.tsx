@@ -1,6 +1,7 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { CopilotSignals } from "@/lib/copilot/signals-schema";
 import type { HaState } from "@/lib/home/ha-client";
 import type { Pomodoro, TurzxSettings } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
@@ -8,6 +9,7 @@ import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { DoorOpen, Droplets, Lightbulb, Radar, Thermometer } from "lucide-react";
 import * as React from "react";
 import { AmbilightPanel } from "./ambilight-panel";
+import { CopilotSignalsCard } from "./copilot-signals-card";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
 import { FloorPlan } from "./floor-plan";
@@ -22,6 +24,8 @@ export function HomeDashboard({
   wall,
   turzx,
   pomodoro,
+  copilot,
+  rgbLights,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
@@ -30,6 +34,8 @@ export function HomeDashboard({
   wall: WallSetting;
   turzx: TurzxSettings;
   pomodoro: Pomodoro;
+  copilot: CopilotSignals;
+  rgbLights: Array<{ id: string; name: string }>;
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -56,6 +62,9 @@ export function HomeDashboard({
           </TabsContent>
           <TabsContent value="displays">
             <TurzxCard initial={turzx} pomodoro={pomodoro} />
+            <div className="mt-6">
+              <CopilotSignalsCard initial={copilot} lights={rgbLights} />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
