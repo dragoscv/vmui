@@ -209,15 +209,17 @@ function Configure-HyperHdr {
 
     Write-Step 'instance 2: room lights through Home Assistant'
     $ha = Ensure-Instance 'Room lights (Home Assistant)'
-    # Order of lamps == order of leds. Add bulbs here once they are in HA:
-    #   @{ name = 'light.moodlight'; colorModel = 1 }      -> New-RegionLayout left
-    #   @{ name = 'light.ambient_light'; colorModel = 1 }  -> New-RegionLayout right
+    # Order of lamps == order of leds. Calex bulbs (Smart Life -> Tuya) take
+    # rgb_color fine (verified 2026-09-14). Main Light stays out on purpose: a
+    # coloured ceiling distracts; it gets the movie_mode warm-dim treatment.
     # NOT light.desk_light_bar: HA advertises `hs` for it but the Tuya firmware
     # work_mode enum is ['music','white'], so every hs_color POST is a 500 and
     # HyperHDR disables the WHOLE device (strip included) on the first one.
     # The bar gets its movie look from script.movie_mode_on (warm, dim).
     $lamps = @(
         @{ name = 'light.led_argb'; colorModel = 0 }
+        @{ name = 'light.moodlight'; colorModel = 0 }
+        @{ name = 'light.ambience_light'; colorModel = 0 }
     )
     Set-HyperConfig -Instance $ha -Config @{
         device    = @{
@@ -228,7 +230,7 @@ function Configure-HyperHdr {
             transition = 300; constantBrightness = 200; restoreOriginalState = $true; maxRetry = 60
             lamps = $lamps; hardwareLedCount = $lamps.Count; colorOrder = 'rgb'; refreshTime = 0
         }
-        leds      = @() + (New-RegionLayout full)
+        leds      = @() + (New-RegionLayout full) + (New-RegionLayout left3) + (New-RegionLayout mid)
         # Schema minimum is 20 Hz; the HA driver's own `transition` (300 ms)
         # is what actually throttles the bulbs.
         smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
