@@ -7,6 +7,7 @@ import { espAuthorized } from "@/lib/esp/auth";
 import { listNodes, showMessage } from "@/lib/esp/gallery";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha } from "@/lib/home/ha-client";
+import { agentSessions } from "@/lib/turzx/feeds";
 import { NextResponse, type NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -50,9 +51,9 @@ async function phonePush(service: string, event: CopilotEvent, p: { color: strin
       color: p.color,
       notification_icon: PHONE_ICON[event],
       subtitle: subtitle || source,
-      // an `ask` stays until answered; everything else is dismissible and auto-clears
+      // an `ask` stays until answered (sticky, cleared by tag on the next tool call);
+      // `persistent` is deliberately NOT set — it blocks clear_notification.
       sticky: event === "ask",
-      persistent: event === "ask",
       timeout: event === "ask" ? 0 : 600,
       clickAction: "app://com.microsoft.launcher",
       ttl: 0,
@@ -63,6 +64,35 @@ async function phonePush(service: string, event: CopilotEvent, p: { color: strin
 
 async function phoneClear(service: string, session: string) {
   await ha.callService("notify", service, { message: "clear_notification", data: { tag: phoneTag(session) } });
+}
+
+/** One silent, low-importance card that always shows who is working: one
+ *  line per active session (repo · turns today · last request). Re-posted
+ *  with the same tag so it updates in place; cleared when nobody is active. */
+async function phoneAgentsSummary(service: string) {
+  const a = await agentSessions(30);
+  if (!a) return;
+  if (a.active.length === 0) {
+    await ha.callService("notify", service, { message: "clear_notification", data: { tag: "copilot-agents" } });
+    return;
+  }
+  const lines = a.active.slice(0, 6).map((s) => `• ${s.repo}${s.profile !== "default" ? ` (${s.profile})` : ""} · ${s.turnsToday} ture${s.lastUser ? ` — ${s.lastUser.slice(0, 60)}` : ""}`);
+  await ha.callService("notify", service, {
+    title: `${a.active.length} ${a.active.length === 1 ? "agent lucrează" : "agenți lucrează"} · ${a.turnsToday} ture azi`,
+    message: lines.join("\n"),
+    data: {
+      tag: "copilot-agents",
+      group: "copilot",
+      channel: "Copilot — agenți",
+      importance: "low",
+      color: "#6366f1",
+      notification_icon: "mdi:robot",
+      subtitle: `${a.sessionsToday} sesiuni azi`,
+      sticky: true,
+      timeout: 3600,
+      ttl: 0,
+    },
+  });
 }
 
 export async function GET(req: NextRequest) {
@@ -143,6 +173,7 @@ export async function POST(req: NextRequest) {
       out.phoneError = e instanceof Error ? e.message : String(e);
     }
   }
+  if (s.phoneNotify) phoneAgentsSummary(s.phoneNotify).catch(() => undefined);
   await db.insert(auditLog).values({ accountId: "home", action: `copilot.${event}`, target: project || source, status: "ok", message: [chat, text].filter(Boolean).join(" — ").slice(0, 200) });
   return NextResponse.json({ ...out, quiet, movie });
 }
