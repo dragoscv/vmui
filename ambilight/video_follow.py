@@ -86,6 +86,18 @@ MIN_MOTION = 0.05
 # area, otherwise a calm scene would seed a tiny box that takes minutes to
 # grow; until then the whole window is used.
 SEED_AREA = 0.30
+# Letterbox trim: inside the player box, rows/cols whose brightest pixel stays
+# below BLACK_LEVEL are bars (a 21:9 film in a 16:9 player, a 4:3 clip, the
+# black around a non-fullscreen video). A row/col counts as picture if at
+# least LIT_FRACTION of its pixels beat BLACK_LEVEL, so a subtitle or a
+# single bright star in the bar does not count. Re-measured each refine and
+# smoothed over BAR_HISTORY samples (max = most-lit wins) so one dark
+# frame does not shrink the fit; a fade-to-black keeps the previous bars.
+BLACK_LEVEL = 18
+LIT_FRACTION = 0.02
+BAR_HISTORY = 6
+BAR_MIN_KEEP = 0.25   # never trim to less than this fraction of the box
+BARS_S = 2.0          # one 3440x1440 grab + two reductions; ~10 ms
 # Round the box to this many px so a 1 px jitter does not rewrite the config.
 QUANT = 8
 # The DX11 grabber's frame is BOTH monitors wide (6880 px) with the Odyssey
@@ -267,6 +279,21 @@ def motion_box(win: tuple[int, int, int, int], sct: MSS, gap_s: float = 0.4) -> 
     return l + int(cols[0]), t + int(rows[0]), l + int(cols[-1]) + 1, t + int(rows[-1]) + 1
 
 
+def lit_box(box: tuple[int, int, int, int], sct: MSS) -> tuple[int, int, int, int] | None:
+    """Sub-rectangle of `box` that is actually lit (letterbox/pillarbox bars
+    trimmed), or None when the frame is (near) black -- caller keeps the last."""
+    l, t, r, b = box
+    a = np.asarray(sct.grab({"left": l, "top": t, "width": r - l, "height": b - t}))[:, :, :3]
+    lit = a.max(axis=2) > BLACK_LEVEL
+    if lit.mean() < 0.03:
+        return None
+    rows = np.where(lit.mean(axis=1) > LIT_FRACTION)[0]
+    cols = np.where(lit.mean(axis=0) > LIT_FRACTION)[0]
+    if len(rows) < (b - t) * BAR_MIN_KEEP or len(cols) < (r - l) * BAR_MIN_KEEP:
+        return None
+    return l + int(cols[0]), t + int(rows[0]), l + int(cols[-1]) + 1, t + int(rows[-1]) + 1
+
+
 # ---------------------------------------------------------------- HyperHDR / HA
 
 def _creds() -> dict[str, str]:
@@ -378,6 +405,9 @@ class VideoFollow:
         self.fine_for: tuple[int, int, int, int] | None = None  # coarse rect the fine box belongs to
         self.next_refine = 0.0
         self.next_verify = 0.0
+        self.bars: list[tuple[int, int, int, int]] = []
+        self.next_bars = 0.0
+        self.last_target: tuple[int, int, int, int] | None = None
 
     def describe(self) -> None:
         mm = movie_monitor()
@@ -456,6 +486,7 @@ class VideoFollow:
                 self.last_desc = desc
             if rect != self.fine_for:
                 self.fine, self.fine_for, self.next_refine = None, rect, 0.0
+                self.bars = []
             if proc in BROWSERS and now >= self.next_refine:
                 self.next_refine = now + REFINE_S
                 box = motion_box(rect, self.sct)
@@ -467,7 +498,22 @@ class VideoFollow:
                     if box and box != self.fine:
                         self.fine = box
                         print(f"  picture box: {box}", flush=True)
-            self._apply_fit(fit_for(self.fine or rect, mm[1]))
+            # Bars inside the picture box (or the whole window for a native
+            # player): the film is often smaller than the player.
+            if now >= self.next_bars:
+                self.next_bars = now + BARS_S
+                lb = lit_box(self.fine or rect, self.sct)
+                if lb:
+                    self.bars = (self.bars + [lb])[-BAR_HISTORY:]
+            if self.bars:
+                target = (min(x[0] for x in self.bars), min(x[1] for x in self.bars),
+                          max(x[2] for x in self.bars), max(x[3] for x in self.bars))
+            else:
+                target = self.fine or rect
+            if target != self.last_target:
+                self.last_target = target
+                print(f"  lit box: {target}", flush=True)
+            self._apply_fit(fit_for(target, mm[1]))
             self.gone_since = None
             self.seen_since = self.seen_since or now
             if _setting("videoAutoMovie", True) and now - self.seen_since >= ON_AFTER_S:
@@ -478,6 +524,7 @@ class VideoFollow:
                 self.last_desc = ""
             self._apply_fit(None)
             self.fine = self.fine_for = None
+            self.bars, self.last_target = [], None
             self.seen_since = None
             self.gone_since = self.gone_since or now
             if _setting("videoAutoMovie", True) and now - self.gone_since >= OFF_AFTER_S:
@@ -508,7 +555,9 @@ def main() -> int:
         if win and mm:
             box = motion_box(win[2], vf.sct)
             print("  picture box:", box)
-            print("  would fit:", fit_for(box or win[2], mm[1]))
+            lb = lit_box(box or win[2], vf.sct)
+            print("  lit box:", lb)
+            print("  would fit:", fit_for(lb or box or win[2], mm[1]))
         return 0
     run_listen(vf, a.listen or 0)
     return 0
