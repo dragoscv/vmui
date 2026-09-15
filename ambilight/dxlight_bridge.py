@@ -220,6 +220,14 @@ LED_COUNT = 65
 REPORT_SIZE = 64
 
 
+def device_present() -> bool:
+    """Is the strip's HID interface enumerated right now? (cheap; no open)"""
+    try:
+        return any(d["interface_number"] == 0 for d in hid.enumerate(VID, PID))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _checksum8(data: bytes) -> int:
     return sum(data) & 0xFF
 

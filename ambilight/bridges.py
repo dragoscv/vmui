@@ -97,7 +97,21 @@ def _supervise(name: str, port: int, factory, run) -> None:
                 print(f"[{name}] recovery hook failed: {e}", flush=True)
         wait = RETRY_S if streak <= RECOVER_AFTER else min(120, RETRY_S * (streak - RECOVER_AFTER + 1))
         print(f"[{name}] retry in {wait}s", flush=True)
-        time.sleep(wait)
+        # A replug is the usual fix for the strip; do not make the user wait
+        # out the backoff staring at the controller's built-in rainbow.
+        if name == "dxlight":
+            from dxlight_bridge import device_present  # noqa: PLC0415
+            was = device_present()
+            t_end = time.monotonic() + wait
+            while time.monotonic() < t_end:
+                time.sleep(2)
+                if not was and device_present():
+                    print(f"[{name}] device re-appeared; retrying now", flush=True)
+                    time.sleep(3)  # let the HID stack settle
+                    break
+                was = was and device_present()
+        else:
+            time.sleep(wait)
 
 
 def main() -> int:
