@@ -454,6 +454,56 @@ low, write timeouts) until an elevated PnP disable/enable. Identify a screen
 by unplug/replug (`.copilot-tmp/uicheck/usb-watch.py`) before writing to it.
 COM10 is the ESP32's CH340.
 
+### Views, batch 3 (2026-09-15)
+
+23 views now (`src/lib/turzx/catalog.ts` ↔ `turzx/views*.py`); the four new
+ones ship **disabled** — turn them on in `/home?tab=displays`:
+
+| view            | source                                                                                                                                           | notes                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `copilot`       | every VS Code profile's `github.copilot-chat/session-store.db` (read-only copy + WAL, `feeds.agentSessions`)                                      | repo, turns today, last prompt per active session. Store is ~110 MB → copied **async**, 30 s TTL, stale-while-revalidate.        |
+| `focus`         | `user32` foreground window + `GetLastInputInfo`, sampled on the host thread (`turzx.py::_Focus`)                                                 | active window + time in it; day split cod/terminal/browser/chat/media; idle after N min.                                          |
+| `anniversaries` | `options.people` lines `YYYY-MM-DD Name`                                                                                                         | next one big with age + days; 29 Feb → 1 Mar.                                                                                     |
+| `energy`        | HA sensors with `device_class` power/energy/current (`feeds.energyReadings`); batteries from `device_class: battery`                              | `mA` → W at 230 V (Tuya AC plugs only expose current). Cost = kWh × `pricePerKwh` (default 1.3 lei).                             |
+
+Content added to existing views: weather → next 6 hours strip, UV / dew
+point, moon on clear nights (`feeds.moonPhase`, local synodic maths);
+clock → sunrise/sunset ticks on the day bar, moon glyph 21:00–05:00; home →
+low-battery badge in the header, red edge pulse when the door has been open
+> 2 min; media → **synced lyrics** from LRCLIB (`feeds.syncedLyrics`, keyless,
+24 h cache) replace the equaliser while playing; pc → disk fill row
+(`options.disks`); crypto → `holdings` portfolio line; fx → `watchAmount`
+("1000 EUR = … lei") and XAU (BNR lists gold per gram); photo → quantised
+Ken Burns drift (one crop every ~2 s, so ~0.5 full frames/s on the link).
+
+Rotation is now content-aware: `View.dwell_scale(state)` shortens a view's
+dwell when it has little to show (empty shopping list, no activity, no VM
+running). The poller adapts too: 2 s while something plays, 3 s by day,
+10 s in the night window.
+
+### Moving the smart plug, the AlecoAir purifier and the ACs into HA
+
+The `energy` view is empty until a power sensor exists in HA. The plug and
+the purifier are Tuya-cloud devices living in their vendor apps; HA's Tuya
+integration only sees what is in **Smart Life** under the account whose QR
+we scanned (`ha-devices.ps1 -AddTuya`). Phone steps, ~5 min:
+
+1. **Priza**: in the vendor app, remove it (or hold its button 5 s until it
+  blinks fast). Smart Life → `+` → it appears under "Discovering devices"
+  (same 2.4 GHz WiFi as the phone) → add. Within a minute HA shows
+  `sensor.<name>_power` (W) and `sensor.<name>_today_energy` (kWh) — the
+  view picks them up with no config.
+2. **AlecoAir**: same — AlecoAir's app is a Tuya OEM skin, the device pairs
+  into Smart Life directly (hold the WiFi button until it blinks). You get
+  `fan.*`, `sensor.*_pm25`, `switch.*` in HA; the `home` view will show the
+  PM2.5 once the entity exists (`sensor.*pm25*`).
+3. **Hisense AC ×2** already report `_electricity` (mA) and `_daily_energy`
+  via ConnectLife; nothing to do. They read 0 W when off — expected.
+
+Do **not** re-run `-AddTuya`; the existing config entry polls the account
+and new devices show up on their own. If one does not, Settings → Devices →
+Tuya → ⋮ → Reload.
+
 ## Backups
 
 `ha backups new` inside the appliance, or Settings → System → Backups. The

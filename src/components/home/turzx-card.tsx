@@ -357,6 +357,7 @@ function OptionInput({ field, value, onChange }: { field: OptionField; value: un
       return (
         <Field label={field.label}>
           <Input value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} aria-label={field.label} />
+          {field.hint && <p className="text-[11px] text-muted">{field.hint}</p>}
         </Field>
       );
   }

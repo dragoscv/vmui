@@ -167,6 +167,11 @@ class View:
         """False = skip this view in the rotation right now (e.g. media idle)."""
         return True
 
+    def dwell_scale(self, st: dict) -> float:
+        """Multiplier on the configured dwell. Views with little to say return
+        <1 so the rotation spends its time where the content is."""
+        return 1.0
+
     def update(self, st: dict, dt: float) -> None: ...
 
     def draw(self, c: Image.Image, t: float, progress: float) -> None: ...
@@ -202,10 +207,32 @@ class ClockView(View):
         self.temp_in = Tween(speed=2.5); self.temp_out = Tween(speed=2.5); self.hum = Tween(speed=2.5)
         self.now = datetime.now(TZ)
         self.next_ev = ""
+        self.sun_rise = None; self.sun_set = None; self.moon: dict = {}
+
+    def _moon_glyph(self, d, cx, cy, r, phase, sk):
+        """Lit disc, dark half + terminator ellipse. phase 0 new → 0.5 full → 1 new;
+        waxing lights the right side (northern hemisphere)."""
+        lit = lerp_rgb(sk.fg, sk.bg, 0.15)
+        d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=lit)
+        k = math.cos(phase * 2 * math.pi)  # 1 new, 0 quarter, -1 full
+        waxing = phase < 0.5
+        # dark half on the unlit side
+        d.chord((cx - r, cy - r, cx + r, cy + r), 90 if waxing else 270, 270 if waxing else 450, fill=sk.bg)
+        # terminator: an ellipse of half-width r*|k|, dark when crescent, lit when gibbous
+        w = max(1, int(r * abs(k)))
+        d.ellipse((cx - w, cy - r, cx + w, cy + r), fill=sk.bg if k > 0 else lit)
 
     def update(self, st, dt):
         self.tick(dt)
         self.now = datetime.now(TZ)
+        self.moon = st.get("moon") or {}
+        sa = (st.get("sun") or {}).get("attributes") or {}
+        for key, attr in (("sun_rise", "next_rising"), ("sun_set", "next_setting")):
+            v = sa.get(attr)
+            try:
+                setattr(self, key, datetime.fromisoformat(str(v).replace("Z", "+00:00")).astimezone(TZ) if isinstance(v, str) else None)
+            except ValueError:
+                setattr(self, key, None)
         self.hhmm.set(self.now.strftime("%H:%M")); self.sec.set(self.now.strftime("%S"))
         self.hhmm.step(dt); self.sec.step(dt)
         i = st.get("inside") or {}
@@ -263,6 +290,14 @@ class ClockView(View):
         sk.text(d, (W - 22, y + 18), f"{self.temp_out.value:.0f}°C", sk.mid, sk.fg, anchor="ra")
         frac = (n.hour * 3600 + n.minute * 60 + n.second) / 86400
         bar(d, 22, H - 8, W - 44, 4, frac, sk.accent, sk.track)
+        # sunrise / sunset ticks on the day bar, so the bar says where daylight is
+        for iso, col in ((self.sun_rise, (250, 204, 21)), (self.sun_set, (251, 146, 60))):
+            if iso:
+                sf = (iso.hour * 3600 + iso.minute * 60) / 86400
+                x = 22 + int((W - 44) * sf)
+                d.rectangle((x - 1, H - 12, x + 1, H - 3), fill=col)
+        if self.moon and (n.hour >= 21 or n.hour < 5):
+            self._moon_glyph(d, W - 22 - 12, 30, 9, float(self.moon.get("phase") or 0), sk)
         # dwell progress replaces the old breathing underline
         d.rounded_rectangle((22, 44, 22 + int(120 * progress), 46), radius=1, fill=sk.accent)
 
@@ -278,12 +313,18 @@ class WeatherView(View):
         super().__init__(accent)
         self.temp = Tween(speed=2.0); self.hum = Tween(speed=2.0); self.wind = Tween(speed=2.0); self.pres = Tween(speed=2.0)
         self.cond = "unknown"; self.sun = None; self.forecast: list[dict] = []
+        self.hourly: list[dict] = []; self.moon: dict = {}; self.dew: float | None = None; self.uv: float | None = None
 
     def update(self, st, dt):
         self.tick(dt)
         w = st.get("weather") or {}
         a = w.get("attributes") or {}
         self.cond = w.get("state") or "unknown"
+        self.dew = celsius(a.get("dew_point"), a.get("temperature_unit"))
+        self.uv = num(a.get("uv_index"))
+        self.moon = st.get("moon") or {}
+        now_ms = time.time() * 1000
+        self.hourly = [h for h in (st.get("hourly") or []) if (h.get("t") or 0) > now_ms - 1800_000][:6]
         t = celsius(a.get("temperature"), a.get("temperature_unit"))
         if t is not None: self.temp.set(t)
         if (h := num(a.get("humidity"))) is not None: self.hum.set(h)
@@ -395,6 +436,8 @@ class WeatherView(View):
             vw = d.textlength(v, font=sk.small)
             sk.text(d, (236, y), fit_text(d, sk.label(k), sk.tiny, int(130 - vw - 6)), sk.tiny, sk.muted)
             sk.text(d, (236 + 130, y), v, sk.small, sk.fg, anchor="ra")
+        # right column, one line per row: sun time, then UV or dew point, then moon on clear nights
+        side: list[tuple[str, RGB]] = []
         if self.sun:
             a = self.sun.get("attributes") or {}
             up = self.sun.get("state") == "above_horizon"
@@ -402,10 +445,30 @@ class WeatherView(View):
             if isinstance(nxt, str):
                 try:
                     hh = datetime.fromisoformat(nxt.replace("Z", "+00:00")).astimezone(TZ).strftime("%H:%M")
-                    # own right-aligned column, top row, well clear of the values (which end at x=366)
-                    sk.text(d, (W - 24, y0), fit_text(d, ("apus " if up else "răsărit ") + hh, sk.tiny, 80), sk.tiny, sk.muted, anchor="ra")
+                    side.append((("apus " if up else "răsărit ") + hh, sk.muted))
                 except ValueError:
                     pass
+        if self.uv is not None and self.uv >= 3 and (self.sun or {}).get("state") == "above_horizon":
+            side.append((f"UV {self.uv:.0f}", sk.warn if self.uv >= 6 else sk.muted))
+        elif self.dew is not None and self.dew >= 16:
+            side.append((f"roă {self.dew:.0f}°", sk.muted))
+        if self.cond == "clear-night" and self.moon:
+            side.append((f"lună {int(self.moon.get('illumination') or 0)}%", sk.muted))
+        for i, (s, col) in enumerate(side[:3]):
+            sk.text(d, (W - 24, y0 + i * rh), fit_text(d, s, sk.tiny, 84), sk.tiny, col, anchor="ra")
+        # next hours as a thin strip under the panel header: temperature + a rain tint
+        if self.hourly and sk.panel_alpha == 0:
+            hx0, hy = 236, 62
+            cw = (464 - hx0) // len(self.hourly)
+            for i, h in enumerate(self.hourly):
+                x = hx0 + i * cw + cw // 2
+                hh = datetime.fromtimestamp((h.get("t") or 0) / 1000, TZ).strftime("%H")
+                rain = num(h.get("rain")) or 0
+                tv2 = num(h.get("temp"))
+                col = (56, 189, 248) if rain >= 40 else sk.muted
+                sk.text(d, (x, hy), hh, sk.tiny, col, anchor="ma")
+                if tv2 is not None:
+                    sk.text(d, (x, hy + sk.tiny.size + 1), f"{tv2:.0f}°", sk.tiny, sk.fg, anchor="ma")
 
 
 # ---------------------------------------------------------------- 3. home
@@ -417,10 +480,20 @@ class HomeView(View):
         self.lights = Tween(speed=3); self.total = 1
         self.rows: list[tuple[str, str, str]] = []
         self.ac = []
+        self.low_batt: list[dict] = []
+        self.door_open_s = 0.0
 
     def update(self, st, dt):
         self.tick(dt)
         h = st.get("home") or {}
+        self.low_batt = [b for b in (st.get("batteries") or []) if float(b.get("pct") or 100) < 25 and not b.get("charging")]
+        dr = h.get("door") or {}
+        self.door_open_s = 0.0
+        if dr.get("state") == "on" and isinstance(dr.get("since"), str):
+            try:
+                self.door_open_s = time.time() - datetime.fromisoformat(dr["since"].replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                pass
         self.lights.set(h.get("lightsOn") or 0); self.lights.step(dt)
         self.total = max(1, h.get("lightsTotal") or 1)
         def s(x): return (x or {}).get("state")
@@ -440,9 +513,18 @@ class HomeView(View):
 
     def draw(self, c, t, progress):
         sk = self.sk
-        self.header(c, "Acasă", "", progress)
+        right = ""
+        if self.low_batt:
+            b = self.low_batt[0]
+            right = f"baterie {b.get('pct'):.0f}% · {b.get('name')}"
+        self.header(c, "Acasă", fit_text(ImageDraw.Draw(c), right, sk.tiny, 220), progress)
         d = ImageDraw.Draw(c)
         col_of = {"bad": sk.bad, "ok": sk.ok, "accent": sk.accent, "muted": sk.muted}
+        # door left open for a while: a slow red wash on the panel edge, hard to miss
+        if self.door_open_s > 120:
+            p = Pulse(1.6).at(t)
+            d.rectangle((0, 0, W, 3), fill=lerp_rgb(sk.bad, sk.bg, 0.6 * (1 - p)))
+            d.rectangle((0, H - 3, W, H), fill=lerp_rgb(sk.bad, sk.bg, 0.6 * (1 - p)))
         if sk.panel_alpha:
             sk.panel(c, (16, 70, 180, 230)); sk.panel(c, (190, 70, 464, 230))
         gauge_arc(d, 92, 150, 52, self.lights.value / self.total, sk.warn if self.lights.value > 0 else sk.muted, sk.track)
@@ -538,7 +620,7 @@ class PcView(View):
         self.cpu = Tween(speed=4); self.ram = Tween(speed=3); self.gpu = Tween(speed=4); self.gtemp = Tween(speed=2); self.vram = Tween(speed=3)
         self.hist: list[float] = [0.0] * 60
         self.acc = 0.0
-        self.top = ""; self.up_str = ""
+        self.top = ""; self.up_str = ""; self.disks: list[dict] = []
 
     def update(self, st, dt):
         self.tick(dt)
@@ -551,6 +633,8 @@ class PcView(View):
             self.acc = 0
             self.hist = self.hist[1:] + [self.cpu.value]
         self.top = str(pc.get("top") or "")
+        want = [x.upper().rstrip(":") for x in str(self.options.get("disks") or "").split() if x]
+        self.disks = [dk for dk in (pc.get("disks") or []) if not want or str(dk.get("drive", "")).upper().rstrip(":") in want][:4]
         up = num(pc.get("uptime")) or 0
         self.up_str = f"{int(up // 86400)} z {int(up % 86400 // 3600)} h" if up >= 86400 else f"{int(up // 3600)} h {int(up % 3600 // 60):02d} m"
 
@@ -588,6 +672,22 @@ class PcView(View):
         if self.top:
             sk.text(d, (W - 22, 236), fit_text(d, self.top, sk.tiny, 220), sk.tiny, sk.accent, anchor="ra")
         sk.text(d, (W - 22, 236 + sk.tiny.size + 4), f"pornit de {self.up_str}", sk.tiny, sk.muted, anchor="ra")
+        # disks along the bottom edge, under the sparkline: letter + fill bar + free GB
+        if self.disks:
+            n = len(self.disks)
+            cw = (W - 44) // n
+            for i, dk in enumerate(self.disks):
+                x = 22 + i * cw
+                pct = float(dk.get("pct") or 0)
+                col = sk.bad if pct > 92 else sk.warn if pct > 80 else lerp_rgb(sk.accent, sk.fg, 0.3)
+                lab = str(dk.get("drive") or "")
+                lw = int(d.textlength(lab, font=sk.tiny)) + 6
+                free = f"{float(dk.get('freeGb') or 0):.0f} GB"
+                fw = int(d.textlength(free, font=sk.tiny)) + 6
+                sk.text(d, (x, 302), lab, sk.tiny, sk.muted)
+                if cw - 8 - lw - fw > 20:
+                    bar(d, x + lw, 306, cw - 8 - lw - fw, 4, pct / 100, col, sk.track)
+                sk.text(d, (x + cw - 8, 302), free, sk.tiny, sk.muted, anchor="ra")
 
 
 # ---------------------------------------------------------------- 6. activity
@@ -603,6 +703,10 @@ class ActivityView(View):
         self.tick(dt)
         n = int(self.options.get("max") or 6)
         self.items = (st.get("activity") or [])[:n]
+
+    def dwell_scale(self, st):
+        n = len(st.get("activity") or [])
+        return 0.5 if n == 0 else 0.75 if n <= 2 else 1.0
         now = time.perf_counter()
         for it in self.items:
             self.seen.setdefault(f"{it.get('at')}|{it.get('text')}", now)
@@ -643,6 +747,7 @@ class MediaView(View):
     def __init__(self, accent):
         super().__init__(accent)
         self.m = None; self.others: list[dict] = []; self.pos = Tween(speed=8); self.art = None
+        self.lyrics: list[dict] = []; self.lyric_idx = -1; self.lyric_at = 0.0
 
     def visible(self, st):
         if not self.options.get("skipIdle"):
@@ -671,6 +776,18 @@ class MediaView(View):
         self.pos.step(dt)
         arts = st.get("_arts") or {}
         self.art = arts.get((self.m or {}).get("art")) if self.m else None
+        ly = st.get("lyrics") or {}
+        self.lyrics = ly.get("lines") or [] if self.m and ly.get("player") == self.m.get("id") and self.options.get("lyrics", True) else []
+        if self.lyrics:
+            pos = self.pos.value
+            idx = -1
+            for i, ln in enumerate(self.lyrics):
+                if (ln.get("t") or 0) <= pos:
+                    idx = i
+                else:
+                    break
+            if idx != self.lyric_idx:
+                self.lyric_idx, self.lyric_at = idx, time.perf_counter()
 
     def draw(self, c, t, progress):
         sk = self.sk
@@ -708,7 +825,16 @@ class MediaView(View):
                 sk.text(d, (tx, by + 12), f"{int(self.pos.value)//60}:{int(self.pos.value)%60:02d}", sk.tiny, sk.muted)
                 sk.text(d, (W - 22, by + 12), f"{int(dur)//60}:{int(dur)%60:02d}", sk.tiny, sk.muted, anchor="ra")
         if not compact:
-            if self.m.get("state") == "playing":
+            if self.lyrics and self.m.get("state") == "playing":
+                # current line big, next line faded; each new line slides up
+                age = min(1.0, (time.perf_counter() - self.lyric_at) / 0.35)
+                e = ease_out_cubic(age)
+                cur = self.lyrics[self.lyric_idx].get("text", "") if self.lyric_idx >= 0 else "♪"
+                nxt = self.lyrics[self.lyric_idx + 1].get("text", "") if 0 <= self.lyric_idx + 1 < len(self.lyrics) else ""
+                ly = 262 + int(10 * (1 - e))
+                sk.text(d, (22, ly), fit_text(d, cur, sk.small, W - 44), sk.small, lerp_rgb(sk.bg, sk.fg, e))
+                sk.text(d, (22, ly + sk.small.size + 6), fit_text(d, nxt, sk.tiny, W - 44), sk.tiny, lerp_rgb(sk.muted, sk.bg, 0.3))
+            elif self.m.get("state") == "playing":
                 for i in range(5):
                     h = 8 + 18 * (0.5 + 0.5 * qsin(t * 5 + i * 1.1, 4))
                     d.rounded_rectangle((tx + i * 12, 290 - h, tx + i * 12 + 7, 290), radius=2, fill=sk.accent)
@@ -741,6 +867,9 @@ class ListsView(View):
     def __init__(self, accent):
         super().__init__(accent)
         self.shop: list[str] = []; self.actions: list[dict] = []
+
+    def dwell_scale(self, st):
+        return 0.5 if not (st.get("shopping") or []) else 1.0
 
     def update(self, st, dt):
         self.tick(dt)
@@ -776,3 +905,6 @@ VIEWS: dict[str, type[View]] = {v.id: v for v in (ClockView, WeatherView, HomeVi
 from views_extra import EXTRA_VIEWS  # noqa: E402  (registers the 11 additional views)
 
 VIEWS.update(EXTRA_VIEWS)
+from views_more import MORE_VIEWS  # noqa: E402
+
+VIEWS.update(MORE_VIEWS)

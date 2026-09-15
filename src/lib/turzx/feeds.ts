@@ -287,3 +287,190 @@ export async function fleet() {
     .map((r) => ({ id: r.id, name: r.displayName ?? r.name ?? r.id, provider: r.provider, state: r.state, platform: r.platform, type: r.type, pinned: r.pinned }))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || (a.state === "running" ? -1 : 1) - (b.state === "running" ? -1 : 1) || a.name.localeCompare(b.name));
 }
+
+// ---------------------------------------------------------------- Copilot sessions (local VS Code stores)
+export interface AgentSession {
+  id: string;
+  repo: string;
+  profile: string;
+  updatedAt: number;
+  turnsToday: number;
+  lastUser: string | null;
+}
+
+/** Reads every profile's github.copilot-chat/session-store.db read-only
+ *  (copied with its WAL, like ~/.copilot/hooks/who-owns-file.ps1) and lists
+ *  the sessions active in the last `activeMin` minutes.
+ *  The store is ~110 MB: a synchronous copy on the request path froze the
+ *  event loop for 3 s and timed out the panel's poll, so the copy is async
+ *  and the result is served stale-while-revalidate (`cached` returns the
+ *  previous value instantly and refreshes in the background). */
+export async function agentSessions(activeMin: number): Promise<{ active: AgentSession[]; turnsToday: number; sessionsToday: number } | null> {
+  return cached(`agents:${activeMin}`, 30_000, async () => {
+    const [{ default: Database }, fs, fsp, path, os] = await Promise.all([import("better-sqlite3"), import("node:fs"), import("node:fs/promises"), import("node:path"), import("node:os")]);
+    const home = os.homedir();
+    const stores: { profile: string; path: string }[] = [];
+    const push = (profile: string, p: string) => fs.existsSync(p) && stores.push({ profile, path: p });
+    push("default", path.join(process.env.APPDATA ?? path.join(home, "AppData/Roaming"), "Code - Insiders/User/globalStorage/github.copilot-chat/session-store.db"));
+    const profiles = path.join(home, "VS Code Insiders Profiles");
+    if (fs.existsSync(profiles)) for (const d of fs.readdirSync(profiles)) push(d, path.join(profiles, d, "User/globalStorage/github.copilot-chat/session-store.db"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vmui-agents-"));
+    const active: AgentSession[] = [];
+    let turnsToday = 0;
+    let sessionsToday = 0;
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    try {
+      for (const s of stores) {
+        const tmp = path.join(tmpDir, `${s.profile}.db`);
+        try {
+          await fsp.copyFile(s.path, tmp);
+          for (const ext of ["-wal", "-shm"]) if (fs.existsSync(s.path + ext)) await fsp.copyFile(s.path + ext, tmp + ext);
+          const db = new Database(tmp, { readonly: true });
+          try {
+            const rows = db
+              .prepare("select id, cwd, updated_at from sessions where datetime(updated_at) > datetime('now', ?) order by updated_at desc")
+              .all(`-${activeMin} minutes`) as { id: string; cwd: string | null; updated_at: string }[];
+            const turns = db.prepare("select count(*) c from turns where session_id = ? and timestamp >= ?");
+            const last = db.prepare("select user_message from turns where session_id = ? order by turn_index desc limit 1");
+            for (const r of rows) {
+              const t = (turns.get(r.id, dayStart.toISOString()) as { c: number }).c;
+              const u = (last.get(r.id) as { user_message: string | null } | undefined)?.user_message ?? null;
+              active.push({
+                id: r.id,
+                repo: r.cwd ? path.basename(r.cwd) : "?",
+                profile: s.profile,
+                updatedAt: new Date(r.updated_at).getTime(),
+                turnsToday: t,
+                lastUser: u ? u.replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, "").replace(/\[Terminal [^\]]*\][^\n]*/g, "").replace(/^Terminal output:.*$/m, "").replace(/\s+/g, " ").trim().slice(0, 140) || null : null,
+              });
+            }
+            turnsToday += (db.prepare("select count(*) c from turns where timestamp >= ?").get(dayStart.toISOString()) as { c: number }).c;
+            sessionsToday += (db.prepare("select count(*) c from sessions where datetime(updated_at) >= datetime(?)").get(dayStart.toISOString()) as { c: number }).c;
+          } finally {
+            db.close();
+          }
+        } catch {
+          // a store mid-write or a foreign schema: skip this profile
+        }
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+    active.sort((a, b) => b.updatedAt - a.updatedAt);
+    return { active: active.slice(0, 8), turnsToday, sessionsToday };
+  });
+}
+
+// ---------------------------------------------------------------- LRCLIB synced lyrics
+export interface LyricLine {
+  t: number; // seconds
+  text: string;
+}
+
+export async function syncedLyrics(title: string, artist: string, durationSec: number | null): Promise<LyricLine[] | null> {
+  const key = `lrc:${artist}|${title}`.toLowerCase();
+  return cached(key, 24 * 60 * 60_000, async () => {
+    const q = new URLSearchParams({ track_name: title, artist_name: artist });
+    if (durationSec) q.set("duration", String(Math.round(durationSec)));
+    let r: { syncedLyrics?: string | null } | null = null;
+    try {
+      r = await get(`https://lrclib.net/api/get?${q}`);
+    } catch {
+      const list = await get<{ syncedLyrics?: string | null }[]>(`https://lrclib.net/api/search?${new URLSearchParams({ track_name: title, artist_name: artist })}`);
+      r = list.find((x) => x.syncedLyrics) ?? null;
+    }
+    const raw = r?.syncedLyrics;
+    if (!raw) return [];
+    const lines: LyricLine[] = [];
+    for (const m of raw.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)/g)) {
+      const text = (m[3] ?? "").trim();
+      if (text) lines.push({ t: Number(m[1]) * 60 + Number(m[2]), text });
+    }
+    return lines;
+  });
+}
+
+// ---------------------------------------------------------------- HA: hourly forecast, energy, batteries
+export interface HourPoint {
+  t: number;
+  temp: number | null;
+  cond: string | null;
+  rain: number | null; // precipitation probability %
+}
+
+export async function hourlyForecast(entityId: string): Promise<HourPoint[] | null> {
+  return cached(`fc-h:${entityId}`, 20 * 60_000, async () => {
+    const fc = (await ha.forecast(entityId, "hourly")) as Record<string, unknown>[];
+    return fc.slice(0, 12).map((f) => ({
+      t: new Date(String(f.datetime)).getTime(),
+      temp: typeof f.temperature === "number" ? f.temperature : null,
+      cond: typeof f.condition === "string" ? f.condition : null,
+      rain: typeof f.precipitation_probability === "number" ? f.precipitation_probability : null,
+    }));
+  });
+}
+
+export interface EnergyReading {
+  id: string;
+  name: string;
+  powerW: number | null;
+  kwhToday: number | null;
+}
+
+/** Power (W) and daily energy (kWh) from HA, grouped by device. Sensors are
+ *  matched by device_class power/energy/current; `mA` current is converted to
+ *  W at 230 V because Tuya AC plugs only expose current. */
+export function energyReadings(states: Map<string, { entity_id: string; state: string; attributes: Record<string, unknown> }>, only: string[]): EnergyReading[] {
+  const byDevice = new Map<string, EnergyReading>();
+  const num = (s: string) => (Number.isFinite(Number(s)) ? Number(s) : null);
+  for (const s of states.values()) {
+    if (!s.entity_id.startsWith("sensor.")) continue;
+    if (only.length && !only.includes(s.entity_id)) continue;
+    const cls = String(s.attributes.device_class ?? "");
+    const unit = String(s.attributes.unit_of_measurement ?? "");
+    if (!["power", "energy", "current"].includes(cls)) continue;
+    const key = s.entity_id.replace(/^sensor\./, "").replace(/_(power|energy|current|electricity|daily_energy|today_energy|total_energy|voltage)$/, "");
+    const name = String(s.attributes.friendly_name ?? key).replace(/\s+(Power|Energy|Current|Electricity|Daily energy|Today energy)$/i, "").trim() || key.replace(/_/g, " ");
+    const e = byDevice.get(key) ?? { id: key, name, powerW: null, kwhToday: null };
+    const v = num(s.state);
+    if (v !== null) {
+      if (cls === "power") e.powerW = unit === "kW" ? v * 1000 : v;
+      else if (cls === "current") e.powerW = e.powerW ?? (unit === "mA" ? (v / 1000) * 230 : v * 230);
+      else if (cls === "energy" && /daily|today/.test(s.entity_id) && (unit === "kWh" || unit === "Wh")) e.kwhToday = unit === "Wh" ? v / 1000 : v;
+    }
+    byDevice.set(key, e);
+  }
+  return [...byDevice.values()].filter((e) => e.powerW !== null || e.kwhToday !== null).sort((a, b) => (b.powerW ?? 0) - (a.powerW ?? 0));
+}
+
+export interface BatteryReading {
+  id: string;
+  name: string;
+  pct: number;
+  charging: boolean | null;
+}
+
+export function batteryReadings(states: Map<string, { entity_id: string; state: string; attributes: Record<string, unknown> }>): BatteryReading[] {
+  const out: BatteryReading[] = [];
+  for (const s of states.values()) {
+    if (s.attributes.device_class !== "battery" || !s.entity_id.startsWith("sensor.")) continue;
+    const pct = Number(s.state);
+    if (!Number.isFinite(pct)) continue;
+    const base = s.entity_id.replace(/_battery(_level)?$/, "");
+    const st = states.get(`${base}_battery_state`)?.state;
+    out.push({ id: s.entity_id, name: String(s.attributes.friendly_name ?? base).replace(/\s+Battery( level)?$/i, ""), pct, charging: st ? st === "charging" : null });
+  }
+  return out.sort((a, b) => a.pct - b.pct);
+}
+
+// ---------------------------------------------------------------- Moon phase (local computation, no network)
+export function moonPhase(at = new Date()): { phase: number; name: string; illumination: number } {
+  // Meeus-style synodic approximation from the 2000-01-06 18:14 UTC new moon.
+  const synodic = 29.530588853;
+  const days = (at.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 86_400_000;
+  const phase = ((days % synodic) + synodic) % synodic / synodic; // 0 new → 0.5 full → 1 new
+  const names = ["Lună nouă", "Semilună în creștere", "Primul pătrar", "Lună în creștere", "Lună plină", "Lună în descreștere", "Ultimul pătrar", "Semilună în descreștere"];
+  const idx = Math.round(phase * 8) % 8;
+  return { phase, name: names[idx] ?? names[0]!, illumination: Math.round((1 - Math.cos(phase * 2 * Math.PI)) * 50) };
+}

@@ -18,6 +18,7 @@ import argparse
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -121,6 +122,8 @@ def _pc_worker() -> None:
     ncpu = psutil.cpu_count() or 1
     last_scan = 0.0
     top = ""
+    disks_at = 0.0
+    disks: list[dict] = []
     while True:
         out = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent, "uptime": time.time() - psutil.boot_time()}
         if _GPU is not None:
@@ -132,6 +135,17 @@ def _pc_worker() -> None:
             except Exception:
                 pass
         out["top"] = top
+        out["focus"] = _focus.sample()
+        if time.perf_counter() - disks_at > 60:
+            disks_at = time.perf_counter()
+            disks = []
+            for p in psutil.disk_partitions(all=False):
+                try:
+                    u = psutil.disk_usage(p.mountpoint)
+                    disks.append({"drive": p.device.rstrip("\\"), "pct": u.percent, "freeGb": u.free / 2**30, "totalGb": u.total / 2**30})
+                except Exception:
+                    pass
+        out["disks"] = disks
         _pc = out
         if time.perf_counter() - last_scan > 20:
             last_scan = time.perf_counter()
@@ -148,6 +162,95 @@ def _pc_worker() -> None:
             except Exception:
                 top = ""
         time.sleep(1.0)
+
+
+class _Focus:
+    """Foreground window + idle time via user32; buckets the day into
+    code / browser / terminal / media / other so the focus view can show
+    where the hours went. Sampled once a second on the host thread."""
+
+    BUCKETS = {
+        "code": ("code", "code - insiders", "cursor", "devenv", "rider", "pycharm", "idea", "windsurf"),
+        "browser": ("chrome", "msedge", "firefox", "brave", "arc", "opera", "vivaldi"),
+        "terminal": ("windowsterminal", "pwsh", "powershell", "cmd", "wt", "alacritty", "conhost"),
+        "media": ("spotify", "vlc", "mpc-hc", "musicbee", "foobar2000", "youtube", "netflix", "obs64", "mixxx", "rekordbox"),
+        "chat": ("discord", "slack", "teams", "ms-teams", "telegram", "whatsapp", "signal", "zoom"),
+    }
+
+    def __init__(self) -> None:
+        self.title = ""
+        self.proc = ""
+        self.since = time.time()
+        self.day = datetime.now(TZ).date()
+        self.buckets: dict[str, float] = {}
+        self.idle_s = 0.0
+        self.last = time.perf_counter()
+        try:
+            import ctypes
+            import ctypes.wintypes as w
+
+            self.u32 = ctypes.windll.user32
+            self.k32 = ctypes.windll.kernel32
+            self.w = w
+            self.ctypes = ctypes
+        except Exception:
+            self.u32 = None
+
+    def _fg(self) -> tuple[str, str]:
+        h = self.u32.GetForegroundWindow()
+        buf = self.ctypes.create_unicode_buffer(512)
+        self.u32.GetWindowTextW(h, buf, 512)
+        pid = self.w.DWORD()
+        self.u32.GetWindowThreadProcessId(h, self.ctypes.byref(pid))
+        try:
+            name = psutil.Process(pid.value).name().removesuffix(".exe") if pid.value else ""
+        except Exception:
+            name = ""
+        return buf.value, name
+
+    def _idle(self) -> float:
+        class LASTINPUTINFO(self.ctypes.Structure):
+            _fields_ = [("cbSize", self.w.UINT), ("dwTime", self.w.DWORD)]
+
+        li = LASTINPUTINFO()
+        li.cbSize = self.ctypes.sizeof(LASTINPUTINFO)
+        if not self.u32.GetLastInputInfo(self.ctypes.byref(li)):
+            return 0.0
+        return (self.k32.GetTickCount() - li.dwTime) / 1000.0
+
+    def bucket(self, proc: str, title: str) -> str:
+        p, t = proc.lower(), title.lower()
+        for b, names in self.BUCKETS.items():
+            if p in names or any(n in t for n in names if b == "media"):
+                return b
+        return "other"
+
+    def sample(self) -> dict:
+        if not self.u32:
+            return {}
+        now = time.perf_counter()
+        dt, self.last = now - self.last, now
+        today = datetime.now(TZ).date()
+        if today != self.day:
+            self.day, self.buckets = today, {}
+        try:
+            title, proc = self._fg()
+            self.idle_s = self._idle()
+        except Exception:
+            return {}
+        if proc != self.proc or (title != self.title and proc in ("chrome", "msedge", "firefox")):
+            self.proc, self.title, self.since = proc, title, time.time()
+        else:
+            self.title = title
+        if self.idle_s < 60:
+            b = self.bucket(proc, title)
+            self.buckets[b] = self.buckets.get(b, 0.0) + dt
+        # Strip the app suffix VS Code / browsers append: "file - repo - Visual Studio Code"
+        short = re.sub(r"\s[-–—]\s[^-–—]*$", "", title).strip() or proc
+        return {"proc": proc, "title": short[:80], "since": self.since, "idle": self.idle_s, "buckets": dict(self.buckets)}
+
+
+_focus = _Focus()
 
 
 _TOP_SNIPPET = (
@@ -175,6 +278,7 @@ def pc_metrics() -> dict:
 
 
 def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) -> None:
+    interval = 3.0
     while not stop.is_set():
         try:
             with urllib.request.urlopen(f"{VMUI}/api/turzx/state?k={tok}", timeout=6) as r:
@@ -182,6 +286,11 @@ def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) 
             with st.lock:
                 st.data = data
                 st.online = True
+            # Adaptive cadence: 2 s while something plays (lyrics/position stay
+            # tight), 3 s by day, 10 s in the night window when the ambient
+            # screen shows and nothing on the panel changes per poll anyway.
+            playing = any(m.get("state") == "playing" for m in data.get("media") or [])
+            interval = 2.0 if playing else 10.0 if night(data.get("settings") or {}) else 3.0
             if bgs is not None:
                 bgs.set_online(data.get("photos") or [])
             ha = (data.get("haUrl") or "").rstrip("/")
@@ -205,7 +314,8 @@ def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) 
             with st.lock:
                 st.online = False
             log(f"poll: {e.__class__.__name__}: {e}")
-        stop.wait(3.0)
+            interval = 3.0
+        stop.wait(interval)
 
 
 def night(settings: dict) -> bool:
@@ -313,8 +423,16 @@ class Renderer:
     def current(self):
         return self.views[self.order[self.idx % len(self.order)]]
 
-    def dwell_of(self, vid: str) -> float:
-        return max(MIN_DWELL, float(self.cfg.get(vid, {}).get("dwellSec") or 12))
+    def dwell_of(self, vid: str, data: dict | None = None) -> float:
+        base = float(self.cfg.get(vid, {}).get("dwellSec") or 12)
+        scale = 1.0
+        v = self.views.get(vid)
+        if v is not None and data is not None:
+            try:
+                scale = max(0.3, min(1.5, float(v.dwell_scale(data))))
+            except Exception:
+                scale = 1.0
+        return max(MIN_DWELL, base * scale)
 
     def bg_cfg(self, vid: str) -> dict:
         own = self.cfg.get(vid, {}).get("background")
@@ -370,17 +488,37 @@ class Renderer:
         v = self.current()
         cfg = self.bg_cfg(v.id)
         photo = self.bg_img if (cfg.get("mode") == "photo" and (v.wants_photo or v.id == "photo")) else None
+        if photo is not None and v.id == "photo" and (v.options or {}).get("kenBurns", True):
+            photo = self.ken_burns(photo, now - self.dwell_t, self.dwell_of(v.id, data))
         dim = float(cfg.get("dim") or 0) if v.id != "photo" else 0.0
         blur = int(cfg.get("blur") or 0) if v.id != "photo" else 0
         c = v.sk.base((W, H), photo, dim, blur)
         data["_bgmeta"] = self.bg_meta
         data["_night"] = night(self.settings)
         v.update(data, dt)
-        progress = 1.0 - min(1.0, (now - self.dwell_t) / self.dwell_of(v.id))
+        progress = 1.0 - min(1.0, (now - self.dwell_t) / self.dwell_of(v.id, data))
         v.draw(c, now - v.t0, progress)
         dots(c, self.idx % len(self.order), len(self.order), v.sk.accent, v.sk.track)
         offline_badge(c, self.st.online)
         return c
+
+    _kb_cache: tuple[int, Image.Image] | None = None
+
+    def ken_burns(self, photo: Image.Image, elapsed: float, dwell: float) -> Image.Image:
+        """Slow push-in over the dwell. A whole-frame change costs 300 KB on this
+        link, so the crop is quantised to move once per ~2 s: 0.5 frame/s of
+        traffic, and the panel still reads as a gentle drift rather than a jump."""
+        key = id(photo)
+        if not self._kb_cache or self._kb_cache[0] != key:
+            self._kb_cache = (key, photo.resize((int(W * 1.12), int(H * 1.12)), Image.LANCZOS))
+        big = self._kb_cache[1]
+        steps = max(1, int(dwell // 2))
+        p = min(1.0, (int(elapsed // 2)) / steps)
+        scale = 1.12 - 0.12 * p  # 1.12 → 1.0 : zoom out while drifting
+        cw, ch = int(W * scale), int(H * scale)
+        x = int((big.width - cw) * (0.5 + 0.5 * p))
+        y = int((big.height - ch) * 0.5)
+        return big.crop((x, y, x + cw, y + ch)).resize((W, H), Image.BILINEAR)
 
     def step(self) -> Image.Image:
         dt = self.clock.tick()
@@ -388,7 +526,7 @@ class Renderer:
         data = self.st.snapshot()
         self.apply_settings(data.get("settings") or {})
         v = self.current()
-        due = now - self.dwell_t >= self.dwell_of(v.id)
+        due = now - self.dwell_t >= self.dwell_of(v.id, data)
         # a view that became invisible mid-dwell (pomodoro stopped) leaves early
         gone = not v.visible(data) and len(self.order) > 1
         if (due or gone) and len(self.order) > 1 and self.trans is None:

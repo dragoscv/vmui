@@ -21,6 +21,10 @@ export const TURZX_VIEW_IDS = [
   "countdown",
   "quote",
   "ambient",
+  "copilot",
+  "focus",
+  "anniversaries",
+  "energy",
 ] as const;
 export type TurzxViewId = (typeof TURZX_VIEW_IDS)[number];
 
@@ -31,7 +35,7 @@ export const TURZX_BG_SOURCES = ["folder", "apod", "met", "artic", "commons"] as
 export type TurzxBgSource = (typeof TURZX_BG_SOURCES)[number];
 
 export type OptionField =
-  | { key: string; label: string; type: "text"; placeholder?: string }
+  | { key: string; label: string; type: "text"; placeholder?: string; hint?: string }
   | { key: string; label: string; type: "number"; min: number; max: number; step?: number }
   | { key: string; label: string; type: "toggle"; default?: boolean }
   | { key: string; label: string; type: "select"; choices: { value: string; label: string }[] }
@@ -52,13 +56,13 @@ export const TURZX_VIEW_META: Record<TurzxViewId, ViewMeta> = {
   weather: { id: "weather", label: "Vremea", description: "Icon animat, temperatură, vânt, presiune, răsărit/apus.", defaultDwell: 12, skins: ["minimal", "glass", "editorial", "neon", "paper", "terminal"], options: [] },
   home: { id: "home", label: "Acasă", description: "Ușă, prezență, AC-uri, lumini aprinse.", defaultDwell: 10, skins: ["minimal", "glass", "neon", "terminal", "paper", "editorial"], options: [] },
   ambilight: { id: "ambilight", label: "Ambilight", description: "Culoarea live a benzii, perete, HyperHDR.", defaultDwell: 8, skins: ["minimal", "neon", "glass", "terminal", "paper", "editorial"], options: [] },
-  pc: { id: "pc", label: "PC", description: "CPU / GPU / RAM cu arce și sparkline.", defaultDwell: 10, skins: ["minimal", "neon", "terminal", "glass", "editorial", "paper"], options: [{ key: "hostname", label: "Nume afișat", type: "text", placeholder: "dragos-pc" }] },
+  pc: { id: "pc", label: "PC", description: "CPU / GPU / RAM cu arce și sparkline.", defaultDwell: 10, skins: ["minimal", "neon", "terminal", "glass", "editorial", "paper"], options: [{ key: "hostname", label: "Nume afișat", type: "text", placeholder: "dragos-pc" }, { key: "disks", label: "Discuri", type: "text", placeholder: "C: E:", hint: "litere separate prin spațiu" }] },
   activity: { id: "activity", label: "Activitate", description: "Ultimele evenimente din casă.", defaultDwell: 10, skins: ["minimal", "glass", "terminal", "paper", "neon", "editorial"], options: [{ key: "max", label: "Evenimente afișate", type: "number", min: 3, max: 6 }] },
-  media: { id: "media", label: "Redare", description: "Ce se aude acum, cu copertă și titluri care derulează.", defaultDwell: 10, skins: ["minimal", "glass", "neon", "editorial", "paper", "terminal"], options: [{ key: "skipIdle", label: "Sari peste când nimic nu redă", type: "toggle" }] },
+  media: { id: "media", label: "Redare", description: "Ce se aude acum, cu copertă și titluri care derulează.", defaultDwell: 10, skins: ["minimal", "glass", "neon", "editorial", "paper", "terminal"], options: [{ key: "skipIdle", label: "Sari peste când nimic nu redă", type: "toggle" }, { key: "lyrics", label: "Versuri sincronizate (LRCLIB)", type: "toggle", default: true }] },
   lists: { id: "lists", label: "Liste", description: "Cumpărături și acțiuni din HA.", defaultDwell: 10, skins: ["minimal", "paper", "glass", "terminal", "neon", "editorial"], options: [] },
-  fx: { id: "fx", label: "Curs BNR", description: "EUR/USD/GBP în RON cu tendința pe 30 de zile.", defaultDwell: 10, skins: ["editorial", "minimal", "glass", "paper", "terminal", "neon"], options: [{ key: "currencies", label: "Monede", type: "list", placeholder: "EUR", hint: "coduri ISO, ex. EUR USD GBP CHF" }] },
-  crypto: { id: "crypto", label: "Crypto", description: "Prețuri CoinGecko cu variația pe 24 h.", defaultDwell: 10, skins: ["neon", "minimal", "editorial", "glass", "terminal", "paper"], options: [{ key: "coins", label: "Monede", type: "list", placeholder: "bitcoin", hint: "id-uri CoinGecko: bitcoin ethereum solana" }, { key: "vs", label: "În", type: "select", choices: [{ value: "usd", label: "USD" }, { value: "eur", label: "EUR" }, { value: "ron", label: "RON" }] }] },
-  photo: { id: "photo", label: "Foto / Artă", description: "O imagine pe tot ecranul, cu titlu și credit.", defaultDwell: 20, skins: ["glass", "minimal", "editorial", "paper", "neon", "terminal"], options: [{ key: "caption", label: "Arată titlul și creditul", type: "toggle", default: true }] },
+  fx: { id: "fx", label: "Curs BNR", description: "EUR/USD/GBP în RON cu tendința pe 30 de zile.", defaultDwell: 10, skins: ["editorial", "minimal", "glass", "paper", "terminal", "neon"], options: [{ key: "currencies", label: "Monede", type: "list", placeholder: "EUR", hint: "coduri ISO, ex. EUR USD GBP CHF XAU (aur, RON/gram)" }, { key: "watchAmount", label: "Sumă urmărită", type: "text", placeholder: "1000 EUR", hint: "afișează echivalentul în RON" }] },
+  crypto: { id: "crypto", label: "Crypto", description: "Prețuri CoinGecko cu variația pe 24 h.", defaultDwell: 10, skins: ["neon", "minimal", "editorial", "glass", "terminal", "paper"], options: [{ key: "coins", label: "Monede", type: "list", placeholder: "bitcoin", hint: "id-uri CoinGecko: bitcoin ethereum solana" }, { key: "vs", label: "În", type: "select", choices: [{ value: "usd", label: "USD" }, { value: "eur", label: "EUR" }, { value: "ron", label: "RON" }] }, { key: "holdings", label: "Portofoliu", type: "list", placeholder: "bitcoin 0.05", hint: "o linie: id cantitate → afișează valoarea totală și Δ azi" }] },
+  photo: { id: "photo", label: "Foto / Artă", description: "O imagine pe tot ecranul, cu titlu și credit.", defaultDwell: 20, skins: ["glass", "minimal", "editorial", "paper", "neon", "terminal"], options: [{ key: "caption", label: "Arată titlul și creditul", type: "toggle", default: true }, { key: "kenBurns", label: "Mișcare lentă (Ken Burns)", type: "toggle", default: true }] },
   fleet: { id: "fleet", label: "Mașini virtuale", description: "VM-urile din vmui: stare, RAM, CPU.", defaultDwell: 10, skins: ["terminal", "minimal", "glass", "neon", "editorial", "paper"], options: [] },
   climate: { id: "climate", label: "Climat 24 h", description: "Grafic temperatură și umiditate pe ultimele 24 h.", defaultDwell: 12, skins: ["minimal", "glass", "paper", "neon", "terminal", "editorial"], options: [] },
   calendar: { id: "calendar", label: "Calendar", description: "Următoarele evenimente din calendarele HA, cu countdown.", defaultDwell: 12, skins: ["paper", "minimal", "glass", "editorial", "neon", "terminal"], options: [{ key: "entities", label: "Calendare (entity_id)", type: "list", placeholder: "calendar.personal" }] },
@@ -67,6 +71,10 @@ export const TURZX_VIEW_META: Record<TurzxViewId, ViewMeta> = {
   countdown: { id: "countdown", label: "Countdown", description: "Zile până la evenimentele tale.", defaultDwell: 10, skins: ["editorial", "minimal", "glass", "paper", "neon", "terminal"], options: [{ key: "events", label: "Evenimente", type: "list", placeholder: "2026-12-24 Crăciun", hint: "o linie: YYYY-MM-DD Titlu" }] },
   quote: { id: "quote", label: "Citat", description: "Un citat pe zi, tipografic, peste artă.", defaultDwell: 15, skins: ["paper", "editorial", "glass", "minimal", "neon", "terminal"], options: [{ key: "lang", label: "Limba", type: "select", choices: [{ value: "ro", label: "Română" }, { value: "en", label: "Engleză" }] }] },
   ambient: { id: "ambient", label: "Ambient (noapte)", description: "Doar fundal și un ceas mic. Activ automat în intervalul de noapte.", defaultDwell: 60, skins: ["glass", "minimal", "editorial", "neon", "paper", "terminal"], options: [{ key: "nightOnly", label: "Doar noaptea", type: "toggle", default: true }] },
+  copilot: { id: "copilot", label: "Agenți Copilot", description: "Sesiunile de agent active pe PC, repo-ul lor, ultimul mesaj, turn-uri azi.", defaultDwell: 12, skins: ["terminal", "minimal", "glass", "neon", "editorial", "paper"], options: [{ key: "activeMin", label: "Activ în ultimele (min)", type: "number", min: 5, max: 240 }] },
+  focus: { id: "focus", label: "Focus", description: "Fereastra activă și de cât timp, plus cum s-a împărțit ziua: cod / browser / media / altele.", defaultDwell: 10, skins: ["minimal", "editorial", "glass", "neon", "terminal", "paper"], options: [{ key: "idleMin", label: "Idle după (min)", type: "number", min: 1, max: 30 }] },
+  anniversaries: { id: "anniversaries", label: "Aniversări", description: "Zile de naștere și aniversări anuale, cu vârsta și câte zile mai sunt.", defaultDwell: 10, skins: ["paper", "editorial", "minimal", "glass", "neon", "terminal"], options: [{ key: "people", label: "Persoane", type: "list", placeholder: "1990-05-14 Andreea", hint: "o linie: YYYY-MM-DD Nume (anul = nașterea, pentru vârstă)" }] },
+  energy: { id: "energy", label: "Energie", description: "Putere acum și kWh azi din senzorii HA, cost estimat.", defaultDwell: 10, skins: ["minimal", "neon", "glass", "terminal", "editorial", "paper"], options: [{ key: "pricePerKwh", label: "Preț RON/kWh", type: "number", min: 0, max: 5, step: 0.01 }, { key: "entities", label: "Senzori putere (entity_id)", type: "list", placeholder: "sensor.priza_birou_power", hint: "gol = toți senzorii cu device_class power/energy" }] },
 };
 
 /** Android packages the notification overlay knows an icon colour for. */

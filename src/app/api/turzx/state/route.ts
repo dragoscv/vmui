@@ -6,7 +6,7 @@ import { espAuthorized } from "@/lib/esp/auth";
 import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
-import { bnrRates, calendarEvents, coinPrices, fleet, haHistory, photoPool, quoteOfTheDay, weatherForecast } from "@/lib/turzx/feeds";
+import { agentSessions, batteryReadings, bnrRates, calendarEvents, coinPrices, energyReadings, fleet, haHistory, hourlyForecast, moonPhase, photoPool, quoteOfTheDay, syncedLyrics, weatherForecast } from "@/lib/turzx/feeds";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -62,7 +62,9 @@ export async function GET(req: NextRequest) {
   const str = (v: unknown, fallback: string) => (typeof v === "string" && v ? v : fallback);
   const bgSources = new Set(settings.background.sources);
   for (const v of settings.views) if (v.enabled && v.background) for (const s of v.background.sources) bgSources.add(s);
-  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro, forecast] = await Promise.all([
+  const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+  const lead = [...states.values()].find((s) => s.entity_id.startsWith("media_player.") && s.state === "playing" && s.attributes.media_title && s.attributes.media_artist);
+  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro, forecast, hourly, agents, lyrics] = await Promise.all([
     enabled.has("fx") ? bnrRates(list(opt("fx").currencies, ["EUR", "USD", "GBP"])) : null,
     enabled.has("crypto") ? coinPrices(list(opt("crypto").coins, ["bitcoin", "ethereum"]), str(opt("crypto").vs, "usd")) : null,
     bgSources.size || enabled.has("photo") ? photoPool([...bgSources]) : [],
@@ -73,6 +75,9 @@ export async function GET(req: NextRequest) {
     enabled.has("quote") ? quoteOfTheDay(str(opt("quote").lang, "ro") === "en" ? "en" : "ro") : null,
     loadPomodoro(),
     enabled.has("weather") && states.has("weather.forecast_home") ? weatherForecast("weather.forecast_home") : null,
+    enabled.has("weather") && states.has("weather.forecast_home") ? hourlyForecast("weather.forecast_home") : null,
+    enabled.has("copilot") ? agentSessions(num(opt("copilot").activeMin, 30)) : null,
+    enabled.has("media") && opt("media").lyrics !== false && lead ? syncedLyrics(String(lead.attributes.media_title), String(lead.attributes.media_artist), typeof lead.attributes.media_duration === "number" ? lead.attributes.media_duration : null) : null,
   ]);
   const amb = await ambilightSettings();
   const sig = currentSignal();
@@ -100,6 +105,8 @@ export async function GET(req: NextRequest) {
       settings,
       weather: pick(states, "weather.forecast_home"),
       forecast,
+      hourly,
+      moon: moonPhase(),
       sun: pick(states, "sun.sun"),
       inside: { temp: pick(states, "sensor.temperature_and_humidity_sensor_temperature"), hum: pick(states, "sensor.temperature_and_humidity_sensor_humidity") },
       home: {
@@ -131,6 +138,10 @@ export async function GET(req: NextRequest) {
       calendar: cal,
       quote,
       pomodoro,
+      agents,
+      lyrics: lyrics && lead ? { player: lead.entity_id, lines: lyrics } : null,
+      energy: enabled.has("energy") ? { readings: energyReadings(states, list(opt("energy").entities, [])), pricePerKwh: num(opt("energy").pricePerKwh, 1.3) } : null,
+      batteries: batteryReadings(states),
       notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
       copilot,
     },

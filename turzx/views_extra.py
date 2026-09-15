@@ -98,7 +98,17 @@ class FxView(View):
                 delta = (v - prev) / prev * 100
                 sk.text(d, (x + 14, 140), f"{'▲' if up else '▼'} {abs(delta):.2f}%", sk.tiny, col)
             sparkline(d, (x + 14, 200, x + cw - 26, 270), r.get("history") or [], col, fill_to=lerp_rgb(col, sk.bg, 0.82))
-        sk.text(d, (22, 298), sk.label("RON per unitate · fixing BNR, publicat la 13:00"), sk.tiny, sk.muted)
+        foot = "RON per unitate · fixing BNR, publicat la 13:00"
+        wa = str(self.options.get("watchAmount") or "").strip()
+        if wa:
+            amt, _, code = wa.partition(" ")
+            r = next((x for x in self.rates if x["code"] == code.upper()), None)
+            try:
+                if r:
+                    foot = f"{float(amt.replace(',', '.')):,.0f} {code.upper()} = {float(amt.replace(',', '.')) * self.tw[r['code']].value:,.0f} lei"
+            except ValueError:
+                pass
+        sk.text(d, (22, 298), fit_text(d, sk.label(foot), sk.tiny, W - 44), sk.tiny, sk.muted)
 
 
 # ---------------------------------------------------------------- 10. crypto
@@ -127,8 +137,24 @@ class CryptoView(View):
             sk.text(d, (W // 2, 180), "fără date", sk.mid, sk.muted, anchor="mm")
             return
         rows = self.coins
-        rh = min(56, (H - 90) // max(1, len(rows)))
-        y = 76
+        # portfolio: "id qty" lines from options → total value and today's move, one line under the header
+        hold: dict[str, float] = {}
+        for line in self.options.get("holdings") or []:
+            cid, _, qty = str(line).strip().partition(" ")
+            try:
+                hold[cid.lower()] = float(qty.replace(",", "."))
+            except ValueError:
+                pass
+        top = 76
+        if hold:
+            total = sum(self.tw[co["id"]].value * hold.get(co["id"], 0) for co in rows)
+            delta = sum(self.tw[co["id"]].value * hold.get(co["id"], 0) * (num(co.get("change24h")) or 0) / 100 for co in rows)
+            col = sk.ok if delta >= 0 else sk.bad
+            sk.text(d, (26, 58), sk.label("portofoliu"), sk.tiny, sk.muted)
+            sk.text(d, (W - 26, 56), f"{total:,.0f} {vs}  {'▲' if delta >= 0 else '▼'} {abs(delta):,.0f}", sk.small, col, anchor="ra")
+            top = 82
+        rh = min(56, (H - top - 14) // max(1, len(rows)))
+        y = top
         for i, co in enumerate(rows):
             v = self.tw[co["id"]].value
             ch = num(co.get("change24h")) or 0
@@ -200,6 +226,9 @@ class FleetView(View):
     def update(self, st, dt):
         self.tick(dt)
         self.vms = (st.get("fleet") or [])[:7]
+
+    def dwell_scale(self, st):
+        return 0.6 if not any(v.get("state") == "running" for v in st.get("fleet") or []) else 1.0
 
     def draw(self, c, t, progress):
         sk = self.sk
