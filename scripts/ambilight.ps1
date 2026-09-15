@@ -58,6 +58,13 @@
                    bridges hold the last frame instead and fade to idle only
                    after a real silence. '#000000' = off. Room lights get
                    their idle look from movie_mode_off via HA.
+    videoFollow    true: ambilight/video_follow.py crops the HyperHDR grabber
+                   to the video window on the Odyssey (and, inside a browser,
+                   to the moving picture), so a non-fullscreen YouTube tab
+                   still drives the LEDs. false = whole screen.
+    videoAutoMovie true: a video window present 5 s -> movie_mode_on,
+                   gone 30 s -> movie_mode_off (tray/HA can still override
+                   until the next edge).
 #>
 [CmdletBinding(DefaultParameterSetName = 'Status')]
 param(
@@ -81,7 +88,7 @@ $env:HA_URL = $null
 . (Join-Path $Amb 'hyperhdr-layout.ps1')
 
 $SettingsPath = Join-Path $Amb 'settings.json'
-$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; roomBrightness = 90; idleStripHex = '#000000'; idleGlowHex = '#000000'; idleAfterSec = 20 }
+$Defaults = [ordered]@{ wallHex = '#ffffff'; wallStrength = 0.0; gamma = 1.5; saturation = 1.0; luminance = 1.0; grabberFps = 60; hdrToneMapping = $true; stripSmoothMs = 300; glowSmoothMs = 1500; roomSmoothMs = 2500; roomBrightness = 90; idleStripHex = '#000000'; idleGlowHex = '#000000'; idleAfterSec = 20; videoFollow = $true; videoAutoMovie = $true }
 function Get-Settings {
     $s = [ordered]@{} + $Defaults
     if (Test-Path $SettingsPath) { (Get-Content $SettingsPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $s[$_.Name] = $_.Value } }
