@@ -92,14 +92,14 @@ class State:
         self.lock = threading.Lock()
         self.data: dict = {"settings": DEFAULT_SETTINGS, "haOnline": False}
         self.online = False
-        self.art: Image.Image | None = None
-        self.art_url: str | None = None
+        # album art per player, keyed by the raw `art` value the API gives us
+        self.arts: dict[str, Image.Image | None] = {}
 
     def snapshot(self) -> dict:
         with self.lock:
             d = dict(self.data)
+            d["_arts"] = dict(self.arts)
         d["pc"] = pc_metrics()
-        d["_art"] = self.art
         return d
 
 
@@ -126,20 +126,23 @@ def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) 
                 st.online = True
             if bgs is not None:
                 bgs.set_online(data.get("photos") or [])
-            m = next((x for x in data.get("media") or [] if x.get("art")), None)
-            url = m["art"] if m else None
-            if url and url.startswith("/"):
-                ha = (data.get("haUrl") or "").rstrip("/")
-                url = f"{ha}{url}" if ha else None
-            if url != st.art_url:
-                st.art_url = url
-                st.art = None
-                if url:
+            ha = (data.get("haUrl") or "").rstrip("/")
+            keys = {x["art"] for x in data.get("media") or [] if x.get("art")}
+            for key in keys - set(st.arts):
+                url = f"{ha}{key}" if key.startswith("/") else key
+                img = None
+                if not key.startswith("/") or ha:
                     try:
                         with urllib.request.urlopen(url, timeout=4) as r:
-                            st.art = Image.open(io.BytesIO(r.read())).convert("RGB")
+                            img = Image.open(io.BytesIO(r.read())).convert("RGB")
                     except Exception:
-                        st.art = None
+                        img = None
+                with st.lock:
+                    st.arts[key] = img
+            # HA rotates the entity_picture token per track, so stale keys just fall out
+            with st.lock:
+                for k in [k for k in st.arts if k not in keys]:
+                    del st.arts[k]
         except Exception as e:
             with st.lock:
                 st.online = False
@@ -223,6 +226,7 @@ class Renderer:
         self.last_full = time.perf_counter()
         self.since_sync: Image.Image | None = None
         self.stalls = 0
+        self.full_push_pending = True
         self.apply_settings(DEFAULT_SETTINGS)
 
     # ---- settings
@@ -330,10 +334,13 @@ class Renderer:
         # a view that became invisible mid-dwell (pomodoro stopped) leaves early
         gone = not v.visible(data) and len(self.order) > 1
         if (due or gone) and len(self.order) > 1 and self.trans is None:
-            old = self.render(now, dt, data)
+            # No animated wipe: on this link a 300 KB frame takes 0.8 s, so any
+            # transition renders as a visible scan (a vertical bar, then bands).
+            # Switch cleanly: the whole new frame goes out in one push and the
+            # dwell clock starts only once it is fully on the panel.
             self.advance(data)
             self.enter_view(data, now)
-            self.trans = (old, now, self.current().transition)
+            self.full_push_pending = True
         elif self.bg_img is None and self.bg_cfg(v.id).get("mode") == "photo":
             self.refresh_background(v)  # a photo became ready after we entered
         frame = self.render(now, dt, data)
@@ -377,16 +384,19 @@ class Renderer:
         # than their sum. The panel occasionally drops a command header when
         # they come densely; every merged pair is one fewer chance to desync.
         rects = merge_rects(rects)
-        # Watchdog: every 20 s resync the panel's command parser and repaint
-        # everything. A desynced panel ACKs every byte and draws nothing — it
-        # looks frozen, the log looks healthy, and re-init is the only cure.
-        # Unconditional: waiting for a quiet frame never happens on live views.
-        if self.prev is not None and time.perf_counter() - self.last_full > 60:
-            self.lcd.resync()  # clears the panel → must repaint everything now
-            self.last_full = time.perf_counter()
+        # View switch: one full frame, whole, ignoring the per-frame budget.
+        # Doing it in one go (~0.8 s) reads as a clean cut; slicing it over 17
+        # frames read as a scan. The 60 s periodic re-init was removed: it
+        # cleared the panel mid-view and ate the dwell. Recovery now happens
+        # only when a write actually times out (see below).
+        if getattr(self, "full_push_pending", False):
+            self.full_push_pending = False
             self.prev = None
             rects = [(0, 0, W, H)]
-            budget = W * H * 2  # one full frame, over budget on purpose (~0.8 s once a minute)
+            budget = W * H * 2
+            self.dwell_t = time.perf_counter() + 0.85  # dwell starts after the frame lands
+            # One fast vertical sweep (~0.8 s) is the accepted look. Dimming the
+            # backlight during it was tried and rejected as more distracting.
         total = sum((x1 - x0) * (y1 - y0) * 2 for x0, y0, x1, y1 in rects)
         rects.sort(key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=total <= budget)
         # a notification card must land whole and first, whatever else is dirty
@@ -418,6 +428,7 @@ class Renderer:
                 self.lcd.resync()
                 self.prev = None
                 self.last_full = time.perf_counter()
+                self.full_push_pending = True  # repaint whole, and give the view its dwell back
                 if self.stalls >= 5:
                     raise
                 return sent

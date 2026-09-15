@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
         wallHex: amb.wallHex,
         wallStrength: amb.wallStrength,
       },
-      media: media.map((m) => ({ id: m.entity_id, state: m.state, title: m.attributes.media_title ?? null, artist: m.attributes.media_artist ?? null, app: m.attributes.app_name ?? null, art: m.attributes.entity_picture ?? null, position: m.attributes.media_position ?? null, duration: m.attributes.media_duration ?? null, positionAt: m.attributes.media_position_updated_at ?? null })),
+      media: media.map((m) => ({ id: m.entity_id, name: (m.attributes.friendly_name as string | undefined) ?? null, state: m.state, title: m.attributes.media_title ?? null, artist: m.attributes.media_artist ?? null, app: m.attributes.app_name ?? null, art: m.attributes.entity_picture ?? null, position: m.attributes.media_position ?? null, duration: m.attributes.media_duration ?? null, positionAt: m.attributes.media_position_updated_at ?? null })),
       activity: recentActivity(8),
       actions: actions.map((a) => ({ action: a.action.replace(/^home\./, ""), target: (a.target ?? "").split(".").pop() ?? "", at: a.at ? new Date(a.at).getTime() : null })),
       shopping,

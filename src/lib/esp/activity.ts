@@ -84,6 +84,13 @@ export function ensureActivityFeed(): void {
     const ws = new WebSocket(c.url.replace(/^http/, "ws") + "/api/websocket");
     let id = 1;
     ws.onmessage = (ev) => {
+      try {
+        handle(ev);
+      } catch (err) {
+        console.error("[vmui] activity feed message failed", err);
+      }
+    };
+    const handle = (ev: MessageEvent) => {
       const m = JSON.parse(String(ev.data)) as {
         type: string;
         event?: { event_type?: string; data?: Record<string, unknown> };
@@ -97,8 +104,13 @@ export function ensureActivityFeed(): void {
       } else if (m.type === "event" && m.event) {
         const d = m.event.data ?? {};
         if (m.event.event_type === "state_changed") {
-          const a = describe((d.old_state as State | null) ?? null, d.new_state as State);
-          if (a) pushActivity(a);
+          // new_state is null when an entity is removed — that crashed the
+          // whole server (uncaughtException in a ws callback) on 2026-09-15.
+          const ns = d.new_state as State | null | undefined;
+          if (ns) {
+            const a = describe((d.old_state as State | null) ?? null, ns);
+            if (a) pushActivity(a);
+          }
         } else {
           // Shapes differ by version; pull whatever text is there.
           const text = (d.text as string | undefined) ?? ((d.result as Record<string, unknown> | undefined)?.speech as string | undefined) ?? JSON.stringify(d).slice(0, 60);

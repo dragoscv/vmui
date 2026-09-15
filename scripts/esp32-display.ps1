@@ -22,6 +22,8 @@
   esp32-display.ps1 -Publish            # Caddy LAN route :8737 -> vmui /api/esp
   esp32-display.ps1 -Flash              # compile on appliance, flash over COM
   esp32-display.ps1 -Flash -Ota         # after the first flash: over WiFi
+  esp32-display.ps1 -Logs               # live log stream over WiFi (Ctrl+C to stop)
+  esp32-display.ps1 -Logs -Seconds 30   # capture 30 s and exit
   esp32-display.ps1 -Preview clock      # ASCII render of a view (no hardware)
 #>
 [CmdletBinding(DefaultParameterSetName = 'Status')]
@@ -32,6 +34,8 @@ param(
     [Parameter(ParameterSetName = 'Flash')][switch]$Ota,
     [Parameter(ParameterSetName = 'Flash')][string]$ComPort,
     [Parameter(Mandatory, ParameterSetName = 'Preview')][string]$Preview,
+    [Parameter(Mandatory, ParameterSetName = 'Logs')][switch]$Logs,
+    [Parameter(ParameterSetName = 'Logs')][int]$Seconds = 0,
     [string]$NodeName = 'bluetooth-proxy-1',
     [string]$CredPrefix = 'ESPHOME_BTPROXY1',
     [string]$HostSsh = 'root@192.168.100.232',
@@ -192,9 +196,20 @@ console.log(fb.toAscii());
     try { pnpm exec tsx --tsconfig tsconfig.json $tmp } finally { Pop-Location }
 }
 
+function Show-Logs {
+    # ESPHome's native API streams the logger over WiFi — no USB needed. Runs
+    # inside the add-on on the appliance because that is where the compiled
+    # config (and its API key) lives.
+    $cmd = "docker exec -w /config/esphome app_5c53de3b_esphome esphome logs --device $NodeName.local $NodeName.yaml 2>&1"
+    if ($Seconds -gt 0) { $cmd = "timeout $Seconds $cmd" }
+    Write-Step "log stream from $NodeName over WiFi$(if ($Seconds) { " ($Seconds s)" } else { ' (Ctrl+C to stop)' })"
+    ssh -o BatchMode=yes -p 22222 $HostSsh $cmd
+}
+
 switch ($PSCmdlet.ParameterSetName) {
     'Publish' { Publish-Lan; Show-Status }
     'Flash' { Flash-Board }
     'Preview' { Show-Preview $Preview }
+    'Logs' { Show-Logs }
     default { Show-Status }
 }

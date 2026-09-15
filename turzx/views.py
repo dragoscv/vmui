@@ -547,17 +547,23 @@ class MediaView(View):
 
     def __init__(self, accent):
         super().__init__(accent)
-        self.m = None; self.pos = Tween(speed=8); self.art = None
+        self.m = None; self.others: list[dict] = []; self.pos = Tween(speed=8); self.art = None
 
     def visible(self, st):
         if not self.options.get("skipIdle"):
             return True
         return any(x.get("state") == "playing" for x in (st.get("media") or []))
 
+    @staticmethod
+    def _rank(x: dict) -> tuple:
+        # playing beats paused; a real title beats a bare "playing" (TVs on an input)
+        return (x.get("state") != "playing", not (x.get("title") or x.get("artist")), str(x.get("id")))
+
     def update(self, st, dt):
         self.tick(dt)
-        ms = st.get("media") or []
-        self.m = next((x for x in ms if x.get("state") == "playing"), ms[0] if ms else None)
+        ms = sorted((st.get("media") or []), key=self._rank)
+        self.m = ms[0] if ms else None
+        self.others = ms[1:5]
         if self.m and self.m.get("duration"):
             p = num(self.m.get("position")) or 0
             at = self.m.get("positionAt")
@@ -568,40 +574,69 @@ class MediaView(View):
                     pass
             self.pos.set(min(p, num(self.m.get("duration")) or p))
         self.pos.step(dt)
-        self.art = st.get("_art")
+        arts = st.get("_arts") or {}
+        self.art = arts.get((self.m or {}).get("art")) if self.m else None
 
     def draw(self, c, t, progress):
         sk = self.sk
-        self.header(c, "Redare", (self.m or {}).get("app") or "", progress)
+        n = 1 + len(self.others) if self.m else 0
+        self.header(c, "Redare", f"{n} dispozitive" if n > 1 else ((self.m or {}).get("app") or ""), progress)
         d = ImageDraw.Draw(c)
         if not self.m:
             sk.text(d, (W // 2, 180), "nimic în redare", sk.mid, sk.muted, anchor="mm")
             return
+        compact = bool(self.others)
+        art_sz = 96 if compact else 150
+        top = 70 if compact else 80
         if sk.panel_alpha:
-            sk.panel(c, (184, 84, 464, 240)); d = ImageDraw.Draw(c)
+            sk.panel(c, (22 + art_sz + 10, top + 4, 464, top + art_sz)); d = ImageDraw.Draw(c)
         if self.art is not None:
-            c.paste(self.art.resize((150, 150)), (22, 80))
+            c.paste(self.art.resize((art_sz, art_sz)), (22, top))
         else:
-            sk.panel(c, (22, 80, 172, 230), radius=14); d = ImageDraw.Draw(c)
+            sk.panel(c, (22, top, 22 + art_sz, top + art_sz), radius=14); d = ImageDraw.Draw(c)
+            cx, cy = 22 + art_sz // 2, top + art_sz // 2
             for k in range(3):
-                r = 22 + k * 18
+                r = (10 if compact else 22) + k * (12 if compact else 18)
                 a0 = (int(t * 90) // 10 * 10) % 360
-                d.arc((97 - r, 155 - r, 97 + r, 155 + r), a0, a0 + 200, fill=lerp_rgb(sk.accent, sk.bg, 0.3 + k * 0.2), width=4)
+                d.arc((cx - r, cy - r, cx + r, cy + r), a0, a0 + 200, fill=lerp_rgb(sk.accent, sk.bg, 0.3 + k * 0.2), width=4)
         tb = self.bgc() if not sk.panel_alpha else lerp_rgb(sk.bg, sk.card, 0.15)
-        self.box("title", str(self.m.get("title") or "—"), speed=40).draw(c, (196, 92, W - 22, 126), sk.mid, sk.fg, tb)
-        self.box("artist", str(self.m.get("artist") or ""), speed=30).draw(c, (196, 130, W - 22, 154), sk.small, sk.muted, tb)
-        sk.text(d, (196, 160), self.m.get("id", "").replace("media_player.", "").replace("_", " "), sk.tiny, sk.muted)
+        tx = 22 + art_sz + 24
+        name = str(self.m.get("name") or self.m.get("id", "").replace("media_player.", "").replace("_", " "))
+        self.box("title", str(self.m.get("title") or ("pornit" if self.m.get("state") == "playing" else "—")), speed=40).draw(c, (tx, top + 8, W - 22, top + 40), sk.mid, sk.fg, tb)
+        self.box("artist", str(self.m.get("artist") or ""), speed=30).draw(c, (tx, top + 44, W - 22, top + 66), sk.small, sk.muted, tb)
+        sk.text(d, (tx, top + 72), fit_text(d, name + ((" · " + str(self.m.get("app"))) if self.m.get("app") else ""), sk.tiny, W - 22 - tx), sk.tiny, sk.muted)
         dur = num(self.m.get("duration")) or 0
+        by = top + art_sz - 4 if compact else 210
         if dur:
-            bar(d, 196, 210, W - 196 - 22, 6, self.pos.value / dur, sk.accent, sk.track)
-            sk.text(d, (196, 222), f"{int(self.pos.value)//60}:{int(self.pos.value)%60:02d}", sk.tiny, sk.muted)
-            sk.text(d, (W - 22, 222), f"{int(dur)//60}:{int(dur)%60:02d}", sk.tiny, sk.muted, anchor="ra")
-        if self.m.get("state") == "playing":
-            for i in range(5):
-                h = 8 + 18 * (0.5 + 0.5 * qsin(t * 5 + i * 1.1, 4))
-                d.rounded_rectangle((196 + i * 12, 290 - h, 196 + i * 12 + 7, 290), radius=2, fill=sk.accent)
-        else:
-            d.rectangle((198, 268, 204, 290), fill=sk.muted); d.rectangle((210, 268, 216, 290), fill=sk.muted)
+            bar(d, tx, by, W - tx - 22, 6, self.pos.value / dur, sk.accent, sk.track)
+            if not compact:
+                sk.text(d, (tx, by + 12), f"{int(self.pos.value)//60}:{int(self.pos.value)%60:02d}", sk.tiny, sk.muted)
+                sk.text(d, (W - 22, by + 12), f"{int(dur)//60}:{int(dur)%60:02d}", sk.tiny, sk.muted, anchor="ra")
+        if not compact:
+            if self.m.get("state") == "playing":
+                for i in range(5):
+                    h = 8 + 18 * (0.5 + 0.5 * qsin(t * 5 + i * 1.1, 4))
+                    d.rounded_rectangle((tx + i * 12, 290 - h, tx + i * 12 + 7, 290), radius=2, fill=sk.accent)
+            else:
+                d.rectangle((tx + 2, 268, tx + 8, 290), fill=sk.muted); d.rectangle((tx + 14, 268, tx + 20, 290), fill=sk.muted)
+            return
+        # the other players, one row each: state dot · name · what they play
+        y = top + art_sz + 14
+        rh = min(40, (H - 12 - y) // max(1, len(self.others)))
+        arts = {}
+        for i, o in enumerate(self.others):
+            playing = o.get("state") == "playing"
+            col = sk.ok if playing else sk.muted
+            if playing:
+                col = lerp_rgb(sk.ok, sk.bg, 0.3 * Pulse(1.6, i, steps=4).at(t))
+            d.ellipse((26, y + rh // 2 - 9, 36, y + rh // 2 + 1), fill=col)
+            oname = str(o.get("name") or o.get("id", "").replace("media_player.", "").replace("_", " "))
+            sk.text(d, (46, y + 2), fit_text(d, oname, sk.tiny, 150), sk.tiny, sk.muted)
+            what = str(o.get("title") or ("redă" if playing else "pauză"))
+            if o.get("artist"):
+                what += " — " + str(o.get("artist"))
+            self.box(f"other{i}", what, speed=30).draw(c, (200, y - 2, W - 22, y + rh - 8), sk.small, sk.fg if playing else sk.muted, tb)
+            y += rh
 
 
 # ---------------------------------------------------------------- 8. lists

@@ -104,14 +104,20 @@ class TurzxLcd:
     def set_brightness(self, pct: int) -> None:
         pct = max(0, min(100, pct))
         self.brightness = pct
-        if pct == 0:
-            self._cmd(CMD_OFF)
-        else:
-            self._cmd(CMD_ON)
-            self._cmd(CMD_BRIGHTNESS, int(round(255 - pct * 255 / 100)))
+        self._cmd(CMD_ON)
+        self._cmd(CMD_BRIGHTNESS, int(round(255 - pct * 255 / 100)))  # 0 % → 255 = panel's darkest
 
     def off(self) -> None:
         self._cmd(CMD_OFF)
+
+    def backlight(self, on: bool) -> None:
+        """Dim to the panel's floor / restore, without touching the stored
+        brightness. CMD_OFF is a no-op on this sub-model (verified 2026-09-15);
+        brightness 255 is the darkest it goes."""
+        if on:
+            self._cmd(CMD_BRIGHTNESS, int(round(255 - max(1, self.brightness) * 255 / 100)))
+        else:
+            self._cmd(CMD_BRIGHTNESS, 255)
 
     def close(self) -> None:
         try:
