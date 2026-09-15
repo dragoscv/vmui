@@ -106,11 +106,13 @@ QUANT = 8
 # h 0..FRAME_H; the fit below is expressed inside that same span.
 FRAME_H = 0.5
 # Base layouts per instance are cached here on first sight, keyed by the
-# instance index, so `-Configure` (which rewrites them, group 0) is picked up
-# within VERIFY_S. Layouts written by this module carry group FIT_GROUP, so a
-# fitted layout is never mistaken for a base after a bridge restart.
+# instance index, so `-Configure` (which rewrites them) is picked up within
+# VERIFY_S. A layout is recognised as OUR fit by content: the last fitted
+# layout per instance is kept in the same cache file, so after a bridge
+# restart a fit is not mistaken for a base. (2026-09-16: marking fits with
+# `group: 7` looked free but `group` is HyperHDR's LED-averaging feature --
+# every LED in group 7 got the same colour, the whole strip went flat grey.)
 INSTANCES = (0, 1, 2, 3)
-FIT_GROUP = 7
 BASE_CACHE = os.path.join(os.path.dirname(HERE), ".copilot-tmp", "service-logs", "hyperhdr-base-layouts.json")
 
 user32 = ctypes.windll.user32
@@ -244,6 +246,14 @@ def fit_for(win: tuple[int, int, int, int], mon: tuple[int, int, int, int]) -> t
     return (left / w, top / h, (w - right) / w, (h - bottom) / h)
 
 
+def _same_layout(a: list[dict] | None, b: list[dict] | None) -> bool:
+    """HyperHDR rounds what it stores; compare at 1e-4."""
+    if not a or not b or len(a) != len(b):
+        return False
+    keys = ("hmin", "hmax", "vmin", "vmax")
+    return all(abs(float(x.get(k, 0)) - float(y.get(k, 0))) < 1e-4 for x, y in zip(a, b) for k in keys)
+
+
 def remap(base: list[dict], fit: tuple[float, float, float, float] | None) -> list[dict]:
     """Scale a base layout (spanning h 0..FRAME_H, v 0..1) into `fit`."""
     if fit is None:
@@ -252,7 +262,6 @@ def remap(base: list[dict], fit: tuple[float, float, float, float] | None) -> li
     out = []
     for l in base:
         n = dict(l)
-        n["group"] = FIT_GROUP
         # base h is in 0..FRAME_H; normalise, fit, squeeze back
         for k in ("hmin", "hmax"):
             n[k] = (h0 + (l[k] / FRAME_H) * (h1 - h0)) * FRAME_H
@@ -392,9 +401,13 @@ class VideoFollow:
         self.sct = MSS()
         self.fit: tuple[float, float, float, float] | None | str = "unknown"
         self.base: dict[int, list[dict]] = {}  # instance -> base layout
+        self.written: dict[int, list[dict]] = {}  # instance -> last fit we wrote
         try:
             with open(BASE_CACHE, encoding="utf-8") as fh:
-                self.base = {int(k): v for k, v in json.load(fh).items()}
+                data = json.load(fh)
+            if "base" in data:
+                self.base = {int(k): v for k, v in data["base"].items()}
+                self.written = {int(k): v for k, v in data.get("written", {}).items()}
         except (OSError, ValueError):
             pass
         self.seen_since: float | None = None
@@ -419,27 +432,30 @@ class VideoFollow:
             print(f"  HyperHDR unreachable: {e}", flush=True)
 
     def _learn_bases(self) -> None:
-        """Layouts with group != FIT_GROUP are what -Configure wrote: the base.
-        Our own fits carry FIT_GROUP and are never learned as base."""
+        """A layout that is not the last fit we wrote is what -Configure wrote:
+        the base. Compared by content (rounded), so a re-read of our own fit
+        is never learned as base."""
         changed = False
         for i in INSTANCES:
             leds = self.hyper.get_config(i).get("leds") or []
             if not leds:
                 continue
-            if all(l.get("group", 0) != FIT_GROUP for l in leds):
-                if self.base.get(i) != leds:
-                    self.base[i] = leds
-                    self.fit = None  # HyperHDR currently shows the base
-                    changed = True
-            elif i not in self.base:
-                print(f"  inst{i}: layout is a fit from a previous run; base unknown until -Configure", flush=True)
+            if _same_layout(leds, self.written.get(i)):
+                continue
+            if self.base.get(i) != leds:
+                self.base[i] = leds
+                self.fit = None  # HyperHDR currently shows the base
+                changed = True
         if changed:
-            try:
-                os.makedirs(os.path.dirname(BASE_CACHE), exist_ok=True)
-                with open(BASE_CACHE, "w", encoding="utf-8") as fh:
-                    json.dump(self.base, fh)
-            except OSError:
-                pass
+            self._save_cache()
+
+    def _save_cache(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(BASE_CACHE), exist_ok=True)
+            with open(BASE_CACHE, "w", encoding="utf-8") as fh:
+                json.dump({"base": self.base, "written": self.written}, fh)
+        except OSError:
+            pass
 
     def _apply_fit(self, fit: tuple[float, float, float, float] | None) -> None:
         if fit == self.fit:
@@ -449,7 +465,10 @@ class VideoFollow:
             if not self.base:
                 return
         for i, base in self.base.items():
-            self.hyper.set_leds(i, remap(base, fit))
+            leds = remap(base, fit)
+            self.hyper.set_leds(i, leds)
+            self.written[i] = leds
+        self._save_cache()
         self.fit = fit
         if fit is None:
             print("  fit -> whole screen", flush=True)
