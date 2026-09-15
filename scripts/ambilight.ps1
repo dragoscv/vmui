@@ -213,7 +213,8 @@ function Configure-HyperHdr {
         color         = New-WallCompensation -WallHex $Settings.wallHex -Strength ([double]$Settings.wallStrength) -Gamma ([double]$Settings.gamma) -Saturation ([double]$Settings.saturation) -Luminance ([double]$Settings.luminance)
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
         leds          = Set-LayoutFrame @Frame -Leds (New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08)
-        smoothing     = New-Smoothing -TimeMs ([int]$Settings.stripSmoothMs) -Hz 60
+        # 30 Hz: the HID controller wedges (0x3E5) when fed 60 distinct frames/s; see dxlight_bridge.py MAX_FPS.
+        smoothing     = New-Smoothing -TimeMs ([int]$Settings.stripSmoothMs) -Hz 30
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
         soundEffect   = @{ device = 'Voicemeeter Out B1 (VB-Audio Vo'; enable = $true; enable_smoothing = $true }
         mqtt          = @{ enable = $true; host = ($env:HA_URL -replace '^https?://', ''); port = 1883; username = $env:MQTT_HYPERHDR_USER; password = $env:MQTT_HYPERHDR_PASS; is_ssl = $false; ignore_ssl_errors = $true; custom_topic = 'HyperHDR'; disableApiAccess = $false; maxRetry = 120 }

@@ -221,6 +221,15 @@ import hid  # hidapi
 VID, PID = 0x1A86, 0xFE07
 LED_COUNT = 65
 REPORT_SIZE = 64
+# The controller has no flow control: a full frame is 6 interrupt-OUT reports
+# and a transition (idle -> film, movie mode ON) makes HyperHDR emit 60
+# distinct frames/s = 360 reports/s, above what a full-speed HID pipe drains.
+# The firmware buffer overflows, the endpoint stops ACKing and the pending
+# overlapped write never returns (0x3E5) until the strip is replugged. Every
+# recorded wedge sat exactly on such a burst. Pace here, not only upstream.
+MAX_FPS = 30.0
+REPORT_GAP_S = 0.0015
+SLOW_WRITE_S = 0.25
 
 
 def device_present() -> bool:
@@ -238,6 +247,9 @@ def _checksum8(data: bytes) -> int:
 class DxLight:
     def __init__(self, brightness: int = 255) -> None:
         self._msg_id = 0
+        self._last_frame: bytes | None = None
+        self._next_frame_at = 0.0
+        self.slow_writes = 0
         self.dev = self._open()
         self._init(brightness)
 
@@ -259,11 +271,22 @@ class DxLight:
         for off in range(0, len(packet), REPORT_SIZE):
             chunk = packet[off : off + REPORT_SIZE]
             report = bytes([0x00]) + chunk + bytes(REPORT_SIZE - len(chunk))
-            if self.dev.write(report) < 0:
+            t0 = time.monotonic()
+            rc = self.dev.write(report)
+            took = time.monotonic() - t0
+            if rc < 0:
                 # hidapi's own reason (e.g. "Overlapped I/O operation is in
                 # progress", "The device is not connected") tells a wedged
                 # controller from a pulled cable; the bare -1 did not.
                 raise OSError(f"HID write failed: {self.dev.error()!s}")
+            if took > SLOW_WRITE_S:
+                # The pipe is backing up: the firmware is close to the edge.
+                # Log it and give it a breather instead of piling on.
+                self.slow_writes += 1
+                print(f"  slow HID write {took * 1000:.0f} ms (#{self.slow_writes}); backing off", flush=True)
+                time.sleep(0.1)
+            elif off + REPORT_SIZE < len(packet):
+                time.sleep(REPORT_GAP_S)
 
     def _rb(self, action: int, payload: bytes) -> None:
         body = bytes([ord("R"), ord("B"), 5 + len(payload) + 1, self._next_id(), action]) + payload
@@ -279,8 +302,16 @@ class DxLight:
         self._rb(135, bytes([max(0, min(255, value))]))
 
     def frame(self, rgb: bytes) -> None:
-        """rgb: LED_COUNT*3 bytes in strip order."""
+        """rgb: LED_COUNT*3 bytes in strip order. Identical frames are not
+        resent and frames are paced to MAX_FPS (blocking); both keep the
+        controller's input buffer from overflowing."""
         count = min(LED_COUNT, len(rgb) // 3)
+        rgb = bytes(rgb[: count * 3])
+        if rgb == self._last_frame:
+            return
+        wait = self._next_frame_at - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
         total = 2 + 2 + 1 + 1 + count * 5 + 1
         out = bytearray([ord("S"), ord("C"), (total >> 8) & 0xFF, total & 0xFF, self._next_id(), 128])
         for i in range(count):
@@ -288,6 +319,8 @@ class DxLight:
             out += bytes([n, rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2], n])
         out.append(_checksum8(out))
         self._write(bytes(out))
+        self._last_frame = rgb
+        self._next_frame_at = time.monotonic() + 1.0 / MAX_FPS
 
     def close(self) -> None:
         try:
@@ -337,6 +370,10 @@ def run_listen(dx: DxLight, port: int) -> None:
                 gate.last = None  # force the next HyperHDR frame through, no dedupe
         if sock in ready:
             data, _ = sock.recvfrom(4096)
+            # Pacing in dx.frame() blocks; take only the newest datagram so a
+            # burst becomes dropped frames, not a growing backlog.
+            while select.select([sock], [], [], 0)[0]:
+                data, _ = sock.recvfrom(4096)
             if len(data) >= 3:
                 frames += 1
                 if fx.active:
