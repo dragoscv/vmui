@@ -18,6 +18,7 @@ import argparse
 import io
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -107,41 +108,70 @@ class State:
         return d
 
 
-_top_cache: tuple[float, str] = (0.0, "")
+_pc: dict = {}
 
 
-def _top_process() -> str:
-    """Name of the process burning the most CPU, refreshed every 5 s.
-    process_iter over ~400 processes costs ~40 ms, too much per frame."""
-    global _top_cache
-    now = time.perf_counter()
-    if now - _top_cache[0] < 5:
-        return _top_cache[1]
-    best, name = 0.0, ""
-    for p in psutil.process_iter(["name", "cpu_percent"]):
-        try:
-            v = p.info["cpu_percent"] or 0.0
-            if v > best and p.info["name"] not in ("System Idle Process", "Idle"):
-                best, name = v, p.info["name"] or ""
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-    label = f"{name.removesuffix('.exe')} {best / psutil.cpu_count():.0f}%" if name and best >= 5 else ""
-    _top_cache = (now, label)
-    return label
+def _pc_worker() -> None:
+    """All host sampling on one thread; the render loop just reads `_pc`.
+    Reason: psutil.process_iter(cpu_percent) takes ~7 s here and, even on a
+    thread, held the GIL enough to drag pc_metrics() from 1 ms to 80 ms and
+    the panel to 7 fps. So the expensive scan runs rarely and the cheap
+    samples are refreshed in between, all off the frame path."""
+    global _pc
+    ncpu = psutil.cpu_count() or 1
+    last_scan = 0.0
+    top = ""
+    while True:
+        out = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent, "uptime": time.time() - psutil.boot_time()}
+        if _GPU is not None:
+            try:
+                out["gpu"] = pynvml.nvmlDeviceGetUtilizationRates(_GPU).gpu
+                out["gpuTemp"] = pynvml.nvmlDeviceGetTemperature(_GPU, 0)
+                m = pynvml.nvmlDeviceGetMemoryInfo(_GPU)
+                out["vram"] = m.used * 100 / m.total
+            except Exception:
+                pass
+        out["top"] = top
+        _pc = out
+        if time.perf_counter() - last_scan > 20:
+            last_scan = time.perf_counter()
+            # A thread was not enough: process_iter holds the GIL so much that
+            # the render loop fell to 1.6 fps. A child interpreter has its own
+            # GIL; we pay one process spawn every 20 s instead.
+            try:
+                r = subprocess.run(
+                    [sys.executable, "-c", _TOP_SNIPPET], capture_output=True, text=True, timeout=15,
+                    creationflags=0x08000000, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                )
+                name, _, pct = r.stdout.strip().partition("|")
+                top = f"{name.removesuffix('.exe')} {float(pct) / ncpu:.0f}%" if name and float(pct or 0) >= 5 else ""
+            except Exception:
+                top = ""
+        time.sleep(1.0)
+
+
+_TOP_SNIPPET = (
+    "import psutil,time\n"
+    "ps=[p for p in psutil.process_iter(['name'])]\n"
+    "for p in ps:\n"
+    "    try: p.cpu_percent(None)\n"
+    "    except Exception: pass\n"
+    "time.sleep(1.0)\n"
+    "best,name=0.0,''\n"
+    "for p in ps:\n"
+    "    try:\n"
+    "        v=p.cpu_percent(None)\n"
+    "        if v>best and p.info['name'] not in ('System Idle Process','Idle'): best,name=v,p.info['name'] or ''\n"
+    "    except Exception: pass\n"
+    "print(f'{name}|{best}')\n"
+)
+
+
+threading.Thread(target=_pc_worker, daemon=True).start()
 
 
 def pc_metrics() -> dict:
-    out = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent, "uptime": time.time() - psutil.boot_time()}
-    out["top"] = _top_process()
-    if _GPU is not None:
-        try:
-            out["gpu"] = pynvml.nvmlDeviceGetUtilizationRates(_GPU).gpu
-            out["gpuTemp"] = pynvml.nvmlDeviceGetTemperature(_GPU, 0)
-            m = pynvml.nvmlDeviceGetMemoryInfo(_GPU)
-            out["vram"] = m.used * 100 / m.total
-        except Exception:
-            pass
-    return out
+    return _pc
 
 
 def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) -> None:
