@@ -48,6 +48,7 @@ MIN_DELTA_CLOUD = 12  # 0..255 per channel; smaller changes are not worth a clou
 MIN_DELTA_LAN = 3
 V_MAX = 600  # colour_data v ceiling (0..1000): the bar is 30 cm from the eyes
 V_MIN = 25  # never fully off mid-session: switch_led toggles are what flashed
+WAKE_MIN = 40  # max(rgb) after ambient() needed to switch the relay back on
 # The firmware applies every colour_data as a hard cut (no internal fade in
 # music mode), so the bridge does the easing: each 10 Hz tick moves the
 # emitted HSV this fraction of the way to the target. 0.18 @ 10 Hz ~ 0.5 s
@@ -163,6 +164,11 @@ class DeskBar:
         return ok
 
     def set_target(self, rgb: tuple[int, int, int]) -> None:
+        # Hysteresis on the relay: a dark scene hovers around the ambient()
+        # luma gate and the bar clicked off/on every second (logbook 22:07).
+        # Once off, stay off until the region is clearly lit again.
+        if not self.on and 0 < max(rgb) < WAKE_MIN:
+            rgb = (0, 0, 0)
         r, g, b = rgb
         h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
         # Hue is meaningless when the region is near-black: (11,10,3) and
@@ -177,9 +183,12 @@ class DeskBar:
             self._last_h = h
         h = self._last_h
         if max(rgb) < 8:
-            # Toggling the relay (switch_led) here also flashed -- the firmware
-            # pops to full brightness on the way back on. Dim, never off.
-            s, v = 0.3, V_MIN / 1000
+            # A black picture (fade to black, paused black frame, credits) means
+            # the bar goes OUT, not "dim warm". The relay pop on the way back
+            # on is handled in tick(): the colour is written in the same
+            # packet as switch_led=true, so the firmware never shows its own
+            # last brightness. Dark-but-not-black keeps V_MIN.
+            s, v = 0.3, 0.0
         else:
             s = s * min(1.0, chroma / CHROMA_HUE) if chroma < CHROMA_HUE else s
             v = max(V_MIN / 1000, min(v, 1.0) * V_MAX / 1000)
@@ -199,13 +208,24 @@ class DeskBar:
             self.cur = ((ch + dh * SLEW) % 1.0, cs + (ts - cs) * SLEW, cv + (tv - cv) * SLEW)
             if abs(dh) < 0.002 and abs(ts - cs) < 0.005 and abs(tv - cv) < 0.005:
                 self.cur = self.target
+            if tv == 0.0 and self.cur[2] < V_MIN / 1000:
+                self.cur = self.target  # easing below the floor is invisible; go dark now
         h, s, v = self.cur
         step = {"h": int(h * 360), "s": int(s * 1000), "v": int(v * 1000)}
+        want_on = step["v"] > 0
+        if not want_on:
+            if not self.on:
+                return
+            self._sent = step
+            self._send([{"code": "switch_led", "value": False}])
+            self.on = False
+            return
         if step == getattr(self, "_sent", None) and self.on and self.colour_mode:
             return
         self._sent = step
         cmds: list[dict] = []
         if not self.on:
+            step["v"] = max(step["v"], V_MIN)  # never wake into v=0
             cmds.append({"code": "switch_led", "value": True})
             self.on = True
         if not self.colour_mode:

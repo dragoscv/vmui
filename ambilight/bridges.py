@@ -30,6 +30,7 @@ if sys.stdout is None:  # pythonw: no console, keep the prints somewhere readabl
 import a51_lux  # noqa: E402
 import deskbar_bridge  # noqa: E402
 import dxlight_bridge  # noqa: E402
+import halamps_bridge  # noqa: E402
 import openrgb_bridge  # noqa: E402
 import video_follow  # noqa: E402
 
@@ -38,6 +39,7 @@ BRIDGES = (
     ("dxlight", 19446, lambda: dxlight_bridge.DxLight(255), dxlight_bridge.run_listen),
     ("pcglow", 19447, openrgb_bridge.PcGlow, openrgb_bridge.run_listen),
     ("deskbar", 19448, deskbar_bridge.DeskBar, deskbar_bridge.run_listen),
+    ("halamps", 19449, halamps_bridge.HaLamps, halamps_bridge.run_listen),
     ("a51lux", 0, a51_lux.A51Lux, a51_lux.run_listen),  # no UDP; polls adb -> HA sensor.a51_light
     ("videofollow", 0, video_follow.VideoFollow, video_follow.run_listen),  # no UDP; window -> HyperHDR crop + movie mode
 )

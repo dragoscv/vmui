@@ -45,8 +45,8 @@
                    honoured -- HybridRgbInterpolator is a spring that ignores
                    time_ms entirely (stiffness/damping only), which is why the
                    PC glow used to snap on every cut.
-    roomBrightness 0-255 cap for the Calex bulbs in movie mode (HA device
-                   constantBrightness). Default 90 ~ 35 %.
+    roomBrightness 0-255 brightness cap for the Calex bulbs in movie mode
+                   (ambilight/halamps_bridge.py). Default 90 ~ 35 %.
     idleStripHex / idleGlowHex / idleAfterSec
                    colour each output shows after idleAfterSec with no frames
                    from HyperHDR (movie mode off, or nothing moving on screen
@@ -225,40 +225,25 @@ function Configure-HyperHdr {
     }
     Enable-Grabber $pc
 
-    Write-Step 'instance 2: room lights through Home Assistant'
+    Write-Step 'instance 2: room lights via ambilight/halamps_bridge.py -> Home Assistant'
     $ha = Ensure-Instance 'Room lights (Home Assistant)'
-    # Order of lamps == order of leds. Calex bulbs (Smart Life -> Tuya) take
-    # rgb_color fine (verified 2026-09-14). Main Light stays out on purpose: a
-    # coloured ceiling distracts; it gets the movie_mode warm-dim treatment.
+    # Lamps and their order live in halamps_bridge.py LAMPS (Moodlight,
+    # Ambience Light); leds below must match that order. Main Light stays out
+    # on purpose: a coloured ceiling distracts; it gets the movie_mode warm-dim.
+    # NOT HyperHDR's own `home_assistant` device any more: it never sends
+    # turn_off (black = rgb 0 + brightness 0, which the Tuya firmware ignores,
+    # so a black screen left the lamps white at 60/255), and its hard-coded
+    # 500 ms REST timeout disabled the device on one slow reply.
     # NOT light.desk_light_bar: HA advertises `hs` for it but the Tuya firmware
     # work_mode enum is ['music','white'], so every hs_color POST is a 500 and
-    # HyperHDR disables the WHOLE device (strip included) on the first one.
-    # The bar gets its movie look from script.movie_mode_on (warm, dim).
-    # NOT light.led_argb (MELK BLE strip): HyperHDR's REST client has a
-    # hard-coded 500 ms timeout and HA's Bluetooth state read for that
-    # entity took 583 ms -> "408 Timeout", device disabled, and every retry
-    # starts with the same GET so it never recovers (2026-09-15). The strip
-    # is driven from ha-scenes.yaml scripts instead.
-    $lamps = @(
-        @{ name = 'light.moodlight'; colorModel = 0 }
-        @{ name = 'light.ambience_light'; colorModel = 0 }
-    )
+    # it has its own bridge (instance 3). NOT light.led_argb (MELK BLE): its
+    # HA state read takes >500 ms; it is driven from ha-scenes.yaml scripts.
     Set-HyperConfig -Instance $ha -Config @{
-        device    = @{
-            type = 'home_assistant'
-            # HyperHDR assumes :8123; this appliance serves on :80.
-            homeAssistantHost = (($env:HA_URL -replace '^https?://', '') + ':80')
-            longLivedAccessToken = $env:HA_TOKEN
-            # constantBrightness 0-255: the Calex bulbs at 200 lit the whole
-            # room and washed the picture; ~90 (35 %) is a glow, not a lamp.
-            transition = 300; constantBrightness = [int]$Settings.roomBrightness; restoreOriginalState = $true; maxRetry = 60
-            lamps = $lamps; hardwareLedCount = $lamps.Count; colorOrder = 'rgb'; refreshTime = 0
-        }
+        device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19449; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 2 }
         # Lamps follow the picture quadrant nearest to where they stand:
         # Moodlight bottom-left, Ambience Light top-right.
         leds      = @() + (New-RegionLayout bl) + (New-RegionLayout tr)
-        # Schema minimum is 20 Hz; the HA driver's own `transition` (300 ms)
-        # is what actually throttles the bulbs.
+        # Schema minimum is 20 Hz; the bridge throttles the bulbs to 2 Hz.
         smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
     }
     Enable-Grabber $ha
