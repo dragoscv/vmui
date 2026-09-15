@@ -27,6 +27,43 @@ const HA_SCRIPT: Record<CopilotEvent, string> = {
   failed: "copilot_failed",
 };
 const TITLE: Record<CopilotEvent, string> = { ask: "Copilot asteapta", done: "Copilot gata", blocked: "Comanda blocata", failed: "A esuat" };
+const PHONE_TITLE: Record<CopilotEvent, string> = { ask: "Copilot așteaptă răspunsul tău", done: "Copilot a terminat tura", blocked: "Comandă blocată de guard", failed: "Build / test eșuat" };
+const PHONE_ICON: Record<CopilotEvent, string> = { ask: "mdi:chat-question", done: "mdi:check-decagram", blocked: "mdi:shield-alert", failed: "mdi:alert-octagon" };
+
+/** One phone notification per session: same `tag` so a later event replaces
+ *  the earlier card instead of stacking, and the cancel path clears it. */
+function phoneTag(session: string) {
+  return `copilot-${session || "any"}`;
+}
+
+async function phonePush(service: string, event: CopilotEvent, p: { color: string }, text: string, session: string, source: string, project: string, chat: string) {
+  const subtitle = [project, chat].filter(Boolean).join(" · ");
+  const message = text || (event === "ask" ? "Deschide VS Code și răspunde la întrebare." : event === "done" ? "Poți verifica rezultatul." : source);
+  await ha.callService("notify", service, {
+    title: PHONE_TITLE[event],
+    message,
+    data: {
+      tag: phoneTag(session),
+      group: "copilot",
+      channel: event === "ask" ? "Copilot — așteaptă" : "Copilot",
+      importance: event === "ask" ? "high" : "default",
+      color: p.color,
+      notification_icon: PHONE_ICON[event],
+      subtitle: subtitle || source,
+      // an `ask` stays until answered; everything else is dismissible and auto-clears
+      sticky: event === "ask",
+      persistent: event === "ask",
+      timeout: event === "ask" ? 0 : 600,
+      clickAction: "app://com.microsoft.launcher",
+      ttl: 0,
+      priority: "high",
+    },
+  });
+}
+
+async function phoneClear(service: string, session: string) {
+  await ha.callService("notify", service, { message: "clear_notification", data: { tag: phoneTag(session) } });
+}
 
 export async function GET(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
@@ -41,6 +78,7 @@ export async function DELETE(req: NextRequest) {
     setSignal({ ...cur, active: false });
     const s = await loadCopilotSignals();
     if (s.patterns.ask.strip) void stripFx("clear");
+    if (s.patterns.ask.phone && s.phoneNotify) phoneClear(s.phoneNotify, cur.session).catch(() => undefined);
     if (s.patterns.ask.light && s.lights.length) {
       try {
         // script.turn_on returns as soon as the run starts; the direct service
@@ -96,6 +134,14 @@ export async function POST(req: NextRequest) {
     for (const n of listNodes()) showMessage(n.name, TITLE[event], text || where || source, event === "ask" ? 10 : 8);
     pushActivity({ at: now, kind: "other", text: `${TITLE[event]}${where ? ` [${where.slice(0, 40)}]` : ""}${text ? `: ${text.slice(0, 40)}` : ""}` });
     out.esp = true;
+  }
+  if (p.phone && s.phoneNotify && !quiet) {
+    try {
+      await phonePush(s.phoneNotify, event, p, text, session, source, project, chat);
+      out.phone = true;
+    } catch (e) {
+      out.phoneError = e instanceof Error ? e.message : String(e);
+    }
   }
   await db.insert(auditLog).values({ accountId: "home", action: `copilot.${event}`, target: project || source, status: "ok", message: [chat, text].filter(Boolean).join(" — ").slice(0, 200) });
   return NextResponse.json({ ...out, quiet, movie });

@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { COPILOT_EVENTS, type CopilotEvent, type CopilotSignals } from "@/lib/copilot/signals-schema";
 import { cn } from "@/lib/utils";
 import { saveCopilotSignalsAction, testCopilotSignalAction } from "@/server/actions/home";
-import { Bot, Lightbulb, MonitorSmartphone, Play, Radio, Sparkles } from "lucide-react";
+import { Bot, Lightbulb, MonitorSmartphone, Play, Radio, Smartphone, Sparkles } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -54,7 +54,7 @@ export function CopilotSignalsCard({ initial, lights }: { initial: CopilotSignal
           <Bot className="size-5 text-primary" aria-hidden />
           <div>
             <h3 id="copilot-h" className="font-semibold">Semnale Copilot</h3>
-            <p className="text-xs text-muted">Becuri, ecranul Turzx și ESP32 reacționează la ce face agentul în VS Code</p>
+            <p className="text-xs text-muted">Becuri, ecranul Turzx, ESP32 și telefonul reacționează la ce face agentul în VS Code</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -87,6 +87,10 @@ export function CopilotSignalsCard({ initial, lights }: { initial: CopilotSignal
           })}
         </ul>
         <div className="grid gap-3 sm:grid-cols-3 pt-2">
+          <label className="text-sm rounded-xl border border-border px-3 py-2 flex items-center justify-between gap-3 sm:col-span-3">
+            <span className="flex items-center gap-2"><Smartphone className="size-3.5" aria-hidden /> Telefon (serviciu HA notify)</span>
+            <Input value={s.phoneNotify} onChange={(e) => setS((p) => ({ ...p, phoneNotify: e.target.value }))} placeholder="mobile_app_dragos_s_s25_ultra" className="w-72 h-8 font-mono text-xs" aria-label="Serviciu notify telefon" />
+          </label>
           <label className="flex items-center justify-between gap-3 text-sm rounded-xl border border-border px-3 py-2">
             <span>Mut în timpul filmului</span>
             <Switch checked={s.muteInMovie} onCheckedChange={(on) => setS((p) => ({ ...p, muteInMovie: on }))} aria-label="Mut în movie mode" />
@@ -123,6 +127,7 @@ export function CopilotSignalsCard({ initial, lights }: { initial: CopilotSignal
                   <Target on={p.strip} onChange={(v) => setPattern(e, { strip: v })} label="Bandă monitor"><Sparkles className="size-3.5" aria-hidden /></Target>
                   <Target on={p.turzx} onChange={(v) => setPattern(e, { turzx: v })} label="Turzx"><MonitorSmartphone className="size-3.5" aria-hidden /></Target>
                   <Target on={p.esp} onChange={(v) => setPattern(e, { esp: v })} label="ESP32"><Radio className="size-3.5" aria-hidden /></Target>
+                  <Target on={p.phone} onChange={(v) => setPattern(e, { phone: v })} label="Telefon"><Smartphone className="size-3.5" aria-hidden /></Target>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => test(e)} disabled={busy !== null || !p.enabled} aria-label={`Testează ${EVENT_META[e].label}`}>
                   <Play className="size-3.5" aria-hidden /> Test

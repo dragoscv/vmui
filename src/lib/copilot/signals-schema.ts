@@ -29,6 +29,8 @@ const patternSchema = z.object({
   strip: z.boolean().default(true),
   turzx: z.boolean(),
   esp: z.boolean(),
+  /** Rich push to the phone via the HA companion app (notify.mobile_app_*). */
+  phone: z.boolean().default(true),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
@@ -41,6 +43,8 @@ export const copilotSignalsSchema = z.object({
   quietTo: z.string().regex(/^\d{2}:\d{2}$/),
   /** Which HA light entities carry the pattern. */
   lights: z.array(z.string()),
+  /** HA notify service for the phone, e.g. `mobile_app_dragos_s_s25_ultra`. Empty = no phone. */
+  phoneNotify: z.string().max(80).default("mobile_app_dragos_s_s25_ultra"),
   patterns: z.object({
     ask: patternSchema,
     done: patternSchema,
@@ -57,10 +61,11 @@ export const COPILOT_SIGNALS_DEFAULTS: CopilotSignals = {
   quietFrom: "23:30",
   quietTo: "07:30",
   lights: [],
+  phoneNotify: "mobile_app_dragos_s_s25_ultra",
   patterns: {
-    ask: { enabled: true, light: true, strip: true, turzx: true, esp: true, color: "#ff5a1f" },
-    done: { enabled: true, light: true, strip: true, turzx: true, esp: true, color: "#2ecc71" },
-    blocked: { enabled: true, light: true, strip: true, turzx: true, esp: false, color: "#ff2d2d" },
-    failed: { enabled: true, light: true, strip: true, turzx: true, esp: true, color: "#ffc400" },
+    ask: { enabled: true, light: true, strip: true, turzx: true, esp: true, phone: true, color: "#ff5a1f" },
+    done: { enabled: true, light: true, strip: true, turzx: true, esp: true, phone: true, color: "#2ecc71" },
+    blocked: { enabled: true, light: true, strip: true, turzx: true, esp: false, phone: true, color: "#ff2d2d" },
+    failed: { enabled: true, light: true, strip: true, turzx: true, esp: true, phone: true, color: "#ffc400" },
   },
 };
