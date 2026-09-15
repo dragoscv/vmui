@@ -45,9 +45,22 @@ BRIDGES = (
 )
 
 RETRY_S = 15
+# After this many consecutive deaths of one bridge, run its recovery hook
+# (dxlight: scripts/dxlight-recover.ps1 -- observe PnP state, reopen, then
+# disable/enable the HID child through the elevated task). The hook runs
+# once per streak; if it does not help we are back to 15 s retries with the
+# state written down for the next hand-replug.
+RECOVER_AFTER = 3
+RECOVER = {
+    "dxlight": ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                os.path.join(os.path.dirname(HERE), "scripts", "dxlight-recover.ps1")],
+}
 
 
 def _supervise(name: str, port: int, factory, run) -> None:
+    import subprocess  # noqa: PLC0415
+
+    streak = 0
     while True:
         dev = None
         try:
@@ -55,9 +68,11 @@ def _supervise(name: str, port: int, factory, run) -> None:
             if hasattr(dev, "describe"):
                 dev.describe()
             print(f"[{name}] up on udp/{port}", flush=True)
+            streak = 0
             run(dev, port)
         except Exception:  # noqa: BLE001 -- keep the other bridge alive whatever this one throws
             print(f"[{name}] died:\n{traceback.format_exc()}", flush=True)
+            streak += 1
         finally:
             close = getattr(dev, "close", None)
             if callable(close):
@@ -65,6 +80,16 @@ def _supervise(name: str, port: int, factory, run) -> None:
                     close()
                 except Exception:  # noqa: BLE001
                     pass
+        if streak == RECOVER_AFTER and name in RECOVER:
+            print(f"[{name}] {streak} deaths in a row -> recovery hook", flush=True)
+            try:
+                r = subprocess.run(RECOVER[name], capture_output=True, text=True, timeout=120,
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                for line in (r.stdout + r.stderr).splitlines():
+                    print(f"  {line}", flush=True)
+                print(f"[{name}] recovery exit {r.returncode}", flush=True)
+            except Exception as e:  # noqa: BLE001
+                print(f"[{name}] recovery hook failed: {e}", flush=True)
         print(f"[{name}] retry in {RETRY_S}s", flush=True)
         time.sleep(RETRY_S)
 

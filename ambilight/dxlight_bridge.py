@@ -62,6 +62,27 @@ def is_black(data: bytes) -> bool:
     return not any(data)
 
 
+# Per-LED black level. A dark scene averages to grey noise around luma
+# 0.05-0.10 (HyperHDR live image: 16-24/255 on a "black" frame), and 65 LEDs
+# of dim grey read as WHITE on the wall. Below BLACK_OFF the LED is off,
+# ramping to full by BLACK_FULL; the ratio keeps the hue, only the level
+# changes, so a real dark-blue border stays dark blue instead of grey.
+BLACK_OFF = 0.08
+BLACK_FULL = 0.22
+
+
+def black_gate(data: bytes) -> bytes:
+    out = bytearray(len(data))
+    for i in range(0, len(data) - 2, 3):
+        r, g, b = data[i], data[i + 1], data[i + 2]
+        luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        if luma <= BLACK_OFF:
+            continue
+        k = min(1.0, (luma - BLACK_OFF) / (BLACK_FULL - BLACK_OFF))
+        out[i], out[i + 1], out[i + 2] = int(r * k), int(g * k), int(b * k)
+    return bytes(out)
+
+
 def _mean(data: bytes) -> float:
     return sum(data) / max(1, len(data))
 
@@ -164,9 +185,12 @@ class IdleGate:
             self.idle = True
             print("  idle", flush=True)
 
-    def on_frame(self, data: bytes, apply) -> bool:
-        """Returns True if `data` was applied."""
-        if is_black(data) and self.last is not None and not self.idle:
+    def on_frame(self, data: bytes, apply, off_signal: bool | None = None) -> bool:
+        """Returns True if `data` was applied. `off_signal` overrides the
+        all-black heuristic (a gated dark picture is black but IS a picture)."""
+        if off_signal is None:
+            off_signal = is_black(data)
+        if off_signal and self.last is not None and not self.idle:
             # the off signal, not a picture
             self.last_rx = time.monotonic()
             return False
@@ -225,7 +249,10 @@ class DxLight:
             chunk = packet[off : off + REPORT_SIZE]
             report = bytes([0x00]) + chunk + bytes(REPORT_SIZE - len(chunk))
             if self.dev.write(report) < 0:
-                raise OSError("HID write failed")
+                # hidapi's own reason (e.g. "Overlapped I/O operation is in
+                # progress", "The device is not connected") tells a wedged
+                # controller from a pulled cable; the bare -1 did not.
+                raise OSError(f"HID write failed: {self.dev.error()!s}")
 
     def _rb(self, action: int, payload: bytes) -> None:
         body = bytes([ord("R"), ord("B"), 5 + len(payload) + 1, self._next_id(), action]) + payload
@@ -289,7 +316,7 @@ def run_listen(dx: DxLight, port: int) -> None:
             continue
         if len(data) < 3:
             continue
-        gate.on_frame(data, dx.frame)
+        gate.on_frame(black_gate(data), dx.frame, off_signal=is_black(data))
         frames += 1
         if frames % 600 == 0:
             now = time.monotonic()

@@ -4,10 +4,13 @@ HyperHDR's DX11 grabber captures the WHOLE Odyssey. A YouTube tab that is not
 fullscreen covers about half of it; the rest is a static desktop, so every
 edge LED averaged to grey and "movie mode does nothing". Two jobs here:
 
-  * crop:   find the video window on the movie monitor and set the global
-            systemGrabber crop to its client rectangle, so HyperHDR only sees
-            the picture. Fullscreen/no window -> crop 0. Crop is global in
-            HyperHDR, so every instance follows it (what a film wants).
+    * fit:    find the video window on the movie monitor and remap every
+                        instance's LED layout onto that rectangle, so the LEDs read the
+                        picture and not the page around it. Fullscreen/no window -> the
+                        base layout. (systemGrabber.crop* is what this should be, but on
+                        this machine it has NO effect in either DX11 mode -- measured
+                        2026-09-15 with a test pattern, cropRight 100..3440 changed
+                        nothing -- while the `leds` geometry always works.)
   * mode:   a video window present for ON_AFTER_S -> script.movie_mode_on;
             gone for OFF_AFTER_S -> script.movie_mode_off. Only fires on the
             edge, so the tray/HA can still override until the next edge.
@@ -83,8 +86,20 @@ MIN_MOTION = 0.05
 # area, otherwise a calm scene would seed a tiny box that takes minutes to
 # grow; until then the whole window is used.
 SEED_AREA = 0.30
-# Round crops to this many px so a 1 px jitter does not rewrite the config.
+# Round the box to this many px so a 1 px jitter does not rewrite the config.
 QUANT = 8
+# The DX11 grabber's frame is BOTH monitors wide (6880 px) with the Odyssey
+# in the left half and the right half black (see scripts/ambilight.ps1,
+# hardware=). ambilight.ps1 writes the base layouts already squeezed into
+# h 0..FRAME_H; the fit below is expressed inside that same span.
+FRAME_H = 0.5
+# Base layouts per instance are cached here on first sight, keyed by the
+# instance index, so `-Configure` (which rewrites them, group 0) is picked up
+# within VERIFY_S. Layouts written by this module carry group FIT_GROUP, so a
+# fitted layout is never mistaken for a base after a bridge restart.
+INSTANCES = (0, 1, 2, 3)
+FIT_GROUP = 7
+BASE_CACHE = os.path.join(os.path.dirname(HERE), ".copilot-tmp", "service-logs", "hyperhdr-base-layouts.json")
 
 user32 = ctypes.windll.user32
 kernel32 = ctypes.windll.kernel32
@@ -203,14 +218,36 @@ def find_video_window(mon: tuple[int, int, int, int]) -> tuple[str, str, tuple[i
     return hits[0] if hits else None
 
 
-def crop_for(win: tuple[int, int, int, int], mon: tuple[int, int, int, int]) -> dict[str, int]:
+def fit_for(win: tuple[int, int, int, int], mon: tuple[int, int, int, int]) -> tuple[float, float, float, float] | None:
+    """Normalised (hmin, vmin, hmax, vmax) of the picture on the monitor, or None for whole screen."""
     l, t, r, b = win
     ml, mt, mr, mb = mon
-    q = lambda v: max(0, (v // QUANT) * QUANT)  # noqa: E731
+    q = lambda v: max(0, (int(v) // QUANT) * QUANT)  # noqa: E731
     left, top, right, bottom = q(l - ml), q(t - mt), q(mr - r), q(mb - b)
     if left + right >= (mr - ml) - 200 or top + bottom >= (mb - mt) - 200:
-        return {"cropLeft": 0, "cropRight": 0, "cropTop": 0, "cropBottom": 0}
-    return {"cropLeft": left, "cropRight": right, "cropTop": top, "cropBottom": bottom}
+        return None
+    if left == right == top == bottom == 0:
+        return None
+    w, h = mr - ml, mb - mt
+    return (left / w, top / h, (w - right) / w, (h - bottom) / h)
+
+
+def remap(base: list[dict], fit: tuple[float, float, float, float] | None) -> list[dict]:
+    """Scale a base layout (spanning h 0..FRAME_H, v 0..1) into `fit`."""
+    if fit is None:
+        return [dict(l) for l in base]
+    h0, v0, h1, v1 = fit
+    out = []
+    for l in base:
+        n = dict(l)
+        n["group"] = FIT_GROUP
+        # base h is in 0..FRAME_H; normalise, fit, squeeze back
+        for k in ("hmin", "hmax"):
+            n[k] = (h0 + (l[k] / FRAME_H) * (h1 - h0)) * FRAME_H
+        for k in ("vmin", "vmax"):
+            n[k] = v0 + l[k] * (v1 - v0)
+        out.append(n)
+    return out
 
 
 def motion_box(win: tuple[int, int, int, int], sct: MSS, gap_s: float = 0.4) -> tuple[int, int, int, int] | None:
@@ -281,20 +318,25 @@ class Hyper:
         finally:
             ws.close()
 
-    def get_crop(self) -> dict[str, int]:
-        g = self._session([{"command": "config", "subcommand": "getconfig"}])[0]["info"]["systemGrabber"]
-        return {k: int(g.get(k, 0)) for k in ("cropLeft", "cropRight", "cropTop", "cropBottom")}
+    def get_config(self, instance: int) -> dict:
+        cmds: list[dict] = []
+        if instance:
+            cmds.append({"command": "instance", "subcommand": "switchTo", "instance": instance})
+        cmds.append({"command": "config", "subcommand": "getconfig"})
+        return self._session(cmds)[-1]["info"]
 
-    def set_crop(self, crop: dict[str, int]) -> None:
+    def set_leds(self, instance: int, leds: list[dict]) -> None:
         # HyperHDR's setconfig is a REPLACE of the instance config, not a
-        # merge: sending only systemGrabber reset device/leds, and sending
-        # systemGrabber+device+leds silently dropped smoothing, backgroundEffect,
+        # merge: a partial write silently dropped smoothing, backgroundEffect,
         # soundEffect and mqtt (measured 2026-09-15 -- the strip snapped on
-        # every cut, "flashes after pause"). Send the WHOLE config back with
-        # only the crop fields changed.
-        cfg = self._session([{"command": "config", "subcommand": "getconfig"}])[0]["info"]
-        cfg["systemGrabber"] = {**cfg["systemGrabber"], **crop}
-        self._session([{"command": "config", "subcommand": "setconfig", "config": cfg}])
+        # every cut). Send the WHOLE config back with only `leds` changed.
+        cfg = self.get_config(instance)
+        cfg["leds"] = leds
+        cmds: list[dict] = []
+        if instance:
+            cmds.append({"command": "instance", "subcommand": "switchTo", "instance": instance})
+        cmds.append({"command": "config", "subcommand": "setconfig", "config": cfg})
+        self._session(cmds)
 
 
 def ha_script(name: str, creds: dict[str, str]) -> None:
@@ -321,7 +363,13 @@ class VideoFollow:
         self.creds = _creds()
         self.hyper = Hyper(self.creds.get("HYPERHDR_ADMIN_PASS", "hyperhdr"))
         self.sct = MSS()
-        self.crop: dict[str, int] | None = None
+        self.fit: tuple[float, float, float, float] | None | str = "unknown"
+        self.base: dict[int, list[dict]] = {}  # instance -> base layout
+        try:
+            with open(BASE_CACHE, encoding="utf-8") as fh:
+                self.base = {int(k): v for k, v in json.load(fh).items()}
+        except (OSError, ValueError):
+            pass
         self.seen_since: float | None = None
         self.gone_since: float | None = None
         self.movie_on: bool | None = None  # unknown until the first edge
@@ -335,17 +383,48 @@ class VideoFollow:
         mm = movie_monitor()
         print(f"  movie monitor: {mm[0] if mm else 'NOT FOUND'} {mm[1] if mm else ''}", flush=True)
         try:
-            self.crop = self.hyper.get_crop()
-            print(f"  HyperHDR crop now {self.crop}", flush=True)
+            self._learn_bases()
+            print(f"  base layouts: {', '.join(f'inst{i}={len(b)} leds' for i, b in self.base.items())}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"  HyperHDR unreachable: {e}", flush=True)
 
-    def _apply_crop(self, crop: dict[str, int]) -> None:
-        if crop == self.crop:
+    def _learn_bases(self) -> None:
+        """Layouts with group != FIT_GROUP are what -Configure wrote: the base.
+        Our own fits carry FIT_GROUP and are never learned as base."""
+        changed = False
+        for i in INSTANCES:
+            leds = self.hyper.get_config(i).get("leds") or []
+            if not leds:
+                continue
+            if all(l.get("group", 0) != FIT_GROUP for l in leds):
+                if self.base.get(i) != leds:
+                    self.base[i] = leds
+                    self.fit = None  # HyperHDR currently shows the base
+                    changed = True
+            elif i not in self.base:
+                print(f"  inst{i}: layout is a fit from a previous run; base unknown until -Configure", flush=True)
+        if changed:
+            try:
+                os.makedirs(os.path.dirname(BASE_CACHE), exist_ok=True)
+                with open(BASE_CACHE, "w", encoding="utf-8") as fh:
+                    json.dump(self.base, fh)
+            except OSError:
+                pass
+
+    def _apply_fit(self, fit: tuple[float, float, float, float] | None) -> None:
+        if fit == self.fit:
             return
-        self.hyper.set_crop(crop)
-        self.crop = crop
-        print(f"  crop -> L{crop['cropLeft']} R{crop['cropRight']} T{crop['cropTop']} B{crop['cropBottom']}", flush=True)
+        if not self.base:
+            self._learn_bases()
+            if not self.base:
+                return
+        for i, base in self.base.items():
+            self.hyper.set_leds(i, remap(base, fit))
+        self.fit = fit
+        if fit is None:
+            print("  fit -> whole screen", flush=True)
+        else:
+            print(f"  fit -> h {fit[0]:.2f}-{fit[2]:.2f} v {fit[1]:.2f}-{fit[3]:.2f} on {len(self.base)} instances", flush=True)
 
     def _set_movie(self, on: bool) -> None:
         if self.movie_on is on:
@@ -360,10 +439,11 @@ class VideoFollow:
         now = time.monotonic()
         if now >= self.next_verify:
             self.next_verify = now + VERIFY_S
-            live = self.hyper.get_crop()
-            if self.crop is not None and live != self.crop:
-                print(f"  crop was rewritten externally ({live}); re-applying", flush=True)
-            self.crop = live
+            # -Configure rewrote the base layouts? Learn them and re-fit.
+            before = self.fit
+            self._learn_bases()
+            if before != self.fit and before != "unknown":
+                print("  layouts were rewritten externally; re-fitting", flush=True)
         mm = movie_monitor()
         if not mm:
             return
@@ -387,7 +467,7 @@ class VideoFollow:
                     if box and box != self.fine:
                         self.fine = box
                         print(f"  picture box: {box}", flush=True)
-            self._apply_crop(crop_for(self.fine or rect, mm[1]))
+            self._apply_fit(fit_for(self.fine or rect, mm[1]))
             self.gone_since = None
             self.seen_since = self.seen_since or now
             if _setting("videoAutoMovie", True) and now - self.seen_since >= ON_AFTER_S:
@@ -396,7 +476,7 @@ class VideoFollow:
             if self.last_desc:
                 print("  video window: none", flush=True)
                 self.last_desc = ""
-            self._apply_crop({"cropLeft": 0, "cropRight": 0, "cropTop": 0, "cropBottom": 0})
+            self._apply_fit(None)
             self.fine = self.fine_for = None
             self.seen_since = None
             self.gone_since = self.gone_since or now
@@ -428,7 +508,7 @@ def main() -> int:
         if win and mm:
             box = motion_box(win[2], vf.sct)
             print("  picture box:", box)
-            print("  would crop:", crop_for(box or win[2], mm[1]))
+            print("  would fit:", fit_for(box or win[2], mm[1]))
         return 0
     run_listen(vf, a.listen or 0)
     return 0

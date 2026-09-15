@@ -1,6 +1,26 @@
 # Dot-source. LED geometry generators for HyperHDR `leds` arrays.
 # Each LED is a rectangle in normalized screen space: hmin/hmax/vmin/vmax.
 
+function Set-LayoutFrame {
+        <#
+        .SYNOPSIS Map a layout (built for the whole picture) onto a sub-rectangle
+            of the grabber frame. The DX11 grabber on this machine hands HyperHDR a
+            frame twice as wide as the Odyssey (both monitors, hardware=true leaves
+            the second half black), so every layout must be squeezed into h 0..0.5.
+        #>
+        param([Parameter(Mandatory)][object[]]$Leds, [double]$HMin = 0.0, [double]$HMax = 1.0, [double]$VMin = 0.0, [double]$VMax = 1.0)
+        $out = [System.Collections.Generic.List[object]]::new()
+        foreach ($l in $Leds) {
+                $n = @{} + $l
+                $n.hmin = $HMin + $l.hmin * ($HMax - $HMin); $n.hmax = $HMin + $l.hmax * ($HMax - $HMin)
+                $n.vmin = $VMin + $l.vmin * ($VMax - $VMin); $n.vmax = $VMin + $l.vmax * ($VMax - $VMin)
+            $out.Add($n)
+        }
+        # A one-LED layout must stay a JSON array: `return @($h)` unrolls to the
+        # hashtable and HyperHDR then silently keeps its old leds (inst 3 bar).
+        return , $out.ToArray()
+}
+
 function New-WallCompensation {
     <#
     .SYNOPSIS HyperHDR `color` section that pre-compensates for a painted wall.

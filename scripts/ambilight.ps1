@@ -173,17 +173,23 @@ function Enable-Grabber([int]$Instance) {
 
 function Configure-HyperHdr {
     Disable-OrgbAutostartEffects
-    # Crop belongs to ambilight/video_follow.py (it tracks the video window);
-    # keep whatever it set instead of resetting to full screen on every run.
+    # crop* is inert on this machine (see hardware= below); video_follow.py
+    # tracks the video window by rewriting `leds` instead, and re-learns the
+    # base layouts written here within 15 s.
     $crop = @{ cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0 }
-    try { $g0 = (Get-HyperConfig -Instance 0).systemGrabber; foreach ($k in $crop.Keys.Clone()) { if ($null -ne $g0.$k) { $crop[$k] = [int]$g0.$k } } } catch { }
     $SystemGrabber = @{
-        # hardware=true (GPU downscale in the DX11 grabber) returns a frame
-        # whose RIGHT HALF is black on this RTX 3060 Ti + 3440x1440 setup
-        # (measured 2026-09-15 via imagestream: cols 6-10 = 0.0 at every
-        # videoMode/crop; hardware=false captures the full width). The right
-        # 17 LEDs of the DX Light never lit because of it.
-        device = 'auto'; hardware = $false; fps = [int]$Settings.grabberFps; videoMode = 512
+        # Both DX11 paths are broken on this RTX 3060 Ti + 2x 3440x1440
+        # (HyperHDR 22.0.0, measured 2026-09-15 via imagestream):
+        #   hardware=true  -> the Odyssey is squeezed into the LEFT HALF of the
+        #                     frame, right half always black;
+        #   hardware=false -> left half = Odyssey (squeezed the same way),
+        #                     RIGHT HALF = the PHILIPS. A black film frame
+        #                     lit the strip's right/top with the desktop.
+        # Both are the same bug: the frame is 2x too wide (2 monitors), only
+        # the second half differs. crop* does NOT fix it (cropRight=3440 left
+        # the frame unchanged). Fix = keep hardware=true (no foreign pixels)
+        # and map every LED layout onto h 0..0.5 of the frame ($Frame below).
+        device = 'auto'; hardware = $true; fps = [int]$Settings.grabberFps; videoMode = 512
         # Windows HDR capture returns scRGB floats; without tone-mapping
         # every colour is washed out. 250 nits matches the Odyssey OLED.
         hdrToneMapping = [bool]$Settings.hdrToneMapping; monitor_nits = 250
@@ -196,6 +202,8 @@ function Configure-HyperHdr {
         redSignalThreshold = 5; greenSignalThreshold = 5; blueSignalThreshold = 5; noSignalCounterThreshold = 200
         sDHOffsetMin = 0.25; sDHOffsetMax = 0.75; sDVOffsetMin = 0.25; sDVOffsetMax = 0.75
     }
+    # Where the Odyssey lands inside the grabber frame (see hardware= above).
+    $Frame = @{ HMin = 0.0; HMax = 0.5 }
     Write-Step 'instance 0: DX Light on the movie monitor (right 17, top 31, left 17)'
     $Inst0 = @{
         general       = @{ name = 'DX Light (monitor)'; disableOnLocked = $true; disableLedsStartup = $false; showOptHelp = $false; version = 6 }
@@ -204,7 +212,7 @@ function Configure-HyperHdr {
         # The strip shines on a painted wall; correct for its tint here.
         color         = New-WallCompensation -WallHex $Settings.wallHex -Strength ([double]$Settings.wallStrength) -Gamma ([double]$Settings.gamma) -Saturation ([double]$Settings.saturation) -Luminance ([double]$Settings.luminance)
         device        = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19446; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 65 }
-        leds          = New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08
+        leds          = Set-LayoutFrame @Frame -Leds (New-BorderLayout -Order right, top, left -Counts @{ right = 17; top = 31; left = 17 } -Depth 0.08)
         smoothing     = New-Smoothing -TimeMs ([int]$Settings.stripSmoothMs) -Hz 60
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
         soundEffect   = @{ device = 'Voicemeeter Out B1 (VB-Audio Vo'; enable = $true; enable_smoothing = $true }
@@ -219,7 +227,7 @@ function Configure-HyperHdr {
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19447; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 3 }
         # Picture-safe thirds, not screen edges: the outer 35 % is black bars
         # or player chrome most of the time and the case only pulsed.
-        leds      = @() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3)
+        leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3))
         smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 25
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
     }
@@ -242,7 +250,7 @@ function Configure-HyperHdr {
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19449; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 2 }
         # Lamps follow the picture quadrant nearest to where they stand:
         # Moodlight bottom-left, Ambience Light top-right.
-        leds      = @() + (New-RegionLayout bl) + (New-RegionLayout tr)
+        leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout bl) + (New-RegionLayout tr))
         # Schema minimum is 20 Hz; the bridge throttles the bulbs to 2 Hz.
         smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
     }
@@ -255,7 +263,7 @@ function Configure-HyperHdr {
     $bar = Ensure-Instance 'Desk bar (Tuya)'
     Set-HyperConfig -Instance $bar -Config @{
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19448; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 1 }
-        leds      = @() + (New-RegionLayout top3)
+        leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout top3))
         # Same wall as the DX Light strip: without this the bar throws pure
         # screen colour at a blue wall while the strip throws pre-compensated
         # (red-heavy) colour, and where the two overlap the right half of the
