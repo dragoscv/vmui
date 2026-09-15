@@ -464,6 +464,101 @@ export function batteryReadings(states: Map<string, { entity_id: string; state: 
   return out.sort((a, b) => a.pct - b.pct);
 }
 
+// ---------------------------------------------------------------- Health (HA companion → Health Connect)
+export interface HealthReadings {
+  device: string;
+  steps: number | null;
+  stepsAt: number | null;
+  distanceKm: number | null;
+  floors: number | null;
+  activeKcal: number | null;
+  totalKcal: number | null;
+  heartRate: number | null;
+  heartRateAt: number | null;
+  restingHr: number | null;
+  hrv: number | null;
+  spo2: number | null;
+  respiratoryRate: number | null;
+  sleepMin: number | null;
+  sleepAt: number | null;
+  weightKg: number | null;
+  weightAt: number | null;
+  bodyFat: number | null;
+  bmr: number | null;
+  vo2max: number | null;
+  bloodPressure: { sys: number; dia: number } | null;
+  hrHistory: ClimatePoint[];
+}
+
+type HaState = { entity_id: string; state: string; attributes: Record<string, unknown> };
+
+/** The companion app publishes Health Connect as `sensor.<device>_<metric>`.
+ *  Units follow the HA server's unit system (this one is US), so everything is
+ *  normalised to metric here and never in the renderer. */
+export async function healthReadings(states: Map<string, HaState>, device: string): Promise<HealthReadings | null> {
+  const prefix = `sensor.${device}_`;
+  const get = (m: string) => states.get(prefix + m);
+  const num = (m: string): number | null => {
+    const v = Number(get(m)?.state);
+    return Number.isFinite(v) ? v : null;
+  };
+  const at = (m: string): number | null => {
+    const s = get(m);
+    if (!s || !Number.isFinite(Number(s.state))) return null;
+    const raw = s as unknown as { last_changed?: string; last_updated?: string };
+    const t = new Date(raw.last_changed ?? raw.last_updated ?? 0).getTime();
+    return t > 0 ? t : null;
+  };
+  const unit = (m: string) => String(get(m)?.attributes.unit_of_measurement ?? "");
+  const toKm = (m: string) => {
+    const v = num(m);
+    if (v === null) return null;
+    const u = unit(m);
+    return u === "ft" ? v * 0.0003048 : u === "mi" ? v * 1.609344 : u === "m" ? v / 1000 : v;
+  };
+  const toKg = (m: string) => {
+    const v = num(m);
+    if (v === null) return null;
+    const u = unit(m);
+    return u === "g" ? v / 1000 : u === "lb" ? v * 0.45359237 : v;
+  };
+  const toMmHg = (m: string) => {
+    const v = num(m);
+    if (v === null) return null;
+    return unit(m) === "inHg" ? v * 25.4 : v;
+  };
+  if (!get("steps_sensor") && !get("daily_steps") && !get("heart_rate")) return null;
+  // `daily_steps` is Health Connect's day total; `steps_sensor` is the pedometer since reboot.
+  const steps = num("daily_steps") ?? num("steps");
+  const sys = toMmHg("systolic_blood_pressure");
+  const dia = toMmHg("diastolic_blood_pressure");
+  const hrHistory = get("heart_rate") ? ((await haHistory(prefix + "heart_rate", 24)) ?? []) : [];
+  return {
+    device,
+    steps,
+    stepsAt: at("daily_steps") ?? at("steps"),
+    distanceKm: toKm("daily_distance") ?? toKm("distance"),
+    floors: num("daily_floors") ?? num("floors_climbed"),
+    activeKcal: num("active_calories_burned"),
+    totalKcal: num("total_calories_burned"),
+    heartRate: num("heart_rate"),
+    heartRateAt: at("heart_rate"),
+    restingHr: num("resting_heart_rate"),
+    hrv: num("heart_rate_variability"),
+    spo2: num("oxygen_saturation"),
+    respiratoryRate: num("respiratory_rate"),
+    sleepMin: num("sleep_duration"),
+    sleepAt: at("sleep_duration"),
+    weightKg: toKg("weight"),
+    weightAt: at("weight"),
+    bodyFat: num("body_fat"),
+    bmr: num("basal_metabolic_rate"),
+    vo2max: num("vo2_max"),
+    bloodPressure: sys !== null && dia !== null ? { sys: Math.round(sys), dia: Math.round(dia) } : null,
+    hrHistory,
+  };
+}
+
 // ---------------------------------------------------------------- Moon phase (local computation, no network)
 export function moonPhase(at = new Date()): { phase: number; name: string; illumination: number } {
   // Meeus-style synodic approximation from the 2000-01-06 18:14 UTC new moon.

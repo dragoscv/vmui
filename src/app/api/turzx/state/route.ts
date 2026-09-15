@@ -1,13 +1,13 @@
 import { currentSignal, loadCopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
-import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { auditLog } from "@/lib/db/schema";
 import { ensureActivityFeed, recentActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
 import { ambilightSettings } from "@/lib/home/ambilight-settings";
+import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
-import { agentSessions, batteryReadings, bnrRates, calendarEvents, coinPrices, energyReadings, fleet, haHistory, hourlyForecast, moonPhase, photoPool, quoteOfTheDay, syncedLyrics, weatherForecast } from "@/lib/turzx/feeds";
+import { agentSessions, batteryReadings, bnrRates, calendarEvents, coinPrices, energyReadings, fleet, haHistory, healthReadings, hourlyForecast, moonPhase, photoPool, quoteOfTheDay, syncedLyrics, weatherForecast } from "@/lib/turzx/feeds";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   for (const v of settings.views) if (v.enabled && v.background) for (const s of v.background.sources) bgSources.add(s);
   const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
   const lead = [...states.values()].find((s) => s.entity_id.startsWith("media_player.") && s.state === "playing" && s.attributes.media_title && s.attributes.media_artist);
-  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro, forecast, hourly, agents, lyrics] = await Promise.all([
+  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro, forecast, hourly, agents, lyrics, health] = await Promise.all([
     enabled.has("fx") ? bnrRates(list(opt("fx").currencies, ["EUR", "USD", "GBP"])) : null,
     enabled.has("crypto") ? coinPrices(list(opt("crypto").coins, ["bitcoin", "ethereum"]), str(opt("crypto").vs, "usd")) : null,
     bgSources.size || enabled.has("photo") ? photoPool([...bgSources]) : [],
@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
     enabled.has("weather") && states.has("weather.forecast_home") ? hourlyForecast("weather.forecast_home") : null,
     enabled.has("copilot") ? agentSessions(num(opt("copilot").activeMin, 30)) : null,
     enabled.has("media") && opt("media").lyrics !== false && lead ? syncedLyrics(String(lead.attributes.media_title), String(lead.attributes.media_artist), typeof lead.attributes.media_duration === "number" ? lead.attributes.media_duration : null) : null,
+    enabled.has("health") ? healthReadings(states, str(opt("health").device, "dragos_s_s25_ultra")) : null,
   ]);
   const amb = await ambilightSettings();
   const sig = currentSignal();
@@ -155,6 +156,7 @@ export async function GET(req: NextRequest) {
       lyrics: lyrics && lead ? { player: lead.entity_id, lines: lyrics } : null,
       energy: enabled.has("energy") ? { readings: energyReadings(states, list(opt("energy").entities, [])), pricePerKwh: num(opt("energy").pricePerKwh, 1.3) } : null,
       batteries: batteryReadings(states),
+      health: health ? { ...health, stepsGoal: num(opt("health").stepsGoal, 8000), sleepGoalMin: num(opt("health").sleepGoalH, 8) * 60 } : null,
       notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
       copilot,
     },

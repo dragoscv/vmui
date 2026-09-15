@@ -302,4 +302,135 @@ class EnergyView(View):
                 break
 
 
-MORE_VIEWS = {v.id: v for v in (CopilotView, FocusView, AnniversariesView, EnergyView)}
+# ---------------------------------------------------------------- 24. Health (Samsung Health → Health Connect → HA)
+def _dash(v, fmt: str = "{:.0f}") -> str:
+    return fmt.format(v) if isinstance(v, (int, float)) else "—"
+
+
+def _stale(at_ms, now_ms: float) -> str:
+    """'acum 3 min' / 'ieri' for a Health Connect timestamp, so a stale value
+    (watch left on the desk) is not read as a live one."""
+    if not at_ms:
+        return ""
+    s = (now_ms - float(at_ms)) / 1000
+    if s < 90:
+        return "acum"
+    if s < 3600:
+        return f"{int(s // 60)} min"
+    if s < 86400:
+        return f"{int(s // 3600)} h"
+    return f"{int(s // 86400)} z"
+
+
+class HealthView(View):
+    id, title = "health", "Sănătate"
+    wants_photo = False
+
+    def __init__(self, accent):
+        super().__init__(accent)
+        self.h: dict = {}
+        self.steps_tw = Tween(speed=2.5)
+        self.beat = Pulse(period=1.0)
+
+    def visible(self, st):
+        return bool(st.get("health"))
+
+    def update(self, st, dt):
+        self.tick(dt)
+        self.h = st.get("health") or {}
+        self.steps_tw.set(float(self.h.get("steps") or 0))
+        self.steps_tw.step(dt)
+        hr = self.h.get("heartRate")
+        if isinstance(hr, (int, float)) and hr > 0:
+            self.beat.period = 60.0 / float(hr)
+
+    def draw(self, c, t, progress):
+        sk = self.sk
+        d = ImageDraw.Draw(c)
+        h = self.h
+        now_ms = time.time() * 1000
+        goal = float(h.get("stepsGoal") or 8000)
+        steps = self.steps_tw.value
+        kcal = h.get("totalKcal")
+        right = f"{_dash(kcal)} kcal" if kcal is not None else ""
+        self.header(c, self.title, right, progress)
+
+        # ---- left: steps ring with the day's goal
+        cx, cy, r = 86, 150, 58
+        gauge_arc(d, cx, cy, r, min(1.0, steps / goal) if goal else 0.0, sk.accent, lerp_rgb(sk.fg, sk.bg, 0.86), width=10)
+        big = f"{steps:,.0f}".replace(",", " ")
+        sk.text(d, (cx, cy - 6), big, sk.mid, sk.fg, anchor="mm")
+        sk.text(d, (cx, cy + 16), sk.label("pași"), sk.tiny, sk.muted, anchor="mm")
+        sk.text(d, (cx, cy + r + 14), f"țintă {goal:,.0f}".replace(",", " "), sk.tiny, sk.muted, anchor="mm")
+        km = h.get("distanceKm")
+        fl = h.get("floors")
+        sub = " · ".join(x for x in (f"{km:.1f} km" if isinstance(km, (int, float)) and km > 0 else "", f"{fl:.0f} etaje" if isinstance(fl, (int, float)) and fl > 0 else "") if x)
+        if sub:
+            sk.text(d, (cx, cy + r + 30), sub, sk.tiny, sk.muted, anchor="mm")
+
+        # ---- middle: heart rate with a pulsing dot and a 24 h sparkline
+        x0 = 178
+        hr = h.get("heartRate")
+        sk.text(d, (x0, 58), sk.label("puls"), sk.tiny, sk.muted)
+        col = sk.ok if isinstance(hr, (int, float)) and hr < 100 else sk.warn if isinstance(hr, (int, float)) else sk.muted
+        rr = 5 + int(3 * self.beat.at(t)) if isinstance(hr, (int, float)) else 4
+        d.ellipse((x0 + 2, 84 - rr, x0 + 2 + 2 * rr, 84 + rr), fill=col)
+        sk.text(d, (x0 + 22, 68), _dash(hr), sk.big, sk.fg)
+        bb = d.textbbox((x0 + 22, 68), _dash(hr), font=sk.big)
+        sk.text(d, (bb[2] + 6, bb[3] - sk.tiny.size - 3), "bpm", sk.tiny, sk.muted)
+        age = _stale(h.get("heartRateAt"), now_ms)
+        if age:
+            sk.text(d, (bb[2] + 6, bb[3] - 2 * sk.tiny.size - 6), age, sk.tiny, sk.muted)
+        hist = [float(p.get("v") or 0) for p in (h.get("hrHistory") or []) if isinstance(p, dict)]
+        if len(hist) > 2:
+            sparkline(d, (x0, bb[3] + 6, x0 + 160, bb[3] + 34), hist, col, width=2)
+            sk.text(d, (x0, bb[3] + 36), f"24 h  {min(hist):.0f}–{max(hist):.0f}", sk.tiny, sk.muted)
+        rest = h.get("restingHr")
+        hrv = h.get("hrv")
+        line = " · ".join(x for x in (f"repaus {rest:.0f}" if isinstance(rest, (int, float)) else "", f"HRV {hrv:.0f} ms" if isinstance(hrv, (int, float)) else "") if x)
+        if line:
+            sk.text(d, (x0, bb[3] + 52), line, sk.tiny, sk.muted)
+
+        # ---- right column: sleep, SpO2, weight, blood pressure
+        rx = 352
+        y = 58
+        slp = h.get("sleepMin")
+        sk.text(d, (rx, y), sk.label("somn"), sk.tiny, sk.muted)
+        sk.text(d, (rx, y + 14), hm(float(slp) * 60) if isinstance(slp, (int, float)) else "—", sk.mid, sk.fg)
+        sg = float(h.get("sleepGoalMin") or 480)
+        if isinstance(slp, (int, float)):
+            bar(d, rx, y + 44, W - 22 - rx, 4, min(1.0, float(slp) / sg), sk.ok if slp >= sg * 0.9 else sk.warn, lerp_rgb(sk.fg, sk.bg, 0.88))
+        y += 60
+        spo2 = h.get("spo2")
+        sk.text(d, (rx, y), sk.label("SpO₂"), sk.tiny, sk.muted)
+        s2 = f"{spo2:.0f}%" if isinstance(spo2, (int, float)) else "—"
+        sk.text(d, (rx, y + 14), s2, sk.mid, sk.bad if isinstance(spo2, (int, float)) and spo2 < 94 else sk.fg)
+        rr_ = h.get("respiratoryRate")
+        if isinstance(rr_, (int, float)):
+            b2 = d.textbbox((rx, y + 14), s2, font=sk.mid)
+            sk.text(d, (b2[2] + 6, b2[3] - sk.tiny.size - 2), fit_text(d, f"{rr_:.0f} resp", sk.tiny, W - 22 - b2[2] - 6), sk.tiny, sk.muted)
+        y += 60
+        wk = h.get("weightKg")
+        sk.text(d, (rx, y), sk.label("greutate"), sk.tiny, sk.muted)
+        wtxt = f"{wk:.1f}" if isinstance(wk, (int, float)) else "—"
+        sk.text(d, (rx, y + 14), wtxt, sk.mid, sk.fg)
+        bf = h.get("bodyFat")
+        wa = _stale(h.get("weightAt"), now_ms)
+        extra = " · ".join(x for x in ("kg" if isinstance(wk, (int, float)) else "", f"{bf:.0f}%" if isinstance(bf, (int, float)) else "", wa) if x)
+        if extra:
+            b3 = d.textbbox((rx, y + 14), wtxt, font=sk.mid)
+            sk.text(d, (b3[2] + 6, b3[3] - sk.tiny.size - 2), fit_text(d, extra, sk.tiny, W - 22 - b3[2] - 6), sk.tiny, sk.muted)
+        y += 60
+        bp = h.get("bloodPressure")
+        if isinstance(bp, dict) and y < H - 62:
+            sk.text(d, (rx, y), sk.label("tensiune"), sk.tiny, sk.muted)
+            sk.text(d, (rx, y + 14), f"{bp.get('sys')}/{bp.get('dia')}", sk.mid, sk.fg)
+
+        # ---- footer
+        act = h.get("activeKcal")
+        vo2 = h.get("vo2max")
+        foot = " · ".join(x for x in (f"activ {act:.0f} kcal" if isinstance(act, (int, float)) else "", f"VO₂max {vo2:.0f}" if isinstance(vo2, (int, float)) else "", "Samsung Health · Health Connect") if x)
+        sk.text(d, (22, H - 24), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted)
+
+
+MORE_VIEWS = {v.id: v for v in (CopilotView, FocusView, AnniversariesView, EnergyView, HealthView)}
