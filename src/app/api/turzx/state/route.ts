@@ -1,5 +1,6 @@
 import { currentSignal, loadCopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
+import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { auditLog } from "@/lib/db/schema";
 import { ensureActivityFeed, recentActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
@@ -131,6 +132,7 @@ export async function GET(req: NextRequest) {
       },
       ambilight: {
         hyper: pick(states, "light.hyperhdr"),
+        ambilight: ambilightStatus(states.get("light.hyperhdr")),
         strip: pick(states, "light.led_argb"),
         bar: pick(states, "light.desk_light_bar"),
         wallHex: amb.wallHex,

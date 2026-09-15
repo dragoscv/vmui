@@ -1,6 +1,7 @@
 import { espAuthorized } from "@/lib/esp/auth";
 import { frameFor, previewView } from "@/lib/esp/gallery";
 import { VIEW_ORDER, type ViewId } from "@/lib/esp/views";
+import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha } from "@/lib/home/ha-client";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -15,8 +16,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ node
   if (!/^[a-z0-9-]{1,32}$/.test(node)) return new NextResponse("bad node", { status: 400 });
   let mode = "--";
   try {
-    const h = await ha.state("light.hyperhdr");
-    mode = h.state === "on" ? "movie" : "off";
+    const s = ambilightStatus(await ha.state("light.hyperhdr"));
+    mode = s === "movie" || s === "music" ? s : "off";
   } catch {
     // HA down: views degrade on their own
   }

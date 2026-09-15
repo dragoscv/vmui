@@ -463,3 +463,29 @@ template:
         state: >-
           {{ not (is_state('input_boolean.ambilight_daylight_gate', 'on')
                   and is_state('binary_sensor.room_is_bright', 'on')) }}
+  - binary_sensor:
+      # `light.hyperhdr` is the integration's OWN light: it is 'on' only while
+      # HA holds priority 50 with a colour/effect. Movie mode runs the screen
+      # grabber at priority 245, owned by HyperHDR -> light.hyperhdr stays
+      # 'off' the whole film. The ESP32 read that as "HyperHDR: off" for a
+      # week (2026-09-16). This is what "ambilight is running" actually means.
+      - name: "Ambilight movie"
+        unique_id: ambilight_movie_active
+        device_class: running
+        icon: mdi:movie-open
+        state: >-
+          {% set h = states.light.hyperhdr %}
+          {{ h is not none and h.state != 'unavailable'
+             and h.attributes.get('connection_status') == 'Connected'
+             and h.attributes.get('active_component') in ['SYSTEMGRABBER', 'VIDEOGRABBER'] }}
+        attributes:
+          connection: "{{ state_attr('light.hyperhdr', 'connection_status') }}"
+          component: "{{ state_attr('light.hyperhdr', 'active_component') }}"
+          priority: "{{ state_attr('light.hyperhdr', 'active_priority') }}"
+          mode: "{{ state_attr('light.hyperhdr', 'mode') }}"
+      - name: "HyperHDR reachable"
+        unique_id: ambilight_hyperhdr_reachable
+        device_class: connectivity
+        icon: mdi:television-ambient-light
+        state: >-
+          {{ has_value('light.hyperhdr') and state_attr('light.hyperhdr', 'connection_status') == 'Connected' }}

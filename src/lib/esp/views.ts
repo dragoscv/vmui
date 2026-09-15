@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
+import { AMBILIGHT_LABEL, ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha, type HaState } from "@/lib/home/ha-client";
 import { desc } from "drizzle-orm";
 import "server-only";
@@ -149,7 +150,7 @@ function viewAmbilight(fb: Framebuffer, ctx: ViewContext): void {
   const bar = st(ctx, "light.desk_light_bar");
   const strip = st(ctx, "light.led_argb");
   const hyper = st(ctx, "light.hyperhdr");
-  line(fb, 18, "HyperHDR:", hyper ? hyper.state : "--", ctx);
+  line(fb, 18, "HyperHDR:", AMBILIGHT_LABEL[ambilightStatus(hyper)], ctx);
   line(fb, 27, "bara birou:", bar ? (bar.state === "on" ? `${Math.round(Number(bar.attributes.brightness ?? 0) / 2.55)}%` : "stinsa") : "--", ctx);
   line(fb, 36, "banda MELK:", strip ? (strip.state === "on" ? "on" : strip.state) : "--", ctx);
   if (strip?.state === "on" && Array.isArray(strip.attributes.rgb_color)) {

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { AMBILIGHT_LABEL, ambilightStatus } from "@/lib/home/ambilight-status";
 import { AMBIENT_EFFECTS, AMBILIGHT_MODES, HYPERHDR_INSTANCES, MUSIC_EFFECTS, NOTIFY_PALETTE } from "@/lib/home/catalog";
 import { cn } from "@/lib/utils";
 import {
@@ -52,8 +53,8 @@ export function AmbilightPanel({ wall }: { wall: WallSetting }) {
           <Badge variant={live === "live" ? "success" : live === "connecting" ? "muted" : "warning"} dot>
             {live === "live" ? "live" : live === "connecting" ? "connecting" : "offline"}
           </Badge>
-          <Badge variant={hyper?.state === "unavailable" ? "danger" : "info"}>
-            HyperHDR {hyper ? (hyper.state === "unavailable" ? "unreachable" : "ok") : "—"}
+          <Badge variant={ambilightStatus(hyper) === "unreachable" ? "danger" : ambilightStatus(hyper) === "movie" ? "success" : "info"}>
+            HyperHDR {AMBILIGHT_LABEL[ambilightStatus(hyper)]}
           </Badge>
         </div>
       </header>

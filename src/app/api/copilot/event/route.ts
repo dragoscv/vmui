@@ -5,6 +5,7 @@ import { auditLog } from "@/lib/db/schema";
 import { pushActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
 import { listNodes, showMessage } from "@/lib/esp/gallery";
+import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha } from "@/lib/home/ha-client";
 import { NextResponse, type NextRequest } from "next/server";
 

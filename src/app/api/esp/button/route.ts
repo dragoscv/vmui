@@ -3,6 +3,7 @@ import { auditLog } from "@/lib/db/schema";
 import { pushActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
 import { currentView, nextView, showMessage, togglePause } from "@/lib/esp/gallery";
+import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha } from "@/lib/home/ha-client";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     else if (click === "double") result = togglePause(node) ? "paused" : "resumed";
     else {
       const h = await ha.state("light.hyperhdr").catch(() => null);
-      const turningOn = !(h && h.state === "on");
+      const turningOn = ambilightStatus(h) !== "movie";
       await ha.runScript(turningOn ? "movie_mode_on" : "movie_mode_off");
       showMessage(node, "Ambilight", turningOn ? "Movie mode pornit" : "Ambilight oprit", 3);
       result = turningOn ? "movie on" : "movie off";

@@ -580,8 +580,10 @@ class AmbilightView(View):
             self.bri.set(0)
         for tw in self.col: tw.step(dt)
         self.bri.step(dt)
-        hy = a.get("hyper") or {}
-        self.mode = "film" if hy.get("state") == "on" else "oprit" if hy.get("state") == "off" else "—"
+        # `ambilight` is derived server-side from HyperHDR's active component;
+        # light.hyperhdr's own state is 'off' during a film (grabber owns it).
+        st = a.get("ambilight")
+        self.mode = {"movie": "film", "music": "muzica", "idle": "idle", "unreachable": "oprit"}.get(st, "—")
         self.wall = hex_rgb(a.get("wallHex") or "#ffffff"); self.wall_s = a.get("wallStrength") or 0
         self.bar_on = (a.get("bar") or {}).get("state") == "on"
 
