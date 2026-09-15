@@ -459,22 +459,23 @@ COM10 is the ESP32's CH340.
 23 views now (`src/lib/turzx/catalog.ts` ↔ `turzx/views*.py`); the four new
 ones ship **disabled** — turn them on in `/home?tab=displays`:
 
-| view            | source                                                                                                                                           | notes                                                                                                                             |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `copilot`       | every VS Code profile's `github.copilot-chat/session-store.db` (read-only copy + WAL, `feeds.agentSessions`)                                      | repo, turns today, last prompt per active session. Store is ~110 MB → copied **async**, 30 s TTL, stale-while-revalidate.        |
-| `focus`         | `user32` foreground window + `GetLastInputInfo`, sampled on the host thread (`turzx.py::_Focus`)                                                 | active window + time in it; day split cod/terminal/browser/chat/media; idle after N min.                                          |
-| `anniversaries` | `options.people` lines `YYYY-MM-DD Name`                                                                                                         | next one big with age + days; 29 Feb → 1 Mar.                                                                                     |
-| `energy`        | HA sensors with `device_class` power/energy/current (`feeds.energyReadings`); batteries from `device_class: battery`                              | `mA` → W at 230 V (Tuya AC plugs only expose current). Cost = kWh × `pricePerKwh` (default 1.3 lei).                             |
+| view            | source                                                                                                               | notes                                                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `copilot`       | every VS Code profile's `github.copilot-chat/session-store.db` (read-only copy + WAL, `feeds.agentSessions`)         | repo, turns today, last prompt per active session. Store is ~110 MB → copied **async**, 30 s TTL, stale-while-revalidate. |
+| `focus`         | `user32` foreground window + `GetLastInputInfo`, sampled on the host thread (`turzx.py::_Focus`)                     | active window + time in it; day split cod/terminal/browser/chat/media; idle after N min.                                  |
+| `anniversaries` | `options.people` lines `YYYY-MM-DD Name`                                                                             | next one big with age + days; 29 Feb → 1 Mar.                                                                             |
+| `energy`        | HA sensors with `device_class` power/energy/current (`feeds.energyReadings`); batteries from `device_class: battery` | `mA` → W at 230 V (Tuya AC plugs only expose current). Cost = kWh × `pricePerKwh` (default 1.3 lei).                      |
 
 Content added to existing views: weather → next 6 hours strip, UV / dew
 point, moon on clear nights (`feeds.moonPhase`, local synodic maths);
 clock → sunrise/sunset ticks on the day bar, moon glyph 21:00–05:00; home →
 low-battery badge in the header, red edge pulse when the door has been open
+
 > 2 min; media → **synced lyrics** from LRCLIB (`feeds.syncedLyrics`, keyless,
-24 h cache) replace the equaliser while playing; pc → disk fill row
-(`options.disks`); crypto → `holdings` portfolio line; fx → `watchAmount`
-("1000 EUR = … lei") and XAU (BNR lists gold per gram); photo → quantised
-Ken Burns drift (one crop every ~2 s, so ~0.5 full frames/s on the link).
+> 24 h cache) replace the equaliser while playing; pc → disk fill row
+> (`options.disks`); crypto → `holdings` portfolio line; fx → `watchAmount`
+> ("1000 EUR = … lei") and XAU (BNR lists gold per gram); photo → quantised
+> Ken Burns drift (one crop every ~2 s, so ~0.5 full frames/s on the link).
 
 Rotation is now content-aware: `View.dwell_scale(state)` shortens a view's
 dwell when it has little to show (empty shopping list, no activity, no VM
@@ -489,20 +490,74 @@ integration only sees what is in **Smart Life** under the account whose QR
 we scanned (`ha-devices.ps1 -AddTuya`). Phone steps, ~5 min:
 
 1. **Priza**: in the vendor app, remove it (or hold its button 5 s until it
-  blinks fast). Smart Life → `+` → it appears under "Discovering devices"
-  (same 2.4 GHz WiFi as the phone) → add. Within a minute HA shows
-  `sensor.<name>_power` (W) and `sensor.<name>_today_energy` (kWh) — the
-  view picks them up with no config.
+   blinks fast). Smart Life → `+` → it appears under "Discovering devices"
+   (same 2.4 GHz WiFi as the phone) → add. Within a minute HA shows
+   `sensor.<name>_power` (W) and `sensor.<name>_today_energy` (kWh) — the
+   view picks them up with no config.
 2. **AlecoAir**: same — AlecoAir's app is a Tuya OEM skin, the device pairs
-  into Smart Life directly (hold the WiFi button until it blinks). You get
-  `fan.*`, `sensor.*_pm25`, `switch.*` in HA; the `home` view will show the
-  PM2.5 once the entity exists (`sensor.*pm25*`).
+   into Smart Life directly (hold the WiFi button until it blinks). You get
+   `fan.*`, `sensor.*_pm25`, `switch.*` in HA; the `home` view will show the
+   PM2.5 once the entity exists (`sensor.*pm25*`).
 3. **Hisense AC ×2** already report `_electricity` (mA) and `_daily_energy`
-  via ConnectLife; nothing to do. They read 0 W when off — expected.
+   via ConnectLife; nothing to do. They read 0 W when off — expected.
 
 Do **not** re-run `-AddTuya`; the existing config entry polls the account
 and new devices show up on their own. If one does not, Settings → Devices →
 Tuya → ⋮ → Reload.
+
+### Health view (Samsung Health → Health Connect → HA companion) — 2026-09-16
+
+`health` reads `sensor.dragos_s_s25_ultra_<metric>` — the Health Connect
+sensors of the HA companion app (2026.6.5), all enabled in Companion app →
+Manage sensors → search "health". This HA server is on **US units**, so the
+companion publishes ft / g / inHg / fl oz; `healthReadings()` in
+`src/lib/turzx/feeds.ts` converts to metric — never convert in the renderer.
+Options: `stepsGoal`, `sleepGoalH`, `device` (entity slug).
+
+What was actually found on the phone (adb serial **RZCYA0LJ0NZ**; the other
+serial is an old A51):
+
+- Samsung Health has read **and write** grants for every Health Connect
+  category, yet Health Connect held only the phone pedometer's steps. Samsung
+  Health showed 0 steps and "not synced in 3 days" (that banner is Samsung
+  *Cloud*, WiFi-only). Galaxy Watch3 (B827) is connected, 100 % battery,
+  plugin `com.samsung.android.gearnplugin` present — so the gap is between
+  the watch and Samsung Health, not between Samsung Health and HC. Wearing
+  the watch for a day and opening Samsung Health once fills HC; until then
+  `heart_rate`, `sleep_duration`, `oxygen_saturation` stay `unknown` and the
+  view shows dashes.
+- OKOK scale app (`com.chipsea.btcontrol.en`) has **no** Health Connect
+  permissions; its weight never reaches HA. Samsung Health → Settings →
+  Accessories lists only Samsung/Xiaomi scales, so the BT-direct route is
+  closed for this scale. Options: type weight in Samsung Health, or a BLE
+  bridge (openScale / ESPHome `xiaomi_miscale`-style sniffer on the office
+  Bluetooth proxy) — the scale broadcasts weight as BLE adverts while you
+  stand on it.
+- A `HealthConnectPermissionActivity` exists but is not exported; the sensors
+  can only be toggled in-app. Everything else (HC home, app access) opens
+  with `am start -a android.health.connect.action.HEALTH_HOME_SETTINGS`.
+
+### Copilot signals on the phone
+
+`/api/copilot/event` now also calls `notify.<phoneNotify>` (default
+`mobile_app_dragos_s_s25_ultra`, editable in /home → Semnale Copilot):
+
+- one card per **session** (`tag: copilot-<session>`): title per event,
+  subtitle `project · chat title`, event colour, mdi icon, high-importance
+  channel for `ask` which is `sticky` until the next tool call clears it by
+  tag. `persistent: true` is deliberately not used — the companion refuses
+  `clear_notification` on persistent cards (verified with
+  `adb shell cmd notification list`, which shows the *live* set; `dumpsys
+  notification` includes history and lies).
+- one silent summary card (`tag: copilot-agents`, low importance): active
+  sessions from the local VS Code session stores — repo, profile, turns
+  today, last request — refreshed on every event, cleared when idle.
+- both respect quiet hours (23:30–07:30 by default).
+
+The desk card and the phone card carry the project (cwd leaf, exactly the
+VS Code taskbar title) and the chat tab title, read by
+`~/.copilot/hooks/copilot-signal.ps1` from the first 64 KB of
+`workspaceStorage/*/chatSessions/<session_id>.jsonl` (`customTitle`).
 
 ## Backups
 
