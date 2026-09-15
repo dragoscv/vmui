@@ -82,7 +82,10 @@ script:
       # The MELK strip is a warm-white desk lamp outside a film (movie_mode_off
       # lights it at 3000 K). Left on it throws 60 % white onto the same wall
       # the DX Light colours, and a red scene reads as pink-white.
+      # BLE via the ESP32 proxy; when the proxy is down the call is a 500 and
+      # must not mark the whole movie-mode run as failed.
       - action: light.turn_off
+        continue_on_error: true
         target: { entity_id: light.led_argb }
       # Desk Light Bar: NOT touched here. HyperHDR instance 3 -> Tuya Cloud
       # (ambilight/deskbar_bridge.py) colours it from the top of the picture
