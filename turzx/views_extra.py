@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 import socket
+
+from PIL import ImageFont
 import subprocess
 import threading
 import time
@@ -65,7 +67,11 @@ class FxView(View):
             v = self.tw[r["code"]].value
             prev = num(r.get("prev"))
             up = prev is not None and v >= prev
-            sk.text(d, (22, 58), f"{v:.4f}", sk.huge, sk.fg)
+            big = f"{v:.4f}"
+            f_big = sk.huge
+            while d.textlength(big, font=f_big) > 330 and f_big.size > 40:
+                f_big = ImageFont.truetype(f_big.path, f_big.size - 6)  # editorial serif is wide; keep the right column clear
+            sk.text(d, (22, 58), big, f_big, sk.fg)
             sk.text(d, (22, 208), f"1 {r['code']} = RON", sk.mid, sk.accent)
             if prev:
                 delta = (v - prev) / prev * 100
@@ -537,8 +543,9 @@ class AmbientView(View):
         d = ImageDraw.Draw(c)
         s = self.now.strftime("%H:%M")
         # bottom-right, small and dim: readable at night without lighting the room
-        sk.text(d, (W - 24, H - 74), s, sk.big, lerp_rgb(sk.fg, sk.bg, 0.25), anchor="ra")
-        sk.text(d, (W - 24, H - 30), f"{self.temp.value:.1f}°C", sk.small, lerp_rgb(sk.muted, sk.bg, 0.2), anchor="ra")
+        # anchor both to the bottom edge ("rd"), so tall skin fonts stack instead of colliding
+        sk.text(d, (W - 24, H - 14), f"{self.temp.value:.1f}°C", sk.small, lerp_rgb(sk.muted, sk.bg, 0.2), anchor="rd")
+        sk.text(d, (W - 24, H - 14 - sk.small.size - 8), s, sk.big, lerp_rgb(sk.fg, sk.bg, 0.25), anchor="rd")
 
 
 EXTRA_VIEWS = {v.id: v for v in (FxView, CryptoView, PhotoView, FleetView, ClimateView, CalendarView, PomodoroView, NetworkView, CountdownView, QuoteView, AmbientView)}

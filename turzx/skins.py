@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+import audit
+
 FONT_DIR = r"C:\Windows\Fonts"
 _FONTS: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 
@@ -96,6 +98,8 @@ class Skin:
             sx, sy = xy
             d.text((sx + 1, sy + 1), s, font=f, fill=(0, 0, 0), **kw)
         d.text(xy, s, font=f, fill=fill, **kw)
+        if audit._active is not None and s:
+            audit.note(d.textbbox(xy, s, font=f, anchor=kw.get("anchor")), s)
 
     def header(self, c: Image.Image, title: str, right: str, progress: float) -> None:
         """Title row + the dwell progress bar (full at entry, shrinks to the

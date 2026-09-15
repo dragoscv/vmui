@@ -18,6 +18,47 @@ const ACCENTS = ["#7c9cff", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#22d3ee
 const MIN_DWELL = 5;
 
 /** View manager for the 3.5" Turzx desk screen driven by turzx/turzx.py. */
+/** What the panel shows right now: the renderer writes its last pushed frame
+ *  once a second, /api/turzx/mirror serves it. Refreshes only while visible. */
+function LiveMirror() {
+  const [tick, setTick] = React.useState(() => Date.now());
+  const [ok, setOk] = React.useState(true);
+  const [big, setBig] = React.useState(false);
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      setTick(Date.now());
+      setOk((o) => o || Date.now() % 10000 < 1000); // after a failure, retry roughly every 10 s
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="glass rounded-2xl p-4 sm:p-5 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted">Oglindă live — exact ce e pe ecran acum</p>
+        <button type="button" className="text-xs text-primary" onClick={() => setBig((b) => !b)} aria-pressed={big}>
+          {big ? "1:1" : "2×"}
+        </button>
+      </div>
+      {ok ? (
+        // eslint-disable-next-line @next/next/no-img-element -- dynamic PNG, no optimisation wanted
+        <img
+          src={`/api/turzx/mirror?t=${tick}`}
+          alt="Conținutul curent al ecranului Turzx"
+          width={big ? 960 : 480}
+          height={big ? 640 : 320}
+          className="rounded-lg border border-border bg-black max-w-full h-auto"
+          style={{ imageRendering: big ? "pixelated" : "auto" }}
+          onError={() => setOk(false)}
+          onLoad={() => setOk(true)}
+        />
+      ) : (
+        <p className="text-sm text-muted">Renderer-ul nu rulează (task vmui-turzx) — nimic de arătat.</p>
+      )}
+    </div>
+  );
+}
+
 export function TurzxCard({ initial, pomodoro }: { initial: TurzxSettings; pomodoro: Pomodoro }) {
   const [s, setS] = React.useState<TurzxSettings>(initial);
   const [busy, setBusy] = React.useState(false);
@@ -60,6 +101,8 @@ export function TurzxCard({ initial, pomodoro }: { initial: TurzxSettings; pomod
       </header>
 
       <PomodoroBar p={pomodoro} />
+
+      <LiveMirror />
 
       <div className="glass rounded-2xl p-4 sm:p-5 space-y-3">
         <p className="text-xs text-muted">View-uri — ordinea, durata, skin-ul și fundalul fiecăruia</p>

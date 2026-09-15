@@ -315,12 +315,28 @@ class WeatherView(View):
         tv = f"{self.temp.value:.0f}"
         sk.text(d, (236, 78), tv, sk.huge, sk.fg)
         sk.text(d, (236 + d.textlength(tv, font=sk.huge) + 6, 96), "°C", sk.mid, sk.muted)
-        sk.text(d, (236, 210), self.RO.get(self.cond, self.cond), sk.mid, sk.accent)
+        # Layout from the bottom up: three metric rows anchored to the panel
+        # floor, then the condition in whatever space is left under the big
+        # number — shrunk if a tall skin font would otherwise collide.
         rows = [("umiditate", f"{self.hum.value:.0f}%"), ("vânt", f"{self.wind.value:.0f} km/h"), ("presiune", f"{self.pres.value:.0f} hPa")]
+        rh = max(sk.small.size, sk.tiny.size) + 6
+        y0 = 296 - 3 * rh
+        # condition goes between the big number's baseline and the rows; if a
+        # skin's huge font leaves no room, it moves right of the number instead
+        big_bottom = d.textbbox((236, 78), tv, font=sk.huge, anchor="la")[3]
+        cond = self.RO.get(self.cond, self.cond)
+        if big_bottom + 4 + sk.small.size + 4 <= y0:
+            sk.text(d, (236, big_bottom + 4), fit_text(d, cond, sk.small, 464 - 236 - 8), sk.small, sk.accent)
+        else:
+            x = int(236 + d.textlength(tv, font=sk.huge) + 6)
+            sk.text(d, (x, 96 + sk.mid.size + 6), fit_text(d, cond, sk.tiny, 464 - x - 8), sk.tiny, sk.accent)
         for i, (k, v) in enumerate(rows):
-            y = 252 + i * 22
-            sk.text(d, (236, y), sk.label(k), sk.tiny, sk.muted)
-            sk.text(d, (236 + 150, y), v, sk.small, sk.fg, anchor="ra")
+            y = y0 + i * rh
+            # label + value share a row: right-align the value, and clip the
+            # label so a wide-font skin cannot run into it
+            vw = d.textlength(v, font=sk.small)
+            sk.text(d, (236, y), fit_text(d, sk.label(k), sk.tiny, int(130 - vw - 6)), sk.tiny, sk.muted)
+            sk.text(d, (236 + 130, y), v, sk.small, sk.fg, anchor="ra")
         if self.sun:
             a = self.sun.get("attributes") or {}
             up = self.sun.get("state") == "above_horizon"
@@ -328,7 +344,8 @@ class WeatherView(View):
             if isinstance(nxt, str):
                 try:
                     hh = datetime.fromisoformat(nxt.replace("Z", "+00:00")).astimezone(TZ).strftime("%H:%M")
-                    sk.text(d, (W - 22, 252), ("apus " if up else "răsărit ") + hh, sk.small, sk.muted, anchor="ra")
+                    # own right-aligned column, top row, well clear of the values (which end at x=366)
+                    sk.text(d, (W - 24, y0), fit_text(d, ("apus " if up else "răsărit ") + hh, sk.tiny, 80), sk.tiny, sk.muted, anchor="ra")
                 except ValueError:
                     pass
 
@@ -434,7 +451,8 @@ class AmbilightView(View):
         d.rounded_rectangle((104, 222, 196, 228), radius=3, fill=sk.track)
         sk.text(d, (276, 84), sk.label("perete"), sk.tiny, sk.muted)
         d.rounded_rectangle((276, 102, 336, 134), radius=8, fill=self.wall)
-        sk.text(d, (346, 108), f"compensare {int(self.wall_s*100)}%", sk.small, sk.fg)
+        sk.text(d, (346, 104), sk.label("compensare"), sk.tiny, sk.muted)
+        sk.text(d, (346, 118), f"{int(self.wall_s*100)}%", sk.small, sk.fg)
         sk.text(d, (276, 150), sk.label("bandă MELK"), sk.tiny, sk.muted)
         d.rounded_rectangle((276, 168, 336, 200), radius=8, fill=rgb)
         sk.text(d, (346, 166), f"{rgb[0]},{rgb[1]},{rgb[2]}", sk.mono, sk.fg)
@@ -534,8 +552,10 @@ class ActivityView(View):
             if sk.panel_alpha:
                 sk.panel(c, (x - 6, y - 6, W - 16, y + 34), radius=8); d = ImageDraw.Draw(c)
             d.rounded_rectangle((x, y, x + 6, y + 34), radius=3, fill=lerp_rgb(sk.bg, col, alpha))
-            sk.text(d, (x + 16, y - 2), hh, sk.tiny, lerp_rgb(sk.bg, sk.muted, alpha))
-            self.box(key, str(it.get("text") or "")).draw(c, (x + 16, y + 10, W - 30, y + 34), sk.small, lerp_rgb(sk.bg, sk.fg, alpha), self.bgc() if not sk.panel_alpha else lerp_rgb(sk.bg, sk.card, 0.15))
+            # time in a fixed-width column on the left, message to its right —
+            # stacking them vertically overlapped by 5 px on every skin
+            sk.text(d, (x + 16, y + 10), hh, sk.tiny, lerp_rgb(sk.bg, sk.muted, alpha))
+            self.box(key, str(it.get("text") or "")).draw(c, (x + 60, y + 4, W - 30, y + 30), sk.small, lerp_rgb(sk.bg, sk.fg, alpha), self.bgc() if not sk.panel_alpha else lerp_rgb(sk.bg, sk.card, 0.15))
             y += 40
         if not self.items:
             sk.text(d, (W // 2, 180), "nimic recent", sk.mid, sk.muted, anchor="mm")
@@ -668,11 +688,11 @@ class ListsView(View):
         if not self.shop:
             sk.text(d, (22, 80), "lista e goală", sk.small, sk.muted)
         sk.text(d, (268, 74), sk.label("ultimele acțiuni vmui"), sk.tiny, sk.muted)
-        y = 96
+        y = 100
         for i, a in enumerate(self.actions):
             hh = datetime.fromtimestamp((a.get("at") or 0) / 1000, TZ).strftime("%H:%M") if a.get("at") else ""
             sk.text(d, (268, y), hh, sk.tiny, sk.muted)
-            self.box(f"act{i}", f"{a.get('action')} {a.get('target')}", speed=28).draw(c, (312, y - 4, W - 22, y + 18), sk.tiny, sk.fg, tb)
+            self.box(f"act{i}", f"{a.get('action')} {a.get('target')}", speed=28).draw(c, (312, y - 2, W - 22, y + 16), sk.tiny, sk.fg, tb)
             y += 24
 
 

@@ -427,6 +427,16 @@ disallow/allow once to force the bind); the sensor entity only appears in
 HA after the first notification from an allowed app.
 
 **Trap — "frozen screen".** Under sustained load the panel occasionally
+
+**Seeing what the panel shows.** The renderer writes its last pushed frame
+to `.copilot-tmp/turzx/mirror.png` once a second; `/api/turzx/mirror`
+serves it (session or `?k=` token) and `/home?tab=displays` shows it live
+("Oglindă live", 1:1 or 2×). **Layout audit**: `python turzx\turzx.py
+--once --all-skins --audit` renders every view × skin, records every text
+box drawn (`Skin.text`, `Marquee.draw` → `turzx/audit.py`), and flags
+off-screen or overlapping text with `*-audit.png` overlays; exit 1 if any.
+Run it after touching any view. `.copilot-tmp/uicheck/sheet.py v1,v2` tiles
+the PNGs for a quick eyeball.
 stops drawing (and eventually stops ACKing → `SerialTimeoutException`).
 Only the full init sequence (hello + CLEAR + orientation + on) wakes it;
 lighter resyncs and plain rewrites do nothing. `Renderer.push` runs

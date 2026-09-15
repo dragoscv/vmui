@@ -208,6 +208,7 @@ class Marquee:
         self.key: tuple | None = None
 
     def set(self, text: str) -> None:
+        text = " ".join(text.split())  # a marquee is one line; a newline in the source would crash textlength()
         if text != self.text:
             self.text, self.t, self.strip, self.key = text, 0.0, None, None
 
@@ -234,6 +235,10 @@ class Marquee:
             self.fits = tw <= bw
         strip = self.strip
         ty = y0 + (bh - strip.height) // 2
+        import audit
+        if audit._active is not None:
+            # a marquee owns its box by design; audit the box, not the strip
+            audit.note((x0, ty, x1, ty + strip.height), self.text)
         if self.fits:
             region = strip.crop((0, 0, min(strip.width, bw), strip.height))
             canvas.paste(region, (x0 if anchor_left else x1 - strip.width, ty), region)

@@ -30,6 +30,8 @@ import psutil
 import serial
 from PIL import Image, ImageChops, ImageDraw
 
+import audit
+
 sys.path.insert(0, str(Path(__file__).parent))
 from anim import Clock, dirty_rects, transition  # noqa: E402
 from backgrounds import Backgrounds  # noqa: E402
@@ -41,6 +43,8 @@ from views import BG, TZ, VIEWS, H, W, hex_rgb  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / ".copilot-tmp" / "service-logs" / "turzx.log"
 VMUI = "http://127.0.0.1:3737"
+MIRROR = ROOT / ".copilot-tmp" / "turzx" / "mirror.png"
+MIRROR_TMP = MIRROR.with_suffix(".tmp")
 DEBUG = bool(os.environ.get("TURZX_DEBUG"))
 LINK_BPS = 365_000  # measured 2026-09-14: 300 KB in 0.823 s, linear down to 3 KB
 MIN_DWELL = 5
@@ -449,6 +453,7 @@ def main() -> int:
     ap.add_argument("--all-skins", action="store_true", help="with --once: one PNG per view per skin")
     ap.add_argument("--port")
     ap.add_argument("--demo-notify", action="store_true", help="pop a fake WhatsApp card 5 s after start (hardware test)")
+    ap.add_argument("--audit", action="store_true", help="with --once: flag off-screen/overlapping text, write *-audit.png, exit 1 if any")
     args = ap.parse_args()
 
     st = State()
@@ -463,6 +468,7 @@ def main() -> int:
         r = Renderer(st, None, bgs)
         r.apply_settings((st.snapshot().get("settings") or {}))
         skins = ["minimal", "glass", "neon", "editorial", "terminal", "paper"] if args.all_skins else [args.skin] if args.skin else [None]
+        problems = 0
         time.sleep(6)  # let a couple of backgrounds download
         for vid in VIEWS:
             for sk in skins:
@@ -480,10 +486,22 @@ def main() -> int:
                 for _ in range(30):
                     v.update(data, 0.1)
                 r.dwell_t = time.perf_counter() - r.dwell_of(vid) * 0.35
+                col = audit.begin() if args.audit else None
                 c = r.render(time.perf_counter(), 0.1, data)
+                audit.end()
                 name = f"{vid}{'-' + sk if sk else ''}.png"
                 c.save(out / name)
                 print("wrote", out / name)
+                if col is not None:
+                    fs = audit.report(col)
+                    if fs:
+                        problems += len(fs)
+                        audit.overlay(c, fs, col).save(out / name.replace(".png", "-audit.png"))
+                        for f in fs:
+                            print(f"  !! {vid}/{sk or 'default'}: {f}")
+        if args.audit:
+            print(f"audit: {problems} problem(s)")
+            return 1 if problems else 0
         return 0
 
     while True:
@@ -502,11 +520,21 @@ def main() -> int:
             t_stat = time.perf_counter()
             px = 0
             next_t = time.perf_counter()
+            t_mirror = 0.0
             while True:
                 t = time.perf_counter()
                 frame = r.step()
                 px += r.push(frame)
                 frames += 1
+                # Mirror: what the panel actually shows (r.prev, not the
+                # composed frame), for /home and for layout debugging.
+                if t - t_mirror >= 1.0 and r.prev is not None:
+                    t_mirror = t
+                    try:
+                        r.prev.save(MIRROR_TMP, format="PNG", compress_level=1)
+                        MIRROR_TMP.replace(MIRROR)
+                    except OSError:
+                        pass
                 if t - t_stat >= 60:
                     log(f"{frames/60:.1f} fps, {px/60/1024:.0f} KB/s, view={r.current().id} skin={r.current().sk.id}")
                     frames, px, t_stat = 0, 0, t
