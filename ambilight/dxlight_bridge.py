@@ -300,24 +300,48 @@ def run_test(dx: DxLight) -> None:
 
 
 def run_listen(dx: DxLight, port: int) -> None:
+    import select  # noqa: PLC0415
+    from notify_fx import FPS as FX_FPS, FX_PORT, Animator  # noqa: PLC0415
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("127.0.0.1", port))
-    sock.settimeout(1.0)
+    fxsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    fxsock.bind(("127.0.0.1", FX_PORT))
+    fx = Animator()
     print(f"  listening udp://127.0.0.1:{port} for {LED_COUNT} LEDs ({LED_COUNT * 3} bytes/frame)")
+    print(f"  notifications on udp://127.0.0.1:{FX_PORT} (json event/color/duration)")
     idle_rgb, idle_after = idle_config("idleStripHex")
     gate = IdleGate(bytes(idle_rgb) * LED_COUNT, idle_after)
     print(f"  idle {idle_rgb} after {idle_after:.0f}s of silence")
     frames, t0 = 0, time.monotonic()
+    fx_next = 0.0
     while True:
-        try:
+        # While a notification plays we still DRAIN HyperHDR frames (so the
+        # idle gate keeps its timing) but the strip shows the animation.
+        timeout = max(0.0, fx_next - time.monotonic()) if fx.active else 1.0
+        ready, _, _ = select.select([sock, fxsock], [], [], timeout)
+        if fxsock in ready:
+            fx.handle(fxsock.recvfrom(1024)[0])
+            if not fx.active:
+                gate.last = None  # force the next HyperHDR frame through, no dedupe
+        if sock in ready:
             data, _ = sock.recvfrom(4096)
-        except socket.timeout:
+            if len(data) >= 3:
+                frames += 1
+                if fx.active:
+                    gate.last_rx = time.monotonic()  # seen, not shown
+                else:
+                    gate.on_frame(black_gate(data), dx.frame, off_signal=is_black(data))
+        elif not fx.active and not ready:
             gate.on_timeout(dx.frame)
+        if fx.active and time.monotonic() >= fx_next:
+            fx_next = time.monotonic() + 1 / FX_FPS
+            f = fx.frame()
+            if f is not None:
+                dx.frame(f)
+            else:
+                gate.last = None
             continue
-        if len(data) < 3:
-            continue
-        gate.on_frame(black_gate(data), dx.frame, off_signal=is_black(data))
-        frames += 1
         if frames % 600 == 0:
             now = time.monotonic()
             print(f"  {frames / (now - t0):.1f} fps", flush=True)

@@ -21,6 +21,8 @@ export type CopilotEventInput = z.infer<typeof copilotEventSchema>;
 const patternSchema = z.object({
   enabled: z.boolean(),
   light: z.boolean(),
+  /** Per-LED animation on the DX Light strip behind the monitor (ambilight/notify_fx.py). */
+  strip: z.boolean().default(true),
   turzx: z.boolean(),
   esp: z.boolean(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -52,9 +54,9 @@ export const COPILOT_SIGNALS_DEFAULTS: CopilotSignals = {
   quietTo: "07:30",
   lights: [],
   patterns: {
-    ask: { enabled: true, light: true, turzx: true, esp: true, color: "#ff5a1f" },
-    done: { enabled: true, light: true, turzx: true, esp: true, color: "#2ecc71" },
-    blocked: { enabled: true, light: true, turzx: true, esp: false, color: "#ff2d2d" },
-    failed: { enabled: true, light: true, turzx: true, esp: true, color: "#ffc400" },
+    ask: { enabled: true, light: true, strip: true, turzx: true, esp: true, color: "#ff5a1f" },
+    done: { enabled: true, light: true, strip: true, turzx: true, esp: true, color: "#2ecc71" },
+    blocked: { enabled: true, light: true, strip: true, turzx: true, esp: false, color: "#ff2d2d" },
+    failed: { enabled: true, light: true, strip: true, turzx: true, esp: true, color: "#ffc400" },
   },
 };

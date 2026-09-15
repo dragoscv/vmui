@@ -1,4 +1,5 @@
 import { copilotEventSchema, currentSignal, inQuietHours, loadCopilotSignals, setSignal, type CopilotEvent } from "@/lib/copilot/signals";
+import { stripFx } from "@/lib/copilot/strip-fx";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { pushActivity } from "@/lib/esp/activity";
@@ -38,6 +39,7 @@ export async function DELETE(req: NextRequest) {
   if (cur?.active && (!session || !cur.session || cur.session === session)) {
     setSignal({ ...cur, active: false });
     const s = await loadCopilotSignals();
+    if (s.patterns.ask.strip) void stripFx("clear");
     if (s.patterns.ask.light && s.lights.length) {
       try {
         // script.turn_on returns as soon as the run starts; the direct service
@@ -61,10 +63,13 @@ export async function POST(req: NextRequest) {
   const p = s.patterns[event];
   const now = Date.now();
   setSignal({ id: `${now}|${event}|${session}`, at: now, event, text, source, session, active: event === "ask" });
-  const out: Record<string, unknown> = { event, light: false, turzx: p.turzx, esp: false };
+  const out: Record<string, unknown> = { event, light: false, strip: false, turzx: p.turzx, esp: false };
   if (!s.enabled || !p.enabled) return NextResponse.json({ ...out, skipped: "disabled" });
 
   const quiet = inQuietHours(s);
+  // The strip sits behind the monitor and is already lit in a film, so it is
+  // not muted by movie mode; only quiet hours silence it.
+  if (p.strip && !quiet) out.strip = await stripFx(event, p.color);
   let movie = false;
   if (s.muteInMovie && p.light) {
     try {

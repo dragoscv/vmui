@@ -71,8 +71,13 @@ def _supervise(name: str, port: int, factory, run) -> None:
             streak = 0
             run(dev, port)
         except Exception:  # noqa: BLE001 -- keep the other bridge alive whatever this one throws
-            print(f"[{name}] died:\n{traceback.format_exc()}", flush=True)
             streak += 1
+            if streak <= RECOVER_AFTER:
+                print(f"[{name}] died:\n{traceback.format_exc()}", flush=True)
+            else:
+                # Same failure repeating (wedged strip waiting for a replug):
+                # one line, not a traceback every 15 s.
+                print(f"[{name}] still down (#{streak}): {traceback.format_exc().strip().splitlines()[-1]}", flush=True)
         finally:
             close = getattr(dev, "close", None)
             if callable(close):
@@ -83,15 +88,16 @@ def _supervise(name: str, port: int, factory, run) -> None:
         if streak == RECOVER_AFTER and name in RECOVER:
             print(f"[{name}] {streak} deaths in a row -> recovery hook", flush=True)
             try:
-                r = subprocess.run(RECOVER[name], capture_output=True, text=True, timeout=120,
+                r = subprocess.run(RECOVER[name], capture_output=True, text=True, timeout=240,
                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
                 for line in (r.stdout + r.stderr).splitlines():
                     print(f"  {line}", flush=True)
                 print(f"[{name}] recovery exit {r.returncode}", flush=True)
             except Exception as e:  # noqa: BLE001
                 print(f"[{name}] recovery hook failed: {e}", flush=True)
-        print(f"[{name}] retry in {RETRY_S}s", flush=True)
-        time.sleep(RETRY_S)
+        wait = RETRY_S if streak <= RECOVER_AFTER else min(120, RETRY_S * (streak - RECOVER_AFTER + 1))
+        print(f"[{name}] retry in {wait}s", flush=True)
+        time.sleep(wait)
 
 
 def main() -> int:

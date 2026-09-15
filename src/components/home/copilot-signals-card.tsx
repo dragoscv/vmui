@@ -7,15 +7,15 @@ import { Switch } from "@/components/ui/switch";
 import { COPILOT_EVENTS, type CopilotEvent, type CopilotSignals } from "@/lib/copilot/signals-schema";
 import { cn } from "@/lib/utils";
 import { saveCopilotSignalsAction, testCopilotSignalAction } from "@/server/actions/home";
-import { Bot, Lightbulb, MonitorSmartphone, Play, Radio } from "lucide-react";
+import { Bot, Lightbulb, MonitorSmartphone, Play, Radio, Sparkles } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
 const EVENT_META: Record<CopilotEvent, { label: string; hint: string }> = {
-  ask: { label: "Așteaptă răspuns", hint: "askQuestions — puls agresiv până răspunzi" },
-  done: { label: "Tură terminată", hint: "Stop — fade calm, 4 s" },
-  blocked: { label: "Comandă blocată", hint: "guard (git add -A, reset --hard…) — 3 flash-uri roșii" },
-  failed: { label: "Build/test eșuat", hint: "run-build.ps1 exit ≠ 0 — 2 flash-uri galbene" },
+  ask: { label: "Așteaptă răspuns", hint: "askQuestions — becuri: puls agresiv; bandă: un punct luminos aleargă pe ramă până răspunzi" },
+  done: { label: "Tură terminată", hint: "Stop — becuri: fade calm; bandă: val verde urcă pe ambele laturi și se stinge" },
+  blocked: { label: "Comandă blocată", hint: "guard (git add -A, reset --hard…) — becuri: 3 flash-uri; bandă: 2 unde roșii din mijlocul de sus" },
+  failed: { label: "Build/test eșuat", hint: "run-build.ps1 exit ≠ 0 — becuri: 2 flash-uri; bandă: 2 clipiri duble galbene" },
 };
 
 /** Physical signals for agent-harness events: room bulbs, turzx card, ESP32.
@@ -120,6 +120,7 @@ export function CopilotSignalsCard({ initial, lights }: { initial: CopilotSignal
                 <input type="color" value={p.color} onChange={(ev) => setPattern(e, { color: ev.target.value })} aria-label={`Culoare ${EVENT_META[e].label}`} className="size-8 rounded-md border border-border bg-transparent p-0.5" />
                 <div className="flex items-center gap-1" role="group" aria-label={`Ținte ${EVENT_META[e].label}`}>
                   <Target on={p.light} onChange={(v) => setPattern(e, { light: v })} label="Becuri"><Lightbulb className="size-3.5" aria-hidden /></Target>
+                  <Target on={p.strip} onChange={(v) => setPattern(e, { strip: v })} label="Bandă monitor"><Sparkles className="size-3.5" aria-hidden /></Target>
                   <Target on={p.turzx} onChange={(v) => setPattern(e, { turzx: v })} label="Turzx"><MonitorSmartphone className="size-3.5" aria-hidden /></Target>
                   <Target on={p.esp} onChange={(v) => setPattern(e, { esp: v })} label="ESP32"><Radio className="size-3.5" aria-hidden /></Target>
                 </div>
