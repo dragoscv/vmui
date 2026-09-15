@@ -225,8 +225,12 @@ function Configure-HyperHdr {
     # work_mode enum is ['music','white'], so every hs_color POST is a 500 and
     # HyperHDR disables the WHOLE device (strip included) on the first one.
     # The bar gets its movie look from script.movie_mode_on (warm, dim).
+    # NOT light.led_argb (MELK BLE strip): HyperHDR's REST client has a
+    # hard-coded 500 ms timeout and HA's Bluetooth state read for that
+    # entity took 583 ms -> "408 Timeout", device disabled, and every retry
+    # starts with the same GET so it never recovers (2026-09-15). The strip
+    # is driven from ha-scenes.yaml scripts instead.
     $lamps = @(
-        @{ name = 'light.led_argb'; colorModel = 0 }
         @{ name = 'light.moodlight'; colorModel = 0 }
         @{ name = 'light.ambience_light'; colorModel = 0 }
     )
@@ -241,7 +245,9 @@ function Configure-HyperHdr {
             transition = 300; constantBrightness = [int]$Settings.roomBrightness; restoreOriginalState = $true; maxRetry = 60
             lamps = $lamps; hardwareLedCount = $lamps.Count; colorOrder = 'rgb'; refreshTime = 0
         }
-        leds      = @() + (New-RegionLayout full) + (New-RegionLayout left3) + (New-RegionLayout mid)
+        # Lamps follow the picture quadrant nearest to where they stand:
+        # Moodlight bottom-left, Ambience Light top-right.
+        leds      = @() + (New-RegionLayout bl) + (New-RegionLayout tr)
         # Schema minimum is 20 Hz; the HA driver's own `transition` (300 ms)
         # is what actually throttles the bulbs.
         smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20

@@ -72,7 +72,7 @@ function New-RegionLayout {
     <#
     .SYNOPSIS Single "LED" covering a screen region -- for whole-strip or
       single-colour lights (BLE strip, smart bulbs, PC glow).
-    .PARAMETER Region  full | left | right | top | bottom | center
+    .PARAMETER Region  full | left | right | top | bottom | center | left3 | right3 | mid | top3 | bl | br | tl | tr
     #>
     param([string]$Region = 'full')
     $r = switch ($Region) {
@@ -90,6 +90,12 @@ function New-RegionLayout {
         # Upper band of the picture, letterbox-safe: what a monitor light bar
         # sitting on the top bezel should echo.
         'top3'   { @{ hmin = 0.12; hmax = 0.88; vmin = 0.12; vmax = 0.4 } }
+        # Corners for lamps that sit in a room corner: the picture quadrant
+        # nearest them, letterbox-safe (inner 8 % skipped on every side).
+        'bl'     { @{ hmin = 0.08; hmax = 0.45; vmin = 0.55; vmax = 0.92 } }
+        'br'     { @{ hmin = 0.55; hmax = 0.92; vmin = 0.55; vmax = 0.92 } }
+        'tl'     { @{ hmin = 0.08; hmax = 0.45; vmin = 0.08; vmax = 0.45 } }
+        'tr'     { @{ hmin = 0.55; hmax = 0.92; vmin = 0.08; vmax = 0.45 } }
         default  { @{ hmin = 0.0; hmax = 1.0; vmin = 0.0; vmax = 1.0 } }
     }
     $r.group = 0
