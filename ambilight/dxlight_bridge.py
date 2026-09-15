@@ -62,6 +62,13 @@ def is_black(data: bytes) -> bool:
     return not any(data)
 
 
+def _mean(data: bytes) -> float:
+    return sum(data) / max(1, len(data))
+
+
+FLASH_TRACE = os.environ.get("AMBILIGHT_TRACE_FLASH") == "1"
+
+
 class DaylightGate:
     """Polls HA `binary_sensor.ambilight_idle_allowed` (ha-scenes.yaml).
 
@@ -168,6 +175,10 @@ class IdleGate:
         self.idle = False
         if data == self.last:
             return False
+        if FLASH_TRACE and self.last is not None:
+            a, b = _mean(self.last), _mean(data)
+            if abs(a - b) > 40:
+                print(f"  JUMP {a:5.1f} -> {b:5.1f}  max={max(data)} was_idle={was_idle}", flush=True)
         if was_idle:
             for f in fade_frames(self.last or bytes(len(data)), data, 20):
                 apply(f)

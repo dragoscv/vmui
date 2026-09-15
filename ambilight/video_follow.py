@@ -286,13 +286,15 @@ class Hyper:
         return {k: int(g.get(k, 0)) for k in ("cropLeft", "cropRight", "cropTop", "cropBottom")}
 
     def set_crop(self, crop: dict[str, int]) -> None:
-        # systemGrabber is global, but a setconfig carrying ONLY systemGrabber
-        # resets instance 0's `device` to file and `leds` to one (measured);
-        # send device+leds back with it so nothing else moves.
+        # HyperHDR's setconfig is a REPLACE of the instance config, not a
+        # merge: sending only systemGrabber reset device/leds, and sending
+        # systemGrabber+device+leds silently dropped smoothing, backgroundEffect,
+        # soundEffect and mqtt (measured 2026-09-15 -- the strip snapped on
+        # every cut, "flashes after pause"). Send the WHOLE config back with
+        # only the crop fields changed.
         cfg = self._session([{"command": "config", "subcommand": "getconfig"}])[0]["info"]
-        g = {**cfg["systemGrabber"], **crop}
-        self._session([{"command": "config", "subcommand": "setconfig",
-                        "config": {"systemGrabber": g, "device": cfg["device"], "leds": cfg["leds"]}}])
+        cfg["systemGrabber"] = {**cfg["systemGrabber"], **crop}
+        self._session([{"command": "config", "subcommand": "setconfig", "config": cfg}])
 
 
 def ha_script(name: str, creds: dict[str, str]) -> None:
