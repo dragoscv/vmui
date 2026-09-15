@@ -65,6 +65,10 @@ BROWSERS = {"chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe",
 
 POLL_S = 1.0
 REFINE_S = 5.0
+# Re-read the crop HyperHDR actually holds: `ambilight.ps1 -Configure` (or the
+# HyperHDR UI) rewrites systemGrabber with crop 0 and our cached value would
+# say "already set" forever -- the outer 8 % then reads the black pillarbox.
+VERIFY_S = 15.0
 ON_AFTER_S = 5.0
 OFF_AFTER_S = 30.0
 # Ignore windows smaller than this share of the monitor (a floating chat).
@@ -323,6 +327,7 @@ class VideoFollow:
         self.fine: tuple[int, int, int, int] | None = None
         self.fine_for: tuple[int, int, int, int] | None = None  # coarse rect the fine box belongs to
         self.next_refine = 0.0
+        self.next_verify = 0.0
 
     def describe(self) -> None:
         mm = movie_monitor()
@@ -350,11 +355,17 @@ class VideoFollow:
     def step(self) -> None:
         if not _setting("videoFollow", True):
             return
+        now = time.monotonic()
+        if now >= self.next_verify:
+            self.next_verify = now + VERIFY_S
+            live = self.hyper.get_crop()
+            if self.crop is not None and live != self.crop:
+                print(f"  crop was rewritten externally ({live}); re-applying", flush=True)
+            self.crop = live
         mm = movie_monitor()
         if not mm:
             return
         win = find_video_window(mm[1])
-        now = time.monotonic()
         if win:
             proc, title, rect = win
             desc = f"{proc} {title[:50]!r} {rect}"

@@ -173,12 +173,21 @@ function Enable-Grabber([int]$Instance) {
 
 function Configure-HyperHdr {
     Disable-OrgbAutostartEffects
+    # Crop belongs to ambilight/video_follow.py (it tracks the video window);
+    # keep whatever it set instead of resetting to full screen on every run.
+    $crop = @{ cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0 }
+    try { $g0 = (Get-HyperConfig -Instance 0).systemGrabber; foreach ($k in $crop.Keys.Clone()) { if ($null -ne $g0.$k) { $crop[$k] = [int]$g0.$k } } } catch { }
     $SystemGrabber = @{
-        device = 'auto'; hardware = $true; fps = [int]$Settings.grabberFps; videoMode = 512
+        # hardware=true (GPU downscale in the DX11 grabber) returns a frame
+        # whose RIGHT HALF is black on this RTX 3060 Ti + 3440x1440 setup
+        # (measured 2026-09-15 via imagestream: cols 6-10 = 0.0 at every
+        # videoMode/crop; hardware=false captures the full width). The right
+        # 17 LEDs of the DX Light never lit because of it.
+        device = 'auto'; hardware = $false; fps = [int]$Settings.grabberFps; videoMode = 512
         # Windows HDR capture returns scRGB floats; without tone-mapping
         # every colour is washed out. 250 nits matches the Odyssey OLED.
         hdrToneMapping = [bool]$Settings.hdrToneMapping; monitor_nits = 250
-        cropTop = 0; cropBottom = 0; cropLeft = 0; cropRight = 0
+        cropTop = $crop.cropTop; cropBottom = $crop.cropBottom; cropLeft = $crop.cropLeft; cropRight = $crop.cropRight
         # `auto` grabs the Windows PRIMARY display, which is the Philips.
         # The film runs on the Odyssey (left, DISPLAY2) so shift by one.
         # Wrong value = "AcquireNextFrame didn't return the frame" forever
