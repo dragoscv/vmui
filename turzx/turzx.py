@@ -107,8 +107,32 @@ class State:
         return d
 
 
+_top_cache: tuple[float, str] = (0.0, "")
+
+
+def _top_process() -> str:
+    """Name of the process burning the most CPU, refreshed every 5 s.
+    process_iter over ~400 processes costs ~40 ms, too much per frame."""
+    global _top_cache
+    now = time.perf_counter()
+    if now - _top_cache[0] < 5:
+        return _top_cache[1]
+    best, name = 0.0, ""
+    for p in psutil.process_iter(["name", "cpu_percent"]):
+        try:
+            v = p.info["cpu_percent"] or 0.0
+            if v > best and p.info["name"] not in ("System Idle Process", "Idle"):
+                best, name = v, p.info["name"] or ""
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    label = f"{name.removesuffix('.exe')} {best / psutil.cpu_count():.0f}%" if name and best >= 5 else ""
+    _top_cache = (now, label)
+    return label
+
+
 def pc_metrics() -> dict:
-    out = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent}
+    out = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent, "uptime": time.time() - psutil.boot_time()}
+    out["top"] = _top_process()
     if _GPU is not None:
         try:
             out["gpu"] = pynvml.nvmlDeviceGetUtilizationRates(_GPU).gpu

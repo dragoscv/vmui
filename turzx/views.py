@@ -24,6 +24,7 @@ TZ = ZoneInfo("Europe/Bucharest")
 BG = (14, 15, 22)  # renderer fallback before a skin exists
 
 DAYS = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"]
+DAYS_SHORT = ["Lu", "Ma", "Mi", "Jo", "Vi", "Sâ", "Du"]
 MONTHS = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"]
 
 
@@ -45,6 +46,24 @@ def celsius(v, unit=None):
     if n is None:
         return None
     return (n - 32) / 1.8 if unit == "°F" else n
+
+
+def since(ent) -> str:
+    """'de 3 h' / 'de 12 min' / 'de 2 z' from a state's `since` (HA last_changed)."""
+    raw = (ent or {}).get("since")
+    if not isinstance(raw, str):
+        return ""
+    try:
+        secs = (datetime.now(timezone.utc) - datetime.fromisoformat(raw.replace("Z", "+00:00"))).total_seconds()
+    except ValueError:
+        return ""
+    if secs < 90:
+        return "acum"
+    if secs < 3600:
+        return f"de {int(secs // 60)} min"
+    if secs < 86400:
+        return f"de {int(secs // 3600)} h"
+    return f"de {int(secs // 86400)} z"
 
 
 def fit_text(d: ImageDraw.ImageDraw, s: str, f: ImageFont.FreeTypeFont, max_w: int) -> str:
@@ -182,6 +201,7 @@ class ClockView(View):
         self.sec = MorphText(2)
         self.temp_in = Tween(speed=2.5); self.temp_out = Tween(speed=2.5); self.hum = Tween(speed=2.5)
         self.now = datetime.now(TZ)
+        self.next_ev = ""
 
     def update(self, st, dt):
         self.tick(dt)
@@ -197,6 +217,16 @@ class ClockView(View):
         if hu is not None: self.hum.set(hu)
         if to is not None: self.temp_out.set(to)
         for tw in (self.temp_in, self.temp_out, self.hum): tw.step(dt)
+        # the next thing on the calendar, if any — the clock is where you look for it
+        cal = st.get("calendar") or []
+        nxt = cal[0] if cal else None
+        self.next_ev = ""
+        if nxt and nxt.get("start"):
+            left = (nxt["start"] / 1000 - time.time())
+            if 0 <= left < 12 * 3600:
+                hh, mm = int(left // 3600), int(left % 3600 // 60)
+                when = f"în {hh} h {mm:02d}" if hh else f"în {mm} min"
+                self.next_ev = f"{when} · {nxt.get('summary') or ''}"
 
     def draw(self, c, t, progress):
         sk = self.sk
@@ -215,6 +245,8 @@ class ClockView(View):
             sk.panel(c, (16, 70, 464, 232))
         sk.text(d, (22, 18), DAYS[n.weekday()], sk.mid, sk.fg)
         sk.text(d, (22, 52), f"{n.day} {MONTHS[n.month-1]} {n.year}", sk.small, sk.muted)
+        if self.next_ev:
+            self.box("nextev", self.next_ev, speed=30).draw(c, (200, 50, W - 22, 70), sk.tiny, sk.accent, self.bgc(), anchor_left=False)
         # slot width from the widest digit so glyphs never collide, then fit 5 slots + seconds in 436 px
         adv = int(max(d.textlength(ch, font=sk.huge) for ch in "0123456789")) + 2
         adv = min(adv, (W - 44 - 64) // 5)
@@ -245,7 +277,7 @@ class WeatherView(View):
     def __init__(self, accent):
         super().__init__(accent)
         self.temp = Tween(speed=2.0); self.hum = Tween(speed=2.0); self.wind = Tween(speed=2.0); self.pres = Tween(speed=2.0)
-        self.cond = "unknown"; self.sun = None
+        self.cond = "unknown"; self.sun = None; self.forecast: list[dict] = []
 
     def update(self, st, dt):
         self.tick(dt)
@@ -261,6 +293,10 @@ class WeatherView(View):
         if (p := num(a.get("pressure"))) is not None:
             self.pres.set(p * 33.8639 if a.get("pressure_unit") == "inHg" else p)
         self.sun = st.get("sun")
+        fc = st.get("forecast") or []
+        # skip today when the list starts with it — the big number already says today
+        today = datetime.now(TZ).date()
+        self.forecast = [f for f in fc if datetime.fromtimestamp((f.get("t") or 0) / 1000, TZ).date() != today][:4]
         for tw in (self.temp, self.hum, self.wind, self.pres): tw.step(dt)
 
     def _icon(self, c, cx, cy, t):
@@ -310,8 +346,30 @@ class WeatherView(View):
         self.header(c, "Vremea", "Acasă", progress)
         if sk.panel_alpha:
             sk.panel(c, (220, 70, 464, 300))
-        self._icon(c, 110, 160, t)
+        self._icon(c, 110, 140 if self.forecast else 160, t)
         d = ImageDraw.Draw(c)
+        if self.forecast:
+            # four columns under the icon: weekday, hi/lo, rain chance when known
+            cw = 204 // len(self.forecast)
+            for i, f in enumerate(self.forecast):
+                x = 12 + i * cw + cw // 2
+                day = datetime.fromtimestamp((f.get("t") or 0) / 1000, TZ)
+                sk.text(d, (x, 232), sk.label(DAYS_SHORT[day.weekday()]), sk.tiny, sk.muted, anchor="ma")
+                hi, lo = num(f.get("hi")), num(f.get("lo"))
+                # hi on top in fg, lo underneath in muted: two short tokens fit
+                # a 51 px column where "26°/12°" in `small` did not
+                sk.text(d, (x, 246), f"{hi:.0f}°" if hi is not None else "—", sk.small, sk.fg, anchor="ma")
+                if lo is not None:
+                    sk.text(d, (x, 246 + sk.small.size + 2), f"{lo:.0f}°", sk.tiny, sk.muted, anchor="ma")
+                rain = num(f.get("rain"))
+                if rain is not None and rain >= 20:
+                    sk.text(d, (x, 246 + sk.small.size + sk.tiny.size + 6), f"{rain:.0f}%", sk.tiny, (56, 189, 248), anchor="ma")
+                else:
+                    # a coloured dot says sunny/cloudy/rain faster than a clipped word
+                    cond = str(f.get("cond") or "")
+                    dot = (250, 204, 21) if cond in ("sunny", "clear-night") else (56, 189, 248) if "rain" in cond or cond in ("pouring", "snowy", "snowy-rainy") else sk.muted
+                    cy = 246 + sk.small.size + sk.tiny.size + 11
+                    d.ellipse((x - 3, cy - 3, x + 3, cy + 3), fill=dot)
         tv = f"{self.temp.value:.0f}"
         sk.text(d, (236, 78), tv, sk.huge, sk.fg)
         sk.text(d, (236 + d.textlength(tv, font=sk.huge) + 6, 96), "°C", sk.mid, sk.muted)
@@ -368,9 +426,9 @@ class HomeView(View):
         def s(x): return (x or {}).get("state")
         door = s(h.get("door")); pres = s(h.get("presence")); person = s(h.get("person"))
         self.rows = [
-            ("Ușa", "DESCHISĂ" if door == "on" else "închisă" if door == "off" else "—", "bad" if door == "on" else "ok"),
-            ("Dormitor", "cineva" if pres == "on" else "gol" if pres == "off" else "—", "accent" if pres == "on" else "muted"),
-            ("Dragoș", "acasă" if person == "home" else "plecat" if person == "not_home" else (person or "—"), "ok" if person == "home" else "muted"),
+            ("Ușa", "DESCHISĂ" if door == "on" else "închisă" if door == "off" else "—", "bad" if door == "on" else "ok", since(h.get("door"))),
+            ("Dormitor", "cineva" if pres == "on" else "gol" if pres == "off" else "—", "accent" if pres == "on" else "muted", since(h.get("presence"))),
+            ("Dragoș", "acasă" if person == "home" else "plecat" if person == "not_home" else (person or "—"), "ok" if person == "home" else "muted", since(h.get("person"))),
         ]
         self.ac = []
         for label, key in (("AC dormitor", "acBedroom"), ("AC living", "acLiving")):
@@ -391,13 +449,16 @@ class HomeView(View):
         sk.text(d, (92, 142), f"{self.lights.value:.0f}", sk.big, sk.fg, anchor="mm")
         sk.text(d, (92, 176), sk.label(f"din {self.total} lumini"), sk.tiny, sk.muted, anchor="mm")
         y = 78
-        for i, (k, v, cn) in enumerate(self.rows):
+        for i, (k, v, cn, ago) in enumerate(self.rows):
             col = col_of[cn]
             p = Pulse(2.0, i, steps=6).at(t)
             r = 5 + 2 * p if cn != "muted" else 5
             d.ellipse((208 - r, y + 12 - r, 208 + r, y + 12 + r), fill=col)
             sk.text(d, (224, y), sk.label(k), sk.tiny, sk.muted)
             sk.text(d, (224, y + 16), v, sk.mid if k == "Ușa" else sk.small, sk.fg)
+            # "closed" is only reassuring if you know for how long
+            if ago:
+                sk.text(d, (W - 24, y + 18), fit_text(d, ago, sk.tiny, 110), sk.tiny, sk.muted, anchor="ra")
             y += 50
         for i, (label, mode, target, cur) in enumerate(self.ac):
             x = 200 + i * 140
@@ -408,7 +469,10 @@ class HomeView(View):
                 sk.text(d, (x + 12, 266), mode, sk.small, sk.muted)
             else:
                 sk.text(d, (x + 12, 262), f"{target:.0f}°C", sk.mid, (96, 165, 250) if mode == "cool" else (251, 146, 60))
-                if cur is not None: sk.text(d, (x + 116, 284), f"acum {cur:.1f}°", sk.tiny, sk.muted, anchor="ra")
+                if cur is not None:
+                    # green once the room has reached the setpoint, amber while working
+                    reached = (cur <= target + 0.4) if mode == "cool" else (cur >= target - 0.4)
+                    sk.text(d, (x + 116, 284), f"acum {cur:.1f}°", sk.tiny, sk.ok if reached else sk.warn, anchor="ra")
 
 
 # ---------------------------------------------------------------- 4. ambilight
@@ -474,6 +538,7 @@ class PcView(View):
         self.cpu = Tween(speed=4); self.ram = Tween(speed=3); self.gpu = Tween(speed=4); self.gtemp = Tween(speed=2); self.vram = Tween(speed=3)
         self.hist: list[float] = [0.0] * 60
         self.acc = 0.0
+        self.top = ""; self.up_str = ""
 
     def update(self, st, dt):
         self.tick(dt)
@@ -485,6 +550,9 @@ class PcView(View):
         if self.acc >= 0.5:
             self.acc = 0
             self.hist = self.hist[1:] + [self.cpu.value]
+        self.top = str(pc.get("top") or "")
+        up = num(pc.get("uptime")) or 0
+        self.up_str = f"{int(up // 86400)} z {int(up % 86400 // 3600)} h" if up >= 86400 else f"{int(up // 3600)} h {int(up % 3600 // 60):02d} m"
 
     def draw(self, c, t, progress):
         sk = self.sk
@@ -512,7 +580,14 @@ class PcView(View):
             sk.text(d, (cx, 176), suf, sk.tiny, sk.muted, anchor="mm")
             sk.text(d, (cx, 214), sk.label(label), sk.small, sk.muted, anchor="mm")
         sparkline(d, (22, 262, W - 22, 300), self.hist, lerp_rgb(sk.accent, sk.bg, 0.2))
-        sk.text(d, (22, 236), f"GPU {self.gtemp.value:.0f}°C · VRAM {self.vram.value:.0f}%", sk.tiny, sk.muted)
+        gt = self.gtemp.value
+        gcol = sk.muted if gt < 65 else sk.warn if gt < 80 else sk.bad
+        sk.text(d, (22, 236), f"GPU {gt:.0f}°C", sk.tiny, gcol)
+        sk.text(d, (96, 236), f"· VRAM {self.vram.value:.0f}%", sk.tiny, sk.muted)
+        # what is actually eating the CPU — the number alone never answers that
+        if self.top:
+            sk.text(d, (W - 22, 236), fit_text(d, self.top, sk.tiny, 220), sk.tiny, sk.accent, anchor="ra")
+        sk.text(d, (W - 22, 236 + sk.tiny.size + 4), f"pornit de {self.up_str}", sk.tiny, sk.muted, anchor="ra")
 
 
 # ---------------------------------------------------------------- 6. activity

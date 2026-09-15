@@ -231,6 +231,29 @@ export interface CalEvent {
   calendar: string;
 }
 
+export interface ForecastDay {
+  t: number;
+  cond: string | null;
+  hi: number | null;
+  lo: number | null;
+  rain: number | null; // probability %, when the provider gives it
+}
+
+/** Next days from HA's weather entity. 30 min TTL: forecasts change slowly and
+ *  the service call is the most expensive thing this route asks HA for. */
+export async function weatherForecast(entityId: string, days = 5): Promise<ForecastDay[] | null> {
+  return cached(`fc:${entityId}`, 30 * 60_000, async () => {
+    const rows = await ha.forecast(entityId, "daily");
+    return rows.slice(0, days).map((f) => ({
+      t: new Date(f.datetime).getTime(),
+      cond: f.condition ?? null,
+      hi: typeof f.temperature === "number" ? f.temperature : null,
+      lo: typeof f.templow === "number" ? f.templow : null,
+      rain: typeof f.precipitation_probability === "number" ? f.precipitation_probability : null,
+    }));
+  });
+}
+
 export async function calendarEvents(entityIds: string[]): Promise<CalEvent[] | null> {
   if (!entityIds.length) return [];
   return cached(`cal:${entityIds.join(",")}`, 5 * 60_000, async () => {

@@ -8,6 +8,7 @@ progress)`, everything through `self.sk` so each one honours its skin.
 from __future__ import annotations
 
 import math
+import re
 import socket
 
 from PIL import ImageFont
@@ -97,7 +98,7 @@ class FxView(View):
                 delta = (v - prev) / prev * 100
                 sk.text(d, (x + 14, 140), f"{'▲' if up else '▼'} {abs(delta):.2f}%", sk.tiny, col)
             sparkline(d, (x + 14, 200, x + cw - 26, 270), r.get("history") or [], col, fill_to=lerp_rgb(col, sk.bg, 0.82))
-        sk.text(d, (22, 298), sk.label("RON per unitate · sursa BNR"), sk.tiny, sk.muted)
+        sk.text(d, (22, 298), sk.label("RON per unitate · fixing BNR, publicat la 13:00"), sk.tiny, sk.muted)
 
 
 # ---------------------------------------------------------------- 10. crypto
@@ -141,6 +142,9 @@ class CryptoView(View):
             sk.text(d, (26, y), sk.label(str(co.get("symbol") or "")), sk.mid, sk.fg)
             price = f"{v:,.0f}" if v >= 100 else f"{v:,.4f}"
             sk.text(d, (176, y + 2), price, sk.mid, sk.fg)
+            pw = d.textlength(price, font=sk.mid)
+            if 176 + pw + 5 + d.textlength(vs, font=sk.tiny) < 296:  # only when it clears the change column
+                sk.text(d, (176 + pw + 5, y + 8), vs, sk.tiny, sk.muted)
             sk.text(d, (300, y + 6), f"{'▲' if ch >= 0 else '▼'} {abs(ch):.2f}%", sk.small, col)
             sparkline(d, (376, y, W - 26, y + rh - 20), co.get("sparkline") or [], col)
             y += rh
@@ -216,8 +220,12 @@ class FleetView(View):
             d.ellipse((24, y + rh // 2 - 9, 36, y + rh // 2 + 3), fill=col)
             self.box(f"vm{i}", str(v.get("name") or ""), speed=26).draw(c, (46, y, 250, y + rh - 6), sk.small, sk.fg, tb)
             sk.text(d, (262, y + 2), sk.label(str(v.get("provider") or "")), sk.tiny, sk.muted)
-            sk.text(d, (352, y + 2), self.STATE_RO.get(state, state), sk.tiny, col)
-            sk.text(d, (W - 24, y + 2), str(v.get("type") or ""), sk.tiny, sk.muted, anchor="ra")
+            # state on the first line, size on a second line under the name column
+            # — the row is 34 px, two tiny lines fit and nothing shares an x-range
+            sk.text(d, (W - 24, y + 2), self.STATE_RO.get(state, state), sk.tiny, col, anchor="ra")
+            ty = str(v.get("type") or "")
+            m = re.fullmatch(r"(\d+)c-(\d+)g", ty)
+            sk.text(d, (262, y + 2 + sk.tiny.size + 2), f"{m[1]} vCPU · {m[2]} GB" if m else ty, sk.tiny, lerp_rgb(sk.muted, sk.bg, 0.3))
             y += rh
 
 
@@ -261,8 +269,20 @@ class ClimateView(View):
             # a dot that breathes on the latest sample
             r = 3 + Pulse(2.4, steps=4).at(t)
             d.ellipse((box[2] - r, box[3] - (vals[-1] - lo) / ((hi - lo) or 1) * (box[3] - box[1]) - r, box[2] + r, box[3] - (vals[-1] - lo) / ((hi - lo) or 1) * (box[3] - box[1]) + r), fill=col)
-        sk.text(d, (40, 292), sk.label("temperatură"), sk.tiny, tcol)
-        sk.text(d, (170, 292), sk.label("umiditate"), sk.tiny, hcol)
+        dT, dH = tv[-1] - tv[0], hv[-1] - hv[0]
+        lt = sk.label(f"temp {dT:+.1f}° / 24 h")
+        sk.text(d, (40, 292), lt, sk.tiny, tcol)
+        sk.text(d, (40 + d.textlength(lt, font=sk.tiny) + 18, 292), sk.label(f"umid {dH:+.0f}% / 24 h"), sk.tiny, hcol)
+        # midnight tick, so the curve has a time anchor
+        pts = self.temp
+        if pts:
+            t0, t1 = pts[0]["t"], pts[-1]["t"]
+            mid = datetime.now(TZ).replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000
+            if t0 < mid < t1 and t1 > t0:
+                xm = int(box_t[0] + (mid - t0) / (t1 - t0) * (box_t[2] - box_t[0]))
+                for box in (box_t, box_h):
+                    d.line((xm, box[1], xm, box[3]), fill=lerp_rgb(sk.muted, sk.bg, 0.5))
+                sk.text(d, (xm, box_t[3] + 2), "00:00", sk.tiny, sk.muted, anchor="ma")
         first = self.temp[0]["t"] if self.temp else 0
         if first:
             sk.text(d, (W - 24, 292), datetime.fromtimestamp(first / 1000, TZ).strftime("din %H:%M"), sk.tiny, sk.muted, anchor="ra")
@@ -410,6 +430,9 @@ class NetworkView(View):
             sk.text(d, (x + 14, y + 32), v, sk.big, col)
             sk.text(d, (x + 190, y + 66), unit, sk.tiny, sk.muted, anchor="ra")
         sparkline(d, (22, 296, W - 22, 314), self.hist, lerp_rgb(sk.accent, sk.bg, 0.25))
+        peak = max(self.hist) if self.hist else 0
+        if peak > 0:
+            sk.text(d, (W - 22, 282), f"vârf {peak:,.0f} KB/s", sk.tiny, sk.muted, anchor="ra")
 
 
 # ---------------------------------------------------------------- 17. countdown
@@ -443,12 +466,19 @@ class CountdownView(View):
             sk.text(d, (W // 2, 170), "adaugă evenimente în /home", sk.mid, sk.muted, anchor="mm")
             return
         name, ts = self.items[0]
-        days = (ts - time.time()) / 86400
+        left = ts - time.time()
+        days = left / 86400
         tb = sk.bg if not sk.panel_alpha else lerp_rgb(sk.bg, sk.card, 0.15)
-        big = f"{abs(days):.0f}"
+        if 0 <= left < 86400:
+            big, unit = f"{int(left // 3600)}", f"ore · {int(left % 3600 // 60):02d} min"
+        elif -86400 < left < 0:
+            big, unit = "azi", ""
+        else:
+            big, unit = f"{abs(days):.0f}", "zile" if days >= 0 else "zile în urmă"
         sk.text(d, (22, 62), big, sk.huge, sk.fg if days >= 0 else sk.muted)
         wide = d.textlength(big, font=sk.huge)
-        sk.text(d, (22 + wide + 10, 118), sk.label("zile" if days >= 0 else "zile în urmă"), sk.mid, sk.accent)
+        if unit:
+            sk.text(d, (22 + wide + 10, 118), sk.label(unit), sk.mid, sk.accent)
         self.box("main", name, speed=32).draw(c, (22, 196, W - 22, 232), sk.mid, sk.fg, tb)
         y = 246
         for i, (n2, ts2) in enumerate(self.items[1:4]):

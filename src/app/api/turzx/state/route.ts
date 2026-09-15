@@ -6,7 +6,7 @@ import { espAuthorized } from "@/lib/esp/auth";
 import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
-import { bnrRates, calendarEvents, coinPrices, fleet, haHistory, photoPool, quoteOfTheDay } from "@/lib/turzx/feeds";
+import { bnrRates, calendarEvents, coinPrices, fleet, haHistory, photoPool, quoteOfTheDay, weatherForecast } from "@/lib/turzx/feeds";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 const pick = (m: Map<string, HaState>, id: string) => {
   const s = m.get(id);
-  return s ? { state: s.state, attributes: s.attributes } : null;
+  return s ? { state: s.state, attributes: s.attributes, since: s.last_changed ?? null } : null;
 };
 
 /** Companion "Last notification" sensor → one flat event. `id` changes per
@@ -62,16 +62,17 @@ export async function GET(req: NextRequest) {
   const str = (v: unknown, fallback: string) => (typeof v === "string" && v ? v : fallback);
   const bgSources = new Set(settings.background.sources);
   for (const v of settings.views) if (v.enabled && v.background) for (const s of v.background.sources) bgSources.add(s);
-  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro] = await Promise.all([
+  const [fx, crypto, photos, vms, tempHist, humHist, cal, quote, pomodoro, forecast] = await Promise.all([
     enabled.has("fx") ? bnrRates(list(opt("fx").currencies, ["EUR", "USD", "GBP"])) : null,
     enabled.has("crypto") ? coinPrices(list(opt("crypto").coins, ["bitcoin", "ethereum"]), str(opt("crypto").vs, "usd")) : null,
     bgSources.size || enabled.has("photo") ? photoPool([...bgSources]) : [],
     enabled.has("fleet") ? fleet() : null,
     enabled.has("climate") ? haHistory("sensor.temperature_and_humidity_sensor_temperature") : null,
     enabled.has("climate") ? haHistory("sensor.temperature_and_humidity_sensor_humidity") : null,
-    enabled.has("calendar") ? calendarEvents(list(opt("calendar").entities, [...states.keys()].filter((k) => k.startsWith("calendar.")))) : null,
+    enabled.has("calendar") || enabled.has("clock") ? calendarEvents(list(opt("calendar").entities, [...states.keys()].filter((k) => k.startsWith("calendar.")))) : null,
     enabled.has("quote") ? quoteOfTheDay(str(opt("quote").lang, "ro") === "en" ? "en" : "ro") : null,
     loadPomodoro(),
+    enabled.has("weather") && states.has("weather.forecast_home") ? weatherForecast("weather.forecast_home") : null,
   ]);
   const amb = await ambilightSettings();
   const sig = currentSignal();
@@ -98,6 +99,7 @@ export async function GET(req: NextRequest) {
       haUrl: haConfig()?.url ?? null,
       settings,
       weather: pick(states, "weather.forecast_home"),
+      forecast,
       sun: pick(states, "sun.sun"),
       inside: { temp: pick(states, "sensor.temperature_and_humidity_sensor_temperature"), hum: pick(states, "sensor.temperature_and_humidity_sensor_humidity") },
       home: {

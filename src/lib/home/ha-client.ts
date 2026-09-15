@@ -67,6 +67,24 @@ export const ha = {
     rest<Array<{ summary: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; location?: string }>>(
       `/calendars/${entityId}?start=${start.toISOString()}&end=${end.toISOString()}`,
     ),
+  /** Daily or hourly forecast via the weather.get_forecasts service (return_response). */
+  forecast: async (entityId: string, type: "daily" | "hourly") => {
+    const r = await rest<{ service_response?: Record<string, { forecast?: HaForecast[] }> }>(
+      `/services/weather/get_forecasts?return_response`,
+      { method: "POST", body: JSON.stringify({ entity_id: entityId, type }) },
+    );
+    return r.service_response?.[entityId]?.forecast ?? [];
+  },
+};
+
+export type HaForecast = {
+  datetime: string;
+  condition?: string;
+  temperature?: number;
+  templow?: number;
+  precipitation?: number;
+  precipitation_probability?: number;
+  wind_speed?: number;
 };
 
 /** Server-Sent Events stream of `state_changed` from HA's WebSocket API. */
