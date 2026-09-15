@@ -44,11 +44,18 @@ logger:
 
 api:
   id: api_id
-  # Two slots: HA + one log/OTA session. Each API client owns a buffer; HA
-  # reconnecting through half-open sockets filled all five default slots
-  # ("Max connections (5), rejecting") right before a bad_alloc abort.
-  max_connections: 2
-  reboot_timeout: 10min
+  # Three slots: HA + one log/OTA session + one spare. Each API client owns
+  # a buffer; HA reconnecting through half-open sockets filled all five
+  # default slots ("Max connections (5), rejecting") right before a bad_alloc
+  # abort. With only two, a zombie HA socket plus a log session pinned both
+  # for 5.5 h (2026-09-16): every new hello got RST at 10 ms, OTA still
+  # worked, a cold power cycle did not clear it because HA reconnected into
+  # the same state within seconds. The spare slot lets the next hello in so
+  # the zombie gets evicted by the ping timeout.
+  max_connections: 3
+  # Counts only while ZERO clients are connected, so a zombie defeats it;
+  # keep it short so a genuine no-client state still self-heals fast.
+  reboot_timeout: 5min
   encryption:
     key: "${api_key}"
   # HA may push a one-off message (e.g. a doorbell) that overrides the gallery.
