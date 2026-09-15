@@ -58,11 +58,12 @@ export async function POST(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   const parsed = copilotEventSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const { event, text, session, source } = parsed.data;
+  const { event, text, session, source, project, chat } = parsed.data;
   const s = await loadCopilotSignals();
   const p = s.patterns[event];
   const now = Date.now();
-  setSignal({ id: `${now}|${event}|${session}`, at: now, event, text, source, session, active: event === "ask" });
+  setSignal({ id: `${now}|${event}|${session}`, at: now, event, text, source, session, project, chat, active: event === "ask" });
+  const where = [project, chat].filter(Boolean).join(" · ");
   const out: Record<string, unknown> = { event, light: false, strip: false, turzx: p.turzx, esp: false };
   if (!s.enabled || !p.enabled) return NextResponse.json({ ...out, skipped: "disabled" });
 
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
   if (s.muteInMovie && p.light) {
     try {
       const h = (await ha.states()).find((x) => x.entity_id === "light.hyperhdr");
-      movie = h?.state === "on";
+      movie = ambilightStatus(h) === "movie";
     } catch {
       // HA down -> no light anyway
     }
@@ -91,11 +92,11 @@ export async function POST(req: NextRequest) {
     }
   }
   if (p.esp) {
-    for (const n of listNodes()) showMessage(n.name, TITLE[event], text || source, event === "ask" ? 10 : 8);
-    pushActivity({ at: now, kind: "other", text: `${TITLE[event]}${text ? `: ${text.slice(0, 40)}` : ""}` });
+    for (const n of listNodes()) showMessage(n.name, TITLE[event], text || where || source, event === "ask" ? 10 : 8);
+    pushActivity({ at: now, kind: "other", text: `${TITLE[event]}${where ? ` [${where.slice(0, 40)}]` : ""}${text ? `: ${text.slice(0, 40)}` : ""}` });
     out.esp = true;
   }
-  await db.insert(auditLog).values({ accountId: "home", action: `copilot.${event}`, target: source, status: "ok", message: text.slice(0, 200) });
+  await db.insert(auditLog).values({ accountId: "home", action: `copilot.${event}`, target: project || source, status: "ok", message: [chat, text].filter(Boolean).join(" — ").slice(0, 200) });
   return NextResponse.json({ ...out, quiet, movie });
 }
 

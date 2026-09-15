@@ -85,7 +85,18 @@ export async function GET(req: NextRequest) {
   // Same shape as a phone notification so the overlay pops it with no new code path.
   const copilot =
     sig && sigCfg.enabled && sigCfg.patterns[sig.event].turzx
-      ? { id: sig.id, at: sig.at, pkg: `copilot.${sig.event}`, app: sig.source, title: { ask: "Copilot asteapta raspuns", done: "Copilot a terminat", blocked: "Comanda blocata", failed: "A esuat" }[sig.event], text: sig.text, ongoing: sig.active, group: false, color: sigCfg.patterns[sig.event].color }
+      ? {
+          id: sig.id,
+          at: sig.at,
+          pkg: `copilot.${sig.event}`,
+          // badge line = the project, like the VS Code taskbar title; falls back to the harness name
+          app: sig.project || sig.source,
+          title: { ask: "Copilot asteapta raspuns", done: "Copilot a terminat", blocked: "Comanda blocata", failed: "A esuat" }[sig.event],
+          text: [sig.chat, sig.text].filter(Boolean).join("\n"),
+          ongoing: sig.active,
+          group: false,
+          color: sigCfg.patterns[sig.event].color,
+        }
       : null;
   const lights = [...states.values()].filter((s) => s.entity_id.startsWith("light."));
   const media = [...states.values()].filter((s) => s.entity_id.startsWith("media_player.") && (s.state === "playing" || s.state === "paused"));

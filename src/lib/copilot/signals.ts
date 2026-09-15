@@ -31,6 +31,8 @@ export type CopilotSignalState = {
   text: string;
   source: string;
   session: string;
+  project: string;
+  chat: string;
   active: boolean;
 };
 

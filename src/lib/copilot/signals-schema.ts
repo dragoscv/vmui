@@ -15,6 +15,10 @@ export const copilotEventSchema = z.object({
   session: z.string().max(120).default(""),
   /** Which harness / workspace, for the card badge. */
   source: z.string().max(60).default("copilot"),
+  /** Workspace folder name, as the VS Code taskbar title shows it. */
+  project: z.string().max(80).default(""),
+  /** Chat tab title of the session that raised the event. */
+  chat: z.string().max(160).default(""),
 });
 export type CopilotEventInput = z.infer<typeof copilotEventSchema>;
 
