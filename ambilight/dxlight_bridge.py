@@ -62,11 +62,14 @@ def is_black(data: bytes) -> bool:
     return not any(data)
 
 
-# Per-LED black level. A dark scene averages to grey noise around luma
-# 0.05-0.10 (HyperHDR live image: 16-24/255 on a "black" frame), and 65 LEDs
-# of dim grey read as WHITE on the wall. Below BLACK_OFF the LED is off,
-# ramping to full by BLACK_FULL; the ratio keeps the hue, only the level
-# changes, so a real dark-blue border stays dark blue instead of grey.
+# Per-LED black level. A dark scene averages to grey noise around 16-24/255
+# (HyperHDR live image on a "black" frame), and 65 LEDs of dim grey read as
+# WHITE on the wall. Below BLACK_OFF the LED is off, ramping to full by
+# BLACK_FULL; the ratio keeps the hue, only the level changes.
+# Measured on the max channel (HSV value), NOT luma: Rec.709 luma weights
+# blue 0.07 and red 0.21, so a full-screen #102040 (-> LED 5,15,44) and a
+# #600000 (-> 75,0,0) both fell under 0.08 and the strip went dark while
+# green/white of the same level passed -- "blue never shows, red looks white".
 BLACK_OFF = 0.08
 BLACK_FULL = 0.22
 
@@ -75,10 +78,10 @@ def black_gate(data: bytes) -> bytes:
     out = bytearray(len(data))
     for i in range(0, len(data) - 2, 3):
         r, g, b = data[i], data[i + 1], data[i + 2]
-        luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-        if luma <= BLACK_OFF:
+        level = max(r, g, b) / 255
+        if level <= BLACK_OFF:
             continue
-        k = min(1.0, (luma - BLACK_OFF) / (BLACK_FULL - BLACK_OFF))
+        k = min(1.0, (level - BLACK_OFF) / (BLACK_FULL - BLACK_OFF))
         out[i], out[i + 1], out[i + 2] = int(r * k), int(g * k), int(b * k)
     return bytes(out)
 
