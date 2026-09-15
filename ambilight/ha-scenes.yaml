@@ -98,9 +98,21 @@ script:
       # The desk-bar bridge hands the bar back to white mode ~5 s after the
       # last frame; wait for that before setting a colour temperature.
       - delay: { seconds: 7 }
-      - action: light.turn_on
-        target: { entity_id: [light.desk_light_bar, light.led_argb] }
-        data: { color_temp_kelvin: 3000, brightness_pct: 60 }
+      # HyperHDR leaves the HA lamps at their last frame colour; idle means
+      # dark, and a bright room (sun/lux gate) means everything off.
+      - action: light.turn_off
+        target: { entity_id: [light.moodlight, light.ambience_light] }
+      - if:
+          - condition: state
+            entity_id: binary_sensor.room_is_bright
+            state: "on"
+        then:
+          - action: light.turn_off
+            target: { entity_id: [light.desk_light_bar, light.led_argb] }
+        else:
+          - action: light.turn_on
+            target: { entity_id: [light.desk_light_bar, light.led_argb] }
+            data: { color_temp_kelvin: 3000, brightness_pct: 60 }
 
   music_mode:
     alias: "Music mode"
@@ -416,28 +428,30 @@ template:
         unique_id: ambilight_room_is_bright
         device_class: light
         icon: mdi:white-balance-sunny
-        # Hysteresis so a passing cloud does not flap the LEDs: switch ON above
-        # room_bright_lux, OFF below room_dark_lux, hold in between. Phone lux
-        # wins when it is fresh; otherwise sun elevation (> 3 deg = day, with
-        # the same hold band down to -3 deg).
+        # Bright if EITHER says so. Sun above 3 deg is day, full stop -- the
+        # phone lies flat on the desk under the monitor and read 10 lx at
+        # 09:00 on a sunny morning (2026-09-15), so it cannot veto daylight.
+        # The phone ADDS "room lamp is on at night". Hysteresis on both: sun
+        # holds down to -3 deg, lux holds down to room_dark_lux.
         state: >-
           {% set lux = states('sensor.a51_light') %}
-          {% set fresh = states.sensor.a51_light is not none
-             and (now() - states.sensor.a51_light.last_updated).total_seconds() < 1800
-             and is_number(lux) %}
+          {# age_min = age of the SAMPLE; the sensor sleeps with the screen off #}
+          {% set fresh = is_number(lux)
+             and is_number(state_attr('sensor.a51_light', 'age_min'))
+             and (state_attr('sensor.a51_light', 'age_min') | int) < 30 %}
           {% set was = is_state('binary_sensor.room_is_bright', 'on') %}
-          {% if fresh %}
-            {% set hi = states('input_number.room_bright_lux') | float(40) %}
-            {% set lo = states('input_number.room_dark_lux') | float(15) %}
-            {{ (lux | float) > hi or (was and (lux | float) >= lo) }}
-          {% else %}
-            {% set el = state_attr('sun.sun', 'elevation') | float(-90) %}
-            {{ el > 3 or (was and el >= -3) }}
-          {% endif %}
+          {% set el = state_attr('sun.sun', 'elevation') | float(-90) %}
+          {% set by_sun = el > 3 or (was and el >= -3) %}
+          {% set hi = states('input_number.room_bright_lux') | float(40) %}
+          {% set lo = states('input_number.room_dark_lux') | float(15) %}
+          {% set by_lux = fresh and ((lux | float) > hi or (was and (lux | float) >= lo)) %}
+          {{ by_sun or by_lux }}
         attributes:
           source: >-
-            {% set s = states.sensor.a51_light %}
-            {{ 'a51' if s is not none and (now() - s.last_updated).total_seconds() < 1800 and is_number(s.state) else 'sun' }}
+            {% set el = state_attr('sun.sun', 'elevation') | float(-90) %}
+            {% set age = state_attr('sensor.a51_light', 'age_min') %}
+            {% set fresh = is_number(states('sensor.a51_light')) and is_number(age) and (age | int) < 30 %}
+            {{ 'sun' if el > 3 else ('a51' if fresh else 'sun') }}
           lux: "{{ states('sensor.a51_light') }}"
           sun_elevation: "{{ state_attr('sun.sun', 'elevation') }}"
   - binary_sensor:

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timedelta
 import os
 import re
 import subprocess
@@ -57,7 +58,6 @@ def adb(*args: str, timeout: float = 15) -> str:
 class A51Lux:
     def __init__(self) -> None:
         self.url, self.tok = _creds()
-        self.last_wall: str | None = None
 
     def describe(self) -> None:
         model = adb("shell", "getprop", "ro.product.model").strip()
@@ -65,6 +65,12 @@ class A51Lux:
         if mode != "1":
             adb("shell", "settings", "put", "system", "screen_brightness_mode", "1")
             mode = "1 (enabled now)"
+        # The light sensor only streams while the display is on. It is a desk
+        # dashboard on permanent USB power: keep the screen awake on AC/USB
+        # (stay_on_while_plugged_in = 7 -> AC|USB|wireless).
+        if adb("shell", "settings", "get", "global", "stay_on_while_plugged_in").strip() != "7":
+            adb("shell", "settings", "put", "global", "stay_on_while_plugged_in", "7")
+        adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
         print(f"  A51 {model} serial={SERIAL} adaptive_brightness={mode}")
 
     def read(self) -> tuple[float, str] | None:
@@ -79,7 +85,7 @@ class A51Lux:
         wall, lux = events[-1]
         return float(lux), wall
 
-    def publish(self, lux: float, wall: str) -> None:
+    def publish(self, lux: float, sampled_at: str, age_s: float) -> None:
         body = json.dumps(
             {
                 "state": f"{lux:.0f}",
@@ -89,7 +95,8 @@ class A51Lux:
                     "state_class": "measurement",
                     "friendly_name": "A51 light",
                     "icon": "mdi:brightness-5",
-                    "sampled_at": wall,
+                    "sampled_at": sampled_at,
+                    "age_min": round(age_s / 60),
                     "source": "adb dumpsys sensorservice",
                 },
             }
@@ -104,16 +111,20 @@ class A51Lux:
             print("  no light events (screen off?)", flush=True)
             return
         lux, wall = r
-        stale = wall == self.last_wall
-        self.last_wall = wall
-        if stale:
-            # Same event as last minute: the sensor is asleep (screen off). A
-            # stale value must not keep HA thinking it is fresh -> skip so the
-            # 30 min freshness window in room_is_bright expires naturally.
-            print(f"  {lux:.0f} lx (stale since {wall}, not published)", flush=True)
-            return
-        self.publish(lux, wall)
-        print(f"  {lux:.0f} lx @ {wall}", flush=True)
+        # `wall` is the phone's own clock (MM-DD HH:MM:SS.fff); convert to an
+        # absolute ISO timestamp so HA can judge freshness from the SAMPLE,
+        # not from when we last POSTed. Observed 2026-09-15: the sensor slept
+        # from 23:35 to 08:55 (screen off) while we kept re-publishing 10 lx,
+        # and the daylight gate stayed off all morning.
+        try:
+            sampled = datetime.strptime(f"{datetime.now().year}-{wall}", "%Y-%m-%d %H:%M:%S.%f")
+            if sampled > datetime.now() + timedelta(hours=1):  # phone wall clock from last year around New Year
+                sampled = sampled.replace(year=sampled.year - 1)
+        except ValueError:
+            sampled = datetime.now()
+        age = (datetime.now() - sampled).total_seconds()
+        self.publish(lux, sampled.isoformat(timespec="seconds"), age)
+        print(f"  {lux:.0f} lx sampled {age / 60:.0f} min ago", flush=True)
 
     def close(self) -> None:
         pass
