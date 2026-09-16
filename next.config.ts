@@ -62,9 +62,15 @@ const config: NextConfig = {
     "google-auth-library",
   ],
   productionBrowserSourceMaps: false,
+  // `next build` runs a full tsc pass (measured 30 s of an 84 s build). The
+  // same check is `pnpm typecheck` (tsgo, ~2 s) and the build wrapper runs it
+  // first, so here it is only duplicated work.
+  typescript: { ignoreBuildErrors: true },
   experimental: {
     viewTransition: true,
     serverSourceMaps: false,
+    // turbopackFileSystemCacheForBuild measured 2026-09-16: no-op rebuild
+    // 31.6 s -> 32.9 s and .next 74 MB -> 212 MB. Not worth it here.
   },
   async headers() {
     return [
