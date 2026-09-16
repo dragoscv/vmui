@@ -484,6 +484,8 @@ export interface HealthReadings {
   weightKg: number | null;
   weightAt: number | null;
   bodyFat: number | null;
+  /** Raw bioimpedance from the scale (Ω); the OKOK pads are often decorative and read a constant. */
+  impedance: number | null;
   bmr: number | null;
   vo2max: number | null;
   bloodPressure: { sys: number; dia: number } | null;
@@ -533,6 +535,13 @@ export async function healthReadings(states: Map<string, HaState>, device: strin
   const sys = toMmHg("systolic_blood_pressure");
   const dia = toMmHg("diastolic_blood_pressure");
   const hrHistory = get("heart_rate") ? ((await haHistory(prefix + "heart_rate", 24)) ?? []) : [];
+  // The OKOK scale never reaches Health Connect (its app has no HC export), so
+  // the ESP32 proxy decodes its BLE adverts into this sensor; prefer HC when
+  // it exists (Samsung Health entry), else the scale.
+  const scale = [...states.values()].find((s) => /^sensor\..*scale_weight$/.test(s.entity_id) && Number.isFinite(Number(s.state)));
+  const scaleKg = scale ? Number(scale.state) : null;
+  const scaleAt = scale ? new Date((scale as unknown as { last_changed?: string }).last_changed ?? 0).getTime() || null : null;
+  const impedance = [...states.values()].find((s) => /^sensor\..*scale_impedance$/.test(s.entity_id) && Number.isFinite(Number(s.state)));
   return {
     device,
     steps,
@@ -549,9 +558,10 @@ export async function healthReadings(states: Map<string, HaState>, device: strin
     respiratoryRate: num("respiratory_rate"),
     sleepMin: num("sleep_duration"),
     sleepAt: at("sleep_duration"),
-    weightKg: toKg("weight"),
-    weightAt: at("weight"),
+    weightKg: toKg("weight") ?? scaleKg,
+    weightAt: at("weight") ?? scaleAt,
     bodyFat: num("body_fat"),
+    impedance: impedance ? Number(impedance.state) : null,
     bmr: num("basal_metabolic_rate"),
     vo2max: num("vo2_max"),
     bloodPressure: sys !== null && dia !== null ? { sys: Math.round(sys), dia: Math.round(dia) } : null,

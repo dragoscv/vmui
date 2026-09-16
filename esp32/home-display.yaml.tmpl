@@ -109,6 +109,31 @@ esp32_ble_tracker:
     active: false
     interval: 320ms
     window: 100ms
+  # OKOK / Chipsea bathroom scale (${scale_mac}). Not connectable: it wakes
+  # when stepped on, streams ~1 advert/s for ~15 s, then sleeps. Manufacturer
+  # data = 0xC0 0x?? + 13 bytes: weight u16 BE (x0.01 kg) | res1 u16 | res2
+  # u16 | props | own MAC[6]. props bit0 = locked reading, bits 3-5 = unit
+  # (4 = kg). The OKOK app has no Health Connect export, so this is the only
+  # path from the scale to HA. Decoded on the 2026-09-16 capture: 0x24 while
+  # settling (7.1, 8.3, 64.0 kg) then 0x25 locked = 64.40 kg.
+  on_ble_manufacturer_data_advertise:
+    - mac_address: ${scale_mac}
+      manufacturer_id: "00C0"
+      then:
+        - lambda: |-
+            // x = payload after the 2-byte company id; the last 13 bytes are the frame
+            if (x.size() < 13) return;
+            const size_t o = x.size() - 13;
+            const uint8_t props = x[o + 6];
+            if (((props >> 3) & 7) != 4) return;   // only kg frames
+            const float kg = ((x[o] << 8) | x[o + 1]) / 100.0f;
+            if (kg < 5.0f || kg > 250.0f) return;  // settling noise
+            id(scale_live).publish_state(kg);
+            if (props & 1) {
+              id(scale_weight).publish_state(kg);
+              const uint16_t r = (x[o + 2] << 8) | x[o + 3];
+              if (r > 0) id(scale_impedance).publish_state(r);
+            }
 bluetooth_proxy:
   active: true
   connection_slots: 1
@@ -135,6 +160,31 @@ interval:
             - output.turn_on: blue_led
             - delay: 100ms
             - output.turn_off: blue_led
+  # Zombie-slot watchdog. Twice on 2026-09-15/16 the API kept its slots
+  # pinned by half-open HA sockets: serial showed "Max connections (3),
+  # rejecting <HA>" every second while is_connected() stayed true (the zombie
+  # counts as a client), so api.reboot_timeout never fired and HA logged
+  # "connection dropped immediately after encrypted hello" for 5.5 h. OTA and
+  # the frame fetch kept working, so vmui can see what we cannot: it reads
+  # HA's binary_sensor.<node>_status and answers "reboot" once it has been
+  # off for 3 min. Costs one tiny GET per minute.
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - http_request.get:
+                url: "${watchdog_url}"
+                capture_response: true
+                max_response_buffer_size: 32
+                on_response:
+                  then:
+                    - lambda: |-
+                        if (response->status_code == 200 && body.rfind("reboot", 0) == 0) {
+                          ESP_LOGW("wd", "vmui says HA lost our API for 3 min - rebooting to free slots");
+                          App.safe_reboot();
+                        }
 
 # ---- Display ---------------------------------------------------------------
 i2c:
@@ -291,6 +341,34 @@ button:
     name: Restart
 
 sensor:
+  # OKOK scale, fed by on_ble_manufacturer_data_advertise above
+  - platform: template
+    id: scale_weight
+    name: "Scale weight"
+    unit_of_measurement: kg
+    device_class: weight
+    state_class: measurement
+    accuracy_decimals: 2
+    icon: mdi:scale-bathroom
+    # locked reading only: one value per weigh-in, not the settling stream
+    filters:
+      - throttle: 5s
+  - platform: template
+    id: scale_live
+    name: "Scale live"
+    unit_of_measurement: kg
+    accuracy_decimals: 1
+    icon: mdi:scale
+    internal: true
+  - platform: template
+    id: scale_impedance
+    name: "Scale impedance"
+    unit_of_measurement: "Ω"
+    accuracy_decimals: 0
+    icon: mdi:omega
+    entity_category: diagnostic
+    filters:
+      - throttle: 5s
   - platform: template
     name: Heap Free
     unit_of_measurement: B

@@ -43,6 +43,8 @@ param(
     [string]$Refresh = '4s',
     # ideaspark ships two layouts: SDA/SCL on 5/4 or on 21/22. -Status shows
     # which one the running board reports.
+    # OKOK/Chipsea bathroom scale, decoded from its BLE adverts (see the yaml)
+    [string]$ScaleMac = '6C:02:4C:E9:DD:BB',
     [string]$Sda = 'GPIO21',
     [string]$Scl = 'GPIO22'
 )
@@ -89,8 +91,10 @@ function Render-Yaml {
         refresh    = $Refresh
         sda        = $Sda
         scl        = $Scl
+        scale_mac  = $ScaleMac
         frame_url  = "http://${ip}:$LanPort/api/esp/display/${NodeName}?k=$tok"
         button_url = "http://${ip}:$LanPort/api/esp/button?k=$tok"
+        watchdog_url = "http://${ip}:$LanPort/api/esp/watchdog/${NodeName}?k=$tok"
     }
     $y = Get-Content (Join-Path $Root 'esp32\home-display.yaml.tmpl') -Raw
     foreach ($k in $vars.Keys) { $y = $y.Replace('${' + $k + '}', [string]$vars[$k]) }

@@ -429,7 +429,8 @@ class HealthView(View):
         # ---- footer
         act = h.get("activeKcal")
         vo2 = h.get("vo2max")
-        foot = " · ".join(x for x in (f"activ {act:.0f} kcal" if isinstance(act, (int, float)) else "", f"VO₂max {vo2:.0f}" if isinstance(vo2, (int, float)) else "", "Samsung Health · Health Connect") if x)
+        imp = h.get("impedance")
+        foot = " · ".join(x for x in (f"activ {act:.0f} kcal" if isinstance(act, (int, float)) else "", f"VO₂max {vo2:.0f}" if isinstance(vo2, (int, float)) else "", f"{imp:.0f} Ω" if isinstance(imp, (int, float)) else "", "Samsung Health · Health Connect") if x)
         sk.text(d, (22, H - 24), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted)
 
 
