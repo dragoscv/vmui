@@ -601,9 +601,22 @@ export async function healthReadings(states: Map<string, HaState>, device: strin
   // The OKOK scale never reaches Health Connect (its app has no HC export), so
   // the ESP32 proxy decodes its BLE adverts into this sensor; prefer HC when
   // it exists (Samsung Health entry), else the scale.
-  const scale = [...states.values()].find((s) => /^sensor\..*scale_weight$/.test(s.entity_id) && Number.isFinite(Number(s.state)));
-  const scaleKg = scale ? Number(scale.state) : null;
-  const scaleAt = scale ? new Date((scale as unknown as { last_changed?: string }).last_changed ?? 0).getTime() || null : null;
+  // The ESPHome sensor resets to `unknown` on every board reboot; fall back
+  // to the last numeric point in 14 days of recorder history.
+  const scaleEntity = [...states.values()].find((s) => /^sensor\..*scale_weight$/.test(s.entity_id));
+  let scaleKg: number | null = scaleEntity && Number.isFinite(Number(scaleEntity.state)) ? Number(scaleEntity.state) : null;
+  let scaleAt: number | null = scaleKg !== null && scaleEntity ? new Date((scaleEntity as unknown as { last_changed?: string }).last_changed ?? 0).getTime() || null : null;
+  if (scaleKg === null && scaleEntity) {
+    // HA history returns [] when `since` predates the first recorded state, so widen stepwise.
+    for (const hours of [24, 72, 24 * 7, 24 * 30]) {
+      const last = ((await haHistory(scaleEntity.entity_id, hours)) ?? []).filter((p) => p.v > 20).at(-1);
+      if (last) {
+        scaleKg = last.v;
+        scaleAt = last.t;
+        break;
+      }
+    }
+  }
   const impedance = [...states.values()].find((s) => /^sensor\..*scale_impedance$/.test(s.entity_id) && Number.isFinite(Number(s.state)));
   const weightKg = toKg("weight") ?? scaleKg;
   return {

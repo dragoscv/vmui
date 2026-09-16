@@ -8,6 +8,7 @@ const PUBLIC_PREFIXES = [
   "/api/esp",   // ESP32 display: token-authenticated, no session cookie
   "/api/turzx", // Turzx desk screen renderer: same shared token
   "/api/copilot", // agent-harness hooks -> physical signals: same shared token
+  "/api/nutrition", // codai phone assistant posts meals: same shared token (espAuthorized)
   "/_next",
   "/icons",
   "/favicon",

@@ -3,6 +3,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CopilotSignals } from "@/lib/copilot/signals-schema";
 import type { HaState } from "@/lib/home/ha-client";
+import type { NutritionProfile } from "@/lib/nutrition/schema";
+import type { NutritionSummary } from "@/lib/nutrition/summary";
 import type { Pomodoro, TurzxSettings } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
@@ -13,6 +15,7 @@ import { CopilotSignalsCard } from "./copilot-signals-card";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
 import { FloorPlan } from "./floor-plan";
+import { NutritionCard } from "./nutrition-card";
 import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
 
@@ -26,16 +29,20 @@ export function HomeDashboard({
   pomodoro,
   copilot,
   rgbLights,
+  nutrition,
+  nutritionProfile,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
   haUrl: string | null;
-  initialTab?: "plan" | "devices" | "ambilight" | "displays";
+  initialTab?: "plan" | "devices" | "ambilight" | "displays" | "nutrition";
   wall: WallSetting;
   turzx: TurzxSettings;
   pomodoro: Pomodoro;
   copilot: CopilotSignals;
   rgbLights: Array<{ id: string; name: string }>;
+  nutrition: NutritionSummary;
+  nutritionProfile: NutritionProfile;
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -50,6 +57,7 @@ export function HomeDashboard({
             <TabsTrigger value="devices">Devices</TabsTrigger>
             <TabsTrigger value="ambilight">Ambilight</TabsTrigger>
             <TabsTrigger value="displays">Displays</TabsTrigger>
+            <TabsTrigger value="nutrition">Nutriție</TabsTrigger>
           </TabsList>
           <TabsContent value="plan">
             <FloorPlan devices={devices} selected={selected} onSelect={setSelected} />
@@ -65,6 +73,9 @@ export function HomeDashboard({
             <div className="mt-6">
               <CopilotSignalsCard initial={copilot} lights={rgbLights} />
             </div>
+          </TabsContent>
+          <TabsContent value="nutrition">
+            <NutritionCard initial={nutrition} profile={nutritionProfile} />
           </TabsContent>
         </Tabs>
       </div>

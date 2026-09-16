@@ -1,5 +1,7 @@
 import { HomeDashboard } from "@/components/home/home-dashboard";
 import { loadCopilotSignals } from "@/lib/copilot/signals";
+import { loadProfile } from "@/lib/nutrition/store";
+import { nutritionSummary } from "@/lib/nutrition/summary";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { homeAvailability, listPlacedDevices, loadHomeStates, wallSetting } from "@/server/queries/home";
 import { AlertTriangle, ExternalLink } from "lucide-react";
@@ -8,13 +10,13 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Home — vmui" };
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const [{ tab }, devices, states, avail, wall, turzx, pomodoro, copilot] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings(), loadPomodoro(), loadCopilotSignals()]);
+  const [{ tab }, devices, states, avail, wall, turzx, pomodoro, copilot, nutrition, nutritionProfile] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings(), loadPomodoro(), loadCopilotSignals(), nutritionSummary(), loadProfile()]);
   // Any HA light that can show a colour may carry a Copilot signal.
   const rgbLights = Object.values(states)
     .filter((s) => s.entity_id.startsWith("light.") && s.entity_id !== "light.hyperhdr" && ((s.attributes.supported_color_modes as string[] | undefined) ?? []).some((m) => m === "rgb" || m === "hs" || m === "rgbw" || m === "rgbww" || m === "xy"))
     .map((s) => ({ id: s.entity_id, name: String(s.attributes.friendly_name ?? s.entity_id) }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const initialTab = tab === "devices" || tab === "ambilight" || tab === "displays" ? tab : "plan";
+  const initialTab = tab === "devices" || tab === "ambilight" || tab === "displays" || tab === "nutrition" ? tab : "plan";
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -44,7 +46,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} copilot={copilot} rgbLights={rgbLights} />
+      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} copilot={copilot} rgbLights={rgbLights} nutrition={nutrition} nutritionProfile={nutritionProfile} />
     </div>
   );
 }
