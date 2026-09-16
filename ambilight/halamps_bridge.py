@@ -53,10 +53,14 @@ TRANSITION_S = 0.4
 MIN_DELTA = 6
 # Hand the lamps back (leave them as they are) after this long without frames.
 RELEASE_S = 5.0
-# Relay hysteresis: once off, a lamp needs max(rgb) >= WAKE_MIN (after the
-# ambient() gate) to come back, so a scene hovering at the gate does not
-# click the bulb on/off every second.
-WAKE_MIN = 40
+# Relay hysteresis. A film's quadrant average sits right at the luma gate
+# (raw 30-60 -> gated 0-20, measured 2026-09-16 over 15 s: the gate flipped
+# 6 times), so a gate-driven relay clicks the bulb every second and it is
+# off far more than on. Two rules: once on, a lamp turns OFF only after the
+# region has read black for OFF_AFTER_S (a cut to a dark shot is not a
+# fade-out); once off, it needs gated max >= WAKE_MIN to come back.
+WAKE_MIN = 12
+OFF_AFTER_S = 4.0
 # Lowest brightness worth switching a bulb on for (1/255 units). The Calex
 # bulbs are invisible below ~25 % in a dark room (measured 2026-09-16: blue at
 # 6/12/25 % read as OFF, red at 60 % visible), and a film's raw_max is
@@ -97,6 +101,7 @@ class HaLamps:
         self.cap = _brightness_cap()
         self.sent: dict[str, tuple[int, int, int] | None] = {}  # last rgb written; None = off
         self.next_ok: dict[str, float] = {}
+        self.dark_since: dict[str, float | None] = {}
         self.lan: dict[str, object] = {}
         self.lan_fail: dict[str, int] = {}
         self._open_lan()
@@ -222,11 +227,19 @@ class HaLamps:
         if mx == 0:
             if last is None:
                 return
+            since = self.dark_since.get(entity)
+            if since is None:
+                self.dark_since[entity] = now
+                return
+            if now - since < OFF_AFTER_S:
+                return
             self._call("turn_off", {"entity_id": entity, "transition": TRANSITION_S})
             self.sent[entity] = None
+            self.dark_since[entity] = None
             self.next_ok[entity] = now + self._interval(entity)
             print(f"  {entity}: off", flush=True)
             return
+        self.dark_since[entity] = None
         # colour at full chroma, brightness carries the luma (capped)
         colour = tuple(int(c * 255 / mx) for c in rgb)
         lvl = raw_max if raw_max is not None else mx

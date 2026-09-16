@@ -120,8 +120,12 @@ function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }
 function Write-Warn($m) { Write-Host "  $m" -ForegroundColor Yellow }
 function Write-Step($m) { Write-Host "  $m" -ForegroundColor Cyan }
 
-function New-Smoothing([int]$TimeMs, [int]$Hz) {
-    @{ enable = $true; type = 'ExponentialInterpolator'; time_ms = [Math]::Max(25, $TimeMs); updateFrequency = $Hz; antiFlickeringFilter = $true; continuousOutput = $false; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
+function New-Smoothing([int]$TimeMs, [int]$Hz, [switch]$Continuous) {
+    # continuousOutput=false stops udpraw when the picture is static (measured
+    # 2026-09-16: 2-3 s silences on a calm shot). Fine for the HID strip
+    # (fewer writes), fatal for the lamp bridges, whose idle/release timers
+    # then fire mid-film and forget what the bulbs show.
+    @{ enable = $true; type = 'ExponentialInterpolator'; time_ms = [Math]::Max(25, $TimeMs); updateFrequency = $Hz; antiFlickeringFilter = $true; continuousOutput = [bool]$Continuous; damping = 26; stiffness = 150; smoothingFactor = 0; y_limit = 0.03 }
 }
 
 $OrgbEffectProfiles = "$env:APPDATA\OpenRGB\plugins\settings\effect-profiles"
@@ -229,7 +233,7 @@ function Configure-HyperHdr {
         # Picture-safe thirds, not screen edges: the outer 35 % is black bars
         # or player chrome most of the time and the case only pulsed.
         leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout left3) + (New-RegionLayout mid) + (New-RegionLayout right3))
-        smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 25
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 25 -Continuous
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
     }
     Enable-Grabber $pc
@@ -253,7 +257,7 @@ function Configure-HyperHdr {
         # Moodlight bottom-left, Ambience Light top-right.
         leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout bl) + (New-RegionLayout tr))
         # Schema minimum is 20 Hz; the bridge throttles the bulbs to 2 Hz.
-        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20 -Continuous
     }
     Enable-Grabber $ha
 
@@ -271,7 +275,7 @@ function Configure-HyperHdr {
         # wall reads red against the left. gamma 1 -- the bar has its own.
         color     = New-WallCompensation -WallHex $Settings.wallHex -Strength ([double]$Settings.wallStrength) -Gamma 1.0 -Saturation ([double]$Settings.saturation) -Luminance 1.0
         # LAN write is ~65 ms, bridge caps at 10 Hz; same feel as the case glow.
-        smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 20
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.glowSmoothMs) -Hz 20 -Continuous
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
     }
     Enable-Grabber $bar
@@ -285,7 +289,7 @@ function Configure-HyperHdr {
     Set-HyperConfig -Instance $melk -Config @{
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19450; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 1 }
         leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout mid))
-        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20 -Continuous
         backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
     }
     Enable-Grabber $melk

@@ -100,6 +100,16 @@ BAR_MIN_KEEP = 0.25   # never trim to less than this fraction of the box
 BARS_S = 2.0          # one 3440x1440 grab + two reductions; ~10 ms
 # Round the box to this many px so a 1 px jitter does not rewrite the config.
 QUANT = 8
+# Every fit write is a full `setconfig` on EVERY instance, and HyperHDR
+# rebuilds the instance for it: smoothing restarts from black, so the room
+# lamps see black -> turn_off, then colour -> turn_on. Measured 2026-09-16:
+# the bar trim drifted by 1-4 % with scene brightness and produced 318
+# rewrites in one evening, 2-4 log lines apart -- the lamps spent more time
+# resetting than following. So a new fit must differ from the applied one by
+# at least FIT_MIN_DELTA on some edge AND hold for FIT_HOLD_S before it is
+# written. Layout precision below 4 % is invisible on a lamp anyway.
+FIT_MIN_DELTA = 0.04
+FIT_HOLD_S = 20.0
 # The DX11 grabber's frame is BOTH monitors wide (6880 px) with the Odyssey
 # in the left half and the right half black (see scripts/ambilight.ps1,
 # hardware=). ambilight.ps1 writes the base layouts already squeezed into
@@ -421,6 +431,9 @@ class VideoFollow:
         self.bars: list[tuple[int, int, int, int]] = []
         self.next_bars = 0.0
         self.last_target: tuple[int, int, int, int] | None = None
+        self.pending_fit: tuple[float, float, float, float] | None | str = "none"
+        self.pending_since = 0.0
+        self.fitted_rect: tuple[int, int, int, int] | None = None
 
     def describe(self) -> None:
         mm = movie_monitor()
@@ -456,6 +469,29 @@ class VideoFollow:
                 json.dump({"base": self.base, "written": self.written}, fh)
         except OSError:
             pass
+
+    def _want_fit(self, fit: tuple[float, float, float, float] | None, now: float, immediate: bool = False) -> None:
+        """Debounce: apply `fit` only if it is a real change and has held."""
+        if fit == self.fit:
+            self.pending_fit = "none"
+            return
+        applied = self.fit if isinstance(self.fit, tuple) else None
+        if fit is not None and applied is not None and max(abs(a - b) for a, b in zip(fit, applied)) < FIT_MIN_DELTA:
+            self.pending_fit = "none"
+            return
+        if immediate or self.fit == "unknown":
+            self._apply_fit(fit)
+            self.pending_fit = "none"
+            return
+        if self.pending_fit == "none" or (
+            isinstance(self.pending_fit, tuple) and fit is not None
+            and max(abs(a - b) for a, b in zip(fit, self.pending_fit)) >= FIT_MIN_DELTA
+        ) or (self.pending_fit is None) != (fit is None):
+            self.pending_fit, self.pending_since = fit, now
+            return
+        if now - self.pending_since >= FIT_HOLD_S:
+            self._apply_fit(fit)
+            self.pending_fit = "none"
 
     def _apply_fit(self, fit: tuple[float, float, float, float] | None) -> None:
         if fit == self.fit:
@@ -532,7 +568,10 @@ class VideoFollow:
             if target != self.last_target:
                 self.last_target = target
                 print(f"  lit box: {target}", flush=True)
-            self._apply_fit(fit_for(target, mm[1]))
+            # A new window (or the first sighting) fits at once; drift in the
+            # bar trim while the same window plays is debounced.
+            self._want_fit(fit_for(target, mm[1]), now, immediate=rect != self.fitted_rect)
+            self.fitted_rect = rect
             self.gone_since = None
             self.seen_since = self.seen_since or now
             if _setting("videoAutoMovie", True) and now - self.seen_since >= ON_AFTER_S:
@@ -541,7 +580,8 @@ class VideoFollow:
             if self.last_desc:
                 print("  video window: none", flush=True)
                 self.last_desc = ""
-            self._apply_fit(None)
+            self._want_fit(None, now, immediate=True)
+            self.fitted_rect = None
             self.fine = self.fine_for = None
             self.bars, self.last_target = [], None
             self.seen_since = None

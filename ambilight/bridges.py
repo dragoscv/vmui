@@ -25,7 +25,27 @@ if sys.stdout is None:  # pythonw: no console, keep the prints somewhere readabl
     # stdout to its own log when it sees None, which would split the output.
     _log = os.path.join(os.path.dirname(HERE), ".copilot-tmp", "service-logs")
     os.makedirs(_log, exist_ok=True)
-    sys.stdout = sys.stderr = open(os.path.join(_log, "bridges.log"), "a", buffering=1, encoding="utf-8")
+
+    class _Stamped:
+        """Prefix each line with HH:MM:SS -- without it, 'the lamp went off
+        every second' and 'every 40 s' look identical in the log."""
+
+        def __init__(self, fh) -> None:
+            self.fh = fh
+            self.bol = True
+
+        def write(self, s: str) -> int:
+            for part in s.splitlines(keepends=True):
+                if self.bol:
+                    self.fh.write(time.strftime("%H:%M:%S "))
+                self.fh.write(part)
+                self.bol = part.endswith("\n")
+            return len(s)
+
+        def flush(self) -> None:
+            self.fh.flush()
+
+    sys.stdout = sys.stderr = _Stamped(open(os.path.join(_log, "bridges.log"), "a", buffering=1, encoding="utf-8"))
 
 import a51_lux  # noqa: E402
 import deskbar_bridge  # noqa: E402
