@@ -31,7 +31,7 @@ param(
     [Parameter(ParameterSetName = 'Status')][switch]$Status,
     [Parameter(Mandatory, ParameterSetName = 'Publish')][switch]$Publish,
     [Parameter(Mandatory, ParameterSetName = 'Flash')][switch]$Flash,
-    [Parameter(ParameterSetName = 'Flash')][switch]$Ota,
+    [Parameter(ParameterSetName = 'Flash')][Parameter(ParameterSetName = 'Logs')][switch]$Ota,
     [Parameter(ParameterSetName = 'Flash')][string]$ComPort,
     [Parameter(Mandatory, ParameterSetName = 'Preview')][string]$Preview,
     [Parameter(Mandatory, ParameterSetName = 'Logs')][switch]$Logs,
@@ -138,19 +138,26 @@ function Flash-Board {
     $yaml = Render-Yaml
     Write-Step 'writing config into the ESPHome add-on and compiling (2-6 min)...'
     $yaml | ssh -o BatchMode=yes -p 22222 $HostSsh "mkdir -p /mnt/data/supervisor/homeassistant/esphome && cat > /mnt/data/supervisor/homeassistant/esphome/$NodeName.yaml"
+    $sw = [Diagnostics.Stopwatch]::StartNew()
     $out = ssh -o BatchMode=yes -p 22222 $HostSsh "docker exec -w /config/esphome app_5c53de3b_esphome esphome compile $NodeName.yaml 2>&1 | tail -5"
     $out | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
     if (-not (($out -join "`n") -match 'Successfully compiled')) { throw 'compile did not report success; see ESPHome add-on logs' }
+    Write-Ok ("compiled in {0:N0} s (this, not the upload, is the slow part)" -f $sw.Elapsed.TotalSeconds)
+    # USB when the board is on this PC (CH340/CP210x present and not held by
+    # another process), otherwise OTA from the appliance. -Ota forces OTA.
+    if (-not $Ota -and -not $ComPort) {
+        $c = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\(COM\d+\)' -and $_.HardwareID -match 'VID_1A86&PID_7523|VID_10C4' } | Select-Object -First 1
+        if ($c) {
+            $ComPort = [regex]::Match($c.Name, 'COM\d+').Value
+            try { $p = [IO.Ports.SerialPort]::new($ComPort); $p.Open(); $p.Close() } catch { Write-Warn "$ComPort busy ($($_.Exception.Message.Split([char]10)[0])); falling back to OTA"; $ComPort = $null; $Ota = $true }
+        } else { Write-Warn 'no CH340/CP210x on this PC; falling back to OTA'; $Ota = $true }
+    }
     if ($Ota) {
         Write-Step 'OTA upload from the appliance...'
+        $sw.Restart()
         ssh -o BatchMode=yes -p 22222 $HostSsh "docker exec -w /config/esphome app_5c53de3b_esphome esphome upload --device $NodeName.local $NodeName.yaml 2>&1 | tail -3" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
-        Write-Ok 'OTA done; the board reboots'
+        Write-Ok ("OTA done in {0:N0} s; the board reboots" -f $sw.Elapsed.TotalSeconds)
         return
-    }
-    if (-not $ComPort) {
-        $c = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\(COM\d+\)' -and $_.HardwareID -match 'VID_1A86&PID_7523|VID_10C4' } | Select-Object -First 1
-        if (-not $c) { throw 'no CH340 serial device found; pass -ComPort' }
-        $ComPort = [regex]::Match($c.Name, 'COM\d+').Value
     }
     Write-Step 'pulling firmware.factory.bin...'
     $tmp = Join-Path $Root ".copilot-tmp\$NodeName.factory.bin"
@@ -158,11 +165,17 @@ function Flash-Board {
     $b64 = ssh -o BatchMode=yes -p 22222 $HostSsh "base64 -w0 /mnt/data/supervisor/homeassistant/esphome/.esphome/build/$NodeName/build/firmware.factory.bin"
     [IO.File]::WriteAllBytes($tmp, [Convert]::FromBase64String($b64))
     Write-Ok "$((Get-Item $tmp).Length) bytes"
-    Write-Step "flashing $ComPort..."
+    Write-Step "flashing $ComPort over USB..."
+    $sw.Restart()
     $flash = python -m esptool --port $ComPort --baud 460800 --chip esp32 write_flash 0x0 $tmp 2>&1
     $flash | Select-String -Pattern 'Wrote|verified|rror' | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
-    if (($flash -join "`n") -notmatch 'Hash of data verified') { throw "esptool did not verify the write on $ComPort (port busy? board mid-reset?) — retry" }
-    Write-Ok 'flashed; the display shows the offline clock until it fetches the first frame (~20 s)'
+    if (($flash -join "`n") -notmatch 'Hash of data verified') {
+        Write-Warn "esptool did not verify the write on $ComPort; falling back to OTA"
+        ssh -o BatchMode=yes -p 22222 $HostSsh "docker exec -w /config/esphome app_5c53de3b_esphome esphome upload --device $NodeName.local $NodeName.yaml 2>&1 | tail -3" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        Write-Ok 'OTA done; the board reboots'
+        return
+    }
+    Write-Ok ("flashed over USB in {0:N0} s; the display shows the offline clock until it fetches the first frame (~20 s)" -f $sw.Elapsed.TotalSeconds)
 }
 
 function Show-Status {
@@ -205,9 +218,34 @@ function Show-Logs {
     # inside the add-on on the appliance because that is where the compiled
     # config (and its API key) lives.
     $cmd = "docker exec -w /config/esphome app_5c53de3b_esphome esphome logs --device $NodeName.local $NodeName.yaml 2>&1"
-    if ($Seconds -gt 0) { $cmd = "timeout $Seconds $cmd" }
-    Write-Step "log stream from $NodeName over WiFi$(if ($Seconds) { " ($Seconds s)" } else { ' (Ctrl+C to stop)' })"
-    ssh -o BatchMode=yes -p 22222 $HostSsh $cmd
+    # Every `esphome logs` holds ONE API slot on the board for as long as the
+    # python process lives. Killing the ssh client from Windows does NOT kill
+    # the remote process, so four orphans from 2026-09-16 pinned all 3 slots
+    # for hours: serial showed "Max connections (3), rejecting <HA>", HA
+    # logged "connection dropped immediately after encrypted hello", cold
+    # power-cycles did not help because the orphans reconnected first.
+    # Reap them before opening a new stream, and prefer USB when local.
+    Reap-LogStreams
+    $c = Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\(COM\d+\)' -and $_.HardwareID -match 'VID_1A86&PID_7523|VID_10C4' } | Select-Object -First 1
+    if ($c -and -not $Ota) {
+        $port = [regex]::Match($c.Name, 'COM\d+').Value
+        Write-Step "log stream from $NodeName over USB $port (no API slot used; Ctrl+C to stop)"
+        python -c "import serial,sys,re;a=re.compile(r'\x1b\[[0-9;]*m');s=serial.Serial();s.port='$port';s.baudrate=115200;s.timeout=1;s.dtr=False;s.rts=False;s.open()
+while True:
+    l=s.readline().decode('utf-8','replace').strip()
+    if l: print(a.sub('',l),flush=True)"
+        return
+    }
+    if ($Seconds -le 0) { $Seconds = 600 }   # never leave an unbounded stream holding a slot
+    $cmd = "timeout $Seconds $cmd"
+    Write-Step "log stream from $NodeName over WiFi ($Seconds s max; holds one of the board's 3 API slots)"
+    ssh -t -o BatchMode=yes -p 22222 $HostSsh $cmd
+}
+
+function Reap-LogStreams {
+    $sh = 'docker exec app_5c53de3b_esphome sh -c ''for p in /proc/[0-9]*; do c=$(tr "\0" " " < $p/cmdline 2>/dev/null); case "$c" in *esphome*logs*) echo ${p#/proc/}; kill ${p#/proc/};; esac; done'''
+    $killed = @(ssh -o BatchMode=yes -p 22222 $HostSsh $sh 2>$null)
+    if ($killed.Count) { Write-Warn "reaped $($killed.Count) orphaned 'esphome logs' stream(s) in the add-on (pids $($killed -join ', ')) — each held an API slot" }
 }
 
 switch ($PSCmdlet.ParameterSetName) {
@@ -215,5 +253,5 @@ switch ($PSCmdlet.ParameterSetName) {
     'Flash' { Flash-Board }
     'Preview' { Show-Preview $Preview }
     'Logs' { Show-Logs }
-    default { Show-Status }
+    default { Reap-LogStreams; Show-Status }
 }

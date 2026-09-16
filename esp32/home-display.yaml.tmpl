@@ -108,7 +108,7 @@ esp32_ble_tracker:
   scan_parameters:
     active: false
     interval: 320ms
-    window: 100ms
+    window: 160ms   # 100 ms caught 3 of ~15 scale frames; 160 ms still leaves WiFi room
   # OKOK / Chipsea bathroom scale (${scale_mac}). Not connectable: it wakes
   # when stepped on, streams ~1 advert/s for ~15 s, then sleeps. Manufacturer
   # data = 0xC0 0x?? + 13 bytes: weight u16 BE (x0.01 kg) | res1 u16 | res2
@@ -125,11 +125,15 @@ esp32_ble_tracker:
             if (x.size() < 13) return;
             const size_t o = x.size() - 13;
             const uint8_t props = x[o + 6];
-            if (((props >> 3) & 7) != 4) return;   // only kg frames
             const float kg = ((x[o] << 8) | x[o + 1]) / 100.0f;
+            ESP_LOGW("scale", "frame len=%u props=0x%02x kg=%.2f", (unsigned) x.size(), props, kg);
+            if (((props >> 3) & 7) != 4) return;   // only kg frames
             if (kg < 5.0f || kg > 250.0f) return;  // settling noise
             id(scale_live).publish_state(kg);
+            id(scale_last_kg) = kg;
+            id(scale_last_ms) = millis();
             if (props & 1) {
+              id(scale_locked) = true;
               id(scale_weight).publish_state(kg);
               const uint16_t r = (x[o + 2] << 8) | x[o + 3];
               if (r > 0) id(scale_impedance).publish_state(r);
@@ -168,6 +172,16 @@ interval:
   # the frame fetch kept working, so vmui can see what we cannot: it reads
   # HA's binary_sensor.<node>_status and answers "reboot" once it has been
   # off for 3 min. Costs one tiny GET per minute.
+  - interval: 2s
+    then:
+      - lambda: |-
+          if (id(scale_last_ms) == 0) return;
+          if (millis() - id(scale_last_ms) < 6000) return;
+          if (!id(scale_locked)) {
+            ESP_LOGW("scale", "burst ended without a locked frame; publishing last %.2f kg", id(scale_last_kg));
+            id(scale_weight).publish_state(id(scale_last_kg));
+          }
+          id(scale_last_ms) = 0; id(scale_locked) = false;
   - interval: 60s
     then:
       - if:
@@ -203,6 +217,19 @@ globals:
   - id: boot_ms
     type: uint32_t
     initial_value: '0'
+  # OKOK burst tracking: the scale sends ~1 frame/s for ~15 s and our passive
+  # 100/320 ms scan window catches only some of them (2026-09-16: 3 of ~15,
+  # the locked 0x25 frame missed). So the LAST frame of a burst, published
+  # 6 s after the burst goes quiet, is the fallback reading.
+  - id: scale_last_kg
+    type: float
+    initial_value: '0'
+  - id: scale_last_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: scale_locked
+    type: bool
+    initial_value: 'false'
   - id: msg_title
     type: std::string
     initial_value: '""'
