@@ -57,8 +57,12 @@ RELEASE_S = 5.0
 # ambient() gate) to come back, so a scene hovering at the gate does not
 # click the bulb on/off every second.
 WAKE_MIN = 40
-# Lowest brightness worth switching a bulb on for (1/255 units).
-BRI_MIN = 12
+# Lowest brightness worth switching a bulb on for (1/255 units). The Calex
+# bulbs are invisible below ~25 % in a dark room (measured 2026-09-16: blue at
+# 6/12/25 % read as OFF, red at 60 % visible), and a film's raw_max is
+# typically 60-90 -> 14-21/255 with a plain linear map. So the lit range is
+# BRI_MIN..cap, and scene luma picks where inside it.
+BRI_MIN = 64
 
 
 def _creds() -> tuple[str, str]:
@@ -226,7 +230,8 @@ class HaLamps:
         # colour at full chroma, brightness carries the luma (capped)
         colour = tuple(int(c * 255 / mx) for c in rgb)
         lvl = raw_max if raw_max is not None else mx
-        bri = max(BRI_MIN, min(self.cap, int(lvl * self.cap / 255)))
+        span = max(0, self.cap - BRI_MIN)
+        bri = min(255, BRI_MIN + int(lvl * span / 255))
         if isinstance(last, tuple) and all(abs(a - b) < MIN_DELTA for a, b in zip(colour, last)) and abs(bri - self._last_bri(entity)) < MIN_DELTA:
             return
         self._call("turn_on", {"entity_id": entity, "rgb_color": list(colour), "brightness": bri, "transition": TRANSITION_S})
