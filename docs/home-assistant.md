@@ -332,6 +332,36 @@ before open; a reboot loop with `rst:0x3 (SW_RESET)` and no backtrace was
 WinNAT exclusion (`netsh int ipv4 add excludedportrange … 3737/8737`) or a
 reboot can hand it to Hyper-V.
 
+**API "dropped immediately after encrypted hello" for hours (2026-09-15/16,
+5.5 h + a repeat)**: not the key, not the board. Every `esphome logs`
+started inside the ESPHome add-on holds one of the board's API slots, and
+killing the ssh client on Windows does **not** kill that python process —
+four orphans pinned all slots; serial (COM10) showed
+`[W][api:249]: Max connections (3), rejecting 192.168.100.232` once a
+second while HA retried. Cold power-cycles did not help because the orphans
+reconnected before HA. Count them with
+`docker exec app_5c53de3b_esphome sh -c 'cat /proc/net/tcp' | grep -ic ':17A5'`.
+`esp32-display.ps1` now reaps them on every run (`Reap-LogStreams`), streams
+logs over **USB** when the CH340 is on this PC, and caps WiFi log streams at
+600 s. Belt and braces: the firmware asks `/api/esp/watchdog/<node>` once a
+minute and reboots when vmui sees HA's status sensor off for 3 min.
+
+**Flashing**: `-Flash` compiles in the add-on (~35 s warm; the first
+compile after an ESPHome update is ~20 min — that was the "1181 s upload")
+then writes over USB with esptool on the CH340 (28 s); it falls back to OTA
+only when no serial port is present or busy. `-Flash -Ota` forces OTA.
+
+**OKOK / Chipsea bathroom scale** (`6C:02:4C:E9:DD:BB`) is decoded on the
+board from its BLE adverts — the OKOK app has no Health Connect export.
+Frame = last 13 bytes of manufacturer data `00C0`: weight u16 BE ×0.01 kg,
+two 16-bit "resistance" words (constant 5000/4992 → decorative pads),
+props (bit 0 locked, bits 3-5 unit, 4 = kg), own MAC. The passive 160/320 ms
+scan sees only a few of the ~15 frames per weigh-in and often misses the
+locked one, so the last frame of a burst is published 6 s after it goes
+quiet → `sensor.office_bluetooth_proxy_1_scale_weight` (verified 65.40 kg)
+and `_scale_impedance`. The Turzx `health` view uses it when Health Connect
+has no weight.
+
 ## Tray icon and console-free tasks (2026-09-14)
 
 `ambilight/tray.py` (task `vmui-tray`, pythonw) shows one icon: green =
@@ -520,7 +550,7 @@ serial is an old A51):
 - Samsung Health has read **and write** grants for every Health Connect
   category, yet Health Connect held only the phone pedometer's steps. Samsung
   Health showed 0 steps and "not synced in 3 days" (that banner is Samsung
-  *Cloud*, WiFi-only). Galaxy Watch3 (B827) is connected, 100 % battery,
+  _Cloud_, WiFi-only). Galaxy Watch3 (B827) is connected, 100 % battery,
   plugin `com.samsung.android.gearnplugin` present — so the gap is between
   the watch and Samsung Health, not between Samsung Health and HC. Wearing
   the watch for a day and opening Samsung Health once fills HC; until then
@@ -547,8 +577,8 @@ serial is an old A51):
   channel for `ask` which is `sticky` until the next tool call clears it by
   tag. `persistent: true` is deliberately not used — the companion refuses
   `clear_notification` on persistent cards (verified with
-  `adb shell cmd notification list`, which shows the *live* set; `dumpsys
-  notification` includes history and lies).
+  `adb shell cmd notification list`, which shows the _live_ set; `dumpsys
+notification` includes history and lies).
 - one silent summary card (`tag: copilot-agents`, low importance): active
   sessions from the local VS Code session stores — repo, profile, turns
   today, last request — refreshed on every event, cleared when idle.
