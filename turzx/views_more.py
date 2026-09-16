@@ -415,6 +415,9 @@ class HealthView(View):
         wtxt = f"{wk:.1f}" if isinstance(wk, (int, float)) else "—"
         sk.text(d, (rx, y + 14), wtxt, sk.mid, sk.fg)
         bf = h.get("bodyFat")
+        body = h.get("body") if isinstance(h.get("body"), dict) else None
+        if bf is None and body:
+            bf = body.get("fatPct")
         wa = _stale(h.get("weightAt"), now_ms)
         extra = " · ".join(x for x in ("kg" if isinstance(wk, (int, float)) else "", f"{bf:.0f}%" if isinstance(bf, (int, float)) else "", wa) if x)
         if extra:
@@ -425,12 +428,37 @@ class HealthView(View):
         if isinstance(bp, dict) and y < H - 62:
             sk.text(d, (rx, y), sk.label("tensiune"), sk.tiny, sk.muted)
             sk.text(d, (rx, y + 14), f"{bp.get('sys')}/{bp.get('dia')}", sk.mid, sk.fg)
+        elif body and y < H - 62:
+            bmi = float(body.get("bmi") or 0)
+            band = str(body.get("bmiBand") or "")
+            col = sk.ok if band == "normal" else sk.warn if band in ("sub", "over") else sk.bad
+            sk.text(d, (rx, y), sk.label("IMC"), sk.tiny, sk.muted)
+            sk.text(d, (rx, y + 14), f"{bmi:.1f}", sk.mid, col)
+            b4 = d.textbbox((rx, y + 14), f"{bmi:.1f}", font=sk.mid)
+            sk.text(d, (b4[2] + 6, b4[3] - sk.tiny.size - 2), {"sub": "sub", "normal": "normal", "over": "peste", "obese": "obez"}.get(band, ""), sk.tiny, sk.muted)
+
+        # ---- composition strip (estimates): fat | water | muscle | bone, as % of weight
+        if body and isinstance(wk, (int, float)) and wk > 0:
+            parts = (("grăsime", float(body.get("fatKg") or 0), sk.warn), ("apă", float(body.get("waterKg") or 0), sk.accent), ("mușchi", float(body.get("muscleKg") or 0), sk.ok), ("os", float(body.get("boneKg") or 0), sk.muted))
+            sy = H - 52
+            sx, ex = 22, W - 22
+            x = sx
+            total = float(wk)
+            for i, (name, kgv, col) in enumerate(parts):
+                w_ = int((ex - sx) * min(1.0, kgv / total))
+                if w_ <= 0:
+                    continue
+                d.rectangle((x, sy, x + w_ - 1, sy + 6), fill=col)
+                lbl = fit_text(d, f"{name} {kgv:.1f}", sk.tiny, w_ - 4) if w_ > 40 else ""
+                if lbl:
+                    sk.text(d, (x + 2, sy + 9), lbl, sk.tiny, sk.muted)
+                x += w_ + 2
+            sk.text(d, (sx, sy - 13), fit_text(d, f"compoziție estimată · bazal {body.get('bmrKcal')} kcal/zi", sk.tiny, 300), sk.tiny, sk.muted)
 
         # ---- footer
         act = h.get("activeKcal")
         vo2 = h.get("vo2max")
-        imp = h.get("impedance")
-        foot = " · ".join(x for x in (f"activ {act:.0f} kcal" if isinstance(act, (int, float)) else "", f"VO₂max {vo2:.0f}" if isinstance(vo2, (int, float)) else "", f"{imp:.0f} Ω" if isinstance(imp, (int, float)) else "", "Samsung Health · Health Connect") if x)
+        foot = " · ".join(x for x in (f"activ {act:.0f} kcal" if isinstance(act, (int, float)) else "", f"VO₂max {vo2:.0f}" if isinstance(vo2, (int, float)) else "", "Samsung Health · Health Connect · cântar OKOK") if x)
         sk.text(d, (22, H - 24), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted)
 
 

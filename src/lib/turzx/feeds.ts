@@ -486,6 +486,8 @@ export interface HealthReadings {
   bodyFat: number | null;
   /** Raw bioimpedance from the scale (Ω); the OKOK pads are often decorative and read a constant. */
   impedance: number | null;
+  /** Anthropometric estimates (no impedance): the same class of numbers the OKOK app shows. */
+  body: BodyComposition | null;
   bmr: number | null;
   vo2max: number | null;
   bloodPressure: { sys: number; dia: number } | null;
@@ -494,10 +496,71 @@ export interface HealthReadings {
 
 type HaState = { entity_id: string; state: string; attributes: Record<string, unknown> };
 
+export interface BodyProfile {
+  heightCm: number;
+  birthDate: string; // YYYY-MM-DD
+  sex: "m" | "f";
+}
+
+export interface BodyComposition {
+  bmi: number;
+  /** Deurenberg 1991, % */
+  fatPct: number;
+  fatKg: number;
+  /** Hume & Weyers 1971, kg and % of weight */
+  waterKg: number;
+  waterPct: number;
+  /** Boer 1984, kg */
+  leanKg: number;
+  /** lean minus a 4 % bone allowance, kg — "muscle" in consumer apps */
+  muscleKg: number;
+  /** Mifflin–St Jeor, kcal/day */
+  bmrKcal: number;
+  /** what the app calls bone mass: ~4 % of lean mass */
+  boneKg: number;
+  ageYears: number;
+  /** WHO adult BMI band */
+  bmiBand: "sub" | "normal" | "over" | "obese";
+}
+
+/** The OKOK/Chipsea scale's "impedance" reads 4990 with socks and 4991
+ *  barefoot (2026-09-16), i.e. the pads are decorative; the app's fat / water /
+ *  muscle numbers are anthropometric estimates. These are the published
+ *  formulas openScale uses, so the panel shows the same class of number and
+ *  labels it as an estimate. */
+export function bodyComposition(weightKg: number, p: BodyProfile, at = new Date()): BodyComposition {
+  const h = p.heightCm;
+  const bd = new Date(p.birthDate);
+  let age = at.getFullYear() - bd.getFullYear();
+  if (at < new Date(at.getFullYear(), bd.getMonth(), bd.getDate())) age -= 1;
+  const male = p.sex === "m";
+  const bmi = weightKg / (h / 100) ** 2;
+  const fatPct = Math.max(3, Math.min(60, 1.2 * bmi + 0.23 * age - (male ? 16.2 : 5.4)));
+  const fatKg = (weightKg * fatPct) / 100;
+  const waterKg = male ? 0.194786 * h + 0.296785 * weightKg - 14.012934 : 0.34454 * h + 0.183809 * weightKg - 35.270121;
+  const leanKg = male ? 0.4071 * weightKg + 0.267 * h - 19.2 : 0.252 * weightKg + 0.473 * h - 48.3;
+  const boneKg = leanKg * 0.04;
+  const bmr = 10 * weightKg + 6.25 * h - 5 * age + (male ? 5 : -161);
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  return {
+    bmi: r1(bmi),
+    fatPct: r1(fatPct),
+    fatKg: r1(fatKg),
+    waterKg: r1(waterKg),
+    waterPct: r1((waterKg / weightKg) * 100),
+    leanKg: r1(leanKg),
+    muscleKg: r1(leanKg - boneKg),
+    bmrKcal: Math.round(bmr),
+    boneKg: r1(boneKg),
+    ageYears: age,
+    bmiBand: bmi < 18.5 ? "sub" : bmi < 25 ? "normal" : bmi < 30 ? "over" : "obese",
+  };
+}
+
 /** The companion app publishes Health Connect as `sensor.<device>_<metric>`.
  *  Units follow the HA server's unit system (this one is US), so everything is
  *  normalised to metric here and never in the renderer. */
-export async function healthReadings(states: Map<string, HaState>, device: string): Promise<HealthReadings | null> {
+export async function healthReadings(states: Map<string, HaState>, device: string, profile: BodyProfile | null = null): Promise<HealthReadings | null> {
   const prefix = `sensor.${device}_`;
   const get = (m: string) => states.get(prefix + m);
   const num = (m: string): number | null => {
@@ -542,6 +605,7 @@ export async function healthReadings(states: Map<string, HaState>, device: strin
   const scaleKg = scale ? Number(scale.state) : null;
   const scaleAt = scale ? new Date((scale as unknown as { last_changed?: string }).last_changed ?? 0).getTime() || null : null;
   const impedance = [...states.values()].find((s) => /^sensor\..*scale_impedance$/.test(s.entity_id) && Number.isFinite(Number(s.state)));
+  const weightKg = toKg("weight") ?? scaleKg;
   return {
     device,
     steps,
@@ -558,10 +622,11 @@ export async function healthReadings(states: Map<string, HaState>, device: strin
     respiratoryRate: num("respiratory_rate"),
     sleepMin: num("sleep_duration"),
     sleepAt: at("sleep_duration"),
-    weightKg: toKg("weight") ?? scaleKg,
+    weightKg,
     weightAt: at("weight") ?? scaleAt,
     bodyFat: num("body_fat"),
     impedance: impedance ? Number(impedance.state) : null,
+    body: weightKg !== null && profile && profile.heightCm > 0 ? bodyComposition(weightKg, profile) : null,
     bmr: num("basal_metabolic_rate"),
     vo2max: num("vo2_max"),
     bloodPressure: sys !== null && dia !== null ? { sys: Math.round(sys), dia: Math.round(dia) } : null,

@@ -116,27 +116,39 @@ esp32_ble_tracker:
   # (4 = kg). The OKOK app has no Health Connect export, so this is the only
   # path from the scale to HA. Decoded on the 2026-09-16 capture: 0x24 while
   # settling (7.1, 8.3, 64.0 kg) then 0x25 locked = 64.40 kg.
-  on_ble_manufacturer_data_advertise:
+  # The "company id" is NOT constant: settling frames come as 0x00C0, locked
+  # frames as 0x2CC0 / 0x70C0 (the byte after 0xC0 varies), so a
+  # manufacturer_id filter drops exactly the frame we want. Match the MAC and
+  # parse the raw advert instead; the frame is always the last 13 bytes of
+  # the manufacturer-specific AD element.
+  on_ble_advertise:
     - mac_address: ${scale_mac}
-      manufacturer_id: "00C0"
       then:
         - lambda: |-
-            // x = payload after the 2-byte company id; the last 13 bytes are the frame
-            if (x.size() < 13) return;
-            const size_t o = x.size() - 13;
-            const uint8_t props = x[o + 6];
-            const float kg = ((x[o] << 8) | x[o + 1]) / 100.0f;
-            ESP_LOGW("scale", "frame len=%u props=0x%02x kg=%.2f", (unsigned) x.size(), props, kg);
+            const auto &mds = x.get_manufacturer_datas();
+            if (mds.empty()) return;
+            // reassemble company id (LE) + payload = the AD element as sent
+            std::vector<uint8_t> raw;
+            raw.push_back(mds[0].uuid.get_uuid().uuid.uuid16 & 0xFF);
+            raw.push_back(mds[0].uuid.get_uuid().uuid.uuid16 >> 8);
+            raw.insert(raw.end(), mds[0].data.begin(), mds[0].data.end());
+            if (raw.size() < 13 || raw[0] != 0xC0) return;
+            const size_t o = raw.size() - 13;
+            const uint8_t props = raw[o + 6];
+            const float kg = ((raw[o] << 8) | raw[o + 1]) / 100.0f;
+            const uint16_t r1 = (raw[o + 2] << 8) | raw[o + 3];
+            const uint16_t r2 = (raw[o + 4] << 8) | raw[o + 5];
+            ESP_LOGW("scale", "frame props=0x%02x kg=%.2f r1=%u r2=%u", props, kg, r1, r2);
             if (((props >> 3) & 7) != 4) return;   // only kg frames
             if (kg < 5.0f || kg > 250.0f) return;  // settling noise
             id(scale_live).publish_state(kg);
             id(scale_last_kg) = kg;
             id(scale_last_ms) = millis();
+            if (r1 > 0) id(scale_last_r) = r1;
             if (props & 1) {
               id(scale_locked) = true;
               id(scale_weight).publish_state(kg);
-              const uint16_t r = (x[o + 2] << 8) | x[o + 3];
-              if (r > 0) id(scale_impedance).publish_state(r);
+              if (r1 > 0) id(scale_impedance).publish_state(r1);
             }
 bluetooth_proxy:
   active: true
@@ -180,8 +192,9 @@ interval:
           if (!id(scale_locked)) {
             ESP_LOGW("scale", "burst ended without a locked frame; publishing last %.2f kg", id(scale_last_kg));
             id(scale_weight).publish_state(id(scale_last_kg));
+            if (id(scale_last_r) > 0) id(scale_impedance).publish_state(id(scale_last_r));
           }
-          id(scale_last_ms) = 0; id(scale_locked) = false;
+          id(scale_last_ms) = 0; id(scale_locked) = false; id(scale_last_r) = 0;
   - interval: 60s
     then:
       - if:
@@ -230,6 +243,9 @@ globals:
   - id: scale_locked
     type: bool
     initial_value: 'false'
+  - id: scale_last_r
+    type: uint16_t
+    initial_value: '0'
   - id: msg_title
     type: std::string
     initial_value: '""'

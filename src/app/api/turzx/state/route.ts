@@ -79,7 +79,13 @@ export async function GET(req: NextRequest) {
     enabled.has("weather") && states.has("weather.forecast_home") ? hourlyForecast("weather.forecast_home") : null,
     enabled.has("copilot") ? agentSessions(num(opt("copilot").activeMin, 30)) : null,
     enabled.has("media") && opt("media").lyrics !== false && lead ? syncedLyrics(String(lead.attributes.media_title), String(lead.attributes.media_artist), typeof lead.attributes.media_duration === "number" ? lead.attributes.media_duration : null) : null,
-    enabled.has("health") ? healthReadings(states, str(opt("health").device, "dragos_s_s25_ultra")) : null,
+    enabled.has("health")
+      ? healthReadings(states, str(opt("health").device, "dragos_s_s25_ultra"), {
+          heightCm: num(opt("health").heightCm, 173),
+          birthDate: str(opt("health").birthDate, "1993-12-12"),
+          sex: str(opt("health").sex, "m") === "f" ? "f" : "m",
+        })
+      : null,
   ]);
   const amb = await ambilightSettings();
   const sig = currentSignal();
