@@ -38,7 +38,7 @@ script:
           payload: >-
             {% set cmds = (commands | from_json) if commands is string else (commands | list) %}
             {% set ns = namespace(out=[]) %}
-            {% for i in [0, 1, 2] %}
+            {% for i in [0, 1, 2, 3, 4] %}
               {% set ns.out = ns.out + [{"command": "instance", "subcommand": "switchTo", "instance": i}] + cmds %}
             {% endfor %}
             {{ ns.out | to_json }}
@@ -48,7 +48,7 @@ script:
     mode: queued
     fields:
       commands:
-        description: JSON list of HyperHDR commands, applied to instances 1, 2 and 3 (case, room, desk bar)
+        description: JSON list of HyperHDR commands, applied to instances 1-4 (case, room, desk bar, MELK strip)
     sequence:
       - action: mqtt.publish
         data:
@@ -56,7 +56,7 @@ script:
           payload: >-
             {% set cmds = (commands | from_json) if commands is string else (commands | list) %}
             {% set ns = namespace(out=[]) %}
-            {% for i in [1, 2, 3] %}
+            {% for i in [1, 2, 3, 4] %}
               {% set ns.out = ns.out + [{"command": "instance", "subcommand": "switchTo", "instance": i}] + cmds %}
             {% endfor %}
             {{ ns.out | to_json }}
@@ -79,14 +79,11 @@ script:
               }
       - action: light.turn_off
         target: { entity_id: light.star_projector }
-      # The MELK strip is a warm-white desk lamp outside a film (movie_mode_off
-      # lights it at 3000 K). Left on it throws 60 % white onto the same wall
-      # the DX Light colours, and a red scene reads as pink-white.
-      # BLE via the ESP32 proxy; when the proxy is down the call is a 500 and
-      # must not mark the whole movie-mode run as failed.
-      - action: light.turn_off
-        continue_on_error: true
-        target: { entity_id: light.led_argb }
+      # MELK strip (light.led_argb): NOT touched here. HyperHDR instance 4 ->
+      # ambilight/melk_bridge.py drives it over the PC's own Bluetooth while
+      # frames stream; only one BLE client can hold it, so an HA call now
+      # would steal the link. The bridge releases it ~5 s after the last
+      # frame, and movie_mode_off puts it back to warm white.
       # Desk Light Bar: NOT touched here. HyperHDR instance 3 -> Tuya Cloud
       # (ambilight/deskbar_bridge.py) colours it from the top of the picture
       # while movie mode is on; a colour_temp call now would fight it.

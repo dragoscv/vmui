@@ -246,7 +246,7 @@ function Configure-HyperHdr {
     # NOT light.desk_light_bar: HA advertises `hs` for it but the Tuya firmware
     # work_mode enum is ['music','white'], so every hs_color POST is a 500 and
     # it has its own bridge (instance 3). NOT light.led_argb (MELK BLE): its
-    # HA state read takes >500 ms; it is driven from ha-scenes.yaml scripts.
+    # HA path takes >500 ms per call; it has its own BLE bridge (instance 4).
     Set-HyperConfig -Instance $ha -Config @{
         device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19449; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 2 }
         # Lamps follow the picture quadrant nearest to where they stand:
@@ -276,16 +276,30 @@ function Configure-HyperHdr {
     }
     Enable-Grabber $bar
 
+    Write-Step 'instance 4: MELK BLE strip behind the viewer via ambilight/melk_bridge.py'
+    # Runs from the floor corner behind the desk up and along the ceiling
+    # edge: a whole-room wash, so it echoes the picture's centre average.
+    # Single-colour strip; the bridge owns the BLE link while frames stream
+    # and releases it to HA (movie_mode_off warm white) RELEASE_S after.
+    $melk = Ensure-Instance 'MELK strip (BLE)'
+    Set-HyperConfig -Instance $melk -Config @{
+        device    = @{ type = 'udpraw'; host = '127.0.0.1'; port = 19450; colorOrder = 'rgb'; refreshTime = 0; hardwareLedCount = 1 }
+        leds      = Set-LayoutFrame @Frame -Leds (@() + (New-RegionLayout mid))
+        smoothing = New-Smoothing -TimeMs ([int]$Settings.roomSmoothMs) -Hz 20
+        backgroundEffect = @{ enable = $false; type = 'color'; color = @(0, 0, 0); effect = 'Rainbow swirl fast' }
+    }
+    Enable-Grabber $melk
+
     # systemGrabber is global and reverts to defaults when instances 1/2 are
     # written after instance 0 (measured: fps=20, hdr=false, reorder=0 every
     # time). A setconfig with ONLY systemGrabber resets `device` to file, so
     # re-send the whole instance-0 config last, then bounce the grabber.
     Set-HyperConfig -Instance 0 -Config $Inst0
-    foreach ($i in 0, $pc, $ha, $bar) {
+    foreach ($i in 0, $pc, $ha, $bar, $melk) {
         Invoke-Hyper @(@{ command = 'componentstate'; componentstate = @{ component = 'SYSTEMGRABBER'; state = $false } }) -Instance $i | Out-Null
     }
     Start-Sleep 1
-    foreach ($i in 0, $pc, $ha, $bar) { Enable-Grabber $i }
+    foreach ($i in 0, $pc, $ha, $bar, $melk) { Enable-Grabber $i }
     $g = (Get-HyperConfig -Instance 0).systemGrabber
     if ($g.fps -ne $SystemGrabber.fps -or $g.reorder_displays -ne $SystemGrabber.reorder_displays) { throw "systemGrabber did not persist: fps=$($g.fps) reorder=$($g.reorder_displays)" }
     Write-Ok 'HyperHDR configured'

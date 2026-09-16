@@ -112,7 +112,7 @@ FRAME_H = 0.5
 # restart a fit is not mistaken for a base. (2026-09-16: marking fits with
 # `group: 7` looked free but `group` is HyperHDR's LED-averaging feature --
 # every LED in group 7 got the same colour, the whole strip went flat grey.)
-INSTANCES = (0, 1, 2, 3)
+INSTANCES = (0, 1, 2, 3, 4)
 BASE_CACHE = os.path.join(os.path.dirname(HERE), ".copilot-tmp", "service-logs", "hyperhdr-base-layouts.json")
 
 user32 = ctypes.windll.user32

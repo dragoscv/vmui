@@ -93,7 +93,7 @@ def hyper(commands: list[dict], instance: int = 0, timeout: float = 4.0) -> list
         ws.close()
 
 
-def hyper_all(commands: list[dict], instances: tuple[int, ...] = (0, 1, 2, 3)) -> None:
+def hyper_all(commands: list[dict], instances: tuple[int, ...] = (0, 1, 2, 3, 4)) -> None:
     for i in instances:
         try:
             hyper(commands, i)
