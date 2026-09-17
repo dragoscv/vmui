@@ -24,6 +24,7 @@ import sys
 import threading
 import time
 import traceback
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -345,12 +346,23 @@ def pi_metrics() -> dict:
 
 def publish_pc(tok: str, every: float = 2.0) -> None:
     """PC-side agent: push host metrics to vmui (running on the Pi) forever."""
-    url = f"{VMUI}/api/turzx/pc?k={tok}"
+    import socket
+    host = socket.gethostname().lower()
     while True:
+        url = f"{VMUI}/api/turzx/pc?k={tok}&host={host}"
         body = json.dumps(pc_metrics()).encode()
         req = urllib.request.Request(url, data=body, method="POST", headers={"content-type": "application/json"})
         try:
             urllib.request.urlopen(req, timeout=5).read()
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                # token rotated in .private/credentials.env while we were running
+                try:
+                    tok = token()
+                except Exception:
+                    pass
+                time.sleep(10)
+                continue
         except Exception:
             pass
         time.sleep(every)
@@ -456,6 +468,7 @@ class Renderer:
         self.views = {k: V(self.accent) for k, V in VIEWS.items()}
         self.cfg: dict[str, dict] = {}  # view id -> its config block
         self.order: list[str] = []  # enabled ids in order
+        self.base_order: list[str] = []  # from settings, before pc fan-out
         self.idx = 0
         self.dwell_t = time.perf_counter()
         self.trans: tuple[Image.Image, float, str] | None = None
@@ -488,16 +501,54 @@ class Renderer:
         self.cfg = {c["id"]: c for c in cfgs}
         for vid, c in self.cfg.items():
             self.views[vid].configure(c.get("skin") or "minimal", self.accent, c.get("options") or {})
-        order = [c["id"] for c in cfgs if c.get("enabled")] or ["clock"]
-        if order != self.order:
-            cur = self.order[self.idx % len(self.order)] if self.order else None
-            self.order = order
-            self.idx = order.index(cur) if cur in order else 0
+        self.base_order = [c["id"] for c in cfgs if c.get("enabled")] or ["clock"]
+        self.set_order(self.expand_order())
         flip = bool(self.settings.get("flip"))
         if self.lcd and flip != self.lcd.flip:
             self.lcd.set_orientation(True, flip)
             self.prev = None
         self.overlay.configure(self.settings.get("notify") or {})
+
+    def set_order(self, order: list[str]) -> None:
+        if order != self.order:
+            cur = self.order[self.idx % len(self.order)] if self.order else None
+            self.order = order
+            self.idx = order.index(cur) if cur in order else 0
+
+    def expand_order(self) -> list[str]:
+        """The `pc` slot fans out into one view per machine currently publishing
+        (`pc:<host>`), in the same position; with no publishers it stays the
+        single legacy view so the slot never vanishes silently."""
+        hosts = sorted(k for k in self.views if k.startswith("pc:"))
+        out: list[str] = []
+        for vid in self.base_order:
+            if vid == "pc" and hosts:
+                out.extend(hosts)
+            else:
+                out.append(vid)
+        return out
+
+    def sync_pc_hosts(self, data: dict) -> None:
+        """Create/destroy per-machine PC views to mirror `pcs` from vmui."""
+        hosts = set((data.get("pcs") or {}).keys())
+        have = {k[3:] for k in self.views if k.startswith("pc:")}
+        if hosts == have:
+            return
+        pc_cfg = self.cfg.get("pc", {})
+        for h in hosts - have:
+            v = VIEWS["pc"](self.accent)
+            v.id = f"pc:{h}"
+            v.host = h
+            v.configure(pc_cfg.get("skin") or "minimal", self.accent, pc_cfg.get("options") or {})
+            self.views[v.id] = v
+            self.cfg[v.id] = {**pc_cfg, "id": v.id, "options": {k: val for k, val in (pc_cfg.get("options") or {}).items() if k != "hostname"}}
+            self.bg_by_view.pop(v.id, None)
+        for h in have - hosts:
+            self.views.pop(f"pc:{h}", None)
+            self.cfg.pop(f"pc:{h}", None)
+        self.set_order(self.expand_order())
+        if DEBUG:
+            log(f"pc hosts: {sorted(hosts) or 'none'}")
 
     def current(self):
         return self.views[self.order[self.idx % len(self.order)]]
@@ -604,6 +655,7 @@ class Renderer:
         now = time.perf_counter()
         data = self.st.snapshot()
         self.apply_settings(data.get("settings") or {})
+        self.sync_pc_hosts(data)
         v = self.current()
         due = now - self.dwell_t >= self.dwell_of(v.id, data)
         # a view that became invisible mid-dwell (pomodoro stopped) leaves early

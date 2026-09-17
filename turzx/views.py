@@ -616,6 +616,8 @@ class AmbilightView(View):
 # ---------------------------------------------------------------- 5. pc
 class PcView(View):
     id, title = "pc", "PC"
+    # set by the renderer for per-machine clones (id "pc:<host>"); None = legacy single `pc`
+    host: str | None = None
 
     def __init__(self, accent):
         super().__init__(accent)
@@ -624,9 +626,13 @@ class PcView(View):
         self.acc = 0.0
         self.top = ""; self.up_str = ""; self.disks: list[dict] = []
 
+    def visible(self, st):
+        # a machine that stopped publishing (asleep / shut down) leaves the rotation
+        return self.host is None or self.host in (st.get("pcs") or {})
+
     def update(self, st, dt):
         self.tick(dt)
-        pc = st.get("pc") or {}
+        pc = ((st.get("pcs") or {}).get(self.host) if self.host else st.get("pc")) or {}
         for tw, k in ((self.cpu, "cpu"), (self.ram, "ram"), (self.gpu, "gpu"), (self.gtemp, "gpuTemp"), (self.vram, "vram")):
             if (v := num(pc.get(k))) is not None: tw.set(v)
             tw.step(dt)
@@ -642,7 +648,7 @@ class PcView(View):
 
     def draw(self, c, t, progress):
         sk = self.sk
-        self.header(c, "PC", str(self.options.get("hostname") or "dragos-pc"), progress)
+        self.header(c, "PC", str(self.options.get("hostname") or self.host or "dragos-pc"), progress)
         d = ImageDraw.Draw(c)
         if sk.panel_alpha:
             sk.panel(c, (16, 70, 464, 232)); d = ImageDraw.Draw(c)
