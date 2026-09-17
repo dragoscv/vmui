@@ -1,0 +1,19 @@
+[Unit]
+Description=Desk button (GPIO17) -> vmui gestures
+After=vmui.service
+Wants=vmui.service
+
+[Service]
+Type=simple
+User=dragos
+# lgpio opens its notify pipe as a relative path in the cwd
+WorkingDirectory=/srv/homepi/logs
+Environment=BUTTON_GPIO=17
+Environment=LED_GPIO=27
+Environment=GPIOZERO_PIN_FACTORY=lgpio
+ExecStart=/usr/bin/python3 /srv/homepi/vmui/pi/desk-button.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

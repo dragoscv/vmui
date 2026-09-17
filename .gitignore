@@ -32,3 +32,6 @@ playwright-report/
 playwright/.cache/
 
 __pycache__/
+
+# Microsoft fonts copied for the Pi renderer; licensed, never commit
+turzx/fonts/

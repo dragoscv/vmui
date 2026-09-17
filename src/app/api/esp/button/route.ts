@@ -4,6 +4,7 @@ import { pushActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
 import { currentView, nextView, showMessage, togglePause } from "@/lib/esp/gallery";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
+import { runButtonGesture } from "@/lib/home/button-run";
 import { ha } from "@/lib/home/ha-client";
 import { drinkGlass, undoGlass } from "@/lib/nutrition/water-actions";
 import { NextResponse, type NextRequest } from "next/server";
@@ -13,9 +14,10 @@ export const dynamic = "force-dynamic";
 
 const Q = z.object({
   node: z.string().regex(/^[a-z0-9-]{1,32}$/),
-  click: z.enum(["single", "double", "long"]),
-  /** Which physical button: the BOOT button (default) or the case power switch on GPIO13. */
-  btn: z.enum(["boot", "water"]).default("boot"),
+  click: z.enum(["single", "double", "long", "1", "2", "3", "4", "5"]),
+  /** boot = ESP32 BOOT button, water = ESP32 case switch (fixed meaning),
+   *  desk = the Pi GPIO button whose gestures are configured on /home. */
+  btn: z.enum(["boot", "water", "desk"]).default("boot"),
 });
 
 // POST /api/esp/button?node=…&click=single|double|long&k=…
@@ -31,6 +33,12 @@ export async function POST(req: NextRequest) {
   const { node, click, btn } = p.data;
   let result = "";
   try {
+    if (btn === "desk") {
+      const g = click === "single" ? "1" : click === "double" ? "2" : click;
+      const r = await runButtonGesture(g, `button:${node}`);
+      await db.insert(auditLog).values({ accountId: "home", action: "esp.button", target: node, status: "ok", message: `desk ${g} -> ${r.result}` });
+      return NextResponse.json({ ok: true, result: r.result, led: r.led, action: r.action.type });
+    }
     if (btn === "water") {
       const r = click === "long" ? await undoGlass("esp-button") : await drinkGlass(click === "double" ? 100 : 250, "esp-button");
       result = `${r.action} ${r.ml} ml -> ${r.water.ml}/${r.water.targetMl}`;

@@ -44,7 +44,7 @@ from views import BG, TZ, VIEWS, H, W, hex_rgb  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / ".copilot-tmp" / "service-logs" / "turzx.log"
-VMUI = "http://127.0.0.1:3737"
+VMUI = os.environ.get("VMUI_URL", "http://127.0.0.1:3737").rstrip("/")
 MIRROR = ROOT / ".copilot-tmp" / "turzx" / "mirror.png"
 MIRROR_TMP = MIRROR.with_suffix(".tmp")
 DEBUG = bool(os.environ.get("TURZX_DEBUG"))
@@ -105,7 +105,10 @@ class State:
         with self.lock:
             d = dict(self.data)
             d["_arts"] = dict(self.arts)
-        d["pc"] = pc_metrics()
+        # On the PC the renderer samples the host itself. On the Pi the PC runs
+        # `turzx.py --publish`, which posts the same dict to vmui, and the state
+        # payload carries it back as `pc`.
+        d["pc"] = pc_metrics() if _LOCAL_PC else (self.data.get("pc") or {})
         return d
 
 
@@ -155,7 +158,7 @@ def _pc_worker() -> None:
             try:
                 r = subprocess.run(
                     [sys.executable, "-c", _TOP_SNIPPET], capture_output=True, text=True, timeout=15,
-                    creationflags=0x08000000, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+                    creationflags=0x08000000 if sys.platform == "win32" else 0, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
                 )
                 name, _, pct = r.stdout.strip().partition("|")
                 top = f"{name.removesuffix('.exe')} {float(pct) / ncpu:.0f}%" if name and float(pct or 0) >= 5 else ""
@@ -270,11 +273,26 @@ _TOP_SNIPPET = (
 )
 
 
-threading.Thread(target=_pc_worker, daemon=True).start()
+_LOCAL_PC = sys.platform == "win32"
+if _LOCAL_PC:
+    threading.Thread(target=_pc_worker, daemon=True).start()
 
 
 def pc_metrics() -> dict:
     return _pc
+
+
+def publish_pc(tok: str, every: float = 2.0) -> None:
+    """PC-side agent: push host metrics to vmui (running on the Pi) forever."""
+    url = f"{VMUI}/api/turzx/pc?k={tok}"
+    while True:
+        body = json.dumps(pc_metrics()).encode()
+        req = urllib.request.Request(url, data=body, method="POST", headers={"content-type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=5).read()
+        except Exception:
+            pass
+        time.sleep(every)
 
 
 def poller(st: State, tok: str, stop: threading.Event, bgs: Backgrounds | None) -> None:
@@ -552,6 +570,9 @@ class Renderer:
         present = ((data.get("home") or {}).get("presence") or {}).get("state") == "on"
         self.overlay.offer(data.get("notification"), present)
         self.overlay.offer_copilot(data.get("copilot"))
+        # meal-saved card: same path as copilot (not gated by presence/allow-list)
+        if data.get("nutritionEvent"):
+            self.overlay.offer_copilot(data.get("nutritionEvent"))
         self.overlay.step(now, dt)
         if self.overlay.active:
             self.dwell_t += dt  # pause the rotation while a card is up
@@ -646,7 +667,16 @@ def main() -> int:
     ap.add_argument("--port")
     ap.add_argument("--demo-notify", action="store_true", help="pop a fake WhatsApp card 5 s after start (hardware test)")
     ap.add_argument("--audit", action="store_true", help="with --once: flag off-screen/overlapping text, write *-audit.png, exit 1 if any")
+    ap.add_argument("--publish", action="store_true", help="PC agent: no panel, just push host metrics to vmui for a renderer elsewhere")
+    ap.add_argument("--vmui", help="vmui base URL (default $VMUI_URL or http://127.0.0.1:3737)")
     args = ap.parse_args()
+
+    if args.vmui:
+        global VMUI
+        VMUI = args.vmui.rstrip("/")
+    if args.publish:
+        publish_pc(token())
+        return 0
 
     st = State()
     stop = threading.Event()

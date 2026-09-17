@@ -1,6 +1,39 @@
 # Home Assistant — operations & setup
 
-Home Assistant OS runs as a Hyper-V appliance on this host, reachable on the
+> **2026-09-17 — moved to the Raspberry Pi (`homepi`).** Home Assistant,
+> ESPHome, Mosquitto, vmui, the Turzx renderer and the desk button now run on
+> a Pi 4B (4 GB) at `192.168.100.232`, 24/7, independent of this PC. The
+> Hyper-V HAOS VM below is **stopped and kept as a rollback**
+> (`AutomaticStartAction = Nothing`). Sections after "homepi" describe that
+> older setup; the traps in them still apply to HA itself.
+
+## homepi — the house server (2026-09-17)
+
+| what | where |
+| --- | --- |
+| board | Raspberry Pi 4B 4 GB, Pi OS Lite 64-bit (Trixie), boot from the Samsung FIT 64 GB USB stick (`pi/cloud-init/*`, written by `scripts/pi-image.ps1 -DiskNumber N`) |
+| network | eth0 `192.168.100.232` (router reservation on `d8:3a:dd:9d:e3:b5`), wlan0 `.63` as fallback (`scripts/pi-wifi.ps1`), `ssh homepi` alias, user `dragos`, key-only |
+| stack | `/srv/homepi/compose.yaml` (from `pi/compose.yaml`): `homeassistant` (host net, :80), `esphome` (:6052), `mosquitto` (:1883, user `homepi`, password in `.private/credentials.env` as `MQTT_PASS`) |
+| HA data | `/srv/homepi/ha` — restored from a full HAOS backup via `/config/.HA_RESTORE` (`scripts/ha-backup-pull.ps1` makes and downloads one). Same instance ID, same long-lived tokens, 283 entities came across. `hassio:` fails to set up in container mode — expected, harmless |
+| vmui | `/srv/homepi/vmui`, Node 22 + pnpm, `systemd` unit `vmui` binding `0.0.0.0:3737`. **Build on the PC, ship with `scripts/pi-deploy.ps1`** (55 s here vs 4+ min on the Pi). The script tars source + `.next` (minus `.next/node_modules`, which are Windows junctions) and recreates the `serverExternalPackages` links on the Pi from `next-links.txt`; `pnpm install` runs only when the lockfile hash changed |
+| Turzx | `systemd` unit `turzx`, panel on `/dev/turzx` (udev rule by VID/PID). Fonts come from `turzx/fonts/` (Microsoft fonts copied from this PC, **gitignored**, shipped privately by pi-deploy). The "pc" view gets this PC's metrics from the `vmui-turzx` task, now `turzx.py --publish --vmui http://192.168.100.232:3737` → `POST /api/turzx/pc`, 15 s TTL |
+| desk button | `systemd` unit `desk-button` (`pi/desk-button.py`): GPIO17 → GND, optional LED GPIO27. 1–5 clicks (400 ms window) or ≥1 s hold → `POST /api/esp/button?btn=desk&click=N|long`. What each gesture does is the table on `/home?tab=devices` ("Butonul de birou", row id 3 of `turzx_settings`); default 1 = +250 ml, 2 = +100 ml, 3 = Turzx next, 4 = Ambilight movie, 5 = intercom auto-open 45 min, long = undo water. lgpio needs a writable cwd (`WorkingDirectory=/srv/homepi/logs`) or it dies with `FileNotFoundError: .lgd-nfy-3` |
+| logs | `/srv/homepi/logs/{vmui,turzx}.log`, `journalctl -u desk-button` |
+| ESP32 | `scripts/esp32-display.ps1` now compiles in the Pi's `esphome` container (`-HostSsh dragos@192.168.100.232`, `-EsphomeDir /srv/homepi/esphome`) and bakes `http://192.168.100.232:3737` into the firmware (`-VmuiHost`/`-LanPort` to point elsewhere). First compile on the Pi is 10–20 min (toolchain download), later ones ~3 min |
+
+Still on the PC, on purpose: Ambilight (screen capture, HID, OpenRGB), the
+tray, the Hyper-V `local-kvm` provider (vmui on the PC keeps running for it
+until that provider talks to the PC over SSH), and the metrics publisher.
+
+Rollback: `Start-VM homeassistant`, put the router reservation back on
+`00:15:5d:64:3d:25`, `esp32-display.ps1 -Flash -VmuiHost <pc-ip> -LanPort 8737`.
+
+Storage note: the USB stick is fine to start; HA's recorder writes constantly
+and will wear it out in months — clone to a SATA SSD in a USB3 enclosure when
+it arrives (`dd` of `/dev/sda` → new disk, then change the boot order or just
+move the disk).
+
+Home Assistant OS used to run as a Hyper-V appliance on this host, reachable on the
 LAN, over Tailscale, and at `https://home.dragoscatalin.ro` with a real
 certificate. Everything here is reproducible from `scripts/`.
 
@@ -394,7 +427,7 @@ Verified 2026-09-17: 4 presses → 1000 ml, 2 holds → 500 ml, all within 1 s.
 
 Same ESP32 (`bluetooth-proxy-1`), powered from a USB charger — no PC needed.
 Ring at the street door → HA companion notification on the S25 Ultra with
-two actions (*Răspunde și deschide* / *Ignoră*), the Turzx shows an orange
+two actions (_Răspunde și deschide_ / _Ignoră_), the Turzx shows an orange
 "Suna la interfon" card while the line is live, and `/home?tab=devices` has
 the Interfon card with an "Aștept curier" auto-open arm (30/60 min, expires
 by itself). Every open lands in `audit_log` and `sensor.vmui_intercom_last_open`.
@@ -403,17 +436,17 @@ Electra IA02 facts (Electra manual + arduino.cc thread; **measure before you
 trust them**): terminals top-down `+D1 · AVP · COMP · P · MP`. `MP` is
 ground. `P` carries +12 V **only while a call is in progress** (it is what
 powers the handset), and it collapses to ~4.8 V under load — never power the
-ESP from it. `AVP` is the command line: *talk* = pull AVP to +12 V through
-4.7 kΩ + diode for ~1.2 s, then *open* = AVP straight to ≥ 11.7 V for ~1.2 s.
+ESP from it. `AVP` is the command line: _talk_ = pull AVP to +12 V through
+4.7 kΩ + diode for ~1.2 s, then _open_ = AVP straight to ≥ 11.7 V for ~1.2 s.
 Order is strict (talk first, then open) and only works during a ring.
 
 Wiring (all mains-free, 12 V side galvanically isolated from the ESP):
 
-| Purpose | Parts | Connection |
-| --- | --- | --- |
-| Ring detect | PC817 optocoupler, 2.2 kΩ, 10 kΩ | `P` → 2.2 kΩ → PC817 pin 1 (anode); pin 2 (cathode) → `MP`. Pin 4 (collector) → GPIO34 **and** 10 kΩ → 3V3; pin 3 (emitter) → ESP GND. GPIO34 has no internal pull-up, hence the external one. |
-| Talk pulse | relay 1 of a 5 V 2-channel opto-isolated module, 4.7 kΩ, 1N4148/BA159 | module VCC ← ESP 5V, GND ← ESP GND, IN1 ← GPIO16. Relay 1: COM ← `P`, NO → 4.7 kΩ → diode (anode toward relay) → `AVP`. |
-| Open pulse | relay 2, second diode | IN2 ← GPIO17. Relay 2: COM ← `P`, NO → diode → `AVP` (no resistor). |
+| Purpose     | Parts                                                                 | Connection                                                                                                                                                                                     |
+| ----------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ring detect | PC817 optocoupler, 2.2 kΩ, 10 kΩ                                      | `P` → 2.2 kΩ → PC817 pin 1 (anode); pin 2 (cathode) → `MP`. Pin 4 (collector) → GPIO34 **and** 10 kΩ → 3V3; pin 3 (emitter) → ESP GND. GPIO34 has no internal pull-up, hence the external one. |
+| Talk pulse  | relay 1 of a 5 V 2-channel opto-isolated module, 4.7 kΩ, 1N4148/BA159 | module VCC ← ESP 5V, GND ← ESP GND, IN1 ← GPIO16. Relay 1: COM ← `P`, NO → 4.7 kΩ → diode (anode toward relay) → `AVP`.                                                                        |
+| Open pulse  | relay 2, second diode                                                 | IN2 ← GPIO17. Relay 2: COM ← `P`, NO → diode → `AVP` (no resistor).                                                                                                                            |
 
 Shopping list: 2-relay 5 V module with optocouplers (low-level or high-level
 trigger — check the module, the firmware drives GPIO16/17 HIGH to close),
@@ -435,7 +468,7 @@ as `esphome.bluetooth_proxy_1_intercom_open` and
 line is not ringing (relay closing onto a dead `P` does nothing useful).
 Phone action → HA event `mobile_app_notification_action` → vmui
 `openDoor("telefon")` → that service. Verified 2026-09-17 with GPIO34
-floating (reads *ring* until the opto is wired): notification + actions,
+floating (reads _ring_ until the opto is wired): notification + actions,
 arm → ring → `{"open":true}`, both HA entities and the service present.
 
 Stages 2/3 (not built): listen to the visitor with the INMP441 held against

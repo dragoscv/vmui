@@ -38,8 +38,15 @@ param(
     [Parameter(ParameterSetName = 'Logs')][int]$Seconds = 0,
     [string]$NodeName = 'bluetooth-proxy-1',
     [string]$CredPrefix = 'ESPHOME_BTPROXY1',
-    [string]$HostSsh = 'root@192.168.100.232',
-    [int]$LanPort = 8737,
+    [string]$HostSsh = 'dragos@192.168.100.232',
+    [int]$HostSshPort = 22,
+    [string]$EsphomeDir = '/srv/homepi/esphome',
+    [string]$EsphomeContainer = 'esphome',
+    # Where the board finds vmui. Default = homepi (vmui listens on :3737 on the
+    # LAN there). Pass -VmuiHost <pc-lan-ip> -LanPort 8737 to point it back at
+    # the Windows host behind Caddy.
+    [string]$VmuiHost = '192.168.100.232',
+    [int]$LanPort = 3737,
     [string]$Refresh = '4s',
     # ideaspark ships two layouts: SDA/SCL on 5/4 or on 21/22. -Status shows
     # which one the running board reports.
@@ -73,8 +80,9 @@ function Get-Token {
 }
 
 function Render-Yaml {
-    $ip = Get-LanIp
-    if (-not $ip) { throw 'no 192.168.100.x address on this PC' }
+    $ip = $VmuiHost
+    if (-not $ip) { $ip = Get-LanIp }
+    if (-not $ip) { throw 'no vmui host: pass -VmuiHost' }
     $keyVar = "${CredPrefix}_API_KEY"
     $otaVar = "${CredPrefix}_OTA_PASS"
     foreach ($v in 'HOME_WIFI_SSID', 'HOME_WIFI_PASS', $keyVar, $otaVar) {
@@ -141,9 +149,9 @@ function Publish-Lan {
 function Flash-Board {
     $yaml = Render-Yaml
     Write-Step 'writing config into the ESPHome add-on and compiling (2-6 min)...'
-    $yaml | ssh -o BatchMode=yes -p 22222 $HostSsh "mkdir -p /mnt/data/supervisor/homeassistant/esphome && cat > /mnt/data/supervisor/homeassistant/esphome/$NodeName.yaml"
+    $yaml | ssh -o BatchMode=yes -p $HostSshPort $HostSsh "mkdir -p $EsphomeDir && cat > $EsphomeDir/$NodeName.yaml"
     $sw = [Diagnostics.Stopwatch]::StartNew()
-    $out = ssh -o BatchMode=yes -p 22222 $HostSsh "docker exec -w /config/esphome app_5c53de3b_esphome esphome compile $NodeName.yaml 2>&1 | tail -5"
+    $out = ssh -o BatchMode=yes -p $HostSshPort $HostSsh "docker exec -w /config $EsphomeContainer esphome compile $NodeName.yaml 2>&1 | tail -5"
     $out | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
     if (-not (($out -join "`n") -match 'Successfully compiled')) { throw 'compile did not report success; see ESPHome add-on logs' }
     Write-Ok ("compiled in {0:N0} s (this, not the upload, is the slow part)" -f $sw.Elapsed.TotalSeconds)
@@ -159,14 +167,14 @@ function Flash-Board {
     if ($Ota) {
         Write-Step 'OTA upload from the appliance...'
         $sw.Restart()
-        ssh -o BatchMode=yes -p 22222 $HostSsh "docker exec -w /config/esphome app_5c53de3b_esphome esphome upload --device $NodeName.local $NodeName.yaml 2>&1 | tail -3" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        ssh -o BatchMode=yes -p $HostSshPort $HostSsh "docker exec -w /config $EsphomeContainer esphome upload --device $NodeName.local $NodeName.yaml 2>&1 | tail -3" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         Write-Ok ("OTA done in {0:N0} s; the board reboots" -f $sw.Elapsed.TotalSeconds)
         return
     }
     Write-Step 'pulling firmware.factory.bin...'
     $tmp = Join-Path $Root ".copilot-tmp\$NodeName.factory.bin"
     New-Item -ItemType Directory -Force (Split-Path $tmp) | Out-Null
-    $b64 = ssh -o BatchMode=yes -p 22222 $HostSsh "base64 -w0 /mnt/data/supervisor/homeassistant/esphome/.esphome/build/$NodeName/build/firmware.factory.bin"
+    $b64 = ssh -o BatchMode=yes -p $HostSshPort $HostSsh "base64 -w0 $EsphomeDir/.esphome/build/$NodeName/build/firmware.factory.bin"
     [IO.File]::WriteAllBytes($tmp, [Convert]::FromBase64String($b64))
     Write-Ok "$((Get-Item $tmp).Length) bytes"
     Write-Step "flashing $ComPort over USB..."
@@ -175,7 +183,7 @@ function Flash-Board {
     $flash | Select-String -Pattern 'Wrote|verified|rror' | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     if (($flash -join "`n") -notmatch 'Hash of data verified') {
         Write-Warn "esptool did not verify the write on $ComPort; falling back to OTA"
-        ssh -o BatchMode=yes -p 22222 $HostSsh "docker exec -w /config/esphome app_5c53de3b_esphome esphome upload --device $NodeName.local $NodeName.yaml 2>&1 | tail -3" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        ssh -o BatchMode=yes -p $HostSshPort $HostSsh "docker exec -w /config $EsphomeContainer esphome upload --device $NodeName.local $NodeName.yaml 2>&1 | tail -3" | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         Write-Ok 'OTA done; the board reboots'
         return
     }
@@ -221,7 +229,7 @@ function Show-Logs {
     # ESPHome's native API streams the logger over WiFi — no USB needed. Runs
     # inside the add-on on the appliance because that is where the compiled
     # config (and its API key) lives.
-    $cmd = "docker exec -w /config/esphome app_5c53de3b_esphome esphome logs --device $NodeName.local $NodeName.yaml 2>&1"
+    $cmd = "docker exec -w /config $EsphomeContainer esphome logs --device $NodeName.local $NodeName.yaml 2>&1"
     # Every `esphome logs` holds ONE API slot on the board for as long as the
     # python process lives. Killing the ssh client from Windows does NOT kill
     # the remote process, so four orphans from 2026-09-16 pinned all 3 slots
@@ -243,12 +251,12 @@ while True:
     if ($Seconds -le 0) { $Seconds = 600 }   # never leave an unbounded stream holding a slot
     $cmd = "timeout $Seconds $cmd"
     Write-Step "log stream from $NodeName over WiFi ($Seconds s max; holds one of the board's 3 API slots)"
-    ssh -t -o BatchMode=yes -p 22222 $HostSsh $cmd
+    ssh -t -o BatchMode=yes -p $HostSshPort $HostSsh $cmd
 }
 
 function Reap-LogStreams {
-    $sh = 'docker exec app_5c53de3b_esphome sh -c ''for p in /proc/[0-9]*; do c=$(tr "\0" " " < $p/cmdline 2>/dev/null); case "$c" in *esphome*logs*) echo ${p#/proc/}; kill ${p#/proc/};; esac; done'''
-    $killed = @(ssh -o BatchMode=yes -p 22222 $HostSsh $sh 2>$null)
+    $sh = 'docker exec $EsphomeContainer sh -c ''for p in /proc/[0-9]*; do c=$(tr "\0" " " < $p/cmdline 2>/dev/null); case "$c" in *esphome*logs*) echo ${p#/proc/}; kill ${p#/proc/};; esac; done'''
+    $killed = @(ssh -o BatchMode=yes -p $HostSshPort $HostSsh $sh 2>$null)
     if ($killed.Count) { Write-Warn "reaped $($killed.Count) orphaned 'esphome logs' stream(s) in the add-on (pids $($killed -join ', ')) — each held an API slot" }
 }
 

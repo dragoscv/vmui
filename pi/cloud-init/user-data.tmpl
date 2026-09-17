@@ -1,0 +1,65 @@
+#cloud-config
+# Rendered by scripts/pi-image.ps1 -> .copilot-tmp/pi/user-data (keys filled in).
+hostname: homepi
+manage_etc_hosts: true
+timezone: Europe/Bucharest
+locale: en_US.UTF-8
+keyboard:
+  model: pc105
+  layout: us
+
+users:
+  - name: dragos
+    gecos: Dragos
+    groups: [adm, sudo, dialout, gpio, i2c, spi, video, plugdev, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${SSH_PUBKEY}
+
+ssh_pwauth: false
+
+package_update: true
+package_upgrade: false
+packages:
+  - avahi-daemon
+  - git
+  - curl
+  - ca-certificates
+  - python3-venv
+  - python3-pip
+  - python3-serial
+  - python3-pil
+  - python3-psutil
+  - python3-gpiozero
+  - python3-lgpio
+  - rsync
+  - htop
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      { "log-driver": "json-file", "log-opts": { "max-size": "20m", "max-file": "3" } }
+  - path: /etc/sysctl.d/90-homepi.conf
+    content: |
+      vm.swappiness=10
+  - path: /etc/udev/rules.d/99-turzx.rules
+    content: |
+      # Turzx 3.5" USB LCD (1a86:5722) -> /dev/turzx, writable by dialout
+      SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5722", SYMLINK+="turzx", GROUP="dialout", MODE="0660"
+      # ESP32 CH340 (1a86:7523) -> /dev/esp32
+      SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="esp32", GROUP="dialout", MODE="0660"
+
+runcmd:
+  - [ systemctl, enable, --now, ssh ]
+  - [ sh, -c, "curl -fsSL https://get.docker.com | sh" ]
+  - [ usermod, -aG, docker, dragos ]
+  - [ systemctl, enable, --now, docker ]
+  - [ mkdir, -p, /srv/homepi ]
+  - [ chown, -R, "dragos:dragos", /srv/homepi ]
+  - [ sh, -c, "curl -fsSL https://tailscale.com/install.sh | sh" ]
+  - [ udevadm, control, --reload-rules ]
+  - [ sh, -c, "echo 'homepi cloud-init done' > /srv/homepi/.cloud-init-done" ]
+
+final_message: "homepi ready after $UPTIME s"

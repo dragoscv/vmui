@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CopilotSignals } from "@/lib/copilot/signals-schema";
+import type { ButtonBindings } from "@/lib/home/button-bindings-schema";
 import type { HaState } from "@/lib/home/ha-client";
 import type { NutritionProfile } from "@/lib/nutrition/schema";
 import type { NutritionSummary } from "@/lib/nutrition/summary";
@@ -11,6 +12,7 @@ import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { DoorOpen, Droplets, Lightbulb, Radar, Thermometer } from "lucide-react";
 import * as React from "react";
 import { AmbilightPanel } from "./ambilight-panel";
+import { ButtonBindingsCard } from "./button-bindings-card";
 import { CopilotSignalsCard } from "./copilot-signals-card";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
@@ -34,6 +36,8 @@ export function HomeDashboard({
   nutritionProfile,
   intercom,
   espToken,
+  buttons,
+  haScripts,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
@@ -48,6 +52,8 @@ export function HomeDashboard({
   nutritionProfile: NutritionProfile;
   intercom: IntercomCardState;
   espToken: string;
+  buttons: ButtonBindings;
+  haScripts: string[];
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -68,8 +74,9 @@ export function HomeDashboard({
             <FloorPlan devices={devices} selected={selected} onSelect={setSelected} />
           </TabsContent>
           <TabsContent value="devices">
-            <div className="mb-6">
+            <div className="mb-6 space-y-6">
               <IntercomCard initial={intercom} token={espToken} />
+              <ButtonBindingsCard initial={buttons} scripts={haScripts} />
             </div>
             <DeviceGrid devices={devices} onSelect={setSelected} />
           </TabsContent>

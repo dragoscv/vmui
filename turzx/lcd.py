@@ -178,7 +178,7 @@ if __name__ == "__main__":
     d = ImageDraw.Draw(im)
     d.rectangle((0, 0, 479, 319), outline=(80, 200, 120), width=4)
     d.rectangle((0, 0, 60, 60), fill=(255, 0, 0))  # top-left marker
-    d.text((40, 120), "vmui turzx", font=ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", 64), fill=(124, 156, 255))
+    d.text((40, 120), "vmui turzx", font=__import__("skins").font(64, "sb"), fill=(124, 156, 255))
     t = time.perf_counter()
     n = lcd.full(im)
     print(f"full {n/1024:.0f} KB in {time.perf_counter()-t:.2f}s")

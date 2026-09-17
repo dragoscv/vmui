@@ -1,6 +1,5 @@
 import { currentSignal, loadCopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
-import { intercomState, isAutoOpenArmed } from "@/lib/home/intercom";
 import { auditLog } from "@/lib/db/schema";
 import { ensureActivityFeed, recentActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
@@ -8,10 +7,12 @@ import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
+import { intercomState, isAutoOpenArmed } from "@/lib/home/intercom";
 import { runCoach } from "@/lib/nutrition/coach";
 import { currentNutritionEvent } from "@/lib/nutrition/events";
 import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
 import { agentSessions, batteryReadings, bnrRates, calendarEvents, coinPrices, energyReadings, fleet, haHistory, healthReadings, hourlyForecast, moonPhase, photoPool, quoteOfTheDay, syncedLyrics, weatherForecast } from "@/lib/turzx/feeds";
+import { pcMetrics } from "@/lib/turzx/pc-metrics";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -191,6 +192,7 @@ export async function GET(req: NextRequest) {
       health: health ? { ...health, stepsGoal: num(opt("health").stepsGoal, 8000), sleepGoalMin: num(opt("health").sleepGoalH, 8) * 60 } : null,
       notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
       copilot,
+      pc: pcMetrics(),
       intercom: { ringing: ic.ringingSince !== null, since: ic.ringingSince, lastRingAt: ic.lastRingAt, lastOpenAt: ic.lastOpenAt, armedUntil: isAutoOpenArmed() ? ic.autoOpenUntil : null },
       nutrition,
       // same card shape as a phone notification; overlay pops it once per id

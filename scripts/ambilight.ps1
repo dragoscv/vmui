@@ -113,7 +113,9 @@ $Tasks = @(
     # and restarts whichever dies; replaced the separate dxlight/pcglow tasks.
     @{ Name = 'vmui-ambilight-bridges';  Exe = $Python;     Args = "`"$Amb\bridges.py`""; Delay = 20 },
     @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 },
-    @{ Name = 'vmui-turzx';              Exe = $Python;     Args = "`"$Root\turzx\turzx.py`""; Delay = 35 }
+    # The panel itself is driven from homepi (pi/turzx.service). This PC only
+    # publishes its CPU/GPU/focus metrics to vmui there for the "pc" view.
+    @{ Name = 'vmui-turzx';              Exe = $Python;     Args = "`"$Root\turzx\turzx.py`" --publish --vmui http://192.168.100.232:3737"; Delay = 35 }
 )
 
 function Write-Ok($m) { Write-Host "  $m" -ForegroundColor Green }

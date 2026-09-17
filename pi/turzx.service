@@ -1,0 +1,20 @@
+[Unit]
+Description=Turzx 3.5" desk screen renderer
+After=vmui.service
+Wants=vmui.service
+
+[Service]
+Type=simple
+User=dragos
+WorkingDirectory=/srv/homepi/vmui
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=VMUI_URL=http://127.0.0.1:3737
+ExecStart=/usr/bin/python3 /srv/homepi/vmui/turzx/turzx.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/srv/homepi/logs/turzx.log
+StandardError=append:/srv/homepi/logs/turzx.log
+
+[Install]
+WantedBy=multi-user.target

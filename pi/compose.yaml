@@ -1,0 +1,43 @@
+# homepi stack: /srv/homepi/compose.yaml  (rsync'd by scripts/pi-deploy.ps1)
+# HA + ESPHome use host networking (mDNS, HomeKit, ESPHome discovery).
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      TZ: Europe/Bucharest
+    volumes:
+      - /srv/homepi/ha:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    devices:
+      - /dev:/dev
+
+  esphome:
+    image: ghcr.io/esphome/esphome:stable
+    container_name: esphome
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: Europe/Bucharest
+      ESPHOME_DASHBOARD_USE_PING: "true"
+    volumes:
+      - /srv/homepi/esphome:/config
+      - /etc/localtime:/etc/localtime:ro
+    devices:
+      - /dev:/dev
+    privileged: true
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - /srv/homepi/mosquitto/config:/mosquitto/config
+      - /srv/homepi/mosquitto/data:/mosquitto/data
+      - /srv/homepi/mosquitto/log:/mosquitto/log

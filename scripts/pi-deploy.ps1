@@ -1,0 +1,67 @@
+<#
+.SYNOPSIS
+  Deploy vmui to homepi: build HERE (55 s on the PC vs 4 min on the Pi), stream
+  source + .next over ssh, `pnpm install` on the Pi only when the lockfile
+  changed (native better-sqlite3 must be built for arm64), restart systemd.
+.EXAMPLE
+  pwsh -File scripts\pi-deploy.ps1            # build + sync + restart
+  pwsh -File scripts\pi-deploy.ps1 -SkipBuild # reuse the existing .next
+#>
+param(
+  [string] $Pi = 'homepi',
+  [string] $Dest = '/srv/homepi/vmui',
+  [switch] $SyncOnly,
+  [switch] $SkipBuild
+)
+$ErrorActionPreference = 'Stop'
+$root = Split-Path $PSScriptRoot -Parent
+Set-Location $root
+
+if (-not $SkipBuild -and -not $SyncOnly) {
+  & pwsh -NoProfile -File "$env:USERPROFILE\.copilot\hooks\run-build.ps1" -Command 'pnpm build' -Wait
+  if ($LASTEXITCODE -ne 0) { throw "build failed ($LASTEXITCODE)" }
+}
+if (-not (Test-Path '.next\BUILD_ID')) { throw '.next/BUILD_ID missing — run without -SkipBuild' }
+
+# Windows tar + ssh: stream tracked + untracked-but-not-ignored files, then .next.
+$list = Join-Path $root '.copilot-tmp\pi\files.txt'
+New-Item -ItemType Directory -Force (Split-Path $list) | Out-Null
+git ls-files -co --exclude-standard -- . ':!cli' ':!vfio' ':!toolkit' ':!tests' ':!test' ':!*.png' ':!*.jpg' | Set-Content $list -Encoding utf8
+$n = (Get-Content $list).Count
+Write-Host "syncing $n source files + .next -> ${Pi}:$Dest"
+ssh -o BatchMode=yes $Pi "mkdir -p $Dest/.private"
+tar -cf - -T $list | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest"
+ssh -o BatchMode=yes $Pi "rm -rf $Dest/.next.new; mkdir -p $Dest/.next.new"
+# .next/node_modules holds junctions into the Windows pnpm store (serverExternalPackages);
+# tar would follow them and ship half a dependency tree. Recreate them on the Pi.
+tar -cf - --exclude=.next/cache --exclude=.next/node_modules .next | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest/.next.new"
+$links = Get-ChildItem .next\node_modules -Recurse -Force | Where-Object { $_.LinkType -eq 'Junction' } | ForEach-Object {
+  $rel = $_.FullName.Substring((Join-Path $root '.next\node_modules').Length + 1) -replace '\\', '/'
+  $pkg = ($rel -replace '-[0-9a-f]{16}$', '')
+  "$rel $pkg"
+}
+$linkFile = Join-Path $root '.copilot-tmp\pi\next-links.txt'
+[IO.File]::WriteAllText($linkFile, (($links -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
+scp -q -o BatchMode=yes $linkFile "${Pi}:$Dest/.next.new/.next/next-links.txt"
+# runtime-only files that git ignores
+foreach ($f in '.env', '.private/credentials.env') {
+  if (Test-Path $f) { scp -q -o BatchMode=yes $f "${Pi}:$Dest/$f" }
+}
+if (Test-Path 'turzx\fonts') { tar -cf - turzx/fonts | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest" }
+if ($SyncOnly) { return }
+
+$lock = (Get-FileHash pnpm-lock.yaml -Algorithm SHA256).Hash
+$remote = @"
+set -e; cd $Dest
+if [ "`$(cat .lock.sha 2>/dev/null)" != "$lock" ]; then pnpm install --frozen-lockfile 2>&1 | tail -2; echo $lock > .lock.sha; fi
+rm -rf .next.prev; [ -d .next ] && mv .next .next.prev; mv .next.new/.next .next; rmdir .next.new
+mkdir -p .next/node_modules
+while read -r rel pkg; do [ -n "`$rel" ] || continue; mkdir -p ".next/node_modules/`$(dirname "`$rel")"; ln -sfn "`$(realpath "node_modules/`$pkg")" ".next/node_modules/`$rel"; done < .next/next-links.txt
+for u in vmui turzx desk-button; do sudo install -m 644 pi/`$u.service /etc/systemd/system/`$u.service; done
+sudo systemctl daemon-reload; sudo systemctl enable vmui turzx desk-button >/dev/null 2>&1
+sudo systemctl restart vmui; sleep 4; sudo systemctl restart turzx desk-button
+for u in vmui turzx desk-button; do printf '%s %s\n' `$u "`$(systemctl is-active `$u)"; done
+curl -s -o /dev/null -w 'http %{http_code}\n' http://127.0.0.1:3737/ || true
+"@ -replace "`r`n", "`n"
+ssh -o BatchMode=yes $Pi $remote
+

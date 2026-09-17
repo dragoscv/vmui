@@ -1,5 +1,6 @@
 import { HomeDashboard } from "@/components/home/home-dashboard";
 import { loadCopilotSignals } from "@/lib/copilot/signals";
+import { loadButtonBindings } from "@/lib/home/button-bindings";
 import { credential } from "@/lib/home/credentials";
 import { intercomState } from "@/lib/home/intercom";
 import { loadProfile } from "@/lib/nutrition/store";
@@ -17,7 +18,8 @@ function intercomProps() {
 }
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const [{ tab }, devices, states, avail, wall, turzx, pomodoro, copilot, nutrition, nutritionProfile] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings(), loadPomodoro(), loadCopilotSignals(), nutritionSummary(), loadProfile()]);
+  const [{ tab }, devices, states, avail, wall, turzx, pomodoro, copilot, nutrition, nutritionProfile, buttons] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings(), loadPomodoro(), loadCopilotSignals(), nutritionSummary(), loadProfile(), loadButtonBindings()]);
+  const haScripts = Object.keys(states).filter((id) => id.startsWith("script.")).map((id) => id.slice("script.".length)).sort();
   // Any HA light that can show a colour may carry a Copilot signal.
   const rgbLights = Object.values(states)
     .filter((s) => s.entity_id.startsWith("light.") && s.entity_id !== "light.hyperhdr" && ((s.attributes.supported_color_modes as string[] | undefined) ?? []).some((m) => m === "rgb" || m === "hs" || m === "rgbw" || m === "rgbww" || m === "xy"))
@@ -53,7 +55,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} copilot={copilot} rgbLights={rgbLights} nutrition={nutrition} nutritionProfile={nutritionProfile} intercom={intercomProps()} espToken={credential("ESP_DISPLAY_TOKEN") ?? ""} />
+      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} copilot={copilot} rgbLights={rgbLights} nutrition={nutrition} nutritionProfile={nutritionProfile} intercom={intercomProps()} espToken={credential("ESP_DISPLAY_TOKEN") ?? ""} buttons={buttons} haScripts={haScripts} />
     </div>
   );
 }

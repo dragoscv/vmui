@@ -67,6 +67,15 @@ Synthetic DB id is always `${accountId}:${region}:${providerInstanceId}`.
 
 ## Scripts
 
+## Deployment target: homepi (Raspberry Pi 4B)
+
+The production vmui, Home Assistant, ESPHome, Mosquitto, the Turzx renderer
+and the desk button run on `homepi` (`192.168.100.232`, `ssh homepi`). Build
+here, ship with `pwsh -File scripts\pi-deploy.ps1` (never `pnpm build` on the
+Pi — 4 GB RAM). Units and compose live in `pi/`; read the "homepi" section of
+[docs/home-assistant.md](docs/home-assistant.md) before touching them. The
+vmui instance on this PC only serves the Hyper-V `local-kvm` provider.
+
 - `pnpm dev` — Next dev on `127.0.0.1:3737`.
 - `pnpm build` / `pnpm start` — production.
 - `pnpm typecheck` — `tsc --noEmit`. Run before declaring a round done.

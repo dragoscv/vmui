@@ -1,0 +1,21 @@
+[Unit]
+Description=vmui (Next.js) home control plane
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dragos
+WorkingDirectory=/srv/homepi/vmui
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=1024
+Environment=VMUI_HOST=0.0.0.0
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3737
+Restart=always
+RestartSec=3
+# audit_log + hydration write constantly; keep the journal short
+StandardOutput=append:/srv/homepi/logs/vmui.log
+StandardError=append:/srv/homepi/logs/vmui.log
+
+[Install]
+WantedBy=multi-user.target

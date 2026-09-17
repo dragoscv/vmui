@@ -16,7 +16,14 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import audit
 
-FONT_DIR = r"C:\Windows\Fonts"
+import os
+import sys
+from pathlib import Path
+
+# turzx/fonts/ (synced privately by scripts/pi-deploy.ps1) wins so the Pi renders
+# pixel-identical to the PC; the Windows system dir is the fallback there.
+_HERE = Path(__file__).resolve().parent
+FONT_DIR = str(_HERE / "fonts") if (_HERE / "fonts").is_dir() else (r"C:\Windows\Fonts" if sys.platform == "win32" else "/usr/share/fonts/truetype/dejavu")
 _FONTS: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
 
 FONT_FILES = {
@@ -35,7 +42,7 @@ def font(size: int, weight: str = "sb") -> ImageFont.FreeTypeFont:
     key = (weight, size)
     f = _FONTS.get(key)
     if f is None:
-        f = ImageFont.truetype(f"{FONT_DIR}\\{FONT_FILES[weight]}", size)
+        f = ImageFont.truetype(os.path.join(FONT_DIR, FONT_FILES[weight]), size)
         _FONTS[key] = f
     return f
 
