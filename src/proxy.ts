@@ -9,6 +9,7 @@ const PUBLIC_PREFIXES = [
   "/api/turzx", // Turzx desk screen renderer: same shared token
   "/api/copilot", // agent-harness hooks -> physical signals: same shared token
   "/api/nutrition", // codai phone assistant posts meals: same shared token (espAuthorized)
+  "/api/mcp", // MCP action server for codai phone/desktop: bearer vmui_* operator key
   "/_next",
   "/icons",
   "/favicon",

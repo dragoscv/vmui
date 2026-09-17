@@ -17,13 +17,13 @@ vmui is a local-first multi-cloud VM control plane. Single-tenant, single-host, 
 
 Implemented in [src/lib/providers/](src/lib/providers/) with the `CloudProvider` interface from [types.ts](src/lib/providers/types.ts):
 
-| Provider | Instances | Resources | Create-VM | Notes |
-|---|---|---|---|---|
-| AWS | full | volume / snapshot / sg / keypair / vpc / subnet / bucket / db / lb / dns | full (incl. Mac dedicated host) | Uses `@aws-sdk/client-*` v3.10x |
-| Azure | full | disks / snapshots / vnets / subnets / NSGs / load-balancers | full (auto-RG/VNet/Subnet/PIP/NIC) | `@azure/identity` + `arm-compute` + `arm-network` + `arm-resources-subscriptions` (NOT `arm-subscriptions` v6) |
-| GCP | full | disks / snapshots / networks / subnets / firewalls / images | full (image families + ssh-keys metadata) | `@google-cloud/compute` v6; aggregatedListAsync is `for-await` |
-| Scaleway | bare-metal Mac minis | n/a (no resource graph) | full | REST via fetch; 24h minimum lease |
-| local-kvm | full | n/a | full | qemu/QMP under the hood |
+| Provider  | Instances            | Resources                                                                | Create-VM                                 | Notes                                                                                                          |
+| --------- | -------------------- | ------------------------------------------------------------------------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| AWS       | full                 | volume / snapshot / sg / keypair / vpc / subnet / bucket / db / lb / dns | full (incl. Mac dedicated host)           | Uses `@aws-sdk/client-*` v3.10x                                                                                |
+| Azure     | full                 | disks / snapshots / vnets / subnets / NSGs / load-balancers              | full (auto-RG/VNet/Subnet/PIP/NIC)        | `@azure/identity` + `arm-compute` + `arm-network` + `arm-resources-subscriptions` (NOT `arm-subscriptions` v6) |
+| GCP       | full                 | disks / snapshots / networks / subnets / firewalls / images              | full (image families + ssh-keys metadata) | `@google-cloud/compute` v6; aggregatedListAsync is `for-await`                                                 |
+| Scaleway  | bare-metal Mac minis | n/a (no resource graph)                                                  | full                                      | REST via fetch; 24h minimum lease                                                                              |
+| local-kvm | full                 | n/a                                                                      | full                                      | qemu/QMP under the hood                                                                                        |
 
 `local-kvm` also carries the Hyper-V kinds `hyperv-win` and `hyperv-haos`
 (Home Assistant OS). They share every lifecycle branch via `isHyperV` /
@@ -35,6 +35,7 @@ in `scripts/homeassistant.ps1` + `scripts/ha-configure.ps1`; read
 traps section is the list of things that took the instance down.
 
 VM ids:
+
 - AWS: `i-…` (raw EC2 instance id).
 - Azure: `{resourceGroup}/{name}` short form.
 - GCP: `{zone}/{name}` short form.
@@ -58,6 +59,7 @@ Synthetic DB id is always `${accountId}:${region}:${providerInstanceId}`.
 - Never call `revalidatePath` from a query module — only from server actions.
 - Audit log every mutation: `db.insert(auditLog).values({ accountId, action, target, status, message })`.
 - File path convention in `actions/`: `{domain}.ts` colocated, all marked `"use server"` at the top.
+- Agent-facing actions live in ONE place: [src/lib/mcp/tools.ts](src/lib/mcp/tools.ts) (served by `/api/mcp`, bearer `vmui_*` operator). Adding a house/PC capability means adding a tool there (zod schema, description a model can act on, `destructive`/`readOnly` flags) — not a new ad-hoc route. PC verbs are the fixed enum in `scripts/pc-action.ps1`; never expose arbitrary shell.
 
 ## Native modules
 

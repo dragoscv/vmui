@@ -106,7 +106,9 @@ function Render-Yaml {
 
 function Publish-Lan {
     # Reuse whichever Caddy owns :443 (see publish-vmui.ps1); add a plain-HTTP
-    # server on the LAN IP for the ESP. Only /api/esp/* is proxied.
+    # server on the LAN IP for the ESP. Only /api/esp/* and /api/mcp are
+    # proxied; /api/mcp is the LAN fallback for the codai phone when its
+    # Tailscale VPN is off (bearer vmui_* key checked by vmui itself).
     $ip = Get-LanIp
     $admin = $null
     foreach ($port in 22019, 2019) {
@@ -117,9 +119,9 @@ function Publish-Lan {
     $srv = @{
         listen = @("${ip}:$LanPort")
         routes = @(
-            @{ '@id' = 'vmui-esp'; match = @(@{ path = @('/api/esp/*') }); terminal = $true
+                @{ '@id' = 'vmui-esp'; match = @(@{ path = @('/api/esp/*', '/api/mcp') }); terminal = $true
                handle = @(@{ handler = 'reverse_proxy'; upstreams = @(@{ dial = '127.0.0.1:3737' }) }) },
-            @{ handle = @(@{ handler = 'static_response'; status_code = 404; body = 'esp only' }) }
+                @{ handle = @(@{ handler = 'static_response'; status_code = 404; body = 'esp/mcp only' }) }
         )
         automatic_https = @{ disable = $true }
     }

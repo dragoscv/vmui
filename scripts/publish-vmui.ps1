@@ -140,10 +140,14 @@ https://$Domain {
 
 # ESP32 desk display: plain HTTP on the LAN switch address, /api/esp/* only
 # (token-gated upstream). Mirrors esp32-display.ps1 -Publish for the case
-# where our own Caddy owns :443.
+# where our own Caddy owns :443. /api/mcp is the LAN fallback for the codai
+# phone when its Tailscale VPN is off (bearer vmui_* checked upstream).
 http://$(Get-LanIp):8737 {
 	bind $(Get-LanIp)
     handle /api/esp/* {
+        reverse_proxy 127.0.0.1:$Upstream
+    }
+    handle /api/mcp {
         reverse_proxy 127.0.0.1:$Upstream
     }
     handle {

@@ -124,6 +124,30 @@ over the tailnet at `https://mui.dragoscatalin.ro` via
 `scripts\vmui-service.ps1 -Install` (production server as a logon task) and
 `scripts\publish-vmui.ps1` (DNS, Let's Encrypt, Caddy route).
 
+### Agent access (codai) — MCP action server
+
+`POST /api/mcp` is a stateless MCP server (Streamable HTTP, JSON-RPC) that
+exposes the house and this PC as named, zod-validated, audit-logged tools:
+`home_devices`, `home_state`, `lights_set`, `lights_all`, `climate_set`,
+`ambilight_mode`, `notify_flash`, `media_command`, `nest_hub_say` (TTS),
+`nest_hub_show` (cast a dashboard view), `ha_script`, `desk_display_message`,
+`door_state` / `door_open` / `door_auto_open`, `pc_action` (fixed verbs in
+`scripts\pc-action.ps1`: lock, sleep, display_off, volume, mute, restart
+tunnel / VS Code ext host / ambilight / turzx / vmui), `vm_list`, `vm_action`.
+Destructive tools carry `destructiveHint` so the client asks first.
+
+- Auth: `Authorization: Bearer vmui_…` with the **operator** role. Mint one
+  with `node scripts/mint-api-key.mjs "codai phone" operator` (printed once).
+- Reach it from the codai phone/desktop over the tailnet
+  (`https://mui.dragoscatalin.ro/api/mcp`) or, on the home LAN with the VPN
+  off, `http://<lan-ip>:8737/api/mcp` (same Caddy listener as the ESP32).
+- codai phone reads `/sdcard/codai/mcp.json`:
+  `{"servers":{"vmui-home":{"url":"…/api/mcp","headers":{"Authorization":"Bearer vmui_…"}}}}`.
+- `nest_hub_show` needs HA `external_url` set to an HTTPS URL (Cast refuses
+  plain HTTP); `ha-configure.ps1 -PublishDomain` provides the certificate.
+- The cloud codai gateway never calls this: its `http_fetch` blocks private
+  IPs by design. Callers are the devices themselves.
+
 ## Security notes
 
 - vmui binds to `127.0.0.1` only — change ports/host with care
