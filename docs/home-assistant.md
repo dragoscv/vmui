@@ -390,6 +390,60 @@ kcal > 500 (2250 ml at 64.6 kg). Storage: `hydration` table; mirror
 Phone: `POST /api/nutrition/water {ml,source}` / `DELETE` to undo.
 Verified 2026-09-17: 4 presses → 1000 ml, 2 holds → 500 ml, all within 1 s.
 
+## Interfon Electra IA02 → telefon (2026-09-17, etapa 1)
+
+Same ESP32 (`bluetooth-proxy-1`), powered from a USB charger — no PC needed.
+Ring at the street door → HA companion notification on the S25 Ultra with
+two actions (*Răspunde și deschide* / *Ignoră*), the Turzx shows an orange
+"Suna la interfon" card while the line is live, and `/home?tab=devices` has
+the Interfon card with an "Aștept curier" auto-open arm (30/60 min, expires
+by itself). Every open lands in `audit_log` and `sensor.vmui_intercom_last_open`.
+
+Electra IA02 facts (Electra manual + arduino.cc thread; **measure before you
+trust them**): terminals top-down `+D1 · AVP · COMP · P · MP`. `MP` is
+ground. `P` carries +12 V **only while a call is in progress** (it is what
+powers the handset), and it collapses to ~4.8 V under load — never power the
+ESP from it. `AVP` is the command line: *talk* = pull AVP to +12 V through
+4.7 kΩ + diode for ~1.2 s, then *open* = AVP straight to ≥ 11.7 V for ~1.2 s.
+Order is strict (talk first, then open) and only works during a ring.
+
+Wiring (all mains-free, 12 V side galvanically isolated from the ESP):
+
+| Purpose | Parts | Connection |
+| --- | --- | --- |
+| Ring detect | PC817 optocoupler, 2.2 kΩ, 10 kΩ | `P` → 2.2 kΩ → PC817 pin 1 (anode); pin 2 (cathode) → `MP`. Pin 4 (collector) → GPIO34 **and** 10 kΩ → 3V3; pin 3 (emitter) → ESP GND. GPIO34 has no internal pull-up, hence the external one. |
+| Talk pulse | relay 1 of a 5 V 2-channel opto-isolated module, 4.7 kΩ, 1N4148/BA159 | module VCC ← ESP 5V, GND ← ESP GND, IN1 ← GPIO16. Relay 1: COM ← `P`, NO → 4.7 kΩ → diode (anode toward relay) → `AVP`. |
+| Open pulse | relay 2, second diode | IN2 ← GPIO17. Relay 2: COM ← `P`, NO → diode → `AVP` (no resistor). |
+
+Shopping list: 2-relay 5 V module with optocouplers (low-level or high-level
+trigger — check the module, the firmware drives GPIO16/17 HIGH to close),
+1× PC817, 2× 1N4148 (or BA159), resistors 4.7 kΩ / 2.2 kΩ / 10 kΩ, a strip of
+Dupont wires. The INMP441 / MAX98357A on hand are for stage 2/3 (audio).
+
+Measure first (multimeter, DC): `P`–`MP` idle and while someone rings from
+downstairs (expect 0 V → ~12 V), `AVP`–`MP` during a ring, and confirm `MP`
+is the common by checking continuity to the handset shield. If `P` is not
+~12 V during a ring the resistor in the ring-detect leg must be recomputed
+(target ≈ 4–5 mA through the PC817 LED).
+
+Firmware (`esp32/home-display.yaml.tmpl`): `binary_sensor intercom_ring`
+(GPIO34, inverted, 150 ms debounce, 4 s release delay) → `POST
+/api/esp/intercom?event=ring`; if vmui answers `"open":true` (auto-open armed)
+the board runs `script intercom_open_seq` itself. The same script is exposed
+as `esphome.bluetooth_proxy_1_intercom_open` and
+`button.office_bluetooth_proxy_1_intercom_open`; it refuses to fire when the
+line is not ringing (relay closing onto a dead `P` does nothing useful).
+Phone action → HA event `mobile_app_notification_action` → vmui
+`openDoor("telefon")` → that service. Verified 2026-09-17 with GPIO34
+floating (reads *ring* until the opto is wired): notification + actions,
+arm → ring → `{"open":true}`, both HA entities and the service present.
+
+Stages 2/3 (not built): listen to the visitor with the INMP441 held against
+the handset earpiece (I²S → ESPHome `microphone` → HA Assist/stream), talk
+back through the MAX98357A + a small speaker taped to the handset mic
+(acoustic coupling; no galvanic tap of the audio pair, which the manual says
+is polarity-sensitive and carries the 12 V).
+
 ## Tray icon and console-free tasks (2026-09-14)
 
 `ambilight/tray.py` (task `vmui-tray`, pythonw) shows one icon: green =

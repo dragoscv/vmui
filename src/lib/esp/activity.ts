@@ -101,6 +101,8 @@ export function ensureActivityFeed(): void {
         // Fired by assist_pipeline when a voice/text request finishes.
         ws.send(JSON.stringify({ id: id++, type: "subscribe_events", event_type: "assist_pipeline_end" }));
         ws.send(JSON.stringify({ id: id++, type: "subscribe_events", event_type: "conversation_processed" }));
+        // Buttons on the companion-app notifications (intercom "Răspunde și deschide" / "Ignoră").
+        ws.send(JSON.stringify({ id: id++, type: "subscribe_events", event_type: "mobile_app_notification_action" }));
       } else if (m.type === "event" && m.event) {
         const d = m.event.data ?? {};
         if (m.event.event_type === "state_changed") {
@@ -110,6 +112,17 @@ export function ensureActivityFeed(): void {
           if (ns) {
             const a = describe((d.old_state as State | null) ?? null, ns);
             if (a) pushActivity(a);
+          }
+        } else if (m.event.event_type === "mobile_app_notification_action") {
+          const action = String(d.action ?? "");
+          if (action.startsWith("INTERCOM_")) {
+            // lazy import: intercom.ts imports this module for pushActivity
+            void import("@/lib/home/intercom").then(async (ic) => {
+              if (action === "INTERCOM_OPEN") {
+                const r = await ic.openDoor("telefon");
+                if (!r.ok) console.warn("[vmui] intercom open from phone refused:", r.error);
+              } else if (action === "INTERCOM_IGNORE") await ic.ignoreCall("telefon");
+            }).catch((e) => console.error("[vmui] intercom action failed", e));
           }
         } else {
           // Shapes differ by version; pull whatever text is there.

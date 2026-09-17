@@ -1,5 +1,6 @@
 import { currentSignal, loadCopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
+import { intercomState, isAutoOpenArmed } from "@/lib/home/intercom";
 import { auditLog } from "@/lib/db/schema";
 import { ensureActivityFeed, recentActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
@@ -112,7 +113,11 @@ export async function GET(req: NextRequest) {
   const sig = currentSignal();
   const sigCfg = await loadCopilotSignals();
   // Same shape as a phone notification so the overlay pops it with no new code path.
-  const copilot =
+  const ic = intercomState();
+  // A ringing intercom outranks any agent card; same held-card path (pkg copilot.*, ongoing).
+  const copilot = ic.ringingSince
+    ? { id: `intercom|${ic.ringingSince}`, at: ic.ringingSince, pkg: "copilot.ask", app: "interfon", title: "Suna la interfon", text: isAutoOpenArmed() ? "Deschidere automata armata" : "Raspunde de pe telefon", ongoing: true, group: false, color: "#ff5a1f" }
+    :
     sig && sigCfg.enabled && sigCfg.patterns[sig.event].turzx
       ? {
           id: sig.id,
@@ -186,6 +191,7 @@ export async function GET(req: NextRequest) {
       health: health ? { ...health, stepsGoal: num(opt("health").stepsGoal, 8000), sleepGoalMin: num(opt("health").sleepGoalH, 8) * 60 } : null,
       notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
       copilot,
+      intercom: { ringing: ic.ringingSince !== null, since: ic.ringingSince, lastRingAt: ic.lastRingAt, lastOpenAt: ic.lastOpenAt, armedUntil: isAutoOpenArmed() ? ic.autoOpenUntil : null },
       nutrition,
       // same card shape as a phone notification; overlay pops it once per id
       nutritionEvent: nEv

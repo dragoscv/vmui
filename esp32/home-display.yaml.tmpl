@@ -70,6 +70,12 @@ api:
         - globals.set: { id: msg_body,  value: !lambda 'return body;' }
         - globals.set: { id: msg_until, value: !lambda 'return millis() + seconds * 1000;' }
         - component.update: oled
+    # Electra IA02 intercom: talk, then open. Fired by HA / vmui from the
+    # phone notification. Ignored when nobody is ringing (AVP is only powered
+    # during a call anyway; this just avoids relay chatter).
+    - service: intercom_open
+      then:
+        - script.execute: intercom_open_seq
 
 ota:
   - platform: esphome
@@ -169,8 +175,40 @@ output:
   - platform: gpio
     pin: GPIO4
     id: water_led
+  # Electra IA02 intercom, two relays on AVP (see docs/home-assistant.md).
+  # Relay 1 "Vorbire": P -> 4.7k -> diode -> AVP.  Relay 2 "Deschide": P -> diode -> AVP.
+  - platform: gpio
+    pin: GPIO16
+    id: intercom_talk
+  - platform: gpio
+    pin: GPIO17
+    id: intercom_open_relay
 
 script:
+  # Order and timing measured on IA01/IA02 by others and in the Electra
+  # manual: the door only opens after a talk pulse, ~1.2 s each.
+  - id: intercom_open_seq
+    mode: single
+    then:
+      - if:
+          condition:
+            not:
+              binary_sensor.is_on: intercom_ring
+          then:
+            - logger.log: { level: WARN, tag: intercom, format: "open requested but no call in progress; ignoring" }
+          else:
+            - logger.log: { level: WARN, tag: intercom, format: "open: talk" }
+            - output.turn_on: intercom_talk
+            - delay: 1200ms
+            - output.turn_off: intercom_talk
+            - delay: 1200ms
+            - logger.log: { level: WARN, tag: intercom, format: "open: door" }
+            - output.turn_on: intercom_open_relay
+            - delay: 1200ms
+            - output.turn_off: intercom_open_relay
+            - http_request.post:
+                url: "${intercom_url}&event=opened"
+                max_response_buffer_size: 128
   # n short blinks: 1 = glass added, 2 = glass undone, 3 = nothing to undo.
   - id: water_blink
     mode: restart
@@ -387,6 +425,42 @@ display:
 
 # ---- BOOT button: one button, three gestures --------------------------------
 binary_sensor:
+  # Electra IA02 ring detector: PC817 LED across P (+12 V only during a call)
+  # and MP (GND) through 2.2k; collector on GPIO34 with a 10k pull-up to 3V3,
+  # emitter to GND. GPIO34 is input-only and has no internal pull-up.
+  - platform: gpio
+    id: intercom_ring
+    name: Intercom ring
+    device_class: sound
+    pin:
+      number: GPIO34
+      inverted: true
+      mode:
+        input: true
+    filters:
+      - delayed_on: 150ms     # the line carries ring cadence; hold until it is a real call
+      - delayed_off: 4s       # ring pulses would otherwise flap on/off every second
+    on_press:
+      then:
+        - logger.log: { level: WARN, tag: intercom, format: "ring" }
+        - http_request.post:
+            url: "${intercom_url}&event=ring"
+            capture_response: true
+            max_response_buffer_size: 200
+            on_response:
+              then:
+                - lambda: |-
+                    // vmui answers {"open":true} while auto-open is armed
+                    if (response->status_code == 200 && body.find("\"open\":true") != std::string::npos) {
+                      id(intercom_open_seq).execute();
+                    }
+                - component.update: frame
+    on_release:
+      then:
+        - http_request.post:
+            url: "${intercom_url}&event=end"
+            max_response_buffer_size: 128
+        - component.update: frame
   - platform: gpio
     id: boot_btn
     name: Button
@@ -513,6 +587,11 @@ binary_sensor:
 button:
   - platform: restart
     name: Restart
+  - platform: template
+    name: Intercom open
+    icon: mdi:door-open
+    on_press:
+      - script.execute: intercom_open_seq
 
 sensor:
   # OKOK scale, fed by on_ble_manufacturer_data_advertise above

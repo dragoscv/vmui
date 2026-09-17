@@ -1,5 +1,7 @@
 import { HomeDashboard } from "@/components/home/home-dashboard";
 import { loadCopilotSignals } from "@/lib/copilot/signals";
+import { credential } from "@/lib/home/credentials";
+import { intercomState } from "@/lib/home/intercom";
 import { loadProfile } from "@/lib/nutrition/store";
 import { nutritionSummary } from "@/lib/nutrition/summary";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
@@ -8,6 +10,11 @@ import { AlertTriangle, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home — vmui" };
+
+function intercomProps() {
+  const s = intercomState();
+  return { ringing: s.ringingSince !== null, ringingSince: s.ringingSince, lastRingAt: s.lastRingAt, lastOpenAt: s.lastOpenAt, autoOpenUntil: s.autoOpenUntil, log: s.log };
+}
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const [{ tab }, devices, states, avail, wall, turzx, pomodoro, copilot, nutrition, nutritionProfile] = await Promise.all([searchParams, listPlacedDevices(), loadHomeStates(), homeAvailability(), wallSetting(), loadTurzxSettings(), loadPomodoro(), loadCopilotSignals(), nutritionSummary(), loadProfile()]);
@@ -46,7 +53,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} copilot={copilot} rgbLights={rgbLights} nutrition={nutrition} nutritionProfile={nutritionProfile} />
+      <HomeDashboard devices={devices} initialStates={states} haUrl={avail.url} initialTab={initialTab} wall={wall} turzx={turzx} pomodoro={pomodoro} copilot={copilot} rgbLights={rgbLights} nutrition={nutrition} nutritionProfile={nutritionProfile} intercom={intercomProps()} espToken={credential("ESP_DISPLAY_TOKEN") ?? ""} />
     </div>
   );
 }

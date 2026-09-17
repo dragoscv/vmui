@@ -15,6 +15,7 @@ import { CopilotSignalsCard } from "./copilot-signals-card";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
 import { FloorPlan } from "./floor-plan";
+import { IntercomCard, type IntercomCardState } from "./intercom-card";
 import { NutritionCard } from "./nutrition-card";
 import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
@@ -31,6 +32,8 @@ export function HomeDashboard({
   rgbLights,
   nutrition,
   nutritionProfile,
+  intercom,
+  espToken,
 }: {
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
@@ -43,6 +46,8 @@ export function HomeDashboard({
   rgbLights: Array<{ id: string; name: string }>;
   nutrition: NutritionSummary;
   nutritionProfile: NutritionProfile;
+  intercom: IntercomCardState;
+  espToken: string;
 }) {
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
@@ -63,6 +68,9 @@ export function HomeDashboard({
             <FloorPlan devices={devices} selected={selected} onSelect={setSelected} />
           </TabsContent>
           <TabsContent value="devices">
+            <div className="mb-6">
+              <IntercomCard initial={intercom} token={espToken} />
+            </div>
             <DeviceGrid devices={devices} onSelect={setSelected} />
           </TabsContent>
           <TabsContent value="ambilight">

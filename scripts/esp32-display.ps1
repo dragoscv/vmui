@@ -96,6 +96,7 @@ function Render-Yaml {
         button_url = "http://${ip}:$LanPort/api/esp/button?k=$tok"
         watchdog_url = "http://${ip}:$LanPort/api/esp/watchdog/${NodeName}?k=$tok"
         water_url  = "http://${ip}:$LanPort/api/nutrition/water?k=$tok"
+        intercom_url = "http://${ip}:$LanPort/api/esp/intercom?k=$tok&node=${NodeName}"
     }
     $y = Get-Content (Join-Path $Root 'esp32\home-display.yaml.tmpl') -Raw
     foreach ($k in $vars.Keys) { $y = $y.Replace('${' + $k + '}', [string]$vars[$k]) }
