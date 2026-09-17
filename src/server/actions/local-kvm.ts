@@ -3,17 +3,14 @@
 import { decryptJSON, encryptJSON } from "@/lib/crypto";
 import { db } from "@/lib/db";
 import { auditLog, cloudAccounts, instances } from "@/lib/db/schema";
-import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
 import { AwsProvider } from "@/lib/providers/aws";
+import { hostExe, hostPs, hostWsl } from "@/lib/providers/host-exec";
+import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
 import { getProvider } from "@/lib/providers/registry";
 import type { InstanceStatsSample } from "@/lib/providers/types";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { z } from "zod";
-
-const execFileP = promisify(execFile);
 
 /**
  * Server actions exclusive to the LocalKvmProvider:
@@ -111,7 +108,7 @@ function taskName(accountId: string): string {
 /** Check whether a scheduled task with this name exists. */
 async function taskExists(name: string): Promise<boolean> {
   try {
-    await execFileP("schtasks.exe", ["/Query", "/TN", name], { windowsHide: true });
+    await hostExe("schtasks.exe", ["/Query", "/TN", name]);
     return true;
   } catch {
     return false;
@@ -131,19 +128,7 @@ export async function getAutoStartStatusAction(
       provider.getCredentials().kind === "hyperv-win"
     ) {
       const vmName = provider.hypervVmName;
-      const { stdout } = await execFileP(
-        "powershell.exe",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-Command",
-          `try { (Get-VM -Name '${vmName}' -ErrorAction Stop).AutomaticStartAction } catch { 'MISSING' }`,
-        ],
-        { windowsHide: true, maxBuffer: 256 * 1024 },
-      );
-      const action = stdout.replace(/\r/g, "").trim();
+      const action = await hostPs(`try { (Get-VM -Name '${vmName}' -ErrorAction Stop).AutomaticStartAction } catch { 'MISSING' }`);
       return {
         ok: action !== "MISSING",
         enabled: action === "Start" || action === "StartIfRunning",
@@ -189,18 +174,7 @@ export async function enableAutoStartAction(accountId: string): Promise<{
   if (creds.kind === "hyperv-win") {
     const vmName = (lk as LocalKvmProvider).hypervVmName;
     try {
-      await execFileP(
-        "powershell.exe",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-Command",
-          `Set-VM -Name '${vmName}' -AutomaticStartAction Start -AutomaticStartDelay 0 -ErrorAction Stop`,
-        ],
-        { windowsHide: true, maxBuffer: 1024 * 1024 },
-      );
+      await hostPs(`Set-VM -Name '${vmName}' -AutomaticStartAction Start -AutomaticStartDelay 0 -ErrorAction Stop`);
       await db.insert(auditLog).values({
         accountId,
         action: "autostart.enable",
@@ -232,22 +206,7 @@ export async function enableAutoStartAction(accountId: string): Promise<{
     `"cd '${creds.vmDir}' && nohup setsid bash ./${bootScript} > ${logFile} 2>&1 < /dev/null & disown"`;
 
   try {
-    await execFileP(
-      "schtasks.exe",
-      [
-        "/Create",
-        "/SC",
-        "ONLOGON",
-        "/TN",
-        name,
-        "/TR",
-        tr,
-        "/RL",
-        "LIMITED",
-        "/F",
-      ],
-      { windowsHide: true, maxBuffer: 1024 * 1024 },
-    );
+    await hostExe("schtasks.exe", ["/Create", "/SC", "ONLOGON", "/TN", name, "/TR", tr, "/RL", "LIMITED", "/F"]);
 
     await db.insert(auditLog).values({
       accountId,
@@ -292,18 +251,7 @@ export async function disableAutoStartAction(accountId: string): Promise<{
   if (lkProvider && kind === "hyperv-win") {
     const vmName = lkProvider.hypervVmName;
     try {
-      await execFileP(
-        "powershell.exe",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-Command",
-          `Set-VM -Name '${vmName}' -AutomaticStartAction Nothing -ErrorAction Stop`,
-        ],
-        { windowsHide: true, maxBuffer: 1024 * 1024 },
-      );
+      await hostPs(`Set-VM -Name '${vmName}' -AutomaticStartAction Nothing -ErrorAction Stop`);
       await db.insert(auditLog).values({
         accountId,
         action: "autostart.disable",
@@ -329,11 +277,7 @@ export async function disableAutoStartAction(accountId: string): Promise<{
     if (!(await taskExists(name))) {
       return { ok: true }; // already gone
     }
-    await execFileP(
-      "schtasks.exe",
-      ["/Delete", "/TN", name, "/F"],
-      { windowsHide: true },
-    );
+    await hostExe("schtasks.exe", ["/Delete", "/TN", name, "/F"]);
 
     await db.insert(auditLog).values({
       accountId,
@@ -512,15 +456,13 @@ export async function getHostCapabilitiesAction(
     }
     const creds = provider.getCredentials();
     const pidFile = provider.getPidFile();
-    const out = await execFileP(
-      "wsl.exe",
-      ["-d", creds.distro, "--", "bash", "-lc",
-        // single-line: nproc, MemTotal kB, MemAvailable kB, qemu-running flag (per-kind pidfile)
-        `printf '%s %s %s %s' "$(nproc)" "$(awk '/^MemTotal:/{print $2}' /proc/meminfo)" "$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)" "$([ -f ${pidFile} ] && [ -d /proc/$(cat ${pidFile} 2>/dev/null) ] && echo 1 || echo 0)"`,
-      ],
-      { timeout: 5000, windowsHide: true },
+    // single-line: nproc, MemTotal kB, MemAvailable kB, qemu-running flag (per-kind pidfile)
+    const out = await hostWsl(
+      creds.distro,
+      `printf '%s %s %s %s' "$(nproc)" "$(awk '/^MemTotal:/{print $2}' /proc/meminfo)" "$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)" "$([ -f ${pidFile} ] && [ -d /proc/$(cat ${pidFile} 2>/dev/null) ] && echo 1 || echo 0)"`,
+      { timeoutMs: 8000 },
     );
-    const parts = out.stdout.trim().split(/\s+/);
+    const parts = out.trim().split(/\s+/);
     const [hc, mt, ma, run] = parts;
     return {
       ok: true,

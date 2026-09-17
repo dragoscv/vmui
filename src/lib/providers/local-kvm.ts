@@ -1,9 +1,6 @@
-import { execFile, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import { Socket } from "node:net";
-import path from "node:path";
-import { promisify } from "node:util";
 import "server-only";
+import { HOST_IS_LOCAL, hostExe, hostPs, hostSpawnDetached, hostWsl } from "./host-exec";
 import type {
     CloudProvider,
     ConnectionInfo,
@@ -14,8 +11,6 @@ import type {
     Platform,
     ProviderAccountInfo,
 } from "./types";
-
-const execFileP = promisify(execFile);
 
 /**
  * Local KVM / local Hyper-V provider — drives a VM on the same Windows host.
@@ -240,12 +235,7 @@ echo "OK \${PID} \${CPU_PCT} \${RSS:-0} \${RB:-0} \${WB:-0} \${RX:-0} \${TX:-0} 
 
 /** Run a single bash -lc command inside the named WSL distro. */
 async function wslExec(distro: string, cmd: string): Promise<string> {
-  const { stdout } = await execFileP(
-    "wsl.exe",
-    ["-d", distro, "--", "bash", "-lc", cmd],
-    { maxBuffer: 4 * 1024 * 1024, encoding: "utf8", windowsHide: true },
-  );
-  return stdout.replace(/\r/g, "").trim();
+  return hostWsl(distro, cmd);
 }
 
 /**
@@ -253,16 +243,12 @@ async function wslExec(distro: string, cmd: string): Promise<string> {
  * kind so we can drive Hyper-V cmdlets directly without going through WSL.
  */
 async function psExec(script: string): Promise<string> {
-  const { stdout } = await execFileP(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-    { maxBuffer: 4 * 1024 * 1024, encoding: "utf8", windowsHide: true },
-  );
-  return stdout.replace(/\r/g, "").trim();
+  return hostPs(script);
 }
 
 /** Send one QMP command and return parsed reply.return */
-async function qmp(port: number, command: string, args?: Record<string, unknown>): Promise<unknown> {
+async function qmp(port: number, command: string, args?: Record<string, unknown>, distro?: string): Promise<unknown> {
+  if (!HOST_IS_LOCAL) return qmpRemote(port, command, args, distro);
   return new Promise((resolve, reject) => {
     const sock = new Socket();
     let buf = "";
@@ -311,6 +297,29 @@ async function qmp(port: number, command: string, args?: Record<string, unknown>
       reject(e);
     });
   });
+}
+
+/**
+ * QMP only listens on the PC's loopback. From homepi we run the three-line
+ * handshake inside the WSL distro (bash /dev/tcp) and parse the last reply.
+ */
+async function qmpRemote(port: number, command: string, args: Record<string, unknown> | undefined, distro?: string): Promise<unknown> {
+  if (!distro) throw new Error("QMP over ssh needs the WSL distro");
+  const cmd = JSON.stringify(args ? { execute: command, arguments: args } : { execute: command }).replace(/'/g, "'\\''");
+  const script =
+    // /dev/tcp to a CLOSED loopback port inside WSL2 blocks for ~2 min (measured
+    // 143 s) — the NAT layer never returns a RST. Check the listener first.
+    `ss -tln 2>/dev/null | grep -q ':${port} ' || { echo '{"error":{"desc":"QMP not listening"}}'; exit 0; }; ` +
+    `exec 3<>/dev/tcp/127.0.0.1/${port} || exit 7; ` +
+    `read -t 3 -r g <&3; printf '{"execute":"qmp_capabilities"}\\n' >&3; read -t 3 -r c <&3; ` +
+    `printf '%s\\n' '${cmd}' >&3; ` +
+    // events may arrive first; take the first line that is a return/error
+    `for i in 1 2 3 4 5; do read -t 3 -r l <&3 || break; case "$l" in *'"return"'*|*'"error"'*) printf '%s' "$l"; break;; esac; done; exec 3<&-`;
+  const out = await hostWsl(distro, script, { timeoutMs: 20_000 });
+  if (!out) throw new Error("QMP: empty reply");
+  const msg = JSON.parse(out) as { return?: unknown; error?: { desc: string } };
+  if (msg.error) throw new Error(msg.error.desc);
+  return msg.return;
 }
 
 const TEMPLATES_BY_KIND: Record<LocalKvmKind, InstanceTemplate[]> = {
@@ -581,7 +590,7 @@ export class LocalKvmProvider implements CloudProvider {
     let state: NormalizedState = alive ? "running" : "stopped";
     if (alive) {
       try {
-        const status = (await qmp(this.creds.qmpPort, "query-status")) as { status?: string };
+        const status = (await qmp(this.creds.qmpPort, "query-status", undefined, this.creds.distro)) as { status?: string };
         state = this.mapQmpStatus(status.status);
       } catch {
         // QMP not responsive yet — leave as "running"
@@ -644,17 +653,17 @@ export class LocalKvmProvider implements CloudProvider {
     //    `wsl.exe -d <distro> -- bash run-vm-foreground.sh` and re-runs it
     //    on exit, holding a Windows handle on the WSL VM to defeat
     //    idle-shutdown.
-    const repoRoot = process.cwd();
-    const wdScript = path.join(repoRoot, "scripts", "watchdog-vm.ps1");
-    const spawnerScript = path.join(repoRoot, "scripts", "spawn-watchdog.ps1");
-    if (!existsSync(wdScript) || !existsSync(spawnerScript)) {
-      throw new Error(`watchdog scripts not found in ${path.dirname(wdScript)}`);
-    }
+    // The scripts live in the vmui checkout ON THE HOST. Locally that is our
+    // cwd; from homepi it is VMUI_HOST_REPO (default E:\gh\vmui).
+    const repoRoot = HOST_IS_LOCAL ? process.cwd() : (process.env.VMUI_HOST_REPO ?? "E:\\gh\\vmui");
+    const spawnerScript = `${repoRoot}\\scripts\\spawn-watchdog.ps1`;
+    const present = await hostPs(`Test-Path '${repoRoot}\\scripts\\watchdog-vm.ps1'; Test-Path '${spawnerScript}'`);
+    if (present.includes("False")) throw new Error(`watchdog scripts not found in ${repoRoot}\\scripts`);
 
     // Kill any existing watchdog (PID file) so we don't stack them.
     await this.killWatchdog().catch(() => {});
 
-    const child = spawn(
+    hostSpawnDetached(
       "powershell.exe",
       [
         "-NoProfile",
@@ -684,9 +693,7 @@ export class LocalKvmProvider implements CloudProvider {
           ? ["-MacDisk", KIND_DEFAULTS.mac.macDisk]
           : []),
       ],
-      { detached: true, stdio: "ignore", windowsHide: true },
     );
-    child.unref();
 
     // Wait for QEMU to actually start listening on the QMP port.
     const deadline = Date.now() + 15000;
@@ -708,18 +715,14 @@ export class LocalKvmProvider implements CloudProvider {
       `$_.CommandLine -like '*-QmpPort ${this.creds.qmpPort}*' } | ` +
       `Select-Object -ExpandProperty ProcessId`;
     try {
-      const { stdout } = await execFileP(
-        "powershell.exe",
-        ["-NoProfile", "-WindowStyle", "Hidden", "-Command", findCmd],
-        { windowsHide: true },
-      );
+      const stdout = await hostPs(findCmd);
       const pids = stdout
         .split(/\r?\n/)
         .map((s) => s.trim())
         .filter((s) => /^\d+$/.test(s));
       for (const pid of pids) {
         try {
-          await execFileP("taskkill.exe", ["/PID", pid, "/T", "/F"], { windowsHide: true });
+          await hostExe("taskkill.exe", ["/PID", pid, "/T", "/F"]);
         } catch {
           /* already gone */
         }
@@ -740,7 +743,7 @@ export class LocalKvmProvider implements CloudProvider {
     }
     await this.killWatchdog().catch(() => {});
     try {
-      await qmp(this.creds.qmpPort, "system_powerdown");
+      await qmp(this.creds.qmpPort, "system_powerdown", undefined, this.creds.distro);
     } catch {
       await wslExec(
         this.creds.distro,
@@ -754,7 +757,7 @@ export class LocalKvmProvider implements CloudProvider {
       await psExec(`Restart-VM -Name '${this.hypervVmName}' -Force -ErrorAction Stop`);
       return;
     }
-    await qmp(this.creds.qmpPort, "system_reset");
+    await qmp(this.creds.qmpPort, "system_reset", undefined, this.creds.distro);
   }
 
   async terminateInstance(): Promise<void> {
@@ -767,7 +770,7 @@ export class LocalKvmProvider implements CloudProvider {
     // "Terminate" = hard kill. Does NOT delete the disk image.
     await this.killWatchdog().catch(() => {});
     try {
-      await qmp(this.creds.qmpPort, "quit");
+      await qmp(this.creds.qmpPort, "quit", undefined, this.creds.distro);
     } catch {
       await wslExec(
         this.creds.distro,
@@ -908,7 +911,7 @@ export class LocalKvmProvider implements CloudProvider {
 
     const ppmPath = `/tmp/vmui-${this.kind}.ppm`;
     try {
-      await qmp(this.creds.qmpPort, "screendump", { filename: ppmPath, format: "ppm" });
+      await qmp(this.creds.qmpPort, "screendump", { filename: ppmPath, format: "ppm" }, this.creds.distro);
     } catch {
       return null;
     }
@@ -1055,15 +1058,9 @@ export class LocalKvmProvider implements CloudProvider {
     }
     try {
       const script = statsScript(this.pidFile);
-      const out = await new Promise<string>((resolve, reject) => {
-        const proc = execFile(
-          "wsl.exe",
-          ["-d", this.creds.distro, "--", "bash", "-s"],
-          { timeout: 5000, maxBuffer: 64 * 1024, windowsHide: true },
-          (err, stdout) => (err ? reject(err) : resolve(stdout)),
-        );
-        proc.stdin?.end(script);
-      });
+      // base64 keeps the multi-line script intact through ssh + cmd.exe + wsl.exe
+      const b64 = Buffer.from(script, "utf8").toString("base64");
+      const out = await hostWsl(this.creds.distro, `echo ${b64} | base64 -d | bash -s`, { timeoutMs: 8000, maxBuffer: 64 * 1024 });
 
       const trimmed = out.trim();
       if (!trimmed || trimmed.startsWith("NORUN")) return null;

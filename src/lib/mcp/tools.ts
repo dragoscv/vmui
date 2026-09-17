@@ -6,7 +6,7 @@ import { showMessage } from "@/lib/esp/gallery";
 import { AMBILIGHT_MODES, DEVICES } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
 import { armAutoOpen, ignoreCall, intercomState, openDoor } from "@/lib/home/intercom";
-import { executeInstanceAction } from "@/server/actions/instances";
+import { executeInstanceAction, syncAccountInstances } from "@/server/actions/instances";
 import { eq } from "drizzle-orm";
 import { spawn } from "node:child_process";
 import path from "node:path";
@@ -304,6 +304,25 @@ export const TOOLS: McpTool[] = [
     run: async () => {
       const rows = await db.select({ id: instances.id, name: instances.name, state: instances.state, provider: instances.provider, region: instances.region }).from(instances);
       return { ok: true, vms: rows };
+    },
+  },
+  {
+    name: "vm_sync",
+    description: "Refresh the VM list from the hypervisor/cloud (Hyper-V and WSL VMs on the PC are reached over SSH). Pass accountId from vm_list, or omit to sync every account. Slow: up to ~10 s per account.",
+    schema: z.object({ accountId: z.string().min(1).optional() }),
+    run: async ({ accountId }) => {
+      const ids = accountId ? [accountId as string] : (await db.query.cloudAccounts.findMany({ columns: { id: true } })).map((a) => a.id);
+      const results: Array<{ accountId: string; count?: number; error?: string }> = [];
+      for (const id of ids) {
+        try {
+          results.push({ accountId: id, count: (await syncAccountInstances(id)).count });
+        } catch (e) {
+          results.push({ accountId: id, error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      const failed = results.filter((r) => r.error);
+      if (failed.length) return { ok: false, error: failed.map((r) => `${r.accountId}: ${r.error}`).join("; ") };
+      return { ok: true, results };
     },
   },
   {

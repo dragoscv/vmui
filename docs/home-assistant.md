@@ -30,8 +30,25 @@ pointed at the add-on's port 64203 — set `host 127.0.0.1`, `port 6052`,
 in container mode; `light.hyperhdr` unavailable is HyperHDR living on the PC.
 
 Still on the PC, on purpose: Ambilight (screen capture, HID, OpenRGB), the
-tray, the Hyper-V `local-kvm` provider (vmui on the PC keeps running for it
-until that provider talks to the PC over SSH), and the metrics publisher.
+tray, and the metrics publisher. The `local-kvm` provider (Hyper-V + QEMU in
+WSL) is driven **from the Pi over SSH**: `src/lib/providers/host-exec.ts`
+turns every `powershell.exe` / `wsl.exe` / `schtasks.exe` call into an ssh
+hop when `VMUI_HOST_SSH` is set (unit sets `vladu@192.168.100.61`,
+`VMUI_HOST_REPO=E:\gh\vmui` for the watchdog scripts). PowerShell travels as
+`-EncodedCommand`; bash for WSL travels as a base64 argument decoded with
+`echo $1 ^| base64 -d` (the `^` is for cmd.exe, which otherwise eats the
+pipe — `<<<` here-strings fail the same way). The Pi's key
+(`~/.ssh/id_ed25519`, comment `homepi-vmui`) is in
+`C:\ProgramData\ssh\administrators_authorized_keys`. Measured: a Hyper-V sync
+is ~2 s, a WSL sync ~1 s. Trap: `/dev/tcp` to a CLOSED port inside WSL2
+blocks ~143 s (no RST through the NAT) — `qmpRemote` checks `ss -tln` first.
+MCP gained `vm_sync` so agents (and this doc's verification) can trigger it.
+
+The 128 GB microSD (manfid 0x1111, 2024) stays in the Pi but is **not used**:
+it writes at 1.9 MB/s (mkfs.ext4 wedged in D state for 17 min and had to be
+killed). USB boot is now first in the EEPROM (`BOOT_ORDER=0xf41`, applied at
+next reboot together with the 2026-05-17 bootloader), so the card can be
+pulled; `pi/sd-as-data.sh` is what to run if a faster card ever replaces it.
 
 Rollback: `Start-VM homeassistant`, put the router reservation back on
 `00:15:5d:64:3d:25`, `esp32-display.ps1 -Flash -VmuiHost <pc-ip> -LanPort 8737`.
