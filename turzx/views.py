@@ -741,10 +741,11 @@ class PiView(View):
             sk.text(d, (22 + d.textlength(f"{v:.0f}", font=sk.huge) + 8, 100), "% CPU", sk.mid, sk.muted)
             dk = pi.get("disk") or {}
             mhz = int(num(pi.get("mhz")) or 0)
-            for i, (label, val) in enumerate((("TEMP", f"{tv:.0f}°"), ("RAM", f"{self.ram.value:.0f}%"), ("GHZ", f"{mhz / 1000:.1f}"), ("DISC", f"{float(dk.get('pct') or 0):.0f}%"))):
-                x = 22 + i * 112
+            cv = num(pi.get("coreV"))
+            for i, (label, val) in enumerate((("TEMP", f"{tv:.0f}°"), ("RAM", f"{self.ram.value:.0f}%"), ("GHZ", f"{mhz / 1000:.1f}"), ("CORE", f"{cv:.2f}V" if cv else "—"), ("DISC", f"{float(dk.get('pct') or 0):.0f}%"))):
+                x = 22 + i * 90
                 sk.text(d, (x, 214), sk.label(label), sk.tiny, sk.muted)
-                sk.text(d, (x, 230), fit_text(d, val, sk.big, 100), sk.big, sk.fg)
+                sk.text(d, (x, 230), fit_text(d, val, sk.big, 82), sk.big, sk.fg)
             sparkline(d, (22, 290, W - 22, 312), self.hist, sk.accent)
             return
         cols = (sk.accent, tcol, (34, 211, 238)) if sk.id != "terminal" else (sk.accent, sk.accent, sk.accent)
@@ -757,11 +758,19 @@ class PiView(View):
         sparkline(d, (22, 262, W - 22, 300), self.hist, lerp_rgb(sk.accent, sk.bg, 0.2))
         mhz = int(num(pi.get("mhz")) or 0)
         load = num(pi.get("load"))
+        th = pi.get("throttled") or {}
+        # the firmware parks the ARM at 600 MHz while the rail is low — show the
+        # clock in the warning colour then, so a "slow panel" reads as power
         left = f"{mhz} MHz" if mhz else ""
         if load is not None:
             left += f"{' · ' if left else ''}load {load:.2f}"
-        sk.text(d, (22, 236), left, sk.tiny, sk.muted)
-        th = pi.get("throttled") or {}
+        cv = num(pi.get("coreV"))
+        if cv:
+            left += f"{' · ' if left else ''}core {cv:.2f} V"
+        dips = int(num(pi.get("dips")) or 0)
+        if dips:
+            left += f" · {dips} căderi"
+        sk.text(d, (22, 236), fit_text(d, left, sk.tiny, W - 44 - 130), sk.tiny, sk.warn if (mhz and mhz <= 600 and th.get("undervolt")) else sk.muted)
         flag = "SUB-TENSIUNE" if th.get("undervolt") else "THROTTLED" if th.get("throttled") or th.get("capped") else "LIMITĂ TEMP" if th.get("softTemp") else ""
         if flag:
             sk.text(d, (W - 22, 236), flag, sk.tiny, sk.bad, anchor="ra")

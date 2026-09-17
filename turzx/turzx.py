@@ -292,6 +292,8 @@ def _pi_worker() -> None:
     vcgencmd reads, once a second, off the frame path like `_pc_worker`."""
     global _pi
     last_net = (0, 0, time.perf_counter())
+    dips = 0
+    was_low = False
     while True:
         out: dict = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent, "uptime": time.time() - psutil.boot_time()}
         try:
@@ -326,6 +328,21 @@ def _pi_worker() -> None:
             out["throttled"] = {"undervolt": bool(v & 1), "capped": bool(v & 2), "throttled": bool(v & 4), "softTemp": bool(v & 8), "ever": bool(v & 0xF0000)}
             r = subprocess.run(["vcgencmd", "measure_clock", "arm"], capture_output=True, text=True, timeout=2)
             out["mhz"] = int(r.stdout.strip().split("=")[1]) // 1_000_000
+            # The Pi 4 has no ADC on the 5 V rail (pmic_read_adc is a Pi 5 command);
+            # core voltage + the under-voltage bit are what the firmware exposes.
+            r = subprocess.run(["vcgencmd", "measure_volts", "core"], capture_output=True, text=True, timeout=2)
+            out["coreV"] = float(r.stdout.strip().split("=")[1].rstrip("V"))
+            low = bool(v & 1)
+            if low and not was_low:
+                dips += 1
+            was_low = low
+            out["dips"] = dips
+        except Exception:
+            pass
+        try:
+            r = subprocess.run(["vcgencmd", "measure_temp", "pmic"], capture_output=True, text=True, timeout=2)
+            if "=" in r.stdout:
+                out["pmicTemp"] = float(r.stdout.strip().split("=")[1].rstrip("'C"))
         except Exception:
             pass
         try:
