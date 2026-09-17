@@ -367,12 +367,12 @@ has no weight.
 A PC-case power switch with its LED, wired straight to the ideaspark header
 (no resistor — case LEDs carry one on the lead; tested at 3.3 V):
 
-| Lead          | Pin        | Row / position                    |
-| ------------- | ---------- | --------------------------------- |
-| POWER SW (a)  | **GND**    | bottom row, 2nd from left          |
-| POWER SW (b)  | **GPIO13** | bottom row, 3rd from left (`D13`)  |
-| POWER LED −   | **GND**    | top row, 2nd from left             |
-| POWER LED +   | **GPIO4**  | top row, 5th from left (`D4`)      |
+| Lead         | Pin        | Row / position                    |
+| ------------ | ---------- | --------------------------------- |
+| POWER SW (a) | **GND**    | bottom row, 2nd from left         |
+| POWER SW (b) | **GPIO13** | bottom row, 3rd from left (`D13`) |
+| POWER LED −  | **GND**    | top row, 2nd from left            |
+| POWER LED +  | **GPIO4**  | top row, 5th from left (`D4`)     |
 
 Avoided on purpose: `D15` (strapping, blocks boot logging when pulled low),
 `D2` (on-board LED), `D21/D22` (OLED), `RX0/TX0` (serial log).

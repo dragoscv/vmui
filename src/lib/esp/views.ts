@@ -244,3 +244,68 @@ export function renderMessage(title: string, body: string): Framebuffer {
   }
   return fb;
 }
+
+export type WaterCard = {
+  action: "add" | "undo" | "noop";
+  ml: number;
+  targetMl: number;
+  glasses: number;
+  /** Today's glasses, newest first, ms epoch. */
+  entries: Array<{ at: number; ml: number }>;
+  /** Last 7 days incl. today, oldest first. */
+  week: Array<{ day: string; ml: number }>;
+  lastAt: number | null;
+};
+
+const fmtL = (ml: number) => (ml >= 1000 ? `${(ml / 1000).toFixed(2).replace(/\.?0+$/, "")}L` : `${ml}ml`);
+
+/** Water card for the desk button: what just happened, the day total against
+ *  the target, the glasses so far and the week. Fits the 128x64 two-colour
+ *  panel: yellow band = headline, blue body = numbers. */
+export function renderWater(w: WaterCard): Framebuffer {
+  const fb = new Framebuffer();
+  const head = w.action === "add" ? `+${w.entries[0]?.ml ?? 250} ml apa` : w.action === "undo" ? "Pahar anulat" : "Nimic de anulat";
+  band(fb, head, w.lastAt ? hhmm(new Date(w.lastAt)) : undefined);
+
+  // total (size 2) / target; the remaining amount goes right of the glasses row
+  // so a long total like "1.25L" never collides with it
+  const total = fmtL(w.ml);
+  text(fb, 1, 19, total, 2);
+  const tx = 1 + textWidth(total, 2) + 3;
+  text(fb, tx, 26, `/ ${fmtL(w.targetMl)}`);
+  const rem = w.targetMl - w.ml;
+
+  // progress bar with a tick per glass position
+  const bx = 1, by = 37, bw = 126, bh = 6;
+  fb.rect(bx, by, bw, bh);
+  const frac = Math.min(1, w.targetMl > 0 ? w.ml / w.targetMl : 0);
+  if (frac > 0) fb.fill(bx + 1, by + 1, Math.max(1, Math.round((bw - 2) * frac)), bh - 2);
+  const glassPx = w.targetMl > 0 ? ((bw - 2) * 250) / w.targetMl : 0;
+  for (let x = bx + 1 + glassPx; x < bx + bw - 1 && glassPx >= 4; x += glassPx) fb.set(Math.round(x), by + bh, true);
+
+  // today's glasses as filled circles (max 12), newest blinking
+  const n = Math.min(12, w.glasses);
+  for (let i = 0; i < n; i++) {
+    const x = 1 + i * 10;
+    const y = 47;
+    const newest = i === n - 1 && w.action === "add" && Math.floor(Date.now() / 400) % 2 === 0;
+    if (newest) fb.rect(x, y, 7, 7);
+    else fb.fill(x, y, 7, 7);
+  }
+  if (w.glasses > 12) text(fb, 1 + 12 * 10, 47, `+${w.glasses - 12}`);
+  if (n <= 8) textRight(fb, 127, 47, rem > 0 ? `inca ${fmtL(rem)}` : "tinta OK");
+
+  // 7-day strip along the bottom: bar height 1..7 vs target
+  const sy = 63;
+  const mx = Math.max(w.targetMl, ...w.week.map((d) => d.ml));
+  w.week.slice(-7).forEach((d, i) => {
+    const x = 1 + i * 18;
+    const h = mx > 0 ? Math.round((7 * d.ml) / mx) : 0;
+    if (h > 0) fb.fill(x, sy - h, 14, h);
+    else fb.hline(x, x + 13, sy);
+  });
+  // target line across the strip
+  const ty = sy - Math.round((7 * w.targetMl) / mx);
+  for (let x = 1; x < 127; x += 3) fb.set(x, ty, true);
+  return fb;
+}

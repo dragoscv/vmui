@@ -21,7 +21,8 @@ const Q = z.object({
 // POST /api/esp/button?node=…&click=single|double|long&k=…
 //   single → next view        double → pause/resume gallery
 //   long   → toggle ambilight movie mode (via HA scripts already installed)
-// &btn=water (case switch on GPIO13): single → +1 glass, long → undo last glass.
+// &btn=water (case switch on GPIO13): single → +250 ml, double → +100 ml (a
+//   sip, not a whole glass), long → undo last entry.
 //   Reply carries `led` so the firmware can blink the switch LED 1×/2×.
 export async function POST(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   let result = "";
   try {
     if (btn === "water") {
-      const r = click === "long" ? await undoGlass("esp-button") : await drinkGlass(undefined, "esp-button");
+      const r = click === "long" ? await undoGlass("esp-button") : await drinkGlass(click === "double" ? 100 : 250, "esp-button");
       result = `${r.action} ${r.ml} ml -> ${r.water.ml}/${r.water.targetMl}`;
       await db.insert(auditLog).values({ accountId: "home", action: "esp.button", target: node, status: "ok", message: `water ${click} -> ${result}` });
       return NextResponse.json({ ok: true, result, led: r.action === "add" ? 1 : r.action === "undo" ? 2 : 3, ml: r.water.ml, target: r.water.targetMl, underPace: r.water.underPace });

@@ -14,7 +14,7 @@ type Node = {
   paused: boolean;
   lastAdvance: number;
   lastSeen: number;
-  message: { title: string; body: string; until: number } | null;
+  message: { title: string; body: string; until: number; render?: () => Framebuffer } | null;
 };
 
 declare global {
@@ -79,11 +79,17 @@ export function showMessage(name: string, title: string, body: string, seconds =
   node(name).message = { title, body, until: Date.now() + seconds * 1000 };
 }
 
+/** Like showMessage but with a purpose-built frame (bars, dots) instead of
+ *  wrapped text. The renderer runs on every fetch so it can animate on time. */
+export function showFrame(name: string, render: () => Framebuffer, seconds = 8): void {
+  node(name).message = { title: "", body: "", until: Date.now() + seconds * 1000, render };
+}
+
 export async function frameFor(name: string, ambilightMode: string): Promise<Framebuffer> {
   ensureActivityFeed();
   const n = node(name);
   n.lastSeen = Date.now();
-  if (n.message && n.message.until > Date.now()) return renderMessage(n.message.title, n.message.body);
+  if (n.message && n.message.until > Date.now()) return n.message.render ? n.message.render() : renderMessage(n.message.title, n.message.body);
   n.message = null;
   if (!n.paused && Date.now() - n.lastAdvance >= ROTATE_MS) {
     n.index = (n.index + 1) % VIEW_ORDER.length;

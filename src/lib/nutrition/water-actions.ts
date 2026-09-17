@@ -3,6 +3,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { pushActivity } from "@/lib/esp/activity";
+import { listNodes, showFrame } from "@/lib/esp/gallery";
+import { renderWater } from "@/lib/esp/views";
 import { setNutritionEvent } from "./events";
 import { nutritionSummary, publishToHa } from "./summary";
 import { addWater, GLASS_ML, undoWater, type WaterSummary } from "./water";
@@ -12,6 +14,12 @@ export interface WaterResult {
   action: "add" | "undo" | "noop";
   ml: number;
   water: WaterSummary;
+}
+
+/** Show the water card on every ESP display for 8 s, then the gallery resumes. */
+function espCard(action: WaterResult["action"], w: WaterSummary): void {
+  const card = { action, ml: w.ml, targetMl: w.targetMl, glasses: w.glasses, entries: w.entries, week: w.week, lastAt: w.lastAt };
+  for (const n of listNodes()) showFrame(n.name, () => renderWater(card), 8);
 }
 
 const fmt = (ml: number) => (ml >= 1000 ? `${(ml / 1000).toFixed(ml % 1000 ? 2 : 1).replace(/\.?0+$/, "")} L` : `${ml} ml`);
@@ -24,6 +32,7 @@ export async function drinkGlass(ml = GLASS_ML, source = "web"): Promise<WaterRe
   const w = s.water;
   setNutritionEvent({ kind: "meal", at: Date.now(), name: `+${fmt(ml)} apă`, text: `${fmt(w.ml)} din ${fmt(w.targetMl)}${w.remainingMl === 0 ? " · țintă atinsă" : ""}` });
   pushActivity({ at: Date.now(), kind: "other", text: `apă +${ml} ml (${w.glasses} pahare, ${fmt(w.ml)})` });
+  espCard("add", w);
   await db.insert(auditLog).values({ accountId: "home", action: "nutrition.water.add", target: source, status: "ok", message: `${ml} ml -> ${w.ml}/${w.targetMl}` });
   publishToHa(s).catch(() => undefined);
   return { ok: true, action: "add", ml, water: w };
@@ -33,6 +42,7 @@ export async function undoGlass(source = "web"): Promise<WaterResult> {
   const removed = await undoWater();
   const s = await nutritionSummary();
   const w = s.water;
+  espCard(removed ? "undo" : "noop", w);
   if (removed) {
     setNutritionEvent({ kind: "meal", at: Date.now(), name: "Pahar anulat", text: `${fmt(w.ml)} din ${fmt(w.targetMl)}` });
     await db.insert(auditLog).values({ accountId: "home", action: "nutrition.water.undo", target: source, status: "ok", message: `-${removed.ml} ml -> ${w.ml}/${w.targetMl}` });
