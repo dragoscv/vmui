@@ -50,6 +50,8 @@ foreach ($f in '.env', '.private/credentials.env') {
 if (Test-Path 'turzx\fonts') { tar -cf - turzx/fonts | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest" }
 # Home Assistant packages (rest_command/scripts that call vmui on the Pi)
 if (Test-Path 'pi\ha-packages') { tar -cf - -C pi ha-packages | ssh -o BatchMode=yes $Pi "tar -xf - -C /tmp && sudo cp /tmp/ha-packages/*.yaml /srv/homepi/ha/packages/ && rm -rf /tmp/ha-packages" }
+# custom-component fixes that a HAOS restore would undo (see docs: HyperHDR async_timeout)
+if (Test-Path 'pi\ha-patches') { tar -cf - -C pi ha-patches | ssh -o BatchMode=yes $Pi "tar -xf - -C /tmp && D=/srv/homepi/ha/custom_components/hyperhdr_integration && [ -d \$D ] && sudo cp /tmp/ha-patches/hyperhdr_integration-coordinator.py \$D/coordinator.py && sudo cp /tmp/ha-patches/hyperhdr_integration-config_flow.py \$D/config_flow.py; rm -rf /tmp/ha-patches" }
 $espTok = ((Get-Content '.private\credentials.env' | Where-Object { $_ -match '^ESP_DISPLAY_TOKEN=' }) -replace '^ESP_DISPLAY_TOKEN=', '').Trim('"')
 if ($espTok) {
   # keep the shared token in HA secrets.yaml (never in an entity state or the package file)

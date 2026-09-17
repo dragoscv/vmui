@@ -27,7 +27,17 @@ because the Pi's own `hci0` was RF-killed — `rfkill unblock bluetooth;
 systemctl enable --now bluetooth`; and `.storage/esphome.dashboard` still
 pointed at the add-on's port 64203 — set `host 127.0.0.1`, `port 6052`,
 `addon_slug esphome`, then restart HA. `hassio` failing to load is expected
-in container mode; `light.hyperhdr` unavailable is HyperHDR living on the PC.
+in container mode. A third one, found 2026-09-17 23:00: the HyperHDR custom
+component logged `Unexpected HyperHDR error: ` (empty message) every 30 s
+and `light.hyperhdr` stayed unavailable although the Pi reached
+`192.168.100.61:8090/json-rpc` fine. Cause: `with async_timeout.timeout()`
+(sync form) raises a bare `TimeoutError` on the newer `async_timeout` in this
+HA image — it used to only warn on HAOS. Fix: `async with` in
+`coordinator.py` and `config_flow.py`; the patched copies live in
+`pi/ha-patches/` and pi-deploy re-applies them. Verified after restart:
+`binary_sensor.hyperhdr_reachable on`, `number.hyperhdr_priority 50`.
+Tuya (Smart Life) needs a re-login after every restore: the flow's QR code is
+scanned **in the Smart Life app** (Me → scan icon), not Tuya Smart.
 
 Still on the PC, on purpose: Ambilight (screen capture, HID, OpenRGB), the
 tray, and the metrics publisher. The `local-kvm` provider (Hyper-V + QEMU in
