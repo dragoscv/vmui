@@ -48,6 +48,13 @@ foreach ($f in '.env', '.private/credentials.env') {
   if (Test-Path $f) { scp -q -o BatchMode=yes $f "${Pi}:$Dest/$f" }
 }
 if (Test-Path 'turzx\fonts') { tar -cf - turzx/fonts | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest" }
+# Home Assistant packages (rest_command/scripts that call vmui on the Pi)
+if (Test-Path 'pi\ha-packages') { tar -cf - -C pi ha-packages | ssh -o BatchMode=yes $Pi "tar -xf - -C /tmp && sudo cp /tmp/ha-packages/*.yaml /srv/homepi/ha/packages/ && rm -rf /tmp/ha-packages" }
+$espTok = ((Get-Content '.private\credentials.env' | Where-Object { $_ -match '^ESP_DISPLAY_TOKEN=' }) -replace '^ESP_DISPLAY_TOKEN=', '').Trim('"')
+if ($espTok) {
+  # keep the shared token in HA secrets.yaml (never in an entity state or the package file)
+  "http://127.0.0.1:3737/api/pc/wake?k=$espTok&by=ha" | ssh -o BatchMode=yes $Pi 'read -r U; F=/srv/homepi/ha/secrets.yaml; sudo touch $F; sudo sed -i "/^vmui_pc_wake_url:/d" $F; echo "vmui_pc_wake_url: \"$U\"" | sudo tee -a $F >/dev/null'
+}
 if ($SyncOnly) { return }
 
 $lock = (Get-FileHash pnpm-lock.yaml -Algorithm SHA256).Hash

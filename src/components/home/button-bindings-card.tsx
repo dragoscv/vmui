@@ -23,6 +23,7 @@ const KIND_LABEL: Record<Kind, string> = {
   turzx_next: "Turzx: view următor",
   turzx_pause: "Turzx: pauză / continuă",
   ambilight_movie: "Ambilight: movie mode",
+  pc_wake: "PC: pornește (Wake-on-LAN)",
 };
 
 function defaultFor(kind: Kind): ButtonAction {

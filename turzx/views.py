@@ -686,13 +686,110 @@ class PcView(View):
                 lw = int(d.textlength(lab, font=sk.tiny)) + 6
                 free = f"{float(dk.get('freeGb') or 0):.0f} GB"
                 fw = int(d.textlength(free, font=sk.tiny)) + 6
-                sk.text(d, (x, 302), lab, sk.tiny, sk.muted)
+                sk.text(d, (x, H - 8), lab, sk.tiny, sk.muted, anchor="ld")
                 if cw - 8 - lw - fw > 20:
-                    bar(d, x + lw, 306, cw - 8 - lw - fw, 4, pct / 100, col, sk.track)
-                sk.text(d, (x + cw - 8, 302), free, sk.tiny, sk.muted, anchor="ra")
+                    bar(d, x + lw, H - 8 - sk.tiny.size // 2 - 2, cw - 8 - lw - fw, 4, pct / 100, col, sk.track)
+                sk.text(d, (x + cw - 8, H - 8), free, sk.tiny, sk.muted, anchor="rd")
 
 
 # ---------------------------------------------------------------- 6. activity
+class PiView(View):
+    """The Raspberry Pi the renderer runs on: same three-arc language as PC,
+    but temperature replaces GPU (there is none) and the bottom row carries
+    the things that actually kill a Pi: throttling, under-voltage, disk."""
+
+    id, title = "pi", "Raspberry Pi"
+
+    def __init__(self, accent):
+        super().__init__(accent)
+        self.cpu = Tween(speed=4); self.temp = Tween(speed=2); self.ram = Tween(speed=3)
+        self.hist: list[float] = [0.0] * 60
+        self.acc = 0.0
+        self.pi: dict = {}
+
+    def update(self, st, dt):
+        self.tick(dt)
+        self.pi = st.get("pi") or {}
+        for tw, k in ((self.cpu, "cpu"), (self.temp, "temp"), (self.ram, "ram")):
+            if (v := num(self.pi.get(k))) is not None: tw.set(v)
+            tw.step(dt)
+        self.acc += dt
+        if self.acc >= 0.5:
+            self.acc = 0
+            self.hist = self.hist[1:] + [self.cpu.value]
+
+    def draw(self, c, t, progress):
+        sk = self.sk
+        pi = self.pi
+        up = num(pi.get("uptime")) or 0
+        up_str = f"{int(up // 86400)} z {int(up % 86400 // 3600)} h" if up >= 86400 else f"{int(up // 3600)} h {int(up % 3600 // 60):02d} m"
+        self.header(c, "Raspberry Pi", str(self.options.get("hostname") or "homepi"), progress)
+        d = ImageDraw.Draw(c)
+        if sk.panel_alpha:
+            sk.panel(c, (16, 70, 464, 232)); d = ImageDraw.Draw(c)
+        tv = self.temp.value
+        tcol = sk.accent if tv < 65 else sk.warn if tv < 80 else sk.bad
+        if sk.id == "editorial":
+            v = self.cpu.value
+            sk.text(d, (22, 56), f"{v:.0f}", sk.huge, sk.fg if v < 85 else sk.bad)
+            sk.text(d, (22 + d.textlength(f"{v:.0f}", font=sk.huge) + 8, 100), "% CPU", sk.mid, sk.muted)
+            dk = pi.get("disk") or {}
+            mhz = int(num(pi.get("mhz")) or 0)
+            for i, (label, val) in enumerate((("TEMP", f"{tv:.0f}°"), ("RAM", f"{self.ram.value:.0f}%"), ("GHZ", f"{mhz / 1000:.1f}"), ("DISC", f"{float(dk.get('pct') or 0):.0f}%"))):
+                x = 22 + i * 112
+                sk.text(d, (x, 214), sk.label(label), sk.tiny, sk.muted)
+                sk.text(d, (x, 230), fit_text(d, val, sk.big, 100), sk.big, sk.fg)
+            sparkline(d, (22, 290, W - 22, 312), self.hist, sk.accent)
+            return
+        cols = (sk.accent, tcol, (34, 211, 238)) if sk.id != "terminal" else (sk.accent, sk.accent, sk.accent)
+        for i, (label, val, frac, col, suf) in enumerate((("CPU", self.cpu.value, self.cpu.value / 100, cols[0], "%"), ("TEMP", tv, min(tv / 90, 1.0), cols[1], "°C"), ("RAM", self.ram.value, self.ram.value / 100, cols[2], "%"))):
+            cx = 90 + i * 150
+            gauge_arc(d, cx, 150, 54, frac, col if (label != "CPU" or val < 85) else sk.bad, sk.track)
+            sk.text(d, (cx, 144), f"{val:.0f}", sk.big, sk.fg, anchor="mm")
+            sk.text(d, (cx, 176), suf, sk.tiny, sk.muted, anchor="mm")
+            sk.text(d, (cx, 214), sk.label(label), sk.small, sk.muted, anchor="mm")
+        sparkline(d, (22, 262, W - 22, 300), self.hist, lerp_rgb(sk.accent, sk.bg, 0.2))
+        mhz = int(num(pi.get("mhz")) or 0)
+        load = num(pi.get("load"))
+        left = f"{mhz} MHz" if mhz else ""
+        if load is not None:
+            left += f"{' · ' if left else ''}load {load:.2f}"
+        sk.text(d, (22, 236), left, sk.tiny, sk.muted)
+        th = pi.get("throttled") or {}
+        flag = "SUB-TENSIUNE" if th.get("undervolt") else "THROTTLED" if th.get("throttled") or th.get("capped") else "LIMITĂ TEMP" if th.get("softTemp") else ""
+        if flag:
+            sk.text(d, (W - 22, 236), flag, sk.tiny, sk.bad, anchor="ra")
+        elif th.get("ever"):
+            sk.text(d, (W - 22, 236), "a fost throttled", sk.tiny, sk.warn, anchor="ra")
+        else:
+            n = pi.get("containers")
+            sk.text(d, (W - 22, 236), f"{n} containere" if n is not None else "", sk.tiny, sk.muted, anchor="ra")
+        sk.text(d, (W - 22, 236 + sk.tiny.size + 4), f"pornit de {up_str}", sk.tiny, sk.muted, anchor="ra")
+        # bottom row: root disk bar + network rate, same geometry as the PC disks
+        # bottom row is split by measured text, not by a fixed half: the wide
+        # terminal/paper fonts pushed the net rate into the disk label.
+        rx, tx = num(pi.get("rxKbps")) or 0.0, num(pi.get("txKbps")) or 0.0
+        fmt = lambda k: f"{k / 1000:.1f} Mb/s" if k >= 1000 else f"{k:.0f} kb/s"
+        net = f"↓ {fmt(rx)}  ↑ {fmt(tx)}"
+        net_w = int(d.textlength(net, font=sk.tiny))
+        sk.text(d, (W - 22, H - 8), net, sk.tiny, sk.muted, anchor="rd")
+        dk = pi.get("disk") or {}
+        if dk:
+            pct = float(dk.get("pct") or 0)
+            col = sk.bad if pct > 92 else sk.warn if pct > 80 else lerp_rgb(sk.accent, sk.fg, 0.3)
+            free = f"{float(dk.get('freeGb') or 0):.0f} GB liber"
+            right = W - 22 - net_w - 18
+            lw = int(d.textlength("disc", font=sk.tiny)) + 6
+            fw = int(d.textlength(free, font=sk.tiny)) + 6
+            sk.text(d, (22, H - 8), "disc", sk.tiny, sk.muted, anchor="ld")
+            bw = right - 22 - lw - fw
+            if bw > 24:
+                bar(d, 22 + lw, H - 8 - sk.tiny.size // 2 - 2, bw, 4, pct / 100, col, sk.track)
+                sk.text(d, (right, H - 8), free, sk.tiny, sk.muted, anchor="rd")
+            else:
+                sk.text(d, (22 + lw, H - 8), f"{pct:.0f}%", sk.tiny, sk.muted, anchor="ld")
+
+
 class ActivityView(View):
     id, title = "activity", "Activitate"
 
@@ -705,13 +802,18 @@ class ActivityView(View):
         self.tick(dt)
         n = int(self.options.get("max") or 6)
         self.items = (st.get("activity") or [])[:n]
+        # first-seen stamp drives the slide-in; a row that is never stamped
+        # keeps age 0 → alpha 0 → text in the background colour (invisible).
+        now = time.perf_counter()
+        for it in self.items:
+            self.seen.setdefault(f"{it.get('at')}|{it.get('text')}", now)
+        if len(self.seen) > 200:
+            keep = {f"{it.get('at')}|{it.get('text')}" for it in self.items}
+            self.seen = {k: v for k, v in self.seen.items() if k in keep}
 
     def dwell_scale(self, st):
         n = len(st.get("activity") or [])
         return 0.5 if n == 0 else 0.75 if n <= 2 else 1.0
-        now = time.perf_counter()
-        for it in self.items:
-            self.seen.setdefault(f"{it.get('at')}|{it.get('text')}", now)
 
     def draw(self, c, t, progress):
         sk = self.sk
@@ -902,7 +1004,7 @@ class ListsView(View):
             y += 24
 
 
-VIEWS: dict[str, type[View]] = {v.id: v for v in (ClockView, WeatherView, HomeView, AmbilightView, PcView, ActivityView, MediaView, ListsView)}
+VIEWS: dict[str, type[View]] = {v.id: v for v in (ClockView, WeatherView, HomeView, AmbilightView, PcView, PiView, ActivityView, MediaView, ListsView)}
 
 from views_extra import EXTRA_VIEWS  # noqa: E402  (registers the 11 additional views)
 

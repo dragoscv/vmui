@@ -67,10 +67,14 @@ def _inter(a: Box, b: Box) -> int:
 
 def report(c: Collector, *, min_overlap_px: int = 12) -> list[Finding]:
     out: list[Finding] = []
+    MARGIN = 6      # the 3.5" bezel hides ~4 px; text this close reads as cut
     for box, text, _ in c.boxes:
         x0, y0, x1, y1 = box
         if x1 > W or y1 > H or x0 < 0 or y0 < 0:
             out.append(Finding("offscreen", box, None, text))
+            continue
+        if x0 < MARGIN or x1 > W - MARGIN or y1 > H - MARGIN:
+            out.append(Finding("clipped", box, None, text))
     for i in range(len(c.boxes)):
         a, ta, tga = c.boxes[i]
         for j in range(i + 1, len(c.boxes)):
@@ -78,6 +82,13 @@ def report(c: Collector, *, min_overlap_px: int = 12) -> list[Finding]:
             if tga and tga == tgb and tga.startswith("stack"):
                 continue  # deliberate layering (shadow + text, badge on avatar)
             ov = _inter(a, b)
+            if ov == 0:
+                # same text row, horizontal gap under 3 px: reads as one word
+                same_row = min(a[3], b[3]) - max(a[1], b[1]) > 0.6 * min(a[3] - a[1], b[3] - b[1])
+                gap = max(b[0] - a[2], a[0] - b[2])
+                if same_row and 0 <= gap < 3 and ta.strip() and tb.strip():
+                    out.append(Finding("overlap", a, b, ta, f"{tb} (gap {gap}px)"))
+                continue
             if ov < min_overlap_px:
                 continue
             # a few pixels of ascender/descender kissing is not a bug; a real

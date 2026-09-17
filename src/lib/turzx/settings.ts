@@ -67,7 +67,7 @@ export const turzxSettingsSchema = z.object({
 });
 export type TurzxSettings = z.infer<typeof turzxSettingsSchema>;
 
-const DEFAULT_ENABLED = new Set(["clock", "weather", "home", "ambilight", "pc", "activity", "media", "lists", "fx", "crypto", "photo", "fleet", "climate"]);
+const DEFAULT_ENABLED = new Set(["clock", "weather", "home", "ambilight", "pc", "pi", "activity", "media", "lists", "fx", "crypto", "photo", "fleet", "climate"]);
 
 function defaultView(id: TurzxViewConfig["id"], enabled: boolean): TurzxViewConfig {
   const m = TURZX_VIEW_META[id];

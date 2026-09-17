@@ -1,0 +1,27 @@
+# /srv/homepi/ha/packages/vmui_pc.yaml — installed by scripts/pi-deploy.ps1.
+# Wake the Windows PC through vmui on this Pi (magic packet from the LAN side).
+# The shared token is in /config/secrets.yaml as `vmui_pc_wake_url` (written
+# by pi-deploy), never an entity state.
+rest_command:
+  vmui_pc_wake:
+    url: !secret vmui_pc_wake_url
+    method: POST
+    timeout: 10
+
+script:
+  pc_wake:
+    alias: "PC: pornește (Wake-on-LAN)"
+    icon: mdi:power
+    mode: single
+    sequence:
+      - action: rest_command.vmui_pc_wake
+
+command_line:
+  - binary_sensor:
+      name: "PC Dragos"
+      unique_id: vmui_pc_dragos_up
+      command: "nc -z -w 2 192.168.100.61 22 && echo ON || echo OFF"
+      payload_on: "ON"
+      payload_off: "OFF"
+      device_class: power
+      scan_interval: 30

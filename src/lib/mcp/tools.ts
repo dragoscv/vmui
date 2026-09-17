@@ -6,6 +6,7 @@ import { showMessage } from "@/lib/esp/gallery";
 import { AMBILIGHT_MODES, DEVICES } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
 import { armAutoOpen, ignoreCall, intercomState, openDoor } from "@/lib/home/intercom";
+import { pcIsUp, pcTarget, wakePc } from "@/lib/home/wol";
 import { executeInstanceAction, syncAccountInstances } from "@/server/actions/instances";
 import { eq } from "drizzle-orm";
 import { spawn } from "node:child_process";
@@ -295,6 +296,19 @@ export const TOOLS: McpTool[] = [
         const out = await pcAction(action as string, value as number | undefined);
         return { output: out, destructive: PC_DESTRUCTIVE.has(action as string) };
       }),
+  },
+  {
+    name: "pc_wake",
+    description: "Wake the Windows PC (Dragos, i9-14900K) over the LAN with a Wake-on-LAN magic packet, or just report whether it is up. Use before pc_action / vm_* when the PC is off.",
+    schema: z.object({ check_only: z.boolean().optional() }),
+    run: async ({ check_only }, by) => {
+      const t = pcTarget();
+      if (!t) return { ok: false, error: "PC_WOL_MAC not configured" };
+      const up = await pcIsUp(t.ip);
+      if (check_only) return { ok: true, up, ip: t.ip };
+      const r = await wakePc(`mcp:${by}`);
+      return r.ok ? { ok: true, up, sent: !r.alreadyUp, hint: r.alreadyUp ? "PC already up" : "magic packet sent; allow 30-60 s for boot" } : r;
+    },
   },
   {
     name: "vm_list",

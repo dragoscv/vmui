@@ -49,6 +49,28 @@ it writes at 1.9 MB/s (mkfs.ext4 wedged in D state for 17 min and had to be
 killed). USB boot is now first in the EEPROM (`BOOT_ORDER=0xf41`, applied at
 next reboot together with the 2026-05-17 bootloader), so the card can be
 pulled; `pi/sd-as-data.sh` is what to run if a faster card ever replaces it.
+Rebooted 2026-09-17 22:30 with the card out: root on `/dev/sda2`, bootloader
+2026-05-17, `BOOT_ORDER=0xf41` — VERIFIED.
+
+**Wake-on-LAN for the PC** (`src/lib/home/wol.ts`): `POST /api/pc/wake?k=…`
+(shared token; allowed through `proxy.ts`), MCP `pc_wake`, desk-button action
+`pc_wake`, and in HA `script.pc_wake` + `binary_sensor.pc_dragos` from
+`pi/ha-packages/vmui_pc.yaml` (installed by pi-deploy, which also writes
+`vmui_pc_wake_url` into HA `secrets.yaml`). PC side: Realtek "Shutdown
+Wake-On-Lan" on, **Fast Startup + hibernate off** (`HiberbootEnabled=0`) —
+with Fast Startup on, a "shut down" PC is hibernating and ignores magic
+packets. The wake short-circuits when port 22 already answers. Magic packet
+verified leaving eth0 with tcpdump (`UDP 192.168.100.255.9, length 102`).
+
+**Turzx on the Pi**: new `pi` view (CPU / temp / RAM arcs, MHz, load,
+throttle flags from `vcgencmd get_throttled`, containers, disk, net rate),
+sampled by `_pi_worker` in `turzx.py` on Linux only. Activity view was blank
+because the first-seen stamp loop sat after a `return` in `dwell_scale`, so
+every row kept alpha 0 (text drawn in the background colour) — fixed by
+stamping in `update()`. `--audit` now also flags text within 6 px of the
+bezel and same-row labels closer than 3 px; the sweep fixed climate's hi/lo
+labels (right-anchored at x=34, into the bezel) and every footer at y≥302
+(now anchored `ld`/`rd` at `H-8`). 25 views × 6 skins = 0 problems.
 
 Rollback: `Start-VM homeassistant`, put the router reservation back on
 `00:15:5d:64:3d:25`, `esp32-display.ps1 -Flash -VmuiHost <pc-ip> -LanPort 8737`.

@@ -109,6 +109,7 @@ class State:
         # `turzx.py --publish`, which posts the same dict to vmui, and the state
         # payload carries it back as `pc`.
         d["pc"] = pc_metrics() if _LOCAL_PC else (self.data.get("pc") or {})
+        d["pi"] = pi_metrics()
         return d
 
 
@@ -280,6 +281,66 @@ if _LOCAL_PC:
 
 def pc_metrics() -> dict:
     return _pc
+
+
+_pi: dict = {}
+
+
+def _pi_worker() -> None:
+    """Metrics of the machine the renderer runs on (the Pi). Cheap /proc and
+    vcgencmd reads, once a second, off the frame path like `_pc_worker`."""
+    global _pi
+    last_net = (0, 0, time.perf_counter())
+    while True:
+        out: dict = {"cpu": psutil.cpu_percent(interval=None), "ram": psutil.virtual_memory().percent, "uptime": time.time() - psutil.boot_time()}
+        try:
+            out["temp"] = int(open("/sys/class/thermal/thermal_zone0/temp").read()) / 1000
+        except Exception:
+            pass
+        try:
+            out["load"] = os.getloadavg()[0]
+        except Exception:
+            pass
+        try:
+            du = psutil.disk_usage("/")
+            out["disk"] = {"pct": du.percent, "freeGb": du.free / 2**30, "totalGb": du.total / 2**30}
+        except Exception:
+            pass
+        try:
+            io = psutil.net_io_counters()
+            rx, tx, at = io.bytes_recv, io.bytes_sent, time.perf_counter()
+            dtn = max(at - last_net[2], 0.001)
+            if last_net[0]:
+                out["rxKbps"] = max(0.0, (rx - last_net[0]) * 8 / 1000 / dtn)
+                out["txKbps"] = max(0.0, (tx - last_net[1]) * 8 / 1000 / dtn)
+            else:
+                out["rxKbps"] = out["txKbps"] = 0.0
+            last_net = (rx, tx, at)
+        except Exception:
+            pass
+        try:
+            r = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
+            v = int(r.stdout.strip().split("=")[1], 16)
+            # bit 0 under-voltage now, 1 freq capped now, 2 throttled now, 3 soft temp limit now; 16-19 = ever
+            out["throttled"] = {"undervolt": bool(v & 1), "capped": bool(v & 2), "throttled": bool(v & 4), "softTemp": bool(v & 8), "ever": bool(v & 0xF0000)}
+            r = subprocess.run(["vcgencmd", "measure_clock", "arm"], capture_output=True, text=True, timeout=2)
+            out["mhz"] = int(r.stdout.strip().split("=")[1]) // 1_000_000
+        except Exception:
+            pass
+        try:
+            out["containers"] = len([p for p in os.listdir("/sys/fs/cgroup/system.slice") if p.startswith("docker-")])
+        except Exception:
+            pass
+        _pi = out
+        time.sleep(1.0)
+
+
+if sys.platform.startswith("linux"):
+    threading.Thread(target=_pi_worker, daemon=True).start()
+
+
+def pi_metrics() -> dict:
+    return _pi
 
 
 def publish_pc(tok: str, every: float = 2.0) -> None:

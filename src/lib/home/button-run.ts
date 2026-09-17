@@ -5,6 +5,7 @@ import { listNodes, nextView, showMessage, togglePause } from "@/lib/esp/gallery
 import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha } from "@/lib/home/ha-client";
 import { armAutoOpen, openDoor } from "@/lib/home/intercom";
+import { wakePc } from "@/lib/home/wol";
 import { drinkGlass, undoGlass } from "@/lib/nutrition/water-actions";
 import { type ButtonAction, type Gesture, loadButtonBindings } from "./button-bindings";
 
@@ -62,6 +63,12 @@ export async function runButtonAction(action: ButtonAction, source: string): Pro
     case "turzx_pause": {
       const paused = listNodes().map((n) => togglePause(n.name));
       return { action, result: paused[0] ? "paused" : "resumed", led: paused[0] ? 2 : 1 };
+    }
+    case "pc_wake": {
+      const r = await wakePc(source);
+      if (!r.ok) return { action, result: r.error, led: 5 };
+      say("PC", r.alreadyUp ? "Deja pornit" : "Wake-on-LAN trimis");
+      return { action, result: r.alreadyUp ? "pc already up" : "wol sent", led: r.alreadyUp ? 3 : 1 };
     }
     case "ambilight_movie": {
       const h = await ha.state("light.hyperhdr").catch(() => null);

@@ -17,6 +17,7 @@ export const buttonActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("turzx_next") }),
   z.object({ type: z.literal("turzx_pause") }),
   z.object({ type: z.literal("ambilight_movie") }),
+  z.object({ type: z.literal("pc_wake") }),
 ]);
 export type ButtonAction = z.infer<typeof buttonActionSchema>;
 
@@ -50,5 +51,6 @@ export function describeAction(a: ButtonAction): string {
     case "turzx_next": return "Turzx: view următor";
     case "turzx_pause": return "Turzx: pauză/continuă";
     case "ambilight_movie": return "Ambilight: movie mode";
+    case "pc_wake": return "PC: Wake-on-LAN";
   }
 }

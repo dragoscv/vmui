@@ -108,7 +108,7 @@ class FxView(View):
                     foot = f"{float(amt.replace(',', '.')):,.0f} {code.upper()} = {float(amt.replace(',', '.')) * self.tw[r['code']].value:,.0f} lei"
             except ValueError:
                 pass
-        sk.text(d, (22, 298), fit_text(d, sk.label(foot), sk.tiny, W - 44), sk.tiny, sk.muted)
+        sk.text(d, (22, H - 8), fit_text(d, sk.label(foot), sk.tiny, W - 44), sk.tiny, sk.muted, anchor="ld")
 
 
 # ---------------------------------------------------------------- 10. crypto
@@ -286,22 +286,24 @@ class ClimateView(View):
             return
         tcol = (251, 146, 60)
         hcol = (56, 189, 248)
-        box_t = (40, 84, W - 24, 190)
-        box_h = (40, 210, W - 24, 286)
+        # left gutter sized to the widest hi/lo label so it never touches the bezel
+        gut = 22 + max(int(d.textlength(f"{v:.0f}{u}", font=sk.tiny)) for v, u in ((max(tv), "°C"), (min(tv), "°C"), (max(hv), "%"), (min(hv), "%"))) + 6
+        box_t = (gut, 84, W - 24, 190)
+        box_h = (gut, 210, W - 24, 286)
         for box, vals, col, unit in ((box_t, tv, tcol, "°C"), (box_h, hv, hcol, "%")):
             lo, hi = min(vals), max(vals)
             d.line((box[0], box[3], box[2], box[3]), fill=sk.track)
             d.line((box[0], box[1], box[2], box[1]), fill=sk.track)
             sparkline(d, box, vals, col, width=2, fill_to=lerp_rgb(col, sk.bg, 0.85))
-            sk.text(d, (34, box[1] - 4), f"{hi:.0f}{unit}", sk.tiny, sk.muted, anchor="ra")
-            sk.text(d, (34, box[3] - 12), f"{lo:.0f}{unit}", sk.tiny, sk.muted, anchor="ra")
+            sk.text(d, (gut - 6, box[1] - 4), f"{hi:.0f}{unit}", sk.tiny, sk.muted, anchor="ra")
+            sk.text(d, (gut - 6, box[3] - 12), f"{lo:.0f}{unit}", sk.tiny, sk.muted, anchor="ra")
             # a dot that breathes on the latest sample
             r = 3 + Pulse(2.4, steps=4).at(t)
             d.ellipse((box[2] - r, box[3] - (vals[-1] - lo) / ((hi - lo) or 1) * (box[3] - box[1]) - r, box[2] + r, box[3] - (vals[-1] - lo) / ((hi - lo) or 1) * (box[3] - box[1]) + r), fill=col)
         dT, dH = tv[-1] - tv[0], hv[-1] - hv[0]
         lt = sk.label(f"temp {dT:+.1f}° / 24 h")
-        sk.text(d, (40, 292), lt, sk.tiny, tcol)
-        sk.text(d, (40 + d.textlength(lt, font=sk.tiny) + 18, 292), sk.label(f"umid {dH:+.0f}% / 24 h"), sk.tiny, hcol)
+        sk.text(d, (gut, 292), lt, sk.tiny, tcol)
+        sk.text(d, (gut + d.textlength(lt, font=sk.tiny) + 18, 292), sk.label(f"umid {dH:+.0f}% / 24 h"), sk.tiny, hcol)
         # midnight tick, so the curve has a time anchor
         pts = self.temp
         if pts:

@@ -7,6 +7,7 @@ export const TURZX_VIEW_IDS = [
   "home",
   "ambilight",
   "pc",
+  "pi",
   "activity",
   "media",
   "lists",
@@ -26,6 +27,7 @@ export const TURZX_VIEW_IDS = [
   "anniversaries",
   "energy",
   "health",
+  "nutrition",
 ] as const;
 export type TurzxViewId = (typeof TURZX_VIEW_IDS)[number];
 
@@ -58,6 +60,7 @@ export const TURZX_VIEW_META: Record<TurzxViewId, ViewMeta> = {
   home: { id: "home", label: "Acasă", description: "Ușă, prezență, AC-uri, lumini aprinse.", defaultDwell: 10, skins: ["minimal", "glass", "neon", "terminal", "paper", "editorial"], options: [] },
   ambilight: { id: "ambilight", label: "Ambilight", description: "Culoarea live a benzii, perete, HyperHDR.", defaultDwell: 8, skins: ["minimal", "neon", "glass", "terminal", "paper", "editorial"], options: [] },
   pc: { id: "pc", label: "PC", description: "CPU / GPU / RAM cu arce și sparkline.", defaultDwell: 10, skins: ["minimal", "neon", "terminal", "glass", "editorial", "paper"], options: [{ key: "hostname", label: "Nume afișat", type: "text", placeholder: "dragos-pc" }, { key: "disks", label: "Discuri", type: "text", placeholder: "C: E:", hint: "litere separate prin spațiu" }] },
+  pi: { id: "pi", label: "Raspberry Pi", description: "CPU / temperatură / RAM ale serverului de casă, disc, rețea, throttling.", defaultDwell: 10, skins: ["minimal", "neon", "terminal", "glass", "editorial", "paper"], options: [{ key: "hostname", label: "Nume afișat", type: "text", placeholder: "homepi" }] },
   activity: { id: "activity", label: "Activitate", description: "Ultimele evenimente din casă.", defaultDwell: 10, skins: ["minimal", "glass", "terminal", "paper", "neon", "editorial"], options: [{ key: "max", label: "Evenimente afișate", type: "number", min: 3, max: 6 }] },
   media: { id: "media", label: "Redare", description: "Ce se aude acum, cu copertă și titluri care derulează.", defaultDwell: 10, skins: ["minimal", "glass", "neon", "editorial", "paper", "terminal"], options: [{ key: "skipIdle", label: "Sari peste când nimic nu redă", type: "toggle" }, { key: "lyrics", label: "Versuri sincronizate (LRCLIB)", type: "toggle", default: true }] },
   lists: { id: "lists", label: "Liste", description: "Cumpărături și acțiuni din HA.", defaultDwell: 10, skins: ["minimal", "paper", "glass", "terminal", "neon", "editorial"], options: [] },
@@ -75,6 +78,7 @@ export const TURZX_VIEW_META: Record<TurzxViewId, ViewMeta> = {
   copilot: { id: "copilot", label: "Agenți Copilot", description: "Sesiunile de agent active pe PC, repo-ul lor, ultimul mesaj, turn-uri azi.", defaultDwell: 12, skins: ["terminal", "minimal", "glass", "neon", "editorial", "paper"], options: [{ key: "activeMin", label: "Activ în ultimele (min)", type: "number", min: 5, max: 240 }] },
   focus: { id: "focus", label: "Focus", description: "Fereastra activă și de cât timp, plus cum s-a împărțit ziua: cod / browser / media / altele.", defaultDwell: 10, skins: ["minimal", "editorial", "glass", "neon", "terminal", "paper"], options: [{ key: "idleMin", label: "Idle după (min)", type: "number", min: 1, max: 30 }] },
   anniversaries: { id: "anniversaries", label: "Aniversări", description: "Zile de naștere și aniversări anuale, cu vârsta și câte zile mai sunt.", defaultDwell: 10, skins: ["paper", "editorial", "minimal", "glass", "neon", "terminal"], options: [{ key: "people", label: "Persoane", type: "list", placeholder: "1990-05-14 Andreea", hint: "o linie: YYYY-MM-DD Nume (anul = nașterea, pentru vârstă)" }] },
+  nutrition: { id: "nutrition", label: "Nutriție", description: "Calorii și macro azi față de țintă (Mifflin-St Jeor din greutatea de pe cântar), mesele zilei, streak, coach. Mesele vin de la asistentul codai de pe telefon.", defaultDwell: 12, skins: ["minimal", "neon", "glass", "terminal", "editorial", "paper"], options: [] },
   health: { id: "health", label: "Sănătate", description: "Pași, puls, somn, SpO2, greutate din Samsung Health via Health Connect (aplicația HA de pe telefon).", defaultDwell: 12, skins: ["minimal", "neon", "glass", "terminal", "editorial", "paper"], options: [{ key: "stepsGoal", label: "Țintă pași / zi", type: "number", min: 1000, max: 30000, step: 500 }, { key: "sleepGoalH", label: "Țintă somn (ore)", type: "number", min: 4, max: 12, step: 0.5 }, { key: "device", label: "Slug dispozitiv HA", type: "text", placeholder: "dragos_s_s25_ultra", hint: "prefixul entităților sensor.<slug>_heart_rate etc." }, { key: "heightCm", label: "Înălțime (cm)", type: "number", min: 100, max: 230, step: 1 }, { key: "birthDate", label: "Data nașterii", type: "text", placeholder: "1993-12-12", hint: "YYYY-MM-DD; împreună cu înălțimea dă IMC, grăsime, apă, mușchi (estimări Deurenberg/Hume/Boer — pad-urile cântarului OKOK sunt decorative)" }, { key: "sex", label: "Sex (m/f)", type: "text", placeholder: "m" }] },
   energy: { id: "energy", label: "Energie", description: "Putere acum și kWh azi din senzorii HA, cost estimat.", defaultDwell: 10, skins: ["minimal", "neon", "glass", "terminal", "editorial", "paper"], options: [{ key: "pricePerKwh", label: "Preț RON/kWh", type: "number", min: 0, max: 5, step: 0.01 }, { key: "entities", label: "Senzori putere (entity_id)", type: "list", placeholder: "sensor.priza_birou_power", hint: "gol = toți senzorii cu device_class power/energy" }] },
 };

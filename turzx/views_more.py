@@ -460,7 +460,7 @@ class HealthView(View):
         act = h.get("activeKcal")
         vo2 = h.get("vo2max")
         foot = " · ".join(x for x in (f"activ {act:.0f} kcal" if isinstance(act, (int, float)) else "", f"VO₂max {vo2:.0f}" if isinstance(vo2, (int, float)) else "", "Samsung Health · Health Connect · cântar OKOK") if x)
-        sk.text(d, (22, H - 24), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted)
+        sk.text(d, (22, H - 8), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted, anchor="ld")
 
 
 # ---------------------------------------------------------------- 25. Nutrition (meals via codai phone -> vmui)
@@ -580,7 +580,7 @@ class NutritionView(View):
         coach = n.get("coach") or {}
         msg = str(coach.get("message") or "")
         foot = fit_text(d, msg, sk.tiny, W - 44) if msg else "mesele: poză în codai → salvate aici, Samsung Health, HA"
-        sk.text(d, (22, H - 24), foot, sk.tiny, sk.muted)
+        sk.text(d, (22, H - 8), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted, anchor="ld")
 
 
 MORE_VIEWS = {v.id: v for v in (CopilotView, FocusView, AnniversariesView, EnergyView, HealthView, NutritionView)}
