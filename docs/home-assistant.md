@@ -362,6 +362,34 @@ quiet → `sensor.office_bluetooth_proxy_1_scale_weight` (verified 65.40 kg)
 and `_scale_impedance`. The Turzx `health` view uses it when Health Connect
 has no weight.
 
+### Water button (2026-09-17)
+
+A PC-case power switch with its LED, wired straight to the ideaspark header
+(no resistor — case LEDs carry one on the lead; tested at 3.3 V):
+
+| Lead          | Pin        | Row / position                    |
+| ------------- | ---------- | --------------------------------- |
+| POWER SW (a)  | **GND**    | bottom row, 2nd from left          |
+| POWER SW (b)  | **GPIO13** | bottom row, 3rd from left (`D13`)  |
+| POWER LED −   | **GND**    | top row, 2nd from left             |
+| POWER LED +   | **GPIO4**  | top row, 5th from left (`D4`)      |
+
+Avoided on purpose: `D15` (strapping, blocks boot logging when pulled low),
+`D2` (on-board LED), `D21/D22` (OLED), `RX0/TX0` (serial log).
+
+Short press → `POST /api/esp/button?btn=water&click=single` → +250 ml; hold
+≥ 1 s → `click=long` → undo the last glass. vmui replies with `led` 1/2/3
+(added / undone / nothing to undo) and the firmware blinks the switch LED
+that many times; 5 blinks = HTTP error. Every minute the board reads
+`GET /api/nutrition/water` and, while `underPace` is true (no glass for 2 h
+between 08–22 and the target unmet), pulses the LED 1 s on / 3 s off.
+Target = 35 ml/kg from the scale weight, +500 ml when Health Connect active
+kcal > 500 (2250 ml at 64.6 kg). Storage: `hydration` table; mirror
+`sensor.vmui_nutrition_water_today` in HA; `water` row on the Turzx
+`nutrition` view and the `/home?tab=nutrition` card (add/undo there too).
+Phone: `POST /api/nutrition/water {ml,source}` / `DELETE` to undo.
+Verified 2026-09-17: 4 presses → 1000 ml, 2 holds → 500 ml, all within 1 s.
+
 ## Tray icon and console-free tasks (2026-09-14)
 
 `ambilight/tray.py` (task `vmui-tray`, pythonw) shows one icon: green =
