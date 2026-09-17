@@ -4,11 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import type { NutritionSummary } from "@/lib/nutrition/summary";
 import { ACTIVITY, GOALS, MEAL_TYPES, type MealType, type NutritionProfile } from "@/lib/nutrition/schema";
+import type { NutritionSummary } from "@/lib/nutrition/summary";
 import { cn } from "@/lib/utils";
-import { addMealAction, deleteMealAction, saveNutritionProfileAction } from "@/server/actions/nutrition";
-import { Flame, Plus, Salad, Scale, Trash2, UtensilsCrossed } from "lucide-react";
+import { addMealAction, addWaterAction, deleteMealAction, saveNutritionProfileAction, undoWaterAction } from "@/server/actions/nutrition";
+import { Droplets, Flame, Plus, Salad, Scale, Trash2, Undo2, UtensilsCrossed } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -57,6 +57,13 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
     setBusy(null);
     if (!r.ok) toast.error(r.error);
     else toast.success(`Șters: ${name}`);
+  };
+  const water = async (kind: "add" | "undo") => {
+    setBusy("water");
+    const r = kind === "add" ? await addWaterAction(250) : await undoWaterAction();
+    setBusy(null);
+    if (!r.ok) toast.error(r.error);
+    else toast.success(kind === "add" ? "+250 ml apă" : "Ultimul pahar anulat");
   };
   const saveProfile = async () => {
     setBusy("profile");
@@ -128,6 +135,32 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
               </div>
             ))}
           </dl>
+
+          <div className="rounded-xl border border-[var(--color-border)] p-3 flex flex-wrap items-center gap-3">
+            <Droplets className={cn("size-4 shrink-0", s.water.underPace ? "text-[var(--color-warning)]" : "text-primary")} aria-hidden />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2 text-sm">
+                <span className="tabular-nums font-medium">
+                  {(s.water.ml / 1000).toFixed(2).replace(/\.?0+$/, "")} L <span className="text-xs font-normal text-muted">/ {(s.water.targetMl / 1000).toFixed(2).replace(/\.?0+$/, "")} L · {s.water.glasses} pahare</span>
+                </span>
+                <span className="text-xs text-muted">
+                  {s.water.lastAt ? `ultimul ${fmtTime(s.water.lastAt)}` : "nimic azi"}
+                  {s.water.underPace && <span className="ml-2 text-[var(--color-warning)]">e timpul să bei</span>}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-[color-mix(in_oklch,var(--color-fg)_10%,transparent)] overflow-hidden" role="progressbar" aria-valuenow={s.water.ml} aria-valuemin={0} aria-valuemax={s.water.targetMl} aria-label="Apă azi">
+                <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, s.water.targetMl > 0 ? (s.water.ml / s.water.targetMl) * 100 : 0)}%` }} />
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={busy === "water"} onClick={() => water("add")} aria-label="Adaugă un pahar de 250 ml">
+                <Plus className="size-3.5" aria-hidden /> pahar
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busy === "water" || s.water.glasses === 0} onClick={() => water("undo")} aria-label="Anulează ultimul pahar">
+                <Undo2 className="size-3.5" aria-hidden />
+              </Button>
+            </div>
+          </div>
 
           <ul className="divide-y divide-[var(--color-border)]" aria-label="Mesele de azi">
             {s.meals.length === 0 && <li className="py-3 text-sm text-muted">Nimic înregistrat azi. Trimite-i lui codai o poză cu farfuria sau adaugă manual.</li>}

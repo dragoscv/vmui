@@ -7,6 +7,9 @@ import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
+import { runCoach } from "@/lib/nutrition/coach";
+import { currentNutritionEvent } from "@/lib/nutrition/events";
+import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
 import { agentSessions, batteryReadings, bnrRates, calendarEvents, coinPrices, energyReadings, fleet, haHistory, healthReadings, hourlyForecast, moonPhase, photoPool, quoteOfTheDay, syncedLyrics, weatherForecast } from "@/lib/turzx/feeds";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
@@ -87,6 +90,24 @@ export async function GET(req: NextRequest) {
         })
       : null,
   ]);
+  // Nutrition rides on the turzx poll: it is the only always-on loop in the
+  // app, so it also drives the coach (self-limited to one push/day) and the
+  // HA sensor mirror (every ~5 min).
+  let nutrition: Awaited<ReturnType<typeof nutritionSummary>> | null = null;
+  if (enabled.has("nutrition")) {
+    try {
+      nutrition = await nutritionSummary();
+      const g = globalThis as unknown as { __vmuiNutriTick?: number };
+      if (Date.now() - (g.__vmuiNutriTick ?? 0) > 5 * 60_000) {
+        g.__vmuiNutriTick = Date.now();
+        void publishToHa(nutrition);
+        void runCoach(nutrition);
+      }
+    } catch {
+      // DB hiccup: view shows nothing this poll
+    }
+  }
+  const nEv = currentNutritionEvent();
   const amb = await ambilightSettings();
   const sig = currentSignal();
   const sigCfg = await loadCopilotSignals();
@@ -165,6 +186,25 @@ export async function GET(req: NextRequest) {
       health: health ? { ...health, stepsGoal: num(opt("health").stepsGoal, 8000), sleepGoalMin: num(opt("health").sleepGoalH, 8) * 60 } : null,
       notification: phoneNotification(states.get("sensor.dragos_s_s25_ultra_last_notification")),
       copilot,
+      nutrition,
+      // same card shape as a phone notification; overlay pops it once per id
+      nutritionEvent: nEv
+        ? {
+            id: `${nEv.at}|${nEv.kind}`,
+            at: nEv.at,
+            pkg: `nutrition.${nEv.kind}`,
+            app: "Nutriție",
+            // water events (desk button) have no calories: name is the headline, text the running total
+            title: nEv.kind !== "meal" ? "Coach" : nEv.calories === undefined ? nEv.name : `${nEv.name} salvată`,
+            text:
+              nEv.kind !== "meal" || nEv.calories === undefined
+                ? (nEv.text ?? "")
+                : `${Math.round(nEv.calories)} kcal · ${({ breakfast: "mic dejun", lunch: "prânz", dinner: "cină", snack: "gustare" } as Record<string, string>)[nEv.mealType ?? ""] ?? ""}${nutrition ? ` · rămas ${nutrition.remaining.calories} kcal` : ""}`,
+            ongoing: false,
+            group: false,
+            color: nEv.calories === undefined && nEv.kind === "meal" ? "#38bdf8" : "#10b981",
+          }
+        : null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

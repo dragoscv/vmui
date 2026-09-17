@@ -4,6 +4,7 @@ import type { MealRow } from "@/lib/db/schema";
 import { credential } from "@/lib/home/credentials";
 import { ha } from "@/lib/home/ha-client";
 import { computeTargets, dailyTotals, dayOf, lastCoachMessage, loadProfile, mealsForDay, streakDays, type DayTotals, type Targets } from "./store";
+import { waterSummary, type WaterSummary } from "./water";
 
 export interface NutritionSummary {
   day: string;
@@ -17,6 +18,7 @@ export interface NutritionSummary {
   week: DayTotals[];
   streak: number;
   coach: { at: number; kind: string; message: string } | null;
+  water: WaterSummary;
 }
 
 const SCALE_RE = /^sensor\..*scale_weight$/;
@@ -61,6 +63,7 @@ export async function nutritionSummary(): Promise<NutritionSummary> {
   const day = dayOf();
   const [profile, weight, active, list, week, streak, coach] = await Promise.all([loadProfile(), scaleWeightKg(), activeKcalToday(), mealsForDay(day), dailyTotals(7, day), streakDays(), lastCoachMessage()]);
   const targets = computeTargets(profile, weight);
+  const water = await waterSummary(targets.weightKg, active);
   const today = week[week.length - 1] ?? { day, calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0, meals: 0 };
   return {
     day,
@@ -78,6 +81,7 @@ export async function nutritionSummary(): Promise<NutritionSummary> {
     week,
     streak,
     coach,
+    water,
   };
 }
 
@@ -97,5 +101,6 @@ export async function publishToHa(s: NutritionSummary): Promise<void> {
     post("target_calories", s.targets.calories, { unit_of_measurement: "kcal", icon: "mdi:target", bmr: s.targets.bmr, tdee: s.targets.tdee, weight_kg: s.targets.weightKg, weight_source: s.targets.weightSource }),
     post("streak", s.streak, { unit_of_measurement: "zile", icon: "mdi:fire" }),
     post("last_meal", s.meals.at(-1)?.name ?? "—", { icon: "mdi:silverware-fork-knife", at: s.meals.at(-1)?.at ?? null, calories: s.meals.at(-1)?.calories ?? null }),
+    post("water_today", s.water.ml, { unit_of_measurement: "mL", device_class: "volume", icon: "mdi:cup-water", state_class: "total_increasing", target: s.water.targetMl, glasses: s.water.glasses, last_at: s.water.lastAt, under_pace: s.water.underPace }),
   ]);
 }

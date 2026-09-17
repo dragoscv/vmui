@@ -61,7 +61,7 @@ class CopilotView(View):
             sk.text(d, (W // 2, 200), f"{self.sessions} sesiuni azi", sk.small, sk.muted, anchor="mm")
             return
         y = 62
-        row_h = 48 if len(self.active) <= 4 else 40
+        row_h = 54 if len(self.active) <= 4 else 40
         for i, s in enumerate(self.active):
             idle = (self.now_ms - (s.get("updatedAt") or 0)) / 1000
             live = idle < 90
@@ -75,7 +75,8 @@ class CopilotView(View):
             sk.text(d, (W - 34, y + 7), right, sk.tiny, col, anchor="ra")
             msg = s.get("lastUser") or ""
             if row_h >= 48 and msg:
-                self.box(f"msg{i}", msg, speed=30).draw(c, (56, y + 26, W - 34, y + 40), sk.tiny, sk.muted, self.bgc())
+                # header (sk.small) reaches y+28 on serif skins; the tiny strip is 21 px tall
+                self.box(f"msg{i}", msg, speed=30).draw(c, (56, y + 28, W - 34, y + 49), sk.tiny, sk.muted, self.bgc())
             y += row_h
         if y < H - 24:
             sk.text(d, (22, H - 22), f"{self.sessions} sesiuni azi în total", sk.tiny, sk.muted)
@@ -462,4 +463,124 @@ class HealthView(View):
         sk.text(d, (22, H - 24), fit_text(d, foot, sk.tiny, W - 44), sk.tiny, sk.muted)
 
 
-MORE_VIEWS = {v.id: v for v in (CopilotView, FocusView, AnniversariesView, EnergyView, HealthView)}
+# ---------------------------------------------------------------- 25. Nutrition (meals via codai phone -> vmui)
+MEAL_RO = {"breakfast": "mic dejun", "lunch": "prânz", "dinner": "cină", "snack": "gustare"}
+
+
+class NutritionView(View):
+    id, title = "nutrition", "Nutriție"
+    wants_photo = False
+
+    def __init__(self, accent):
+        super().__init__(accent)
+        self.n: dict = {}
+        self.kcal_tw = Tween(speed=2.5)
+
+    def visible(self, st):
+        return bool(st.get("nutrition"))
+
+    def dwell_scale(self, st) -> float:
+        n = st.get("nutrition") or {}
+        return 1.0 if (n.get("today") or {}).get("meals") else 0.6
+
+    def update(self, st, dt):
+        self.tick(dt)
+        self.n = st.get("nutrition") or {}
+        self.kcal_tw.set(float((self.n.get("today") or {}).get("calories") or 0))
+        self.kcal_tw.step(dt)
+
+    def draw(self, c, t, progress):
+        sk = self.sk
+        d = ImageDraw.Draw(c)
+        n = self.n
+        tg = n.get("targets") or {}
+        today = n.get("today") or {}
+        target = float(tg.get("calories") or 2000)
+        eaten = self.kcal_tw.value
+        streak = int(n.get("streak") or 0)
+        self.header(c, self.title, f"streak {streak} zile" if streak else "", progress)
+
+        # ---- left: kcal ring
+        cx, cy, r = 86, 148, 58
+        frac = min(1.0, eaten / target) if target else 0.0
+        col = sk.ok if frac <= 1.0 else sk.bad
+        gauge_arc(d, cx, cy, r, frac, col, lerp_rgb(sk.fg, sk.bg, 0.86), width=10)
+        if eaten > target:
+            gauge_arc(d, cx, cy, r - 12, min(1.0, (eaten - target) / target), sk.bad, lerp_rgb(sk.fg, sk.bg, 0.92), width=4)
+        sk.text(d, (cx, cy - 8), f"{eaten:,.0f}".replace(",", " "), sk.mid, sk.fg, anchor="mm")
+        sk.text(d, (cx, cy + 14), sk.label("kcal"), sk.tiny, sk.muted, anchor="mm")
+        rem = target - eaten
+        sk.text(d, (cx, cy + r + 14), (f"rămas {rem:,.0f}" if rem >= 0 else f"peste cu {-rem:,.0f}").replace(",", " "), sk.tiny, sk.ok if rem >= 0 else sk.bad, anchor="mm")
+        sk.text(d, (cx, cy + r + 30), fit_text(d, f"țintă {target:,.0f}".replace(",", " "), sk.tiny, 150), sk.tiny, sk.muted, anchor="mm")
+
+        # ---- middle: macros vs target
+        x0, y = 178, 60
+        for key, label in (("protein", "proteine"), ("carbs", "carbo"), ("fats", "grăsimi"), ("fiber", "fibre")):
+            v = float(today.get(key) or 0)
+            tv = float(tg.get(key) or 1)
+            sk.text(d, (x0, y), sk.label(label), sk.tiny, sk.muted)
+            sk.text(d, (x0 + 150, y), f"{v:.0f} / {tv:.0f} g", sk.tiny, sk.fg, anchor="ra")
+            bar(d, x0, y + 13, 150, 5, min(1.0, v / tv), sk.accent if v <= tv * 1.1 else sk.warn, lerp_rgb(sk.fg, sk.bg, 0.88))
+            y += 30
+        bal = n.get("balance")
+        if isinstance(bal, (int, float)):
+            sk.text(d, (x0, y + 2), f"balanță {bal:+.0f} kcal", sk.tiny, sk.ok if bal <= 0 else sk.warn)
+        # ---- water (desk button + phone); weight lives on the health view
+        w = n.get("water") or {}
+        wml = float(w.get("ml") or 0)
+        wt = float(w.get("targetMl") or 2000)
+        under = bool(w.get("underPace"))
+        wy = y + 20
+        wcol = sk.warn if under else sk.accent
+        if under:
+            wcol = lerp_rgb(wcol, sk.bg, 0.5 * (0.5 + 0.5 * math.sin(t * 2.2)))
+        sk.text(d, (x0, wy), sk.label("apă"), sk.tiny, sk.warn if under else sk.muted)
+        sk.text(d, (x0 + 150, wy), f"{wml / 1000:.2f} / {wt / 1000:.1f} L", sk.tiny, sk.fg, anchor="ra")
+        bar(d, x0, wy + 13, 150, 5, min(1.0, wml / wt) if wt else 0.0, wcol, lerp_rgb(sk.fg, sk.bg, 0.88))
+        gl = int(w.get("glasses") or 0)
+        last = w.get("lastAt")
+        hh = datetime.fromtimestamp(float(last) / 1000, TZ).strftime("%H:%M") if last else "—"
+        line3 = "e timpul să bei" if under else f"{gl} pahare · ultimul {hh}"
+        sk.text(d, (x0, wy + 22), fit_text(d, line3, sk.tiny, 150), sk.tiny, sk.warn if under else sk.muted)
+
+        # ---- right: today's meals (newest at top)
+        rx, ry = 352, 58
+        meals = list(n.get("meals") or [])[-3:][::-1]
+        sk.text(d, (rx, ry), sk.label(f"mese azi · {len(n.get('meals') or [])}"), sk.tiny, sk.muted)
+        ry += 16
+        for m in meals:
+            hhmm = datetime.fromtimestamp(float(m.get("at") or 0) / 1000, TZ).strftime("%H:%M")
+            nm = fit_text(d, str(m.get("name") or ""), sk.tiny, W - 22 - rx)
+            approx = "~" if float(m.get("confidence") or 1) < 0.5 else ""
+            sk.text(d, (rx, ry), nm, sk.tiny, sk.fg)
+            sk.text(d, (rx, ry + 15), hhmm, sk.tiny, sk.muted)
+            sk.text(d, (W - 22, ry + 15), f"{approx}{float(m.get('calories') or 0):.0f}", sk.tiny, sk.muted, anchor="ra")
+            ry += 32
+        if not meals:
+            sk.text(d, (rx, ry), "nimic încă", sk.small, sk.muted)
+            sk.text(d, (rx, ry + 20), "poză → codai", sk.tiny, sk.muted)
+
+        # ---- 7-day strip
+        week = list(n.get("week") or [])[-7:]
+        if week:
+            sy = H - 68
+            bw = (W - 44) // 7
+            mx = max([float(w.get("calories") or 0) for w in week] + [target])
+            for i, w in enumerate(week):
+                v = float(w.get("calories") or 0)
+                hgt = int(18 * v / mx) if mx else 0
+                bx = 22 + i * bw
+                colw = lerp_rgb(sk.fg, sk.bg, 0.8) if not w.get("meals") else sk.ok if abs(v - target) <= target * 0.1 else sk.warn if v < target else sk.bad
+                d.rectangle((bx, sy + 18 - hgt, bx + bw - 6, sy + 18), fill=colw)
+                sk.text(d, (bx + (bw - 6) // 2, sy + 22), str(w.get("day", ""))[-2:], sk.tiny, sk.muted, anchor="ma")
+            ty = int(sy + 18 - 18 * target / mx) if mx else sy
+            d.line((22, ty, W - 22, ty), fill=lerp_rgb(sk.fg, sk.bg, 0.6))
+
+        # ---- footer: coach
+        coach = n.get("coach") or {}
+        msg = str(coach.get("message") or "")
+        foot = fit_text(d, msg, sk.tiny, W - 44) if msg else "mesele: poză în codai → salvate aici, Samsung Health, HA"
+        sk.text(d, (22, H - 24), foot, sk.tiny, sk.muted)
+
+
+MORE_VIEWS = {v.id: v for v in (CopilotView, FocusView, AnniversariesView, EnergyView, HealthView, NutritionView)}

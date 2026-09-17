@@ -7,6 +7,8 @@ import { setNutritionEvent } from "@/lib/nutrition/events";
 import { mealInputSchema, nutritionProfileSchema, type NutritionProfile } from "@/lib/nutrition/schema";
 import { addMeal, deleteMeal, saveProfile, updateMeal } from "@/lib/nutrition/store";
 import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
+import { deleteWater } from "@/lib/nutrition/water";
+import { drinkGlass, undoGlass } from "@/lib/nutrition/water-actions";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -70,6 +72,24 @@ export async function saveNutritionProfileAction(raw: unknown): Promise<Result> 
   const p: NutritionProfile = parsed.data;
   return run("nutrition.profile.save", "profile", `${p.goal} · ${p.activity} · ${p.heightCm} cm`, async () => {
     await saveProfile(p);
+    await republish();
+  });
+}
+
+export async function addWaterAction(ml = 250): Promise<Result> {
+  const v = z.number().int().min(25).max(2000).safeParse(ml);
+  if (!v.success) return { ok: false, error: "Cantitate invalidă" };
+  // drinkGlass audits itself; run() only guards + revalidates.
+  return run("nutrition.water.web", "water", `${v.data} ml`, () => drinkGlass(v.data, "web"));
+}
+
+export async function undoWaterAction(): Promise<Result> {
+  return run("nutrition.water.web", "water", "undo", () => undoGlass("web"));
+}
+
+export async function deleteWaterAction(id: string): Promise<Result> {
+  return run("nutrition.water.delete", id, "deleted", async () => {
+    if (!(await deleteWater(z.string().min(1).parse(id)))) throw new Error("Not found");
     await republish();
   });
 }

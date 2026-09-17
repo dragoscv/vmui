@@ -234,7 +234,9 @@ class Marquee:
             self.key = key
             self.fits = tw <= bw
         strip = self.strip
-        ty = y0 + (bh - strip.height) // 2
+        # A strip taller than its box would be centred and bleed into the line
+        # above; pin it to the box top instead (callers size boxes to the font).
+        ty = y0 + (bh - strip.height) // 2 if strip.height <= bh else y0
         import audit
         if audit._active is not None:
             # a marquee owns its box by design; audit the box, not the strip

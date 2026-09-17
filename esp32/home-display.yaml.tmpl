@@ -164,6 +164,26 @@ output:
   - platform: gpio
     pin: GPIO2
     id: blue_led
+  # Case power-switch LED (+ on GPIO4, - on GND). Case LEDs carry their own
+  # series resistor on the lead, so the GPIO drives it directly at 3.3 V.
+  - platform: gpio
+    pin: GPIO4
+    id: water_led
+
+script:
+  # n short blinks: 1 = glass added, 2 = glass undone, 3 = nothing to undo.
+  - id: water_blink
+    mode: restart
+    parameters:
+      n: int
+    then:
+      - repeat:
+          count: !lambda 'return n;'
+          then:
+            - output.turn_on: water_led
+            - delay: 120ms
+            - output.turn_off: water_led
+            - delay: 160ms
 
 interval:
   - interval: 1s
@@ -212,6 +232,34 @@ interval:
                           ESP_LOGW("wd", "vmui says HA lost our API for 3 min - rebooting to free slots");
                           App.safe_reboot();
                         }
+  # Water pace: once a minute ask vmui whether the last glass is > 2 h old
+  # (waking hours, target not met). Drives the slow pulse on the switch LED.
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - http_request.get:
+                url: "${water_url}"
+                capture_response: true
+                max_response_buffer_size: 160
+                on_response:
+                  then:
+                    - lambda: |-
+                        if (response->status_code != 200) return;
+                        id(water_under_pace) = body.find("\"underPace\":true") != std::string::npos;
+  # Slow pulse (1 s on / 3 s off) while under pace; the click feedback script
+  # owns the LED for its ~1 s and this loop skips those ticks.
+  - interval: 4s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(water_under_pace) && !id(water_blink).is_running();'
+          then:
+            - output.turn_on: water_led
+            - delay: 1s
+            - output.turn_off: water_led
 
 # ---- Display ---------------------------------------------------------------
 i2c:
@@ -230,6 +278,9 @@ globals:
   - id: boot_ms
     type: uint32_t
     initial_value: '0'
+  - id: water_under_pace
+    type: bool
+    initial_value: 'false'
   # OKOK burst tracking: the scale sends ~1 frame/s for ~15 s and our passive
   # 100/320 ms scan window catches only some of them (2026-09-16: 3 of ~15,
   # the locked 0x25 frame missed). So the LAST frame of a burst, published
@@ -378,6 +429,58 @@ binary_sensor:
           - component.update: frame
   - platform: status
     name: Status
+  # Case power switch (SW on GPIO13 + GND): one glass of water per press,
+  # hold >= 1 s to undo the last one. Blinks the switch LED with the reply.
+  - platform: gpio
+    id: water_btn
+    name: Water button
+    pin:
+      number: GPIO13
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    filters:
+      - delayed_on: 20ms
+    on_multi_click:
+      - timing:
+          - ON for at most 900ms
+          - OFF for at least 150ms
+        then:
+          - output.turn_on: water_led   # immediate ack; the reply sets the final pattern
+          - http_request.post:
+              url: "${button_url}&node=${node}&click=single&btn=water"
+              capture_response: true
+              max_response_buffer_size: 200
+              on_response:
+                then:
+                  - lambda: |-
+                      id(water_under_pace) = false;
+                      int n = 1;
+                      auto p = body.find("\"led\":");
+                      if (response->status_code == 200 && p != std::string::npos) n = body[p + 6] - '0';
+                      id(water_blink).execute(n);
+              on_error:
+                then:
+                  - output.turn_off: water_led
+                  - script.execute: { id: water_blink, n: 5 }
+      - timing:
+          - ON for at least 1s
+        then:
+          - http_request.post:
+              url: "${button_url}&node=${node}&click=long&btn=water"
+              capture_response: true
+              max_response_buffer_size: 200
+              on_response:
+                then:
+                  - lambda: |-
+                      int n = 2;
+                      auto p = body.find("\"led\":");
+                      if (response->status_code == 200 && p != std::string::npos) n = body[p + 6] - '0';
+                      id(water_blink).execute(n);
+              on_error:
+                then:
+                  - script.execute: { id: water_blink, n: 5 }
 
 button:
   - platform: restart

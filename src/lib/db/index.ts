@@ -888,6 +888,43 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS turzx_settings (
   json TEXT NOT NULL,
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS meals (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  name TEXT NOT NULL,
+  meal_type TEXT NOT NULL,
+  calories REAL NOT NULL,
+  protein REAL NOT NULL DEFAULT 0,
+  carbs REAL NOT NULL DEFAULT 0,
+  fats REAL NOT NULL DEFAULT 0,
+  fiber REAL NOT NULL DEFAULT 0,
+  confidence REAL NOT NULL DEFAULT 0.7,
+  items TEXT NOT NULL DEFAULT '[]',
+  notes TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'web',
+  client_id TEXT,
+  synced_hc INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS meals_day ON meals(day)`);
+sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS meals_client ON meals(client_id) WHERE client_id IS NOT NULL`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS coach_messages (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  message TEXT NOT NULL,
+  reasoning TEXT NOT NULL DEFAULT ''
+)`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS hydration (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  ml INTEGER NOT NULL,
+  source TEXT NOT NULL DEFAULT 'web'
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS hydration_day ON hydration(day)`);
 
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {

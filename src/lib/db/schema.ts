@@ -1215,6 +1215,53 @@ export const homeLayout = sqliteTable("home_layout", {
 });
 export type HomeLayoutRow = typeof homeLayout.$inferSelect;
 
+/** Food log. One row per meal; `items` is the JSON component breakdown from the
+ *  analysis. Source of truth for the nutrition view, HA sensors and the coach;
+ *  Health Connect only mirrors it so Samsung Health shows the meal. */
+export const meals = sqliteTable("meals", {
+  id: text("id").primaryKey(),
+  at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  /** YYYY-MM-DD in Europe/Bucharest, precomputed so daily sums are one indexed query. */
+  day: text("day").notNull(),
+  name: text("name").notNull(),
+  mealType: text("meal_type", { enum: ["breakfast", "lunch", "dinner", "snack"] }).notNull(),
+  calories: real("calories").notNull(),
+  protein: real("protein").notNull().default(0),
+  carbs: real("carbs").notNull().default(0),
+  fats: real("fats").notNull().default(0),
+  fiber: real("fiber").notNull().default(0),
+  confidence: real("confidence").notNull().default(0.7),
+  items: text("items").notNull().default("[]"),
+  notes: text("notes").notNull().default(""),
+  source: text("source").notNull().default("web"),
+  clientId: text("client_id"),
+  syncedToHealthConnect: integer("synced_hc", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type MealRow = typeof meals.$inferSelect;
+
+/** Coach messages already sent (dedupe + history for the journal page). */
+export const coachMessages = sqliteTable("coach_messages", {
+  id: text("id").primaryKey(),
+  at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  day: text("day").notNull(),
+  kind: text("kind").notNull(),
+  message: text("message").notNull(),
+  reasoning: text("reasoning").notNull().default(""),
+});
+export type CoachMessageRow = typeof coachMessages.$inferSelect;
+
+/** Water log: one row per glass. The desk button (ESP32 GPIO13) is the main
+ *  source; the phone and /home are fallbacks. */
+export const hydration = sqliteTable("hydration", {
+  id: text("id").primaryKey(),
+  at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  day: text("day").notNull(),
+  ml: integer("ml").notNull(),
+  source: text("source").notNull().default("web"),
+});
+export type HydrationRow = typeof hydration.$inferSelect;
+
 /** Turzx desk display preferences: one row, validated JSON (see lib/turzx/settings.ts). */
 export const turzxSettings = sqliteTable("turzx_settings", {
   id: integer("id").primaryKey(),
