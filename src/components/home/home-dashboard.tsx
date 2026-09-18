@@ -6,6 +6,7 @@ import type { ButtonBindings } from "@/lib/home/button-bindings-schema";
 import type { HaState } from "@/lib/home/ha-client";
 import type { NutritionProfile } from "@/lib/nutrition/schema";
 import type { NutritionSummary } from "@/lib/nutrition/summary";
+import type { DisplaySettings } from "@/lib/display/settings-meta";
 import type { Pomodoro, TurzxSettings } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
@@ -19,6 +20,7 @@ import { DeviceSheet } from "./device-sheet";
 import { FloorPlan } from "./floor-plan";
 import { IntercomCard, type IntercomCardState } from "./intercom-card";
 import { NutritionCard } from "./nutrition-card";
+import { DisplayCard } from "./display-card";
 import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
 
@@ -29,6 +31,7 @@ export function HomeDashboard({
   initialTab = "plan",
   wall,
   turzx,
+  display,
   pomodoro,
   copilot,
   rgbLights,
@@ -45,6 +48,7 @@ export function HomeDashboard({
   initialTab?: "plan" | "devices" | "ambilight" | "displays" | "nutrition";
   wall: WallSetting;
   turzx: TurzxSettings;
+  display: DisplaySettings;
   pomodoro: Pomodoro;
   copilot: CopilotSignals;
   rgbLights: Array<{ id: string; name: string }>;
@@ -84,7 +88,10 @@ export function HomeDashboard({
             <AmbilightPanel wall={wall} />
           </TabsContent>
           <TabsContent value="displays">
-            <TurzxCard initial={turzx} pomodoro={pomodoro} />
+            <DisplayCard initial={display} espToken={espToken} />
+            <div className="mt-6">
+              <TurzxCard initial={turzx} pomodoro={pomodoro} />
+            </div>
             <div className="mt-6">
               <CopilotSignalsCard initial={copilot} lights={rgbLights} />
             </div>

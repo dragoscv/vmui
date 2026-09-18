@@ -7,6 +7,8 @@ const PUBLIC_PREFIXES = [
   "/api/v1",
   "/api/esp",   // ESP32 display: token-authenticated, no session cookie
   "/api/turzx", // Turzx desk screen renderer: same shared token
+  "/api/display", // Nest Hub kiosk API: token-authenticated (?k=), the Hub cannot log in
+  "/display", // Nest Hub kiosk page: gated by ?k= inside the page
   "/api/copilot", // agent-harness hooks -> physical signals: same shared token
   "/api/nutrition", // codai phone assistant posts meals: same shared token (espAuthorized)
   "/api/pc/wake",   // Wake-on-LAN from HA / phone / desk button: same shared token
@@ -24,6 +26,12 @@ function isPublic(pathname: string): boolean {
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  if (pathname === "/display") {
+    // the root layout reads this to skip the app shell (sidebar, palette, SW…) on the Nest Hub
+    const h = new Headers(req.headers);
+    h.set("x-vmui-kiosk", "1");
+    return NextResponse.next({ request: { headers: h } });
+  }
   if (isPublic(pathname)) return NextResponse.next();
   const session = req.cookies.get("vmui_session");
   if (!session) {

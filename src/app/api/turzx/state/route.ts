@@ -12,7 +12,7 @@ import { runCoach } from "@/lib/nutrition/coach";
 import { currentNutritionEvent } from "@/lib/nutrition/events";
 import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
 import { agentSessions, batteryReadings, bnrRates, calendarEvents, coinPrices, energyReadings, fleet, haHistory, healthReadings, hourlyForecast, moonPhase, photoPool, quoteOfTheDay, syncedLyrics, weatherForecast } from "@/lib/turzx/feeds";
-import { allPcMetrics, pcMetrics } from "@/lib/turzx/pc-metrics";
+import { allPcMetrics, pcMetrics, piMetrics } from "@/lib/turzx/pc-metrics";
 import { loadPomodoro, loadTurzxSettings } from "@/lib/turzx/settings";
 import { desc } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
@@ -194,6 +194,7 @@ export async function GET(req: NextRequest) {
       copilot,
       pc: pcMetrics(),
       pcs: allPcMetrics(),
+      pi: piMetrics(),
       intercom: { ringing: ic.ringingSince !== null, since: ic.ringingSince, lastRingAt: ic.lastRingAt, lastOpenAt: ic.lastOpenAt, armedUntil: isAutoOpenArmed() ? ic.autoOpenUntil : null },
       nutrition,
       // same card shape as a phone notification; overlay pops it once per id

@@ -350,10 +350,22 @@ def _pi_worker() -> None:
         except Exception:
             pass
         _pi = out
+        # The Nest Hub kiosk reads the Pi panel from vmui, not from this process:
+        # mirror the dict into the same store the PCs publish to.
+        try:
+            body = json.dumps(out).encode()
+            req = urllib.request.Request(f"{VMUI}/api/turzx/pc?k={_PI_TOKEN}&host=homepi&kind=pi", data=body, method="POST", headers={"content-type": "application/json"})
+            urllib.request.urlopen(req, timeout=3).read()
+        except Exception:
+            pass
         time.sleep(1.0)
 
 
 if sys.platform.startswith("linux"):
+    try:
+        _PI_TOKEN = token()
+    except Exception:
+        _PI_TOKEN = ""
     threading.Thread(target=_pi_worker, daemon=True).start()
 
 

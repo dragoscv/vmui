@@ -66,10 +66,10 @@ if [ "`$(cat .lock.sha 2>/dev/null)" != "$lock" ]; then pnpm install --frozen-lo
 rm -rf .next.prev; [ -d .next ] && mv .next .next.prev; mv .next.new/.next .next; rmdir .next.new
 mkdir -p .next/node_modules
 while read -r rel pkg; do [ -n "`$rel" ] || continue; mkdir -p ".next/node_modules/`$(dirname "`$rel")"; ln -sfn "`$(realpath "node_modules/`$pkg")" ".next/node_modules/`$rel"; done < .next/next-links.txt
-for u in vmui turzx desk-button; do sudo install -m 644 pi/`$u.service /etc/systemd/system/`$u.service; done
-sudo systemctl daemon-reload; sudo systemctl enable vmui turzx desk-button >/dev/null 2>&1
-sudo systemctl restart vmui; sleep 4; sudo systemctl restart turzx desk-button
-for u in vmui turzx desk-button; do printf '%s %s\n' `$u "`$(systemctl is-active `$u)"; done
+for u in vmui turzx desk-button hub-cast; do sudo install -m 644 pi/`$u.service /etc/systemd/system/`$u.service; done
+sudo systemctl daemon-reload; sudo systemctl enable vmui turzx desk-button hub-cast >/dev/null 2>&1
+sudo systemctl restart vmui; sleep 4; sudo systemctl restart turzx desk-button hub-cast
+for u in vmui turzx desk-button hub-cast; do printf '%s %s\n' `$u "`$(systemctl is-active `$u)"; done
 curl -s -o /dev/null -w 'http %{http_code}\n' http://127.0.0.1:3737/ || true
 "@ -replace "`r`n", "`n"
 ssh -o BatchMode=yes $Pi $remote

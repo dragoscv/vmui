@@ -13,6 +13,6 @@ export async function POST(req: NextRequest) {
   const p = body.safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ ok: false, error: "bad body" }, { status: 400 });
   const host = (new URL(req.url).searchParams.get("host") ?? "pc").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 32) || "pc";
-  setPcMetrics(host, p.data);
+  setPcMetrics(host, p.data, new URL(req.url).searchParams.get("kind") === "pi" ? "pi" : "pc");
   return NextResponse.json({ ok: true });
 }

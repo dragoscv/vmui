@@ -776,6 +776,52 @@ VS Code taskbar title) and the chat tab title, read by
 `~/.copilot/hooks/copilot-signal.ps1` from the first 64 KB of
 `workspaceStorage/*/chatSessions/<session_id>.jsonl` (`customTitle`).
 
+## Nest Hub kiosk (2026-09-18)
+
+The bedroom Nest Hub (`media_player.bedroom_smart_display`, 192.168.100.45,
+1024×600, Fuchsia Chrome 150, Mali-G31) shows a vmui web page instead of the
+Google photo frame. The page is `/display?k=<ESP_DISPLAY_TOKEN>`, served by the
+Pi and cast with DashCast via `catt` (pipx on homepi, `~/.local/bin/catt`).
+
+- **Two modes.** *Idle* rotates the panels enabled in `/home → Displays → Nest
+  Hub` (clock, casă, muzică, fotografie, nutriție, PC, Pi, calendar, BNR,
+  crypto, vreme) over a Ken Burns slideshow (Met / Art Institute / APOD, the
+  Turzx fetchers). A touch opens *home*: rooms as tabs, device tiles with inline
+  control (lights, AC, TV, Hub, apă, ambilight, scene), back to idle after
+  `idleAfterSec` without a touch. Music takes the whole screen while playing.
+- **Touch detection.** DashCast gives the page real pointer events, so the
+  page itself flips mode. It also mirrors the state into
+  `input_boolean.nest_hub_idle` (package `pi/ha-packages/vmui_nest_hub.yaml`;
+  after deploying a new package call `homeassistant.reload_all` — pi-deploy
+  only copies the file). `/api/display/state` exposes it as `hubIdle` so a
+  wake from elsewhere (automation, physical button) also lands on home.
+- **Keep-alive.** The Hub drops a cast site after ~10 min without a media
+  session and after every reboot. `pi/hub-cast.py` (unit `hub-cast`, log
+  `/srv/homepi/logs/hub-cast.log`) polls HA every 20 s and recasts only when the
+  Hub shows nothing of ours and nothing the user started (YouTube, Spotify,
+  Lovelace). Toggle with `cast.keepAlive` / `cast.respectPlayback` in the card.
+  **Stop it (`sudo systemctl stop hub-cast`) before casting a debug URL by
+  hand** — otherwise it races you and recasts the plain page.
+- **Root layout.** `proxy.ts` sets `x-vmui-kiosk: 1` for `/display`; the root
+  layout then renders a bare `<html>` — no sidebar (which prefetched ~30 routes
+  on the Hub), palette, SW, realtime. `next.config.ts` widens `img-src` to
+  `https:` on `/display` only, for the museum CDNs.
+- **Perf, measured on the Hub** (`?perf=1` posts a 60 s rAF sample to
+  `audit_log` as `display.probe`; read it with a `better-sqlite3` one-liner
+  from `/srv/homepi/vmui`, `sqlite3` is not installed there):
+  - baseline, empty page: 60 fps; 4 long tasks at load (hydration, 270 ms max)
+  - photo layer as it was — `background-image` div at `inset:-4%`,
+    `will-change: transform, opacity`, scale+translate keyframes: **44 fps flat**
+    with or without the animation, with or without the panel on top
+  - same photo as a 100 % `<img>` with `object-fit: cover`, scale-only Ken Burns
+    from a corner `transform-origin`, no `will-change`: **59–60 fps**, idle and
+    home mode alike. The oversized layer was the whole cost; `filter:
+    brightness()` on the root and `backdrop-filter` on the plate were suspects
+    that changed nothing (removed anyway — a black overlay dims night for free).
+  - heap ≈10 MB; polls: 3 s idle, 2 s while music plays, 10 s at night.
+  Debug flags on the URL: `bare` (photo only), `nokb`, `nophoto`, `noveil`,
+  `notext`, `static`, `home` (hold the home screen).
+
 ## Backups
 
 `ha backups new` inside the appliance, or Settings → System → Backups. The
@@ -796,5 +842,7 @@ the host. Credentials are in `.private/credentials.env` (`HA_SAMBA_PASS`).
 - `scripts/publish-vmui.ps1` — DNS + certificate + Caddy for mui.dragoscatalin.ro
 - `scripts/esp32-display.ps1` + `esp32/home-display.yaml.tmpl` — ESP32 OLED firmware
 - `src/lib/esp/` — framebuffer, 5x7 font, views, gallery, activity feed
+- `src/app/display/` — Nest Hub kiosk (page, client, CSS); `src/lib/display/` — settings;
+  `src/components/home/display-card.tsx` — the `/home` card; `pi/hub-cast.py` + `.service` — cast keep-alive
 - `ambilight/tray.py` — tray icon; `scripts/hidden-run.vbs` — window-less task launcher
 - `infra/tailscale-home-acl.hujson` — tailnet policy (source of truth)

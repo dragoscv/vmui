@@ -29,6 +29,13 @@ const SECURITY_HEADERS: Array<{ key: string; value: string }> = [
   { key: "X-DNS-Prefetch-Control", value: "off" },
 ];
 
+// The Nest Hub kiosk paints museum / APOD photos straight from their CDNs
+// (no proxy: the Pi should not stream 2 MB images through Node). Only that
+// route gets the wider img-src; everything else keeps the strict policy.
+const DISPLAY_HEADERS = SECURITY_HEADERS.map((h) =>
+  h.key === "Content-Security-Policy" ? { key: h.key, value: h.value.replace("img-src 'self' data: blob:", "img-src 'self' data: blob: https:") } : h,
+);
+
 const config: NextConfig = {
   reactStrictMode: true,
   reactCompiler: true,
@@ -74,8 +81,9 @@ const config: NextConfig = {
   },
   async headers() {
     return [
+      { source: "/display", headers: DISPLAY_HEADERS },
       {
-        source: "/:path*",
+        source: "/((?!display$).*)",
         headers: SECURITY_HEADERS,
       },
     ];

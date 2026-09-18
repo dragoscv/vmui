@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { copilotSignalsSchema, saveCopilotSignals, type CopilotEvent, type CopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
 import { auditLog, homeLayout } from "@/lib/db/schema";
+import { displaySettingsSchema, saveDisplaySettings, type DisplaySettings } from "@/lib/display/settings";
 import { setAmbilightSettings } from "@/lib/home/ambilight-settings";
 import { AMBILIGHT_MODES, DEVICES, ROOMS } from "@/lib/home/catalog";
 import { credential } from "@/lib/home/credentials";
@@ -204,6 +205,16 @@ export async function saveTurzxSettingsAction(input: TurzxSettings): Promise<Res
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
   return run("turzx.settings", "turzx", `${p.data.views.filter((v) => v.enabled).length} views on, ${p.data.fps}fps`, async () => {
     await saveTurzxSettings(p.data);
+    revalidatePath("/home");
+  });
+}
+
+/** Nest Hub kiosk preferences; /display polls them within ~3 s. */
+export async function saveDisplaySettingsAction(input: DisplaySettings): Promise<Result> {
+  const p = displaySettingsSchema.safeParse(input);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
+  return run("display.settings", "nest-hub", `${p.data.views.filter((v) => v.enabled).length} views on, photo ${p.data.photoSec}s`, async () => {
+    await saveDisplaySettings(p.data);
     revalidatePath("/home");
   });
 }

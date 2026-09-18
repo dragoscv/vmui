@@ -1,0 +1,21 @@
+[Unit]
+Description=Keep the vmui kiosk cast on the Nest Hub
+After=vmui.service network-online.target
+Wants=vmui.service
+
+[Service]
+Type=simple
+User=dragos
+WorkingDirectory=/srv/homepi/vmui
+Environment=PYTHONUNBUFFERED=1
+Environment=VMUI_URL=http://127.0.0.1:3737
+Environment=VMUI_LAN_URL=http://192.168.100.232:3737
+Environment=HA_URL=http://127.0.0.1
+ExecStart=/usr/bin/python3 /srv/homepi/vmui/pi/hub-cast.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/srv/homepi/logs/hub-cast.log
+StandardError=append:/srv/homepi/logs/hub-cast.log
+
+[Install]
+WantedBy=multi-user.target
