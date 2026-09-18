@@ -2,11 +2,11 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CopilotSignals } from "@/lib/copilot/signals-schema";
+import type { DisplaySettings } from "@/lib/display/settings-meta";
 import type { ButtonBindings } from "@/lib/home/button-bindings-schema";
 import type { HaState } from "@/lib/home/ha-client";
 import type { NutritionProfile } from "@/lib/nutrition/schema";
 import type { NutritionSummary } from "@/lib/nutrition/summary";
-import type { DisplaySettings } from "@/lib/display/settings-meta";
 import type { Pomodoro, TurzxSettings } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
@@ -17,10 +17,10 @@ import { ButtonBindingsCard } from "./button-bindings-card";
 import { CopilotSignalsCard } from "./copilot-signals-card";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
+import { DisplayCard } from "./display-card";
 import { FloorPlan } from "./floor-plan";
 import { IntercomCard, type IntercomCardState } from "./intercom-card";
 import { NutritionCard } from "./nutrition-card";
-import { DisplayCard } from "./display-card";
 import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
 

@@ -1,0 +1,25 @@
+# Nest Hub idle/home flip. The Hub cannot tell a web page it was touched, so the
+# helper input_boolean.nest_hub_idle is the only state: the panel page reads it
+# (polling /api/hub/state), and the Hub's own touch sets it to off via the
+# media_player "playing"->"idle" edge that Cast fires when its screen wakes.
+# Deployed by scripts/pi-deploy.ps1 alongside vmui_pc.yaml / vmui_cast.yaml.
+input_boolean:
+  nest_hub_idle:
+    name: Nest Hub idle
+    icon: mdi:sleep
+
+automation:
+  - id: vmui_nest_hub_touch_wakes
+    alias: "Nest Hub: touch -> home"
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: media_player.bedroom_smart_display
+        attribute: app_name
+    condition:
+      - condition: state
+        entity_id: input_boolean.nest_hub_idle
+        state: "on"
+    action:
+      - service: input_boolean.turn_off
+        target: { entity_id: input_boolean.nest_hub_idle }

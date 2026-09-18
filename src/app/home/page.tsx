@@ -1,7 +1,7 @@
 import { HomeDashboard } from "@/components/home/home-dashboard";
 import { loadCopilotSignals } from "@/lib/copilot/signals";
-import { loadButtonBindings } from "@/lib/home/button-bindings";
 import { loadDisplaySettings } from "@/lib/display/settings";
+import { loadButtonBindings } from "@/lib/home/button-bindings";
 import { credential } from "@/lib/home/credentials";
 import { intercomState } from "@/lib/home/intercom";
 import { loadProfile } from "@/lib/nutrition/store";

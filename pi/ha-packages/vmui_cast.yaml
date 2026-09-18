@@ -1,0 +1,80 @@
+# Continuous casting of a dashboard view to the Nest Hub.
+# The Hub drops a cast after ~10 min of idling; while `input_boolean.nest_hub_cast`
+# is on, this re-sends the view whenever the Hub is not showing Lovelace.
+# `vmui_cast_start` / `vmui_cast_stop` are what the MCP tools nest_hub_show (keep=true)
+# and nest_hub_stop call; the view/dashboard live in the two input_texts so the
+# automation always re-casts the last requested one.
+input_boolean:
+  nest_hub_cast:
+    name: Nest Hub casting continuu
+    icon: mdi:cast-connected
+
+input_text:
+  nest_hub_cast_view:
+    name: Nest Hub view path
+    initial: "0"
+    max: 64
+  nest_hub_cast_dashboard:
+    name: Nest Hub dashboard path
+    initial: lovelace
+    max: 64
+
+script:
+  vmui_cast_start:
+    alias: Nest Hub cast start
+    fields:
+      view_path:
+        description: Lovelace view path
+        example: "0"
+        selector:
+          text:
+      dashboard_path:
+        description: Dashboard url path
+        example: lovelace
+        selector:
+          text:
+    sequence:
+      - service: input_text.set_value
+        target: { entity_id: input_text.nest_hub_cast_view }
+        data: { value: "{{ view_path | default('0') }}" }
+      - service: input_text.set_value
+        target: { entity_id: input_text.nest_hub_cast_dashboard }
+        data: { value: "{{ dashboard_path | default('lovelace') }}" }
+      - service: input_boolean.turn_on
+        target: { entity_id: input_boolean.nest_hub_cast }
+      - service: cast.show_lovelace_view
+        data:
+          entity_id: media_player.bedroom_smart_display
+          view_path: "{{ view_path | default('0') | string }}"
+          dashboard_path: "{{ dashboard_path | default('lovelace') }}"
+  vmui_cast_stop:
+    alias: Nest Hub cast stop
+    sequence:
+      - service: input_boolean.turn_off
+        target: { entity_id: input_boolean.nest_hub_cast }
+      - service: media_player.turn_off
+        target: { entity_id: media_player.bedroom_smart_display }
+
+automation:
+  - id: vmui_nest_hub_recast
+    alias: Nest Hub — re-cast dashboard while armed
+    mode: single
+    trigger:
+      - platform: state
+        entity_id: media_player.bedroom_smart_display
+        attribute: app_name
+        for: "00:00:20"
+      - platform: time_pattern
+        minutes: "/5"
+    condition:
+      - condition: state
+        entity_id: input_boolean.nest_hub_cast
+        state: "on"
+      - condition: template
+        value_template: "{{ state_attr('media_player.bedroom_smart_display', 'app_name') != 'Home Assistant Lovelace' }}"
+    action:
+      - service: cast.show_lovelace_view
+        data:
+          entity_id: media_player.bedroom_smart_display
+          view_path: "{{ states('input_text.nest_hub_cast_view') | string }}"
+          dashboard_path: "{{ states('input_text.nest_hub_cast_dashboard') }}"

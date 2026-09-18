@@ -783,10 +783,10 @@ The bedroom Nest Hub (`media_player.bedroom_smart_display`, 192.168.100.45,
 Google photo frame. The page is `/display?k=<ESP_DISPLAY_TOKEN>`, served by the
 Pi and cast with DashCast via `catt` (pipx on homepi, `~/.local/bin/catt`).
 
-- **Two modes.** *Idle* rotates the panels enabled in `/home → Displays → Nest
-  Hub` (clock, casă, muzică, fotografie, nutriție, PC, Pi, calendar, BNR,
+- **Two modes.** _Idle_ rotates the panels enabled in `/home → Displays → Nest
+Hub` (clock, casă, muzică, fotografie, nutriție, PC, Pi, calendar, BNR,
   crypto, vreme) over a Ken Burns slideshow (Met / Art Institute / APOD, the
-  Turzx fetchers). A touch opens *home*: rooms as tabs, device tiles with inline
+  Turzx fetchers). A touch opens _home_: rooms as tabs, device tiles with inline
   control (lights, AC, TV, Hub, apă, ambilight, scene), back to idle after
   `idleAfterSec` without a touch. Music takes the whole screen while playing.
 - **Touch detection.** DashCast gives the page real pointer events, so the
@@ -816,11 +816,11 @@ Pi and cast with DashCast via `catt` (pipx on homepi, `~/.local/bin/catt`).
   - same photo as a 100 % `<img>` with `object-fit: cover`, scale-only Ken Burns
     from a corner `transform-origin`, no `will-change`: **59–60 fps**, idle and
     home mode alike. The oversized layer was the whole cost; `filter:
-    brightness()` on the root and `backdrop-filter` on the plate were suspects
+brightness()` on the root and `backdrop-filter` on the plate were suspects
     that changed nothing (removed anyway — a black overlay dims night for free).
   - heap ≈10 MB; polls: 3 s idle, 2 s while music plays, 10 s at night.
-  Debug flags on the URL: `bare` (photo only), `nokb`, `nophoto`, `noveil`,
-  `notext`, `static`, `home` (hold the home screen).
+    Debug flags on the URL: `bare` (photo only), `nokb`, `nophoto`, `noveil`,
+    `notext`, `static`, `home` (hold the home screen).
 
 ## Backups
 
