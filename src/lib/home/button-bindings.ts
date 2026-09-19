@@ -10,7 +10,7 @@ export * from "./button-bindings-schema";
 /** Physical desk button (Pi GPIO, or the ESP32 case switch) → what each
  *  gesture does. Stored as one JSON row (id=3) next to the Turzx settings so
  *  it needs no migration; the UI on /home?tab=devices edits it. */
-const ROW_ID = 3;
+const ROW_ID = 7; // was 3, shared with copilot signals (each save clobbered the other)
 
 export async function loadButtonBindings(): Promise<ButtonBindings> {
   const row = await db.select().from(turzxSettings).where(eq(turzxSettings.id, ROW_ID)).get();

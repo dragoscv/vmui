@@ -37,7 +37,7 @@ fn icon_for(state: &str) -> Image<'static> {
     Image::from_bytes(bytes).expect("tray png")
 }
 
-fn show_main(app: &AppHandle) {
+pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
@@ -346,6 +346,9 @@ pub fn run() {
             // pairing requests on the Pi -> toast + tray entry here
             let d = app.handle().clone();
             std::thread::spawn(move || crate::devices::run(d));
+            // notification centre on the Pi -> Windows toasts with buttons
+            let n = app.handle().clone();
+            std::thread::spawn(move || crate::notify::run(n));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -366,7 +369,11 @@ pub fn run() {
             ha_call,
             vmui_get,
             vmui_send,
-            app_info
+            app_info,
+            crate::notify::notify_list,
+            crate::notify::notify_act,
+            crate::notify::notify_op,
+            crate::notify::notify_settings
         ])
         .run(tauri::generate_context!())
         .expect("vmui desktop");

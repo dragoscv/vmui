@@ -7,6 +7,7 @@ import { espAuthorized } from "@/lib/esp/auth";
 import { listNodes, showMessage } from "@/lib/esp/gallery";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { ha } from "@/lib/home/ha-client";
+import { dismissByTag, notify } from "@/lib/notify";
 import { agentSessions } from "@/lib/turzx/feeds";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -29,69 +30,66 @@ const HA_SCRIPT: Record<CopilotEvent, string> = {
 };
 const TITLE: Record<CopilotEvent, string> = { ask: "Copilot asteapta", done: "Copilot gata", blocked: "Comanda blocata", failed: "A esuat" };
 const PHONE_TITLE: Record<CopilotEvent, string> = { ask: "Copilot așteaptă răspunsul tău", done: "Copilot a terminat tura", blocked: "Comandă blocată de guard", failed: "Build / test eșuat" };
-const PHONE_ICON: Record<CopilotEvent, string> = { ask: "mdi:chat-question", done: "mdi:check-decagram", blocked: "mdi:shield-alert", failed: "mdi:alert-octagon" };
+const CARD_ICON: Record<CopilotEvent, string> = { ask: "message-circle-question", done: "badge-check", blocked: "shield-alert", failed: "octagon-alert" };
 
-/** One phone notification per session: same `tag` so a later event replaces
- *  the earlier card instead of stacking, and the cancel path clears it. */
+/** One card per session: same `tag` so a later event replaces the earlier
+ *  one instead of stacking, and the cancel path clears it. */
 function phoneTag(session: string) {
   return `copilot-${session || "any"}`;
 }
 
-async function phonePush(service: string, event: CopilotEvent, p: { color: string }, text: string, session: string, source: string, project: string, chat: string) {
+/** Rich card in the vmui notification centre (phone app, desktop, web); falls
+ *  back to the HA Companion app by itself when no device acks. Tapping opens
+ *  the mirrored codai session so the prompt can be answered from the phone. */
+async function phonePush(event: CopilotEvent, p: { color: string }, text: string, session: string, source: string, project: string, chat: string) {
   const subtitle = [project, chat].filter(Boolean).join(" · ");
   const message = text || (event === "ask" ? "Deschide VS Code și răspunde la întrebare." : event === "done" ? "Poți verifica rezultatul." : source);
-  await ha.callService("notify", service, {
+  const url = session ? `codai://session/${session}` : "codai://new";
+  await notify({
+    kind: "copilot",
+    tag: phoneTag(session),
     title: PHONE_TITLE[event],
-    message,
-    data: {
-      tag: phoneTag(session),
-      group: "copilot",
-      channel: event === "ask" ? "Copilot — așteaptă" : "Copilot",
-      importance: event === "ask" ? "high" : "default",
-      color: p.color,
-      notification_icon: PHONE_ICON[event],
-      subtitle: subtitle || source,
-      // an `ask` stays until answered (sticky, cleared by tag on the next tool call);
-      // `persistent` is deliberately NOT set — it blocks clear_notification.
-      sticky: event === "ask",
-      timeout: event === "ask" ? 0 : 600,
-      clickAction: "app://com.microsoft.launcher",
-      ttl: 0,
-      priority: "high",
-    },
+    body: message,
+    subtitle: subtitle || source,
+    color: p.color,
+    icon: CARD_ICON[event],
+    priority: event === "ask" ? "high" : event === "done" ? "default" : "high",
+    // an `ask` stays until answered (cleared by tag on the next tool call)
+    sticky: event === "ask",
+    ttlSec: event === "ask" ? undefined : 600,
+    url,
+    actions: [{ id: "open", label: "Deschide în codai", style: "primary", url }],
+    data: { event, session, project, chat, source },
   });
 }
 
-async function phoneClear(service: string, session: string) {
-  await ha.callService("notify", service, { message: "clear_notification", data: { tag: phoneTag(session) } });
+async function phoneClear(session: string) {
+  await dismissByTag(phoneTag(session), "copilot");
 }
 
-/** One silent, low-importance card that always shows who is working: one
- *  line per active session (repo · turns today · last request). Re-posted
- *  with the same tag so it updates in place; cleared when nobody is active. */
-async function phoneAgentsSummary(service: string) {
+/** One silent card that always shows who is working: one line per active
+ *  session (repo · turns today · last request). Same tag so it updates in
+ *  place; dismissed when nobody is active. */
+async function phoneAgentsSummary() {
   const a = await agentSessions(30);
   if (!a) return;
   if (a.active.length === 0) {
-    await ha.callService("notify", service, { message: "clear_notification", data: { tag: "copilot-agents" } });
+    await dismissByTag("copilot-agents", "copilot");
     return;
   }
   const lines = a.active.slice(0, 6).map((s) => `• ${s.repo}${s.profile !== "default" ? ` (${s.profile})` : ""} · ${s.turnsToday} ture${s.lastUser ? ` — ${s.lastUser.slice(0, 60)}` : ""}`);
-  await ha.callService("notify", service, {
+  await notify({
+    kind: "agents",
+    tag: "copilot-agents",
     title: `${a.active.length} ${a.active.length === 1 ? "agent lucrează" : "agenți lucrează"} · ${a.turnsToday} ture azi`,
-    message: lines.join("\n"),
-    data: {
-      tag: "copilot-agents",
-      group: "copilot",
-      channel: "Copilot — agenți",
-      importance: "low",
-      color: "#6366f1",
-      notification_icon: "mdi:robot",
-      subtitle: `${a.sessionsToday} sesiuni azi`,
-      sticky: true,
-      timeout: 3600,
-      ttl: 0,
-    },
+    body: lines.join("\n"),
+    subtitle: `${a.sessionsToday} sesiuni azi`,
+    priority: "low",
+    sticky: true,
+    ttlSec: 3600,
+    noFallback: true,
+    url: "codai://new",
+    data: { active: a.active.map((s) => ({ repo: s.repo, profile: s.profile, turnsToday: s.turnsToday })) },
   });
 }
 
@@ -108,7 +106,7 @@ export async function DELETE(req: NextRequest) {
     setSignal({ ...cur, active: false });
     const s = await loadCopilotSignals();
     if (s.patterns.ask.strip) void stripFx("clear");
-    if (s.patterns.ask.phone && s.phoneNotify) phoneClear(s.phoneNotify, cur.session).catch(() => undefined);
+    if (s.patterns.ask.phone) phoneClear(cur.session).catch(() => undefined);
     if (s.patterns.ask.light && s.lights.length) {
       try {
         // script.turn_on returns as soon as the run starts; the direct service
@@ -165,15 +163,15 @@ export async function POST(req: NextRequest) {
     pushActivity({ at: now, kind: "other", text: `${TITLE[event]}${where ? ` [${where.slice(0, 40)}]` : ""}${text ? `: ${text.slice(0, 40)}` : ""}` });
     out.esp = true;
   }
-  if (p.phone && s.phoneNotify && !quiet) {
+  if (p.phone && !quiet) {
     try {
-      await phonePush(s.phoneNotify, event, p, text, session, source, project, chat);
+      await phonePush(event, p, text, session, source, project, chat);
       out.phone = true;
     } catch (e) {
       out.phoneError = e instanceof Error ? e.message : String(e);
     }
   }
-  if (s.phoneNotify) phoneAgentsSummary(s.phoneNotify).catch(() => undefined);
+  phoneAgentsSummary().catch(() => undefined);
   await db.insert(auditLog).values({ accountId: "home", action: `copilot.${event}`, target: project || source, status: "ok", message: [chat, text].filter(Boolean).join(" — ").slice(0, 200) });
   return NextResponse.json({ ...out, quiet, movie });
 }

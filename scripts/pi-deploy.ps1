@@ -44,7 +44,7 @@ $linkFile = Join-Path $root '.copilot-tmp\pi\next-links.txt'
 [IO.File]::WriteAllText($linkFile, (($links -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 scp -q -o BatchMode=yes $linkFile "${Pi}:$Dest/.next.new/.next/next-links.txt"
 # runtime-only files that git ignores
-foreach ($f in '.env', '.private/credentials.env') {
+foreach ($f in '.env', '.private/credentials.env', '.private/fcm-service-account.json') {
   if (Test-Path $f) { scp -q -o BatchMode=yes $f "${Pi}:$Dest/$f" }
 }
 if (Test-Path 'turzx\fonts') { tar -cf - turzx/fonts | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest" }

@@ -49,6 +49,24 @@ export async function requestPairing(name: string, platform: string, ip: string 
   await db.insert(pairedDevices).values({ id, name: name.slice(0, 64), platform: platform.slice(0, 32), tokenHash: hash(token), status: "pending", code, lastIp: ip, lastSeenAt: new Date() });
   await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.request", target: id, status: "ok", message: `${name} (${platform}) from ${ip ?? "?"} code ${code}` });
   bump();
+  // card on every surface (phone, desktop, web); the code must match what the new device shows
+  void import("@/lib/notify").then(({ notify }) =>
+    notify({
+      kind: "pairing",
+      tag: `pair-${id}`,
+      title: `${name} cere acces`,
+      body: `${platform} · ${ip ?? "?"} · verifică pe dispozitiv că afișează codul ${code}`,
+      subtitle: `cod ${code}`,
+      priority: "high",
+      sticky: true,
+      ttlSec: PENDING_TTL_MS / 1000,
+      actions: [
+        { id: "approve", label: `Aprobă · ${code}`, style: "primary", body: { deviceId: id, code } },
+        { id: "reject", label: "Respinge", style: "danger", body: { deviceId: id } },
+      ],
+      data: { deviceId: id, code, platform },
+    }),
+  ).catch(() => undefined);
   return { id, token, code };
 }
 
@@ -65,6 +83,7 @@ export async function approveDevice(id: string, code: string, by: string): Promi
   await db.update(pairedDevices).set({ status: "approved", code: null, approvedBy: by }).where(eq(pairedDevices.id, id));
   await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.approve", target: id, status: "ok", message: `${r.name} approved by ${by}` });
   bump();
+  void import("@/lib/notify").then((n) => n.dismissByTag(`pair-${id}`, by)).catch(() => undefined);
   return { ok: true };
 }
 
@@ -72,6 +91,7 @@ export async function rejectDevice(id: string, by: string): Promise<void> {
   await db.delete(pairedDevices).where(and(eq(pairedDevices.id, id), eq(pairedDevices.status, "pending")));
   await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.reject", target: id, status: "ok", message: `by ${by}` });
   bump();
+  void import("@/lib/notify").then((n) => n.dismissByTag(`pair-${id}`, by)).catch(() => undefined);
 }
 
 /** Sign-in path: the device proved it holds the vmui account, so it is approved immediately. */

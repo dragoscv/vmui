@@ -8,6 +8,7 @@ import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { haConfig } from "@/lib/home/credentials";
 import { ha, type HaState } from "@/lib/home/ha-client";
 import { intercomState, isAutoOpenArmed } from "@/lib/home/intercom";
+import { ensureNotifyWatchers } from "@/lib/notify/watchers";
 import { runCoach } from "@/lib/nutrition/coach";
 import { currentNutritionEvent } from "@/lib/nutrition/events";
 import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
@@ -55,6 +56,7 @@ function phoneNotification(s: HaState | undefined) {
 export async function GET(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   ensureActivityFeed();
+  ensureNotifyWatchers();
   let states = new Map<string, HaState>();
   try {
     states = new Map((await ha.states()).map((s) => [s.entity_id, s]));

@@ -32,6 +32,10 @@ pub fn init(dir: PathBuf) {
     *FILE.write().unwrap() = Some(f);
 }
 
+pub fn data_dir() -> Option<PathBuf> {
+    FILE.read().unwrap().as_ref().and_then(|f| f.parent().map(|p| p.to_path_buf()))
+}
+
 pub fn conn() -> Result<Conn> {
     CONN.read().unwrap().clone().filter(|c| !c.url.is_empty() && !c.token.is_empty()).ok_or_else(|| anyhow!("neconfigurat"))
 }

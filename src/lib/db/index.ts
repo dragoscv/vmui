@@ -888,6 +888,34 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS turzx_settings (
   json TEXT NOT NULL,
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS home_notifications (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  tag TEXT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  subtitle TEXT,
+  color TEXT,
+  icon TEXT,
+  image TEXT,
+  priority TEXT NOT NULL DEFAULT 'default',
+  progress INTEGER,
+  actions TEXT NOT NULL DEFAULT '[]',
+  url TEXT,
+  data TEXT NOT NULL DEFAULT '{}',
+  sticky INTEGER NOT NULL DEFAULT 0,
+  read_at INTEGER,
+  dismissed_at INTEGER,
+  acted_with TEXT,
+  acted_by TEXT,
+  delivered_to TEXT,
+  fallback_at INTEGER,
+  expires_at INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS home_notifications_tag ON home_notifications(tag)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS home_notifications_open ON home_notifications(dismissed_at, created_at)`);
 sqlite.exec(`CREATE TABLE IF NOT EXISTS paired_devices (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -898,8 +926,12 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS paired_devices (
   approved_by TEXT,
   last_seen_at INTEGER,
   last_ip TEXT,
+  push_token TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
+if (!(sqlite.prepare("PRAGMA table_info(paired_devices)").all() as Array<{ name: string }>).some((c) => c.name === "push_token")) {
+  sqlite.exec("ALTER TABLE paired_devices ADD COLUMN push_token TEXT");
+}
 sqlite.exec(`CREATE TABLE IF NOT EXISTS meals (
   id TEXT PRIMARY KEY,
   at INTEGER NOT NULL,

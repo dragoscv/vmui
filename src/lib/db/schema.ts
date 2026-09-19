@@ -1277,9 +1277,50 @@ export const pairedDevices = sqliteTable("paired_devices", {
   approvedBy: text("approved_by"),
   lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
   lastIp: text("last_ip"),
+  /** FCM registration token (Android) — wakes the app for a notification */
+  pushToken: text("push_token"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type PairedDeviceRow = typeof pairedDevices.$inferSelect;
+
+/** Notification centre (lib/notify). One row per card; `tag` lets a source
+ *  update a card in place (progress, agents summary). Actions are JSON
+ *  [{id,label,style,body}] executed by /api/notify/act. */
+export const homeNotifications = sqliteTable("home_notifications", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  tag: text("tag"),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  subtitle: text("subtitle"),
+  /** hex accent for the card, e.g. #f2b85a */
+  color: text("color"),
+  /** lucide icon name */
+  icon: text("icon"),
+  image: text("image"),
+  /** low | default | high | urgent */
+  priority: text("priority").notNull().default("default"),
+  /** 0..100 or null */
+  progress: integer("progress"),
+  actions: text("actions").notNull().default("[]"),
+  /** deep link opened on tap (codai://session/…, vmui://casa) */
+  url: text("url"),
+  /** structured payload for the client (session ids, entity ids) */
+  data: text("data").notNull().default("{}"),
+  sticky: integer("sticky", { mode: "boolean" }).notNull().default(false),
+  readAt: integer("read_at", { mode: "timestamp" }),
+  dismissedAt: integer("dismissed_at", { mode: "timestamp" }),
+  /** action id that resolved it, if any */
+  actedWith: text("acted_with"),
+  actedBy: text("acted_by"),
+  /** which device acknowledged delivery first (fallback to HA Companion if none) */
+  deliveredTo: text("delivered_to"),
+  fallbackAt: integer("fallback_at", { mode: "timestamp" }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type HomeNotificationRow = typeof homeNotifications.$inferSelect;
 
 /** Turzx desk display preferences: one row, validated JSON (see lib/turzx/settings.ts). */
 export const turzxSettings = sqliteTable("turzx_settings", {

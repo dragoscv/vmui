@@ -6,6 +6,11 @@ plugins {
     id("rust")
 }
 
+// FCM wake-ups for the vmui notification centre. google-services.json comes from
+// `firebase apps:sdkconfig ANDROID --project vmui-home` (gitignored); without it
+// the app still works, just without push (SSE only while open).
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
@@ -82,6 +87,9 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    implementation("androidx.core:core-ktx:1.17.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
+    implementation("com.google.firebase:firebase-messaging")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")

@@ -1,6 +1,6 @@
 [package]
 name = "vmui-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "vmui — tray + control window for the home stack"
 authors = ["Dragos Catalin Vladulescu"]
 edition = "2021"
@@ -24,6 +24,7 @@ ureq = { version = "3", default-features = false, features = ["json", "gzip"] }
 mdns-sd = "0.21"
 tokio = { version = "1", features = ["time"] }
 anyhow = "1"
+png = "0.17"
 
 # desktop only: tray, process management, HyperHDR websocket
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
@@ -33,6 +34,11 @@ tauri-plugin-window-state = "2.4"
 tungstenite = "0.30"
 rumqttc = "0.25"
 tauri-plugin-notification = "2.4"
+
+[target."cfg(windows)".dependencies]
+tauri-winrt-notification = "0.8"
+winreg = "0.56"
+windows-sys = { version = "0.61", features = ["Win32_UI_Shell"] }
 
 [profile.release]
 codegen-units = 1

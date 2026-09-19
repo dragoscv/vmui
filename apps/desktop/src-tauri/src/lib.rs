@@ -10,6 +10,8 @@ mod desktop;
 mod devices;
 #[cfg(mobile)]
 mod mobile;
+#[cfg(desktop)]
+mod notify;
 #[cfg(mobile)]
 mod pairing;
 #[cfg(desktop)]
@@ -112,6 +114,14 @@ mod mobile_cmds {
     pub async fn tasks() -> Vec<Value> {
         Vec::new()
     }
+    /// `vmui://…` the Android activity received (notification tap); consumed once.
+    #[tauri::command]
+    pub async fn pending_link() -> Option<String> {
+        let f = mobile::data_dir()?.join("pending-link.txt");
+        let s = std::fs::read_to_string(&f).ok()?;
+        let _ = std::fs::remove_file(&f);
+        Some(s.trim().to_string()).filter(|s| !s.is_empty())
+    }
 
     pub fn init(app: &tauri::App) {
         let dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir());
@@ -128,7 +138,7 @@ pub fn run() {
             mobile_cmds::init(app);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![health, vmui_get, vmui_send, ambilight_mode, pc_action, hyper_send, hyper_instances, app_info, conn_get, conn_set, conn_clear, discover, pair_request, pair_login, pair_wait, tasks])
+        .invoke_handler(tauri::generate_handler![health, vmui_get, vmui_send, ambilight_mode, pc_action, hyper_send, hyper_instances, app_info, conn_get, conn_set, conn_clear, discover, pair_request, pair_login, pair_wait, tasks, pending_link])
         .run(tauri::generate_context!())
         .expect("vmui mobile");
 }

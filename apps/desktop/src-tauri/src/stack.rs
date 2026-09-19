@@ -380,8 +380,16 @@ pub fn pi_get(path: &str, timeout_secs: u64) -> Result<Value> {
 }
 
 pub fn pi_post(path: &str, body: Value) -> Result<Value> {
+    pi_send("POST", path, body)
+}
+
+pub fn pi_send(method: &str, path: &str, body: Value) -> Result<Value> {
     let sep = if path.contains('?') { '&' } else { '?' };
-    let r = agent().post(&format!("{VMUI_PI}{path}{sep}k={}", vmui_token())).send_json(body);
+    let u = format!("{VMUI_PI}{path}{sep}k={}", vmui_token());
+    let r = match method {
+        "PUT" => agent().put(&u).send_json(body),
+        _ => agent().post(&u).send_json(body),
+    };
     match r {
         Ok(r) => Ok(r.into_body().read_json::<Value>().unwrap_or(json!({"ok":true}))),
         Err(ureq::Error::StatusCode(c)) => Err(anyhow!("HTTP {c}")),

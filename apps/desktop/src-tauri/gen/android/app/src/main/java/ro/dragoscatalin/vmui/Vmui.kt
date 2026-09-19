@@ -30,18 +30,44 @@ object Vmui {
 
   /** POST /api/display/control with the device bearer token. Result on a background thread. */
   fun control(ctx: Context, body: JSONObject, done: ((Boolean) -> Unit)? = null) {
-    val c = conn(ctx) ?: run { done?.invoke(false); return }
+    post(ctx, "/api/display/control", body) { ok, _ -> done?.invoke(ok) }
+  }
+
+  /** POST any vmui JSON endpoint with the device bearer token; parsed JSON body (or null) on a background thread. */
+  fun post(ctx: Context, path: String, body: JSONObject, done: ((Boolean, JSONObject?) -> Unit)? = null) {
+    val c = conn(ctx) ?: run { done?.invoke(false, null); return }
     io.execute {
+      var res: JSONObject? = null
       val ok = try {
-        val con = (URL(c.url + "/api/display/control").openConnection() as HttpURLConnection).apply {
+        val con = (URL(c.url + path).openConnection() as HttpURLConnection).apply {
           requestMethod = "POST"; connectTimeout = 6000; readTimeout = 8000; doOutput = true
           setRequestProperty("content-type", "application/json")
           setRequestProperty("authorization", "Bearer " + c.token)
         }
         con.outputStream.use { it.write(body.toString().toByteArray()) }
-        con.responseCode in 200..299
-      } catch (_: Exception) { false }
-      done?.invoke(ok)
+        val code = con.responseCode
+        val stream = if (code in 200..299) con.inputStream else con.errorStream
+        res = try { stream?.bufferedReader()?.readText()?.let { JSONObject(it) } } catch (_: Exception) { null }
+        if (code !in 200..299) android.util.Log.w("vmui", "POST $path -> $code ${res}")
+        code in 200..299
+      } catch (e: Exception) { android.util.Log.w("vmui", "POST $path failed: $e"); false }
+      done?.invoke(ok, res)
+    }
+  }
+
+  /** PUT /api/notify/token — FCM registration, re-sent whenever it rotates. */
+  fun registerPush(ctx: Context, token: String?) {
+    val c = conn(ctx) ?: return
+    io.execute {
+      try {
+        val con = (URL(c.url + "/api/notify/token").openConnection() as HttpURLConnection).apply {
+          requestMethod = "PUT"; connectTimeout = 6000; readTimeout = 8000; doOutput = true
+          setRequestProperty("content-type", "application/json")
+          setRequestProperty("authorization", "Bearer " + c.token)
+        }
+        con.outputStream.use { it.write(JSONObject().put("token", token ?: JSONObject.NULL).toString().toByteArray()) }
+        con.responseCode
+      } catch (_: Exception) { -1 }
     }
   }
 

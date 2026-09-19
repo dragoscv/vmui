@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { pushActivity } from "@/lib/esp/activity";
 import { listNodes, showMessage } from "@/lib/esp/gallery";
-import { ha } from "@/lib/home/ha-client";
 import { credential } from "@/lib/home/credentials";
+import { ha } from "@/lib/home/ha-client";
 
 /** Electra IA02 intercom, wired to the office ESP32 (ring on GPIO34, two
  *  relays on GPIO16/17). One in-memory state: the current call and the
@@ -70,42 +70,36 @@ export async function armAutoOpen(minutes: number, by = "web"): Promise<Intercom
   return st;
 }
 
-const phoneService = () => credential("PHONE_NOTIFY_SERVICE") ?? "mobile_app_dragos_s_s25_ultra";
-
+// Phone side goes through the vmui notification centre (lib/notify): the app
+// renders the card with the two buttons, and the centre falls back to the HA
+// Companion app on its own when no paired device acks within 20 s.
 async function phoneRing() {
-  await ha.callService("notify", phoneService(), {
+  const { notify } = await import("@/lib/notify");
+  await notify({
+    kind: "intercom",
+    tag: PHONE_TAG,
     title: "Sună la interfon",
-    message: isAutoOpenArmed() ? "Deschidere automată armată — se deschide." : "Cineva e jos. Deschizi?",
-    data: {
-      tag: PHONE_TAG,
-      group: "intercom",
-      channel: "Interfon",
-      importance: "max",
-      color: "#ff5a1f",
-      notification_icon: "mdi:doorbell",
-      sticky: true,
-      timeout: 55,
-      ttl: 0,
-      priority: "high",
-      // answered by the companion app as a `mobile_app_notification_action` event
-      actions: [
-        { action: "INTERCOM_OPEN", title: "Răspunde și deschide" },
-        { action: "INTERCOM_IGNORE", title: "Ignoră" },
-      ],
-    },
+    body: isAutoOpenArmed() ? "Deschidere automată armată — se deschide." : "Cineva e jos. Deschizi?",
+    priority: "urgent",
+    icon: "bell-ring",
+    sticky: true,
+    ttlSec: 55,
+    force: true,
+    actions: [
+      { id: "open", label: "Răspunde și deschide", style: "primary" },
+      { id: "ignore", label: "Ignoră", style: "ghost" },
+    ],
   });
 }
 
 async function phoneClear() {
-  await ha.callService("notify", phoneService(), { message: "clear_notification", data: { tag: PHONE_TAG } });
+  const { dismissByTag } = await import("@/lib/notify");
+  await dismissByTag(PHONE_TAG, "intercom");
 }
 
 async function phoneOpened(by: string) {
-  await ha.callService("notify", phoneService(), {
-    title: "Ușa deschisă",
-    message: by === "auto" ? "Deschidere automată." : `Deschis de pe ${by}.`,
-    data: { tag: PHONE_TAG, group: "intercom", channel: "Interfon", importance: "default", color: "#2ecc71", notification_icon: "mdi:door-open", timeout: 20 },
-  });
+  const { notify } = await import("@/lib/notify");
+  await notify({ kind: "intercom", tag: PHONE_TAG, title: "Ușa deschisă", body: by === "auto" ? "Deschidere automată." : `Deschis de pe ${by}.`, color: "#2ecc71", icon: "door-open", priority: "low", ttlSec: 20, noFallback: true });
 }
 
 export async function publishToHa(): Promise<void> {

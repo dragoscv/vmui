@@ -46,9 +46,19 @@ cd apps\desktop; pnpm exec tauri android dev        # live reload on the connect
   installer verifies the signature). Version lives in `tauri.conf.json`,
   `package.json`, `Cargo.toml` — bump all three.
 - **Shortcuts** (long-press icon): Film / Stins / Apă +250 / PC — `ActionActivity`
-  + `res/xml/shortcuts.xml`. **Widget**: temperature · lights · water with a
-  +250 ml button (`VmuiWidget`, classic RemoteViews). Both read the pairing
-  from `<dataDir>/conn.json` (Tauri's `app_data_dir()` = `Context.getDataDir()`).
+  - `res/xml/shortcuts.xml`. **Widget**: temperature · lights · water with a
+    +250 ml button (`VmuiWidget`, classic RemoteViews). Both read the pairing
+    from `<dataDir>/conn.json` (Tauri's `app_data_dir()` = `Context.getDataDir()`).
+- **Notifications**: FCM data-only messages from the Pi (`lib/notify/fcm.ts`,
+  Firebase project `vmui-home`; `gen/android/app/google-services.json` is
+  gitignored — `firebase apps:sdkconfig android` regenerates it). `PushService`
+  renders the card natively (`Notifier`: colour disc per kind, big picture,
+  progress, up to 3 buttons, full-screen intent for `urgent`) and acks it so
+  the HA fallback stays quiet; `NotifyActionReceiver` runs buttons via
+  `POST /api/notify/act`, opens `url` buttons (e.g. `codai://session/<id>`)
+  or falls back to our own `vmui://notifications/<id>`. The token is
+  re-registered with `PUT /api/notify/token` on every resume while paired.
+  Nothing here needs the webview alive.
 - Test on the **A51** (`adb -s R58N94BMLJY`), not the S25 (daily phone).
   WebView nodes are invisible to `uiautomator dump`; drive it with
   `adb shell input tap x y` + `screencap`.
@@ -58,13 +68,19 @@ cd apps\desktop; pnpm exec tauri android dev        # live reload on the connect
 
 ## Pages
 
-| page      | talks to                                                                                    | does                                                                                                            |
-| --------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Ambilight | HyperHDR JSON-API (ws :8090), `ambilight/settings.json`, `scripts/ambilight.ps1 -Configure` | modes (HA scripts), capture toggle, per-instance effect/colour, idle colours, wall compensation, smoothing, HDR |
-| Casă      | vmui `/api/display/state` + `/api/display/control` (Pi)                                     | rooms → device tiles (tap = toggle, ⋯ = sheet), scenes, water                                                   |
-| Ecrane    | vmui `/api/desktop/settings` (Pi)                                                           | Nest Hub + Turzx settings, same schemas as the `/home` cards                                                    |
-| Servicii  | `schtasks`, `.copilot-tmp/service-logs/*.log`                                               | start/stop/restart every `vmui-*` task, tail logs                                                               |
-| PC        | `scripts/pc-action.ps1` (fixed verbs), autostart plugin                                     | lock / display off / sleep / volume / maintenance verbs, autostart toggle                                       |
+| page       | talks to                                                                                     | does                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Ambilight  | HyperHDR JSON-API (ws :8090), `ambilight/settings.json`, `scripts/ambilight.ps1 -Configure`  | modes (HA scripts), capture toggle, per-instance effect/colour, idle colours, wall compensation, smoothing, HDR  |
+| Casă       | vmui `/api/display/state` + `/api/display/control` (Pi)                                      | rooms → device tiles (tap = toggle, ⋯ = sheet), scenes, water                                                    |
+| Ecrane     | vmui `/api/desktop/settings` (Pi)                                                            | Nest Hub + Turzx settings, same schemas as the `/home` cards                                                     |
+| Servicii   | `schtasks`, `.copilot-tmp/service-logs/*.log`                                                | start/stop/restart every `vmui-*` task, tail logs                                                                |
+| PC         | `scripts/pc-action.ps1` (fixed verbs), autostart plugin                                      | lock / display off / sleep / volume / maintenance verbs, autostart toggle                                        |
+| Notificări | vmui `/api/notify*` (Pi); desktop via `notify_*` commands over the SSE stream in `notify.rs` | active / history / settings (quiet hours, per-kind on/off + break-quiet, FCM, HA fallback, water nudge, battery) |
+
+The bell in the title bar (desktop) / header (mobile) carries the unread
+count. On Windows every new card is also a native toast with buttons
+(`tauri-winrt-notification`); tapping the body opens the card's `url` or
+the Notificări page.
 
 Credentials come from `.private/credentials.env` (HA_URL, HA_TOKEN,
 HYPERHDR_ADMIN_PASS, ESP_DISPLAY_TOKEN). The repo root is found by walking up
@@ -98,3 +114,9 @@ vmui calls to the Pi through vite (`/vmui`). Anything that goes to
   from the tray.
 - Nested buttons inside a clickable tile need `onPointerDown` +
   `onClick` `stopPropagation` (the tile is a `role=button` div).
+- Windows drops toasts from an exe with no AppUserModelID. `notify::run`
+  registers `HKCU\Software\Classes\AppUserModelId\ro.dragoscatalin.vmui`
+  (name + icon) and calls `SetCurrentProcessExplicitAppUserModelID` before
+  the first toast. With Focus Assist on they land in Win+N only.
+- `opener:default` only allows http/https/mailto/tel; `codai://` and
+  `vmui://` are in `capabilities/default.json` explicitly.

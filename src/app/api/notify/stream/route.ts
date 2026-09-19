@@ -1,0 +1,31 @@
+import { listCards, onNotify } from "@/lib/notify";
+import { notifyActor } from "@/lib/notify/auth";
+import "server-only";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** SSE: `snapshot` with open cards on connect, then `upsert` / `dismiss` per card. */
+export async function GET(req: Request) {
+  const who = await notifyActor(req);
+  if (!who) return new Response("forbidden", { status: 403 });
+  const enc = new TextEncoder();
+  let off: (() => void) | null = null;
+  let ping: NodeJS.Timeout | null = null;
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        try { controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); } catch { /* closed */ }
+      };
+      send("snapshot", { cards: await listCards(), now: Date.now() });
+      off = onNotify((ev) => send(ev.type, ev.card));
+      ping = setInterval(() => { try { controller.enqueue(enc.encode(": ping\n\n")); } catch { /* closed */ } }, 25_000);
+      req.signal.addEventListener("abort", () => { off?.(); if (ping) clearInterval(ping); try { controller.close(); } catch { /* already */ } }, { once: true });
+    },
+    cancel() {
+      off?.();
+      if (ping) clearInterval(ping);
+    },
+  });
+  return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" } });
+}

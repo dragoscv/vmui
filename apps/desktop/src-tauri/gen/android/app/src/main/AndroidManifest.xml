@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -21,6 +24,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- vmui://notifications/<id> from a notification tap; vmui://<tab> generally -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vmui" />
             </intent-filter>
             <!-- long-press launcher shortcuts: Film / Stins / Apă / PC (res/xml/shortcuts.xml) -->
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
@@ -46,6 +56,14 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_vmui_info" />
         </receiver>
+
+        <!-- notification centre: FCM wake-ups render the card natively; buttons call back the Pi -->
+        <service android:name=".PushService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <receiver android:name=".NotifyActionReceiver" android:exported="false" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

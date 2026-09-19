@@ -772,20 +772,36 @@ serial is an old A51):
 
 ### Copilot signals on the phone
 
-`/api/copilot/event` now also calls `notify.<phoneNotify>` (default
-`mobile_app_dragos_s_s25_ultra`, editable in /home → Semnale Copilot):
+`/api/copilot/event` posts into the **notification centre** (`lib/notify`,
+see the 2026-09-19 section) — the HA Companion is only the 20 s fallback now:
 
-- one card per **session** (`tag: copilot-<session>`): title per event,
-  subtitle `project · chat title`, event colour, mdi icon, high-importance
-  channel for `ask` which is `sticky` until the next tool call clears it by
-  tag. `persistent: true` is deliberately not used — the companion refuses
-  `clear_notification` on persistent cards (verified with
-  `adb shell cmd notification list`, which shows the _live_ set; `dumpsys
-notification` includes history and lies).
-- one silent summary card (`tag: copilot-agents`, low importance): active
+- one card per **session** (`kind: copilot`, `tag: copilot-<session>`): title
+  per event, subtitle `project · chat title`, indigo, `ask` is high
+  priority and `sticky` until the next tool call clears it by tag. The card's
+  URL and its single button open `codai://session/<vscode session id>` — the
+  same session mirrored into the codai gateway by the hook (below).
+- one silent summary card (`kind: agents`, `tag: copilot-agents`): active
   sessions from the local VS Code session stores — repo, profile, turns
   today, last request — refreshed on every event, cleared when idle.
-- both respect quiet hours (23:30–07:30 by default).
+- both respect quiet hours (23:30–07:30 by default) unless the kind has
+  „Trece peste ore liniște” on.
+
+The companion-notification lesson still stands for the fallback path:
+`persistent: true` is deliberately not used — the companion refuses
+`clear_notification` on persistent cards (verified with
+`adb shell cmd notification list`, which shows the _live_ set; `dumpsys
+notification` includes history and lies).
+
+**codai mirror.** `~/.copilot/hooks/lib/copilot-signal-send.ps1` also does,
+per `ask`/`done`: `POST https://ai.codai.ro/v1/sessions {session_key:<vscode
+session id>, title:"project · chat"}` → claim lease (`force`) → `POST
+…/events` (`ask` with the question headers, or `turn_end`) → release. Key =
+DPAPI file `~\.codai\copilot.key` (from `scripts/ops/copilot-codai.ps1`);
+device id persisted in `~\.codai\hook-device.txt` (platform `agent`). No
+key = no mirror, vmui delivery unaffected. The phone (`ro.codai.phone`
+≥ build 2026-09-19) replays the events when it opens a session it has no
+local rows for, so the link lands on the question; answering still happens in
+VS Code (there is no reverse channel into the Copilot chat).
 
 The desk card and the phone card carry the project (cwd leaf, exactly the
 VS Code taskbar title) and the chat tab title, read by
@@ -865,6 +881,66 @@ the Pi for it:
   the phone's Pi page; nothing else.
 - `/srv/homepi/vmui/public-apk/vmui.apk{,.json}` — latest signed APK for
   in-app updates (`scripts/android-release.ps1`).
+
+## Notification centre (2026-09-19)
+
+Everything that used to be an HA Companion push (SmartLife-era) now goes
+through one place: `src/lib/notify` on the Pi, table `home_notifications`,
+settings row 6 of `turzx_settings` (`lib/notify/settings.ts`).
+
+**Sources** (`kind`): `copilot`/`agents` (`/api/copilot/event`), `intercom`
+(`lib/home/intercom.ts` — Răspunde și deschide / Ignoră), `pairing`
+(`lib/devices/pairing.ts` — Aprobă / Respinge, code in the button body),
+`water` / `pc` / `pi` / `door` / `window` / `presence` / `battery`
+(`lib/notify/watchers.ts`, started from `/api/turzx/state` next to the
+activity feed), `system` (anything else, e.g. tests). Buttons are dispatched
+by `lib/notify/actions.ts` — the only place that knows what `add250` or
+`restart-turzx` mean.
+
+**Delivery**, in this order:
+
+1. `upsert` on the in-process bus → SSE `GET /api/notify/stream` → the web
+   /home Displays tab (`components/home/notify-card.tsx`), the desktop tray
+   (`apps/desktop/src-tauri/src/notify.rs` → Windows toast with up to 3
+   buttons via `tauri-winrt-notification`, AUMID registered under
+   `HKCU\Software\Classes\AppUserModelId\ro.dragoscatalin.vmui` at start —
+   unpackaged exes get no toasts without it) and any open app.
+2. FCM **data-only** message to every approved device with a `push_token`
+   (`lib/notify/fcm.ts`, HTTP v1, service account
+   `.private/fcm-service-account.json`, Firebase project `vmui-home`). The
+   Android app renders it natively (`PushService` → `Notifier`), with the
+   webview dead; buttons are `NotifyActionReceiver` → `POST /api/notify/act`.
+3. Whoever shows the card acks it (`POST /api/notify {op:"ack"}` →
+   `deliveredTo`). If nobody acks a `high`/`urgent` card within 20 s and
+   `haFallback` is on, the old HA Companion path fires (`fallbackAt`), with
+   `NOTIFY_<id>_<action>` buttons handled in `lib/esp/activity.ts`.
+
+**API** (device bearer, session cookie or `?k=` shared token):
+`GET /api/notify[?all=1]`, `POST /api/notify {op: read|dismiss|dismissAll|ack|
+create}`, `POST /api/notify/act {id, action}`, `PUT /api/notify/token`,
+`GET|PUT /api/notify/settings`, `GET /api/notify/stream` (SSE). Quick test:
+
+```powershell
+$tok = ((Get-Content .private\credentials.env | ? { $_ -match '^ESP_DISPLAY_TOKEN=' }) -replace '^ESP_DISPLAY_TOKEN=', '').Trim('"')
+curl.exe -s -X POST "http://192.168.100.232:3737/api/notify?k=$tok" -H 'content-type: application/json' -d '{"op":"create","card":{"kind":"system","title":"Test","priority":"high","actions":[{"id":"ok","label":"OK"}]}}'
+```
+
+**Traps measured on 2026-09-19**
+
+- Settings rows in `turzx_settings` collided (nutrition and display both 4,
+  copilot and buttons both 3) — saving one silently overwrote the other. Now:
+  1 turzx, 3 copilot, 4 display, 5 nutrition, 6 notify, 7 buttons. Moving a
+  row id resets that feature to defaults on the Pi.
+- `tauri-plugin-notification` has no buttons; `tauri-winrt-notification` 0.8
+  has `add_button`/`on_activated`/hero/progress but no remove-by-tag.
+- With Windows Focus Assist / DND on, toasts go straight to the notification
+  centre (Win+N) — `LastNotificationAddedTime` under
+  `HKCU\…\Notifications\Settings\ro.dragoscatalin.vmui` proves delivery.
+- `adb shell am broadcast` cannot reach `NotifyActionReceiver`
+  (`exported=false`); test buttons by expanding the shade and tapping.
+- Firebase: enabling `firebasecloudmessaging.googleapis.com` fails (not a
+  service); `fcm.googleapis.com` + role `roles/firebasecloudmessaging.admin`
+  on the sender SA is all that is needed.
 
 ## Backups
 

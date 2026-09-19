@@ -115,7 +115,11 @@ export function ensureActivityFeed(): void {
           }
         } else if (m.event.event_type === "mobile_app_notification_action") {
           const action = String(d.action ?? "");
-          if (action.startsWith("INTERCOM_")) {
+          // buttons on a vmui card that fell back to the HA Companion app: NOTIFY_<cardId>_<actionId>
+          const nm = /^NOTIFY_([a-f0-9]{16})_(.+)$/.exec(action);
+          if (nm) {
+            void import("@/lib/notify/actions").then((n) => n.runAction(nm[1]!, nm[2]!, "telefon (HA)")).catch((e) => console.error("[vmui] notify action failed", e));
+          } else if (action.startsWith("INTERCOM_")) {
             // lazy import: intercom.ts imports this module for pushActivity
             void import("@/lib/home/intercom").then(async (ic) => {
               if (action === "INTERCOM_OPEN") {

@@ -20,6 +20,7 @@ import { DeviceSheet } from "./device-sheet";
 import { DisplayCard } from "./display-card";
 import { FloorPlan } from "./floor-plan";
 import { IntercomCard, type IntercomCardState } from "./intercom-card";
+import { NotifyCenterCard } from "./notify-card";
 import { NutritionCard } from "./nutrition-card";
 import { PairedDevicesCard } from "./paired-devices-card";
 import { TurzxCard } from "./turzx-card";
@@ -89,7 +90,8 @@ export function HomeDashboard({
             <AmbilightPanel wall={wall} />
           </TabsContent>
           <TabsContent value="displays">
-            <div className="mb-6">
+            <div className="mb-6 grid gap-6 lg:grid-cols-2">
+              <NotifyCenterCard />
               <PairedDevicesCard />
             </div>
             <DisplayCard initial={display} espToken={espToken} />

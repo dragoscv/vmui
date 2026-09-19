@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Activity, Cpu, Home, Lightbulb, Minus, MonitorSmartphone, Settings2, Square, X } from "lucide-react";
 import * as React from "react";
@@ -5,14 +6,15 @@ import { api, cn, useEvent, useToasts, type Health } from "./lib";
 import { Ambilight } from "./pages/Ambilight";
 import { Casa } from "./pages/Casa";
 import { PendingBanner } from "./pages/Devices";
-import { UpdateBanner } from "./pages/Update";
 import { Ecrane } from "./pages/Ecrane";
+import { NotifBell, Notificari, useNotifications } from "./pages/Notificari";
 import { Pc } from "./pages/Pc";
 import { Servicii } from "./pages/Servicii";
 import { Setup } from "./pages/Setup";
+import { UpdateBanner } from "./pages/Update";
 import { PlatformProvider, useAppInfo, usePlatform } from "./platform";
 
-type PageId = "ambilight" | "casa" | "ecrane" | "servicii" | "pc";
+type PageId = "ambilight" | "casa" | "ecrane" | "servicii" | "pc" | "notificari";
 const PAGES: Array<{ id: PageId; label: string; icon: React.ReactNode; el: React.ReactNode; mobileLabel?: string }> = [
   { id: "casa", label: "Casă", icon: <Home className="size-4" />, el: <Casa /> },
   { id: "ambilight", label: "Ambilight", icon: <Lightbulb className="size-4" />, el: <Ambilight /> },
@@ -48,10 +50,30 @@ function Shell({ onConfigured }: { onConfigured: () => void }) {
     return () => clearInterval(id);
   }, [mobile, poll]);
   React.useEffect(() => localStorage.setItem("vmui:page", page), [page]);
+  const [focusNotif, setFocusNotif] = React.useState<string | null>(null);
+  const { cards } = useNotifications();
+  const unread = cards.filter((c) => !c.readAt).length;
+  const openNotif = React.useCallback((id?: string | null) => { setFocusNotif(id ?? null); setPage("notificari"); }, []);
+  // desktop: toast body tap -> Rust emits `navigate`; mobile: Android wrote the vmui:// link, read it when we come to the front
+  useEvent<{ page: string; id?: string }>("navigate", (n) => { if (n.page === "notificari") openNotif(n.id); });
+  React.useEffect(() => {
+    if (!mobile) return;
+    const check = () => invoke<string | null>("pending_link").then((l) => {
+      if (!l) return;
+      const u = new URL(l);
+      const seg = u.pathname.replace(/^\/+/, "");
+      if (u.host === "notifications") openNotif(seg || null);
+      else if ((PAGES as Array<{ id: string }>).some((p) => p.id === u.host)) setPage(u.host as PageId);
+    }).catch(() => undefined);
+    void check();
+    const on = () => document.visibilityState === "visible" && void check();
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, [mobile, openNotif]);
 
   if (mobile && (!vmui || setup)) return <Setup onDone={() => { setSetup(false); onConfigured(); void poll(); }} canCancel={!!vmui} onCancel={() => setSetup(false)} />;
 
-  const cur = PAGES.find((p) => p.id === page) ?? PAGES[0]!;
+  const cur = page === "notificari" ? { id: "notificari" as const, el: <Notificari focusId={focusNotif} /> } : (PAGES.find((p) => p.id === page) ?? PAGES[0]!);
   return (
     <HealthCtx.Provider value={health}>
       {mobile ? (
@@ -59,7 +81,10 @@ function Shell({ onConfigured }: { onConfigured: () => void }) {
           <header className="flex items-center gap-2.5 px-4 pt-2 pb-2 text-sm font-semibold">
             <span className={cn("dot", health?.state === "ok" && "text-ok bg-ok", health?.state === "warn" && "text-warn bg-warn", (!health || health.state === "down") && "text-down bg-down")} />
             vmui <span className="font-normal text-muted truncate">· {health?.detail ?? "se conectează…"}</span>
-            <button type="button" className="btn ghost sm ml-auto" onClick={() => setSetup(true)} aria-label="Conexiune"><Settings2 className="size-4" /></button>
+            <span className="ml-auto flex items-center">
+              <NotifBell count={unread} onClick={() => openNotif()} />
+              <button type="button" className="btn ghost sm" onClick={() => setSetup(true)} aria-label="Conexiune"><Settings2 className="size-4" /></button>
+            </span>
           </header>
           <main className="min-h-0 overflow-y-auto px-4 pb-4">
             <UpdateBanner />
@@ -78,7 +103,7 @@ function Shell({ onConfigured }: { onConfigured: () => void }) {
         </div>
       ) : (
         <div className="bg-scene h-full grid grid-rows-[40px_1fr]">
-          <TitleBar health={health} />
+          <TitleBar health={health} unread={unread} onBell={() => openNotif()} />
           <div className="grid grid-cols-[212px_1fr] min-h-0">
             <aside className="nav flex flex-col gap-1 p-3 pt-1">
               {PAGES.map((p) => (
@@ -106,7 +131,7 @@ function Shell({ onConfigured }: { onConfigured: () => void }) {
   );
 }
 
-function TitleBar({ health }: { health: Health | null }) {
+function TitleBar({ health, unread, onBell }: { health: Health | null; unread: number; onBell: () => void }) {
   const w = getCurrentWindow();
   const tone = health?.state ?? "warn";
   return (
@@ -117,6 +142,8 @@ function TitleBar({ health }: { health: Health | null }) {
         <span className="font-normal text-muted">· {health?.detail ?? "se conectează…"}</span>
       </div>
       <div className="ml-auto flex items-center">
+        <NotifBell count={unread} onClick={onBell} />
+        <span className="w-2" />
         <button type="button" className="btn ghost sm" aria-label="Minimizează" onClick={() => void w.minimize()}><Minus className="size-4" /></button>
         <button type="button" className="btn ghost sm" aria-label="Maximizează" onClick={() => void w.toggleMaximize()}><Square className="size-3.5" /></button>
         <button type="button" className="btn ghost sm hover:text-down" aria-label="Închide în tray" onClick={() => void w.hide()}><X className="size-4" /></button>
