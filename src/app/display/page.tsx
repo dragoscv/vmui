@@ -9,9 +9,9 @@ export const metadata: Metadata = { title: "vmui · display", robots: { index: f
 // /display?k=<ESP_DISPLAY_TOKEN> — the page DashCast puts on the Nest Hub.
 // The token gate is here rather than in proxy.ts because the Hub cannot hold
 // a session; everything the page calls (/api/display/*) re-checks the same token.
-export default async function DisplayPage({ searchParams }: { searchParams: Promise<{ k?: string }> }) {
-  const { k } = await searchParams;
-  const ok = espAuthorized(new Request(`http://x/?k=${encodeURIComponent(k ?? "")}`));
+export default async function DisplayPage({ searchParams }: { searchParams: Promise<{ k?: string; d?: string }> }) {
+  const { k, d } = await searchParams;
+  const ok = espAuthorized(new Request(`http://x/?k=${encodeURIComponent(k ?? "")}&d=${encodeURIComponent(d ?? "")}`));
   if (!ok) return <div className="dk" style={{ display: "grid", placeItems: "center", fontSize: 28 }}>forbidden</div>;
-  return <Kiosk token={k ?? ""} />;
+  return <Kiosk token={k ?? ""} deviceToken={d ?? ""} />;
 }

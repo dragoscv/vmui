@@ -1,0 +1,3 @@
+# /etc/sudoers.d/vmui — installed by scripts/pi-deploy.ps1
+# vmui (User=dragos) may restart the home-stack units from /api/desktop/pi; nothing else.
+dragos ALL=(root) NOPASSWD: /usr/bin/systemctl restart vmui, /usr/bin/systemctl restart turzx, /usr/bin/systemctl restart desk-button, /usr/bin/systemctl restart hub-cast, /usr/bin/systemctl restart caddy, /usr/bin/systemctl restart tailscaled, /usr/bin/systemctl restart docker, /usr/bin/systemctl start turzx, /usr/bin/systemctl stop turzx, /usr/bin/systemctl start desk-button, /usr/bin/systemctl stop desk-button, /usr/bin/systemctl start hub-cast, /usr/bin/systemctl stop hub-cast, /usr/bin/systemctl start caddy, /usr/bin/systemctl stop caddy

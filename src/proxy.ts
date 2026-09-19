@@ -14,6 +14,8 @@ const PUBLIC_PREFIXES = [
   "/api/nutrition", // codai phone assistant posts meals: same shared token (espAuthorized)
   "/api/pc/wake",   // Wake-on-LAN from HA / phone / desk button: same shared token
   "/api/mcp", // MCP action server for codai phone/desktop: bearer vmui_* operator key
+  "/api/discover", // autodiscovery identity card (mDNS _vmui._tcp points here)
+  "/api/devices", // pairing: /pair is open (rate-limited); the rest checks session OR device token itself
   "/_next",
   "/icons",
   "/favicon",

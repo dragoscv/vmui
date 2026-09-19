@@ -21,6 +21,7 @@ import { DisplayCard } from "./display-card";
 import { FloorPlan } from "./floor-plan";
 import { IntercomCard, type IntercomCardState } from "./intercom-card";
 import { NutritionCard } from "./nutrition-card";
+import { PairedDevicesCard } from "./paired-devices-card";
 import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
 
@@ -88,6 +89,9 @@ export function HomeDashboard({
             <AmbilightPanel wall={wall} />
           </TabsContent>
           <TabsContent value="displays">
+            <div className="mb-6">
+              <PairedDevicesCard />
+            </div>
             <DisplayCard initial={display} espToken={espToken} />
             <div className="mt-6">
               <TurzxCard initial={turzx} pomodoro={pomodoro} />

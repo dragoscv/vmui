@@ -888,6 +888,18 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS turzx_settings (
   json TEXT NOT NULL,
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS paired_devices (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  code TEXT,
+  approved_by TEXT,
+  last_seen_at INTEGER,
+  last_ip TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
 sqlite.exec(`CREATE TABLE IF NOT EXISTS meals (
   id TEXT PRIMARY KEY,
   at INTEGER NOT NULL,

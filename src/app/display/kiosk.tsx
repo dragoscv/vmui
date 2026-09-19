@@ -56,7 +56,7 @@ function inNight(s: DisplaySettings, now: Date): boolean {
 }
 
 /* ------------------------------------------------------------------ root */
-export function Kiosk({ token }: { token: string }) {
+export function Kiosk({ token, deviceToken = "" }: { token: string; deviceToken?: string }) {
   const [st, setSt] = React.useState<State | null>(null);
   const [online, setOnline] = React.useState(true);
   const [mode, setMode] = React.useState<"idle" | "home">("idle");
@@ -72,7 +72,7 @@ export function Kiosk({ token }: { token: string }) {
   const buildRef = React.useRef<string | null>(null);
 
   const api = React.useCallback(
-    (path: string, init?: RequestInit) => fetch(`/api/display/${path}?k=${encodeURIComponent(token)}`, { cache: "no-store", ...init }),
+    (path: string, init?: RequestInit) => fetch(`/api/display/${path}?${token ? `k=${encodeURIComponent(token)}` : `d=${encodeURIComponent(deviceToken)}`}`, { cache: "no-store", ...init }),
     [token],
   );
 
@@ -228,20 +228,6 @@ function Idle({ st, tick, api, active }: { st: State; tick: number; api: (p: str
   const since = React.useRef(Date.now());
   const cur = views[idx % Math.max(1, views.length)] ?? views[0];
 
-  // music starting jumps straight to the media view
-  const playingRef = React.useRef(false);
-  React.useEffect(() => {
-    const playing = (st.media ?? []).some((m) => m.state === "playing");
-    if (playing && !playingRef.current) {
-      const i = views.findIndex((v) => v.id === "media");
-      if (i >= 0) {
-        setPrev(cur?.id ?? null);
-        setIdx(i);
-        since.current = Date.now();
-      }
-    }
-    playingRef.current = playing;
-  }, [st.media, views, cur]);
 
   React.useEffect(() => {
     if (!active || !cur) return;
@@ -276,6 +262,7 @@ function Idle({ st, tick, api, active }: { st: State; tick: number; api: (p: str
         </div>
       )}
       {active && !bare && cur && cur.id !== "clock" && cur.id !== "weather" && <Strip st={st} tick={tick} />}
+      {active && !bare && cur && cur.id !== "media" && media && <NowPlaying media={media} art={art} tick={tick} />}
     </>
   );
 }
@@ -603,6 +590,26 @@ function View({ id, st, tick, api, media, art, photo }: { id: DisplayViewId; st:
 function Caption({ p }: { p: Photo }) {
   if (!p.title && !p.credit) return null;
   return <div className="caption">{p.title}{p.credit ? <span className="muted"> · {p.credit}</span> : null}</div>;
+}
+/* Whatever plays in the bedroom, as a card in the corner of every other panel.
+   The rotation is not interrupted; the media view itself shows the full-screen version. */
+function NowPlaying({ media, art, tick }: { media: Media; art: string | null; tick: number }) {
+  const pos = media.position != null && media.positionAt ? media.position + (media.state === "playing" ? (tick - new Date(media.positionAt).getTime()) / 1000 : 0) : null;
+  const dur = media.duration ?? 0;
+  return (
+    <div className="np">
+      {/* eslint-disable-next-line @next/next/no-img-element -- HA entity_picture, no optimisation wanted */}
+      {art ? <img className="art" src={art} alt="" decoding="async" /> : <div className="art" />}
+      <div style={{ minWidth: 0 }}>
+        <div className="t">
+          {media.state === "playing" && <span className="eq"><i /><i /><i /></span>}
+          {media.title ?? media.app ?? "—"}
+        </div>
+        <div className="a">{[media.artist, media.name].filter(Boolean).join(" · ")}</div>
+        {dur > 0 && pos != null && <div className="bar"><i style={{ "--v": String(Math.min(1, pos / dur)) } as React.CSSProperties} /></div>}
+      </div>
+    </div>
+  );
 }
 /* Clock + outside weather, top-right, on every panel that does not already
    carry them (clock, weather). Same figures as the clock view, smaller. */

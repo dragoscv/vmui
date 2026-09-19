@@ -15,6 +15,8 @@ use std::time::Duration;
 
 pub const HYPER_WS: &str = "ws://127.0.0.1:8090";
 pub const VMUI: &str = "http://127.0.0.1:3737";
+/// The house's vmui (homepi). Pairing requests from phones land there.
+pub const VMUI_PI: &str = "http://192.168.100.232:3737";
 pub const TASKS: [&str; 6] = [
     "vmui-ambilight-hyperhdr",
     "vmui-ambilight-openrgb",
@@ -368,6 +370,23 @@ pub fn vmui_send(method: &str, path: &str, body: Value) -> Result<Value> {
         _ => agent().post(&url).send_json(body)?,
     };
     Ok(r.into_body().read_json::<Value>().unwrap_or(json!({"ok":true})))
+}
+
+/// Same as vmui_get but against the Pi and with a long timeout (long-poll endpoints).
+pub fn pi_get(path: &str, timeout_secs: u64) -> Result<Value> {
+    let sep = if path.contains('?') { '&' } else { '?' };
+    let a: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(timeout_secs))).build().into();
+    Ok(a.get(&format!("{VMUI_PI}{path}{sep}k={}", vmui_token())).call()?.into_body().read_json()?)
+}
+
+pub fn pi_post(path: &str, body: Value) -> Result<Value> {
+    let sep = if path.contains('?') { '&' } else { '?' };
+    let r = agent().post(&format!("{VMUI_PI}{path}{sep}k={}", vmui_token())).send_json(body);
+    match r {
+        Ok(r) => Ok(r.into_body().read_json::<Value>().unwrap_or(json!({"ok":true}))),
+        Err(ureq::Error::StatusCode(c)) => Err(anyhow!("HTTP {c}")),
+        Err(e) => Err(e.into()),
+    }
 }
 
 pub fn vmui_ok() -> bool {

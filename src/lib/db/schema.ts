@@ -1262,6 +1262,25 @@ export const hydration = sqliteTable("hydration", {
 });
 export type HydrationRow = typeof hydration.$inferSelect;
 
+/** Phones / desktops paired with this vmui (see lib/devices/pairing.ts). One
+ *  revocable token per device instead of the shared ESP_DISPLAY_TOKEN. */
+export const pairedDevices = sqliteTable("paired_devices", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  platform: text("platform").notNull(),
+  /** sha256 of the bearer token; the clear token is shown once at approval. */
+  tokenHash: text("token_hash").notNull(),
+  /** pending | approved | revoked */
+  status: text("status").notNull().default("pending"),
+  /** 4-digit code the approver compares with what the device shows. */
+  code: text("code"),
+  approvedBy: text("approved_by"),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
+  lastIp: text("last_ip"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type PairedDeviceRow = typeof pairedDevices.$inferSelect;
+
 /** Turzx desk display preferences: one row, validated JSON (see lib/turzx/settings.ts). */
 export const turzxSettings = sqliteTable("turzx_settings", {
   id: integer("id").primaryKey(),

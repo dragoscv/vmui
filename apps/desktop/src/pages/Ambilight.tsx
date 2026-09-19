@@ -2,6 +2,7 @@ import { Clapperboard, Eraser, Music, Power, RefreshCw, ScanEye, Sparkles, Wand2
 import * as React from "react";
 import { HealthCtx } from "../App";
 import { api, hexToRgb, num, same, toast, useAction, useEvent, usePoll, type HyperInstance } from "../lib";
+import { usePlatform } from "../platform";
 import { Card, Row, Seg, Slider, Swatches, Switch } from "../ui";
 
 type Settings = {
@@ -17,6 +18,7 @@ const EFFECTS = ["Rainbow swirl fast", "Breath", "Candle", "Fire", "Knight rider
 
 export function Ambilight() {
   const health = React.useContext(HealthCtx);
+  const { mobile } = usePlatform();
   const { busy, run } = useAction();
   const [s, setS] = React.useState<Settings>(DEF);
   const [saved, setSaved] = React.useState<Settings>(DEF);
@@ -25,8 +27,9 @@ export function Ambilight() {
   const inst = usePoll(() => api.hyperInstances(), 10000);
 
   React.useEffect(() => {
+    if (mobile) return; // settings.json lives on the PC; the phone only drives the live stack
     void api.settingsGet().then((j) => { const m = { ...DEF, ...(j as Partial<Settings>) }; setS(m); setSaved(m); }).catch((e) => toast("error", String(e)));
-  }, []);
+  }, [mobile]);
   const dirty = !same(s, saved);
   const patch = (p: Partial<Settings>) => setS((x) => ({ ...x, ...p }));
 
@@ -47,7 +50,7 @@ export function Ambilight() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Ambilight</h1>
-          <p className="text-sm text-muted mt-1">{health?.hyper ? `sursă ${health.source} · captură ${grabber ? "pornită" : "oprită"}` : "HyperHDR nu răspunde"}</p>
+          <p className="text-sm text-muted mt-1">{health?.hyper ? `sursă ${health.source} · captură ${grabber ? "pornită" : "oprită"}` : mobile ? "PC-ul (HyperHDR) nu e online" : "HyperHDR nu răspunde"}</p>
         </div>
         <div className="flex items-center gap-2">
           <Seg value={mode} onChange={(m) => run("mode", () => api.ambilightMode(m as "movie" | "music" | "off"))}
@@ -55,7 +58,7 @@ export function Ambilight() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button type="button" className={`tile ${grabber ? "on" : ""}`} onClick={toggleGrabber} disabled={busy === "grab"}>
           <ScanEye className="size-5 text-accent" />
           <div><div className="font-medium">Captură ecran</div><div className="text-xs text-muted">carcasă + becuri urmăresc monitorul</div></div>
@@ -64,7 +67,7 @@ export function Ambilight() {
           <Eraser className="size-5 text-primary" />
           <div><div className="font-medium">Șterge efectele</div><div className="text-xs text-muted">înapoi la captură / idle</div></div>
         </button>
-        <button type="button" className="tile" onClick={() => run("restart", async () => { for (const t of ["vmui-ambilight-hyperhdr", "vmui-ambilight-openrgb", "vmui-ambilight-bridges"]) await api.taskAction(t, "restart"); }, "Stack repornit")} disabled={busy === "restart"}>
+        <button type="button" className="tile" onClick={() => run("restart", () => mobile ? api.pcAction("restart_ambilight") : (async () => { for (const t of ["vmui-ambilight-hyperhdr", "vmui-ambilight-openrgb", "vmui-ambilight-bridges"]) await api.taskAction(t, "restart"); })(), "Stack repornit")} disabled={busy === "restart"}>
           <RefreshCw className="size-5 text-warn" />
           <div><div className="font-medium">Repornește stack-ul</div><div className="text-xs text-muted">HyperHDR · OpenRGB · bridges</div></div>
         </button>
@@ -74,7 +77,7 @@ export function Ambilight() {
         {inst.data ? <Instances list={inst.data} onEffect={effect} onSolid={solid} /> : <div className="text-sm text-dim">{inst.error ?? "se încarcă…"}</div>}
       </Card>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Card title="Efecte rapide" sub="Pe toate instanțele.">
           <div className="flex flex-wrap gap-2">
             {EFFECTS.map((e) => <button key={e} type="button" className="btn sm" onClick={() => effect(e)} disabled={busy === `fx:${e}`}><Sparkles className="size-3.5" />{e}</button>)}
@@ -82,15 +85,16 @@ export function Ambilight() {
           <div className="mt-4 field"><span>Culoare fixă</span><Swatches value="#000000" onChange={(hex) => solid(hex)} colors={["#ffffff", "#ffb347", "#ff5a5a", "#5ad1ff", "#7cff9a", "#c084fc", "#ff7ad9"]} /></div>
         </Card>
 
-        <Card title="Idle" sub="Când nu se capturează nimic, după idleAfterSec.">
+        {!mobile && <Card title="Idle" sub="Când nu se capturează nimic, după idleAfterSec.">
           <div className="field"><span>Bandă monitor</span><Swatches value={s.idleStripHex} onChange={(v) => patch({ idleStripHex: v })} colors={IDLE_COLOURS} /></div>
           <div className="field mt-4"><span>Glow carcasă</span><Swatches value={s.idleGlowHex} onChange={(v) => patch({ idleGlowHex: v })} colors={IDLE_COLOURS} /></div>
           <div className="field mt-4"><span>Trece în idle după · {s.idleAfterSec} s</span><Slider value={s.idleAfterSec} min={3} max={120} onChange={(v) => patch({ idleAfterSec: v })} format={(v) => `${v} s`} /></div>
-        </Card>
+        </Card>}
       </div>
 
+      {!mobile && <>
       <Card title="Perete și culoare" sub="Banda luminează un perete vopsit; culoarea se pre-compensează în HyperHDR (instanța 0).">
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="grid gap-4">
             <div className="field"><span>Culoarea peretelui</span><Swatches value={s.wallHex} onChange={(v) => patch({ wallHex: v })} colors={WALLS} /></div>
             <div className="field"><span>Compensare · {Math.round(s.wallStrength * 100)} %</span><Slider value={s.wallStrength} min={0} max={1} step={0.05} onChange={(v) => patch({ wallStrength: v })} format={(v) => `${Math.round(v * 100)} %`} /></div>
@@ -121,6 +125,7 @@ export function Ambilight() {
           <button type="button" className="btn primary" onClick={save} disabled={busy === "save"}><Wand2 className="size-4" />{busy === "save" ? "Se aplică…" : "Salvează și aplică"}</button>
         </div>
       </div>
+      </>}
     </div>
   );
 }

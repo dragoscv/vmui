@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">"vmui"</string>
+    <string name="main_activity_title">"vmui"</string>
+    <string name="sc_movie">Film</string>
+    <string name="sc_movie_long">Mod film (ambilight)</string>
+    <string name="sc_off">Stins</string>
+    <string name="sc_off_long">Lumini stinse</string>
+    <string name="sc_water">Apă</string>
+    <string name="sc_water_long">Apă +250 ml</string>
+    <string name="sc_pc">PC</string>
+    <string name="sc_pc_long">Pornește PC-ul</string>
+    <string name="w_inside">în dormitor</string>
+    <string name="w_lights">lumini aprinse</string>
+    <string name="w_water_btn">+250 ml</string>
+    <string name="widget_desc">Temperatură, lumini și apă — cu buton de +250 ml</string>
+</resources>

@@ -1,0 +1,49 @@
+import { verifyUserPassword } from "@/lib/auth";
+import { approveByLogin, pairingStatus, requestPairing } from "@/lib/devices/pairing";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+
+export const dynamic = "force-dynamic";
+
+// Unauthenticated by design: this is how a new phone introduces itself.
+// Rate-limited per IP; the only thing an attacker gains is a pending row that
+// nobody approves and that expires in 10 minutes.
+const hits = new Map<string, number[]>();
+function limited(ip: string): boolean {
+  const now = Date.now();
+  const arr = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
+  arr.push(now);
+  hits.set(ip, arr);
+  return arr.length > 10;
+}
+const ipOf = (req: NextRequest) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? null;
+
+const body = z.union([
+  z.object({ name: z.string().min(1).max(64), platform: z.string().min(1).max(32) }),
+  z.object({ name: z.string().min(1).max(64), platform: z.string().min(1).max(32), email: z.string().email(), password: z.string().min(1) }),
+]);
+
+/** POST: start a pairing request, or sign in with the vmui account for instant approval. */
+export async function POST(req: NextRequest) {
+  const ip = ipOf(req);
+  if (limited(ip ?? "?")) return NextResponse.json({ error: "prea multe încercări" }, { status: 429 });
+  const p = body.safeParse(await req.json().catch(() => null));
+  if (!p.success) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  if ("email" in p.data) {
+    const r = await verifyUserPassword(p.data.email, p.data.password);
+    if (!r.ok) return NextResponse.json({ error: "email sau parolă greșită" }, { status: 401 });
+    const t = await approveByLogin(p.data.name, p.data.platform, ip, r.user.email);
+    return NextResponse.json({ id: t.id, token: t.token, status: "approved" });
+  }
+  const t = await requestPairing(p.data.name, p.data.platform, ip);
+  return NextResponse.json({ id: t.id, token: t.token, code: t.code, status: "pending" });
+}
+
+/** GET ?id=: poll until approved/rejected. */
+export async function GET(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get("id") ?? "";
+  if (!/^[a-f0-9]{16}$/.test(id)) return NextResponse.json({ error: "invalid" }, { status: 400 });
+  const s = await pairingStatus(id);
+  if (!s) return NextResponse.json({ status: "rejected" });
+  return NextResponse.json(s, { headers: { "Cache-Control": "no-store" } });
+}

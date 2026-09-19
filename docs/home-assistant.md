@@ -556,7 +556,7 @@ runs `apps\desktop\src-tauri\target\release\vmui-desktop.exe --hidden`. Icon
 colour = health (green / amber / red, polled every 15 s). Menu: Deschide vmui,
 Mod film / muzică / stins (bifat), Captură ecran, Șterge efectele, Scene ▸,
 PC ▸ (blochează / stinge monitoarele / sleep), Repornește stack-ul, Ieșire.
-Left-click or *Deschide vmui* opens the native window (Ambilight · Casă ·
+Left-click or _Deschide vmui_ opens the native window (Ambilight · Casă ·
 Ecrane · Servicii · PC) — no browser. Details, build and the browser test
 harness in [apps/desktop/README.md](../apps/desktop/README.md).
 `ambilight/tray.py` is kept only as a fallback.
@@ -837,6 +837,34 @@ brightness()` on the root and `backdrop-filter` on the plate were suspects
   - heap ≈10 MB; polls: 3 s idle, 2 s while music plays, 10 s at night.
     Debug flags on the URL: `bare` (photo only), `nokb`, `nophoto`, `noveil`,
     `notext`, `static`, `home` (hold the home screen).
+
+## Phone app + device pairing (2026-09-19)
+
+`apps/desktop` also builds the Android app; details in
+[apps/desktop/README.md](../apps/desktop/README.md#android). What lives on
+the Pi for it:
+
+- `/etc/avahi/services/vmui.service` — mDNS `_vmui._tcp` on :3737 so the app
+  finds the Pi without an address (`pi/avahi-vmui.service`, via pi-deploy).
+- `GET /api/discover` (open) → `{app:"vmui", host}`; `POST /api/devices/pair`
+  (open, 10/min/IP) → pending row + 4-digit code; `/api/devices` (session,
+  approved device, or shared token) lists / approves / rejects / revokes.
+  Table `paired_devices`; audit actions `device.pair.*`, `device.revoke`.
+- Approvals show up in **/home → Displays → Dispozitive împerecheate**
+  (long-poll, sonner toast), in the desktop tray (toast + submenu) and on
+  paired phones.
+- `sensor.vmui_pc_agent` (MQTT, `vmui_pc.yaml`) mirrors the PC tray agent;
+  `/api/desktop/pc` publishes `vmui/pc/cmd` through `mqtt.publish`.
+  Trap hit while wiring it: the broker's `homepi` password and HA's mqtt
+  entry had drifted from `MQTT_PASS` in credentials.env (29 vs 28 bytes —
+  a trailing CR from an earlier ssh pipe). Fixed with
+  `mosquitto_passwd -b` + patching `.storage/core.config_entries`
+  (`.bak-mqtt2`), password moved as base64. `MQTT_HOST` in credentials.env
+  is the OLD .230 address; the agent uses the Pi's IP directly.
+- `/etc/sudoers.d/vmui` lets vmui (`dragos`) restart the home-stack units for
+  the phone's Pi page; nothing else.
+- `/srv/homepi/vmui/public-apk/vmui.apk{,.json}` — latest signed APK for
+  in-app updates (`scripts/android-release.ps1`).
 
 ## Backups
 

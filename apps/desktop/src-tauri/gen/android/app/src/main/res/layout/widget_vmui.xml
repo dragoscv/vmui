@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="14dp">
+
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+        android:text="@string/app_name" android:textColor="#B8C0CC" android:textSize="12sp" android:letterSpacing="0.08" android:textAllCaps="true" />
+    <TextView android:id="@+id/w_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="—" android:textColor="#7C8794" android:textSize="11sp" />
+  </LinearLayout>
+
+  <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="6dp">
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+      <TextView android:id="@+id/w_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textColor="#F2F4F7" android:textSize="30sp" android:fontFamily="sans-serif-light" />
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_inside" android:textColor="#7C8794" android:textSize="11sp" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+      <TextView android:id="@+id/w_lights" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textColor="#F2F4F7" android:textSize="30sp" android:fontFamily="sans-serif-light" />
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_lights" android:textColor="#7C8794" android:textSize="11sp" />
+    </LinearLayout>
+  </LinearLayout>
+
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="6dp">
+    <TextView android:id="@+id/w_water" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="—" android:textColor="#8FD3FF" android:textSize="15sp" />
+    <TextView android:id="@+id/w_water_btn" android:layout_width="wrap_content" android:layout_height="36dp" android:minWidth="88dp" android:gravity="center"
+        android:text="@string/w_water_btn" android:textColor="#0B1220" android:textSize="13sp" android:textStyle="bold" android:background="@drawable/widget_btn" android:paddingLeft="14dp" android:paddingRight="14dp" />
+  </LinearLayout>
+</LinearLayout>

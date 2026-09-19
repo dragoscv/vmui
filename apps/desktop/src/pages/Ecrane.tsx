@@ -92,7 +92,7 @@ function Hub({ d, meta, set }: { d: Display; meta: Meta; set: (d: Display) => vo
           })}
         </div>
       </Card>
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Card title="Fotografii">
           <div className="flex flex-wrap gap-2 mb-4">
             {meta.photoSources.map((s) => (
@@ -148,7 +148,7 @@ function TurzxPane({ t, meta, set }: { t: Turzx; meta: Meta; set: (t: Turzx) => 
           })}
         </div>
       </Card>
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Card title="Ecran">
           <div className="field"><span>Luminozitate · {t.brightness} %</span><Slider value={t.brightness} min={5} max={100} onChange={(n) => set({ ...t, brightness: n })} format={(n) => `${n} %`} /></div>
           <div className="field mt-3"><span>Noaptea · {t.nightBrightness} %</span><Slider value={t.nightBrightness} min={0} max={100} onChange={(n) => set({ ...t, nightBrightness: n })} format={(n) => `${n} %`} /></div>

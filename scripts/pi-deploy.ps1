@@ -50,6 +50,10 @@ foreach ($f in '.env', '.private/credentials.env') {
 if (Test-Path 'turzx\fonts') { tar -cf - turzx/fonts | ssh -o BatchMode=yes $Pi "tar -xf - -C $Dest" }
 # Home Assistant packages (rest_command/scripts that call vmui on the Pi)
 if (Test-Path 'pi\ha-packages') { tar -cf - -C pi ha-packages | ssh -o BatchMode=yes $Pi "tar -xf - -C /tmp && sudo cp /tmp/ha-packages/*.yaml /srv/homepi/ha/packages/ && rm -rf /tmp/ha-packages" }
+# /api/desktop/pi restarts units with sudo -n; visudo -c refuses a broken file instead of locking us out
+if (Test-Path 'pi\sudoers-vmui') { ((Get-Content -Raw 'pi\sudoers-vmui') -replace "`r`n", "`n") | ssh -o BatchMode=yes $Pi 'cat > /tmp/sudoers-vmui && sudo visudo -cf /tmp/sudoers-vmui >/dev/null && sudo install -m 440 -o root -g root /tmp/sudoers-vmui /etc/sudoers.d/vmui; rm -f /tmp/sudoers-vmui' }
+# mDNS advert (_vmui._tcp) so the apps autodiscover the Pi on the LAN
+if (Test-Path 'pi\avahi-vmui.service') { ((Get-Content -Raw 'pi\avahi-vmui.service') -replace "`r`n", "`n") | ssh -o BatchMode=yes $Pi 'cat > /tmp/avahi-vmui.service && sudo install -m 644 /tmp/avahi-vmui.service /etc/avahi/services/vmui.service; rm -f /tmp/avahi-vmui.service' }
 # custom-component fixes that a HAOS restore would undo (see docs: HyperHDR async_timeout)
 if (Test-Path 'pi\ha-patches') { tar -cf - -C pi ha-patches | ssh -o BatchMode=yes $Pi 'tar -xf - -C /tmp; D=/srv/homepi/ha/custom_components/hyperhdr_integration; if [ -d "$D" ]; then sudo cp /tmp/ha-patches/hyperhdr_integration-coordinator.py "$D/coordinator.py"; sudo cp /tmp/ha-patches/hyperhdr_integration-config_flow.py "$D/config_flow.py"; fi; rm -rf /tmp/ha-patches' }
 $espTok = ((Get-Content '.private\credentials.env' | Where-Object { $_ -match '^ESP_DISPLAY_TOKEN=' }) -replace '^ESP_DISPLAY_TOKEN=', '').Trim('"')

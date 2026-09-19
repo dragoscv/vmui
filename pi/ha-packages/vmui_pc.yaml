@@ -25,3 +25,17 @@ command_line:
       payload_off: "OFF"
       device_class: power
       scan_interval: 30
+
+# The Windows tray app (apps/desktop) publishes its state retained on
+# vmui/pc/state every 15 s and executes fixed verbs from vmui/pc/cmd.
+# vmui's /api/desktop/pc reads this sensor and publishes through mqtt.publish,
+# so the phone never needs a broker connection of its own.
+mqtt:
+  sensor:
+    - name: "vmui PC agent"
+      unique_id: vmui_pc_agent
+      state_topic: "vmui/pc/state"
+      value_template: "{{ value_json.state }}"
+      json_attributes_topic: "vmui/pc/state"
+      icon: mdi:desktop-tower
+      expire_after: 90

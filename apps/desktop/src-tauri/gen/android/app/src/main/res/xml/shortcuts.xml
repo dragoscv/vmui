@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+  <shortcut android:shortcutId="movie" android:enabled="true" android:icon="@drawable/ic_sc_movie" android:shortcutShortLabel="@string/sc_movie" android:shortcutLongLabel="@string/sc_movie_long">
+    <intent android:action="android.intent.action.VIEW" android:targetPackage="ro.dragoscatalin.vmui" android:targetClass="ro.dragoscatalin.vmui.ActionActivity">
+      <extra android:name="vmui_action" android:value="movie" />
+    </intent>
+  </shortcut>
+  <shortcut android:shortcutId="off" android:enabled="true" android:icon="@drawable/ic_sc_off" android:shortcutShortLabel="@string/sc_off" android:shortcutLongLabel="@string/sc_off_long">
+    <intent android:action="android.intent.action.VIEW" android:targetPackage="ro.dragoscatalin.vmui" android:targetClass="ro.dragoscatalin.vmui.ActionActivity">
+      <extra android:name="vmui_action" android:value="off" />
+    </intent>
+  </shortcut>
+  <shortcut android:shortcutId="water" android:enabled="true" android:icon="@drawable/ic_sc_water" android:shortcutShortLabel="@string/sc_water" android:shortcutLongLabel="@string/sc_water_long">
+    <intent android:action="android.intent.action.VIEW" android:targetPackage="ro.dragoscatalin.vmui" android:targetClass="ro.dragoscatalin.vmui.ActionActivity">
+      <extra android:name="vmui_action" android:value="water" />
+    </intent>
+  </shortcut>
+  <shortcut android:shortcutId="pc_wake" android:enabled="true" android:icon="@drawable/ic_sc_pc" android:shortcutShortLabel="@string/sc_pc" android:shortcutLongLabel="@string/sc_pc_long">
+    <intent android:action="android.intent.action.VIEW" android:targetPackage="ro.dragoscatalin.vmui" android:targetClass="ro.dragoscatalin.vmui.ActionActivity">
+      <extra android:name="vmui_action" android:value="pc_wake" />
+    </intent>
+  </shortcut>
+</shortcuts>

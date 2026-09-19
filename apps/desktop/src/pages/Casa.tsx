@@ -50,7 +50,7 @@ export function Casa() {
         <Seg value={room} onChange={setRoom} options={rooms.map((r) => ({ id: r.id, label: ROOM_RO[r.id] ?? r.name }))} />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {devs.length === 0 && <div className="col-span-3"><Empty text="Nimic controlabil în camera asta." /></div>}
         {devs.map((d) => <Tile key={d.id} d={d} e={s.entities[d.entity!]!} busy={busy === "send"} onTap={() => tap(d, s.entities[d.entity!]!, send)} onOpen={() => setOpen(d)} />)}
       </div>

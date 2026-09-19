@@ -2,7 +2,9 @@ import { FolderOpen, Play, RefreshCw, ScrollText, Square } from "lucide-react";
 import * as React from "react";
 import { HealthCtx } from "../App";
 import { api, cn, useAction, usePoll } from "../lib";
+import { usePlatform } from "../platform";
 import { Card, Stat } from "../ui";
+import { Pi } from "./Pi";
 
 const LABEL: Record<string, { name: string; what: string; log?: string; self?: boolean }> = {
   "vmui-ambilight-hyperhdr": { name: "HyperHDR", what: "captură ecran → LED-uri; JSON-API :8090", log: "hyperhdr" },
@@ -14,6 +16,12 @@ const LABEL: Record<string, { name: string; what: string; log?: string; self?: b
 };
 
 export function Servicii() {
+  const { mobile } = usePlatform();
+  if (mobile) return <Pi />;
+  return <ServiciiDesktop />;
+}
+
+function ServiciiDesktop() {
   const health = React.useContext(HealthCtx);
   const tasks = usePoll(() => api.tasks(), 8000);
   const { busy, run } = useAction();
@@ -35,7 +43,7 @@ export function Servicii() {
         <p className="text-sm text-muted mt-1">Task-urile din Task Scheduler care țin stack-ul în viață, și log-urile lor.</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat k="Task-uri active" v={`${running} / ${list.length}`} tone={running === list.length ? "ok" : "warn"} />
         <Stat k="HyperHDR" v={health?.hyper ? health.source : "jos"} tone={health?.hyper ? "ok" : "down"} />
         <Stat k="vmui local" v={health?.vmui ? "răspunde" : "oprit"} tone={health?.vmui ? "ok" : "warn"} />

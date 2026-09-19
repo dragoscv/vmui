@@ -1,6 +1,6 @@
 [package]
 name = "vmui-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "vmui — tray + control window for the home stack"
 authors = ["Dragos Catalin Vladulescu"]
 edition = "2021"
@@ -17,14 +17,22 @@ tauri-build = { version = "2.6", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2.11", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2.5"
+# no TLS on purpose: vmui / HA are plain http on the LAN and over Tailscale; keeps `ring` (and an
+# NDK C toolchain) out of the Android build
+ureq = { version = "3", default-features = false, features = ["json", "gzip"] }
+mdns-sd = "0.21"
+tokio = { version = "1", features = ["time"] }
+anyhow = "1"
+
+# desktop only: tray, process management, HyperHDR websocket
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2.5"
 tauri-plugin-single-instance = "2.4"
 tauri-plugin-window-state = "2.4"
-tauri-plugin-opener = "2.5"
 tungstenite = "0.30"
-ureq = { version = "3", features = ["json"] }
-anyhow = "1"
-image = { version = "0.25", default-features = false, features = ["png"] }
+rumqttc = "0.25"
+tauri-plugin-notification = "2.4"
 
 [profile.release]
 codegen-units = 1
