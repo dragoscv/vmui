@@ -5,10 +5,19 @@ import { haConfig } from "@/lib/home/credentials";
 import { ha } from "@/lib/home/ha-client";
 import { photoPool } from "@/lib/turzx/feeds";
 import { NextResponse, type NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // The Hub sits in the bedroom: it only shows what plays in the bedroom
 // (its own Cast session, the bedroom TV), never the living-room TV.
 const HUB_ROOM = "bedroom";
+// .next/BUILD_ID changes on every `next build`; falls back to a per-process stamp in dev
+let BUILD_STAMP = String(Date.now());
+try {
+  BUILD_STAMP = readFileSync(join(process.cwd(), ".next", "BUILD_ID"), "utf8").trim();
+} catch {
+  // dev server: no BUILD_ID
+}
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +63,8 @@ export async function GET(req: NextRequest) {
       entities,
       hubIdle: byId.get("input_boolean.nest_hub_idle")?.state === "on" ? true : byId.has("input_boolean.nest_hub_idle") ? false : null,
       haUrl: haConfig()?.url ?? null,
+      // the kiosk reloads itself when this changes: DashCast keeps the old page alive across deploys
+      build: BUILD_STAMP,
       now: Date.now(),
     },
     { headers: { "Cache-Control": "no-store" } },

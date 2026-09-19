@@ -33,6 +33,7 @@ type State = {
   batteries?: Array<{ name: string; pct: number }>;
   ambilight?: { hyper?: Ent } | null;
   hubIdle?: boolean;
+  build?: string;
 };
 
 const COND: Record<string, string> = { sunny: "☀", "clear-night": "☾", partlycloudy: "⛅", cloudy: "☁", rainy: "🌧", pouring: "🌧", snowy: "🌨", fog: "🌫", lightning: "⛈", "lightning-rainy": "⛈", windy: "💨" };
@@ -68,6 +69,7 @@ export function Kiosk({ token }: { token: string }) {
   const [tick, setTick] = React.useState(() => Date.now());
   const lastTouch = React.useRef(Date.now());
   const idleFlag = React.useRef<boolean | null>(null);
+  const buildRef = React.useRef<string | null>(null);
 
   const api = React.useCallback(
     (path: string, init?: RequestInit) => fetch(`/api/display/${path}?k=${encodeURIComponent(token)}`, { cache: "no-store", ...init }),
@@ -130,6 +132,9 @@ export function Kiosk({ token }: { token: string }) {
         if (!r.ok) throw new Error(String(r.status));
         const j = (await r.json()) as State;
         if (!alive) return;
+        // new server build -> pick up the new page (DashCast never reloads on its own)
+        if (j.build && buildRef.current && j.build !== buildRef.current) location.reload();
+        buildRef.current = j.build ?? buildRef.current;
         setSt(j);
         setOnline(true);
         const playing = (j.media ?? []).some((m) => m.state === "playing");
