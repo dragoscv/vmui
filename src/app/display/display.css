@@ -177,40 +177,111 @@
   text-wrap: balance;
 }
 
-/* persistent clock + weather, top-right; stays put across view changes */
+/* persistent clock + weather, top-right; a real plate so it reads on any photo */
 .strip {
   position: absolute;
-  top: 40px;
-  right: 48px;
+  top: 28px;
+  right: 32px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 14px 24px;
+  border-radius: 22px;
+  background: color-mix(in oklch, oklch(0.1 0.02 260) 62%, transparent);
+  border: 1px solid var(--hair);
+  box-shadow: 0 20px 50px -24px oklch(0 0 0 / 0.7);
   text-align: right;
-  text-shadow: 0 2px 16px oklch(0 0 0 / 0.6);
   pointer-events: none;
+  animation: dk-in 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .strip-time {
-  font-size: 64px;
+  font-size: 66px;
   font-weight: 200;
   line-height: 1;
   letter-spacing: -0.03em;
 }
 .strip-w {
-  margin-top: 8px;
-  font-size: 21px;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  align-items: baseline;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 19px;
+  padding-left: 22px;
+  border-left: 1px solid var(--hair);
 }
 .strip-t {
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 300;
+  line-height: 1;
 }
-/* the media panel paints over the whole frame; give the strip a plate there */
-.dk-view.media ~ .strip {
-  background: color-mix(in oklch, oklch(0.1 0.02 260) 60%, transparent);
-  border-radius: 18px;
-  padding: 12px 18px;
+
+/* now-playing card: bottom-right over every panel except the media one */
+.np {
+  position: absolute;
+  left: 32px;
   top: 28px;
-  right: 32px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 16px;
+  align-items: center;
+  width: 400px;
+  padding: 14px;
+  border-radius: 22px;
+  background: color-mix(in oklch, oklch(0.1 0.02 260) 62%, transparent);
+  border: 1px solid var(--hair);
+  box-shadow: 0 20px 50px -24px oklch(0 0 0 / 0.7);
+  pointer-events: none;
+  animation: dk-in 0.48s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.np .art {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: oklch(1 0 0 / 0.08);
+}
+.np .t {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np .a {
+  font-size: 17px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np .bar {
+  margin-top: 10px;
+  height: 4px;
+}
+.np .eq {
+  display: inline-flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+}
+.np .eq i {
+  width: 3px;
+  height: 100%;
+  transform-origin: bottom;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: dk-eq 0.9s ease-in-out infinite alternate;
+}
+.np .eq i:nth-child(2) { animation-delay: 0.2s; }
+.np .eq i:nth-child(3) { animation-delay: 0.45s; }
+@keyframes dk-eq {
+  from { transform: scaleY(0.3); }
+  to { transform: scaleY(1); }
 }
 
 /* clock */
@@ -236,15 +307,30 @@
   top: 44px;
   text-align: right;
 }
-.clock .side .t {
+/* same treatment as .caption: unplated text over a photo needs a real shadow,
+   the .side block and the weather view had none and vanished on bright skies */
+.clock .side .t,
+.dk-view.weather .num {
   font-size: 92px;
   font-weight: 200;
   line-height: 1;
+  text-shadow: 0 4px 28px oklch(0 0 0 / 0.65), 0 1px 4px oklch(0 0 0 / 0.5);
 }
-.clock .side .s {
+.clock .side .s,
+.dk-view.weather .row > div:not(.num) {
   font-size: 22px;
-  color: var(--muted);
+  color: var(--ivory);
   margin-top: 8px;
+  text-shadow: 0 1px 12px oklch(0 0 0 / 0.8), 0 0 2px oklch(0 0 0 / 0.6);
+}
+.dk-view.weather .row > div:not(.num) .muted {
+  color: var(--muted);
+  text-shadow: inherit;
+}
+/* every other unplated caption-sized text on a photo panel */
+.dk-view > div > .muted,
+.dk-view .caption {
+  text-shadow: 0 1px 12px oklch(0 0 0 / 0.8), 0 0 2px oklch(0 0 0 / 0.6);
 }
 .dk-view.notext * {
   text-shadow: none !important;
