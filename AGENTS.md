@@ -60,6 +60,7 @@ Synthetic DB id is always `${accountId}:${region}:${providerInstanceId}`.
 - Audit log every mutation: `db.insert(auditLog).values({ accountId, action, target, status, message })`.
 - File path convention in `actions/`: `{domain}.ts` colocated, all marked `"use server"` at the top.
 - Agent-facing actions live in ONE place: [src/lib/mcp/tools.ts](src/lib/mcp/tools.ts) (served by `/api/mcp`, bearer `vmui_*` operator). Adding a house/PC capability means adding a tool there (zod schema, description a model can act on, `destructive`/`readOnly` flags) — not a new ad-hoc route. PC verbs are the fixed enum in `scripts/pc-action.ps1`; never expose arbitrary shell.
+- Desktop tray + control window: [apps/desktop](apps/desktop/README.md) (Tauri 2, pnpm workspace member). Its Rust side reads `.private/credentials.env`, `ambilight/settings.json`, Task Scheduler, HyperHDR ws and the Pi's vmui via the shared display token; settings for both screens go through `/api/desktop/settings`. Rebuild with `pnpm exec tauri build` after stopping `vmui-desktop.exe`; the `vmui-tray` task runs it with `--hidden`.
 
 ## Native modules
 

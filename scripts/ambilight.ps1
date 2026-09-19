@@ -112,7 +112,9 @@ $Tasks = @(
     # One process hosts both udpraw bridges (19446 DX Light, 19447 OpenRGB)
     # and restarts whichever dies; replaced the separate dxlight/pcglow tasks.
     @{ Name = 'vmui-ambilight-bridges';  Exe = $Python;     Args = "`"$Amb\bridges.py`""; Delay = 20 },
-    @{ Name = 'vmui-tray';               Exe = $Python;     Args = "`"$Amb\tray.py`""; Delay = 30 },
+    # Tauri app (apps/desktop): tray icon + native control window. Replaced
+    # ambilight/tray.py (pystray), which is kept only as a fallback.
+    @{ Name = 'vmui-tray';               Exe = "$Root\apps\desktop\src-tauri\target\release\vmui-desktop.exe"; Args = '--hidden'; Delay = 30 },
     # The panel itself is driven from homepi (pi/turzx.service). This PC only
     # publishes its CPU/GPU/focus metrics to vmui there for the "pc" view.
     @{ Name = 'vmui-turzx';              Exe = $Python;     Args = "`"$Root\turzx\turzx.py`" --publish --vmui http://192.168.100.232:3737"; Delay = 35 }

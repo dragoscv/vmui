@@ -551,11 +551,27 @@ is polarity-sensitive and carries the 12 V).
 
 ## Tray icon and console-free tasks (2026-09-14)
 
-`ambilight/tray.py` (task `vmui-tray`, pythonw) shows one icon: green =
+**2026-09-19: the tray is now `apps/desktop` (Tauri 2).** Task `vmui-tray`
+runs `apps\desktop\src-tauri\target\release\vmui-desktop.exe --hidden`. Icon
+colour = health (green / amber / red, polled every 15 s). Menu: Deschide vmui,
+Mod film / muzică / stins (bifat), Captură ecran, Șterge efectele, Scene ▸,
+PC ▸ (blochează / stinge monitoarele / sleep), Repornește stack-ul, Ieșire.
+Left-click or *Deschide vmui* opens the native window (Ambilight · Casă ·
+Ecrane · Servicii · PC) — no browser. Details, build and the browser test
+harness in [apps/desktop/README.md](../apps/desktop/README.md).
+`ambilight/tray.py` is kept only as a fallback.
+
+Why the old menu's modes "did nothing" (fixed the same day, three stacked
+causes): Mosquitto on the Pi had died at start (log dir owned by `dragos`,
+broker runs as uid 1883), HA's MQTT entry still pointed at the HAOS add-on
+(`core-mosquitto` / `homeassistant`), and HyperHDR's `hyperhdr` MQTT user
+did not exist in the broker's passwd. Set broker passwords with
+`.copilot-tmp/mqtt-user.ps1` (base64) — piping them over ssh from PowerShell
+appends `\r` and the broker refuses the client forever.
+
+Historical: `ambilight/tray.py` (pythonw) showed one icon: green =
 HyperHDR + vmui + bridges up, amber = something stopped, red = HyperHDR
-unreachable. Menu: Movie/Music/Off, screen capture, clear effects, open
-mui.dragoscatalin.ro, local `/home`, wall compensation, HyperHDR settings,
-restart stack. Console apps started by tasks (`node`, `pwsh`, `caddy`) go
+unreachable. Console apps started by tasks (`node`, `pwsh`, `caddy`) go
 through `scripts/hidden-run.vbs` — Task Scheduler's _Hidden_ only hides the
 task, the console still flashes. Tasks run with the **Interactive** token:
 S4U processes cannot be stopped from the desktop (took an admin `taskkill`

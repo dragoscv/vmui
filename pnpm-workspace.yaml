@@ -16,3 +16,8 @@ allowBuilds:
   # Pulled in transitively by the Google Cloud SDKs; its install script only
   # generates JS, so allowing it is safe and silences a warning every install.
   protobufjs: true
+
+packages:
+  - .
+  - apps/desktop
+
