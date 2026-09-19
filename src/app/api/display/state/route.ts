@@ -3,7 +3,12 @@ import { espAuthorized } from "@/lib/esp/auth";
 import { DEVICES, ROOMS } from "@/lib/home/catalog";
 import { haConfig } from "@/lib/home/credentials";
 import { ha } from "@/lib/home/ha-client";
+import { photoPool } from "@/lib/turzx/feeds";
 import { NextResponse, type NextRequest } from "next/server";
+
+// The Hub sits in the bedroom: it only shows what plays in the bedroom
+// (its own Cast session, the bedroom TV), never the living-room TV.
+const HUB_ROOM = "bedroom";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +21,15 @@ export async function GET(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   const k = new URL(req.url).searchParams.get("k") ?? "";
   const origin = `http://127.0.0.1:${process.env.PORT ?? 3737}`;
-  const [settings, turzx, states] = await Promise.all([
-    loadDisplaySettings(),
+  const settings = await loadDisplaySettings();
+  const [turzx, states, photos] = await Promise.all([
     fetch(`${origin}/api/turzx/state?k=${encodeURIComponent(k)}`, { cache: "no-store" }).then((r) => (r.ok ? (r.json() as Promise<Record<string, unknown>>) : null)).catch(() => null),
     ha.states().catch(() => []),
+    // the Hub's own sources (the Turzx aggregate carries the desk screen's), cached 6 h per source in photoPool
+    photoPool(settings.photoSources).catch(() => []),
   ]);
+  const roomPlayers = new Set(DEVICES.filter((d) => d.room === HUB_ROOM).flatMap((d) => [d.entity, ...(d.entities ?? [])]).filter((e): e is string => !!e && e.startsWith("media_player.")));
+  const media = Array.isArray(turzx?.media) ? (turzx.media as Array<{ id: string }>).filter((m) => roomPlayers.has(m.id)) : [];
   const byId = new Map(states.map((s) => [s.entity_id, s]));
   const want = new Set<string>();
   for (const d of DEVICES) {
@@ -37,6 +46,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       ...(turzx ?? {}),
+      photos,
+      media,
       display: settings,
       rooms: ROOMS,
       devices: DEVICES,

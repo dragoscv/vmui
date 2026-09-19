@@ -177,6 +177,42 @@
   text-wrap: balance;
 }
 
+/* persistent clock + weather, top-right; stays put across view changes */
+.strip {
+  position: absolute;
+  top: 40px;
+  right: 48px;
+  text-align: right;
+  text-shadow: 0 2px 16px oklch(0 0 0 / 0.6);
+  pointer-events: none;
+}
+.strip-time {
+  font-size: 64px;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.strip-w {
+  margin-top: 8px;
+  font-size: 21px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: baseline;
+}
+.strip-t {
+  font-size: 30px;
+  font-weight: 300;
+}
+/* the media panel paints over the whole frame; give the strip a plate there */
+.dk-view.media ~ .strip {
+  background: color-mix(in oklch, oklch(0.1 0.02 260) 60%, transparent);
+  border-radius: 18px;
+  padding: 12px 18px;
+  top: 28px;
+  right: 32px;
+}
+
 /* clock */
 .clock {
   align-content: end;

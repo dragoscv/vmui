@@ -5,7 +5,7 @@ import * as React from "react";
 
 /* ------------------------------------------------------------------ types */
 type Ent = { state: string; attributes: Record<string, unknown> };
-type Photo = { url: string; title?: string | null; credit?: string | null };
+type Photo = { url: string; title?: string | null; credit?: string | null; source?: string };
 type Media = { id: string; name: string | null; state: string; title: string | null; artist: string | null; app: string | null; art: string | null; position: number | null; duration: number | null; positionAt: string | null };
 type Device = { id: string; name: string; kind: string; entity?: string; entities?: string[]; room: string; whiteOnly?: boolean; via: string };
 type Room = { id: string; name: string };
@@ -251,6 +251,8 @@ function Idle({ st, tick, api, active }: { st: State; tick: number; api: (p: str
 
   const wantPhoto = cur ? cur.photo || cur.id === "photo" : true;
   const photos = st.photos ?? [];
+  // the photo actually on screen, reported by PhotoLayer once it has decoded — the caption follows it
+  const [shown, setShown] = React.useState<Photo | undefined>(undefined);
   const media = (st.media ?? []).find((m) => m.state === "playing") ?? st.media?.[0] ?? null;
   const art = media?.art ? (media.art.startsWith("/") ? `${st.haUrl ?? ""}${media.art}` : media.art) : null;
   // perf bisect flags: ?bare=1 photo only (no veil, no view); ?noveil=1; ?notext=1 (view without shadows)
@@ -259,35 +261,50 @@ function Idle({ st, tick, api, active }: { st: State; tick: number; api: (p: str
 
   return (
     <>
-      {cur?.id === "media" && art ? <div className={`media-bg on`} style={{ backgroundImage: `url("${art}")` }} /> : <PhotoLayer photos={dbg.has("nophoto") ? [] : photos} sec={st.display.photoSec} on={wantPhoto && cur?.id !== "media"} />}
+      {cur?.id === "media" && art ? <div className={`media-bg on`} style={{ backgroundImage: `url("${art}")` }} /> : <PhotoLayer photos={dbg.has("nophoto") ? [] : photos} sec={st.display.photoSec} on={wantPhoto && cur?.id !== "media"} onShow={setShown} />}
       {!wantPhoto && !bare && <div className="dk-flat" />}
       {!bare && !dbg.has("noveil") && <div className="dk-veil" />}
       {active && !bare && prev && prev !== cur?.id && <div className="dk-view out" key={`out-${prev}`} />}
       {active && !bare && cur && (
         <div className={`dk-view ${cur.id} ${dbg.has("notext") ? "notext" : ""}`} key={cur.id}>
-          <View id={cur.id} st={st} tick={tick} api={api} media={media} art={art} photo={photos.length ? photos[Math.floor(tick / (st.display.photoSec * 1000)) % photos.length] : undefined} />
+          <View id={cur.id} st={st} tick={tick} api={api} media={media} art={art} photo={wantPhoto ? shown : undefined} />
         </div>
       )}
+      {active && !bare && cur && cur.id !== "clock" && cur.id !== "weather" && <Strip st={st} tick={tick} />}
     </>
   );
 }
 
 /* two <div>s crossfade; Ken Burns runs on the visible one */
-function PhotoLayer({ photos, sec, on }: { photos: Photo[]; sec: number; on: boolean }) {
+function PhotoLayer({ photos, sec, on, onShow }: { photos: Photo[]; sec: number; on: boolean; onShow: (p: Photo | undefined) => void }) {
   const [i, setI] = React.useState(0);
   const [slot, setSlot] = React.useState(0);
   const urls = React.useRef<[string | null, string | null]>([null, null]);
   const reduced = typeof matchMedia !== "undefined" && (matchMedia("(prefers-reduced-motion: reduce)").matches || new URLSearchParams(location.search).has("nokb"));
 
-  React.useEffect(() => {
-    if (!photos.length) return;
-    const id = setInterval(() => setI((x) => (x + 1) % photos.length), sec * 1000);
-    return () => clearInterval(id);
-  }, [photos.length, sec]);
+  // Random order that alternates sources (a Met run of eight would otherwise
+  // look like one museum), reshuffled only when the pool itself changes.
+  const order = React.useMemo(() => {
+    const groups = new Map<string, Photo[]>();
+    for (const p of photos) groups.set(p.source ?? "", [...(groups.get(p.source ?? "") ?? []), p]);
+    for (const g of groups.values()) g.sort(() => Math.random() - 0.5);
+    const out: Photo[] = [];
+    const lists = [...groups.values()].sort(() => Math.random() - 0.5);
+    while (lists.some((l) => l.length)) for (const l of lists) if (l.length) out.push(l.pop()!);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on pool identity, not on element order
+  }, [photos.map((p) => p.url).join("|")]);
 
-  const url = photos[i % Math.max(1, photos.length)]?.url ?? null;
   React.useEffect(() => {
-    if (!url) return;
+    if (!order.length) return;
+    const id = setInterval(() => setI((x) => (x + 1) % order.length), sec * 1000);
+    return () => clearInterval(id);
+  }, [order.length, sec]);
+
+  const cur = order[i % Math.max(1, order.length)];
+  const url = cur?.url ?? null;
+  React.useEffect(() => {
+    if (!url || !cur) return;
     let alive = true;
     const img = new Image();
     img.src = url;
@@ -299,11 +316,15 @@ function PhotoLayer({ photos, sec, on }: { photos: Photo[]; sec: number; on: boo
         urls.current[nx] = url;
         return nx;
       });
-    }).catch(() => undefined);
+      onShow(cur);
+    }).catch(() => {
+      // broken URL: skip it instead of showing the previous photo under a wrong caption
+      if (alive) setI((x) => (x + 1) % Math.max(1, order.length));
+    });
     return () => {
       alive = false;
     };
-  }, [url]);
+  }, [url, cur, order.length, onShow]);
 
   return (
     <>
@@ -577,6 +598,23 @@ function View({ id, st, tick, api, media, art, photo }: { id: DisplayViewId; st:
 function Caption({ p }: { p: Photo }) {
   if (!p.title && !p.credit) return null;
   return <div className="caption">{p.title}{p.credit ? <span className="muted"> · {p.credit}</span> : null}</div>;
+}
+/* Clock + outside weather, top-right, on every panel that does not already
+   carry them (clock, weather). Same figures as the clock view, smaller. */
+function Strip({ st, tick }: { st: State; tick: number }) {
+  const w = st.weather;
+  const t = num(w?.attributes.temperature, NaN);
+  return (
+    <div className="strip">
+      <div className="strip-time">{hhmm(tick)}</div>
+      {Number.isFinite(t) && (
+        <div className="strip-w">
+          <span className="strip-t">{Math.round(t)}°</span>
+          <span className="muted">{COND[w?.state ?? ""] ?? ""} {COND_RO[w?.state ?? ""] ?? w?.state}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 function Arc({ v, big, small, cool }: { v: number; big: string; small: string; cool?: boolean }) {
   return (

@@ -35,7 +35,7 @@ export const displaySettingsSchema = z.object({
   version: z.literal(1),
   views: z.array(displayViewSchema).min(1),
   /** Photo sources for the slideshow (shared fetchers with Turzx). */
-  photoSources: z.array(z.enum(TURZX_BG_SOURCES)).default(["apod", "met", "artic"]),
+  photoSources: z.array(z.enum(TURZX_BG_SOURCES)).default(["apod", "met", "artic", "commons"]),
   /** Seconds each photo stays before the crossfade (Ken Burns runs across it). */
   photoSec: z.number().min(10).max(600).default(45),
   /** 0..0.9 dark veil over photos so panels stay readable. */
@@ -62,7 +62,7 @@ const DEFAULT_ON = new Set<DisplayViewId>(["clock", "home", "media", "photo", "n
 export const DISPLAY_DEFAULTS: DisplaySettings = {
   version: 1,
   views: DISPLAY_VIEW_IDS.map((id) => ({ id, enabled: DEFAULT_ON.has(id), dwellSec: DISPLAY_VIEW_META[id].defaultDwell, photo: id !== "media" })),
-  photoSources: ["apod", "met", "artic"],
+  photoSources: ["apod", "met", "artic", "commons"],
   photoSec: 45,
   dim: 0.35,
   nightFrom: "23:00",

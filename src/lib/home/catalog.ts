@@ -57,7 +57,7 @@ export const DEVICES: CatalogDevice[] = [
   { id: "pc", name: "Gaming PC", kind: "pc", room: "bedroom", x: 22, y: 78, ambilight: "pc", via: "OpenRGB SDK",
     notes: "Under the desk. Case strips + GPU + board glow follow the screen." },
   { id: "monitor", name: "Odyssey OLED G8 34\"", kind: "monitor", room: "bedroom", x: 22, y: 55, via: "Samsung SmartThings TV",
-    entity: "media_player.34_odyssey_oled_g8_ls34dg850suxdu", entities: ["remote.34_odyssey_oled_g8_ls34dg850suxdu"],
+    entity: "media_player.34_odyssey_oled_g8_ls34dg850suxdu", entities: ["remote.34_odyssey_oled_g8_ls34dg850suxdu", "media_player.34_odyssey_oled_g8_2"],
     notes: "HyperHDR captures this display (DX11, HDR tone-mapped, 60 fps)." },
   { id: "dxlight", name: "DX Light strip (65 LEDs)", kind: "strip", room: "bedroom", x: 22, y: 44, ambilight: "full", via: "USB HID → HyperHDR",
     notes: "Behind the monitor. Right 17 · top 31 · left 17, driven per-LED at ~59 fps." },
