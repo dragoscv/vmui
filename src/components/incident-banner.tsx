@@ -31,7 +31,10 @@ export async function IncidentBanner() {
   ]);
 
   return (
-    <div role="status" className="border-b border-[color-mix(in_oklch,var(--color-danger)_45%,var(--color-border))] bg-[color-mix(in_oklch,var(--color-danger)_12%,transparent)] px-4 py-2 text-sm text-fg">
+    <div
+      role="status"
+      className="mx-auto mb-4 w-full max-w-[var(--spacing-content)] rounded-3xl border border-[color-mix(in_oklch,var(--color-danger)_45%,var(--color-border))] bg-[color-mix(in_oklch,var(--color-danger)_12%,var(--color-surface))] px-5 py-2 text-sm text-fg shadow-[var(--shadow-sm)] sm:rounded-full"
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
           <span className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" aria-hidden />
@@ -42,12 +45,12 @@ export async function IncidentBanner() {
             {backups > 0 && <span className="whitespace-nowrap">{t("failedBackups", { n: backups })}</span>}
           </span>
         </div>
-        <Link href="/activity" className="ml-auto shrink-0 whitespace-nowrap rounded-[var(--radius-sm)] px-1 py-0.5 font-medium text-fg underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger">
+        <Link href="/activity" className="ml-auto shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 font-medium text-fg underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger">
           {t("viewActivity")} →
         </Link>
       </div>
       {recent.length > 0 && (
-        <div className="mt-1 truncate text-xs text-muted">
+        <div className="mt-1 truncate px-1 text-xs text-muted">
           {t("last")} {recent.map((r) => `${r.a}${r.t ? ` (${r.t})` : ""}${r.m ? ` — ${r.m.slice(0, 60)}` : ""}`).join(" · ")}
         </div>
       )}

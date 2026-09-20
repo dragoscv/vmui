@@ -32,13 +32,13 @@
   --color-primary-fg: oklch(0.99 0.005 var(--accent-h));
   --color-accent: oklch(0.68 0.16 calc(var(--accent-h) - 60));
   --color-accent-fg: oklch(0.14 0.02 var(--accent-h));
-  --color-success: oklch(0.62 0.16 150);
+  --color-success: oklch(0.5 0.15 150);
   --color-success-fg: oklch(0.99 0.005 150);
-  --color-warning: oklch(0.72 0.16 75);
+  --color-warning: oklch(0.6 0.15 75);
   --color-warning-fg: oklch(0.2 0.03 75);
-  --color-danger: oklch(0.58 0.22 25);
+  --color-danger: oklch(0.5 0.2 25);
   --color-danger-fg: oklch(0.99 0.005 25);
-  --color-info: oklch(0.64 0.15 230);
+  --color-info: oklch(0.5 0.14 230);
   --color-info-fg: oklch(0.99 0.005 230);
   /* Aliases kept for older call sites; prefer the names above. */
   --color-destructive: var(--color-danger);
@@ -103,7 +103,7 @@
   --color-primary: oklch(0.74 0.16 var(--accent-h));
   --color-primary-fg: oklch(0.14 0.02 var(--accent-h));
   --color-accent: oklch(0.76 0.15 calc(var(--accent-h) - 60));
-  --color-success: oklch(0.74 0.15 150);
+  --color-success: oklch(0.8 0.15 150);
   --color-success-fg: oklch(0.16 0.03 150);
   --color-warning: oklch(0.8 0.15 75);
   --color-danger: oklch(0.68 0.2 25);
