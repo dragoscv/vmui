@@ -1,0 +1,34 @@
+import type ambilight from "../../messages/ambilight/en.json";
+import type auth from "../../messages/auth/en.json";
+import type devices from "../../messages/devices/en.json";
+import type en from "../../messages/en.json";
+import type homeCards from "../../messages/homeCards/en.json";
+import type misc from "../../messages/misc/en.json";
+import type nestHub from "../../messages/nestHub/en.json";
+import type notify from "../../messages/notify/en.json";
+import type nutrition from "../../messages/nutrition/en.json";
+import type settings from "../../messages/settings/en.json";
+import type shell from "../../messages/shell/en.json";
+import type turzx from "../../messages/turzx/en.json";
+import type vm from "../../messages/vm/en.json";
+import type { LOCALES } from "./config";
+
+declare module "next-intl" {
+  interface AppConfig {
+    Locale: (typeof LOCALES)[number];
+    Messages: typeof en & {
+      homeCards: typeof homeCards;
+      notify: typeof notify;
+      nutrition: typeof nutrition;
+      ambilight: typeof ambilight;
+      turzx: typeof turzx;
+      nestHub: typeof nestHub;
+      devices: typeof devices;
+      shell: typeof shell;
+      vm: typeof vm;
+      settings: typeof settings;
+      auth: typeof auth;
+      misc: typeof misc;
+    };
+  }
+}

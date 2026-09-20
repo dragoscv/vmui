@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 // Local-only binding; no HSTS (no TLS). CSP is deliberately strict — we don't
 // load 3rd-party scripts/styles. `'unsafe-inline'` on style-src is needed for
@@ -90,4 +91,5 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+// Locale comes from a cookie / Accept-Language (src/i18n/request.ts); no locale segment in URLs.
+export default createNextIntlPlugin("./src/i18n/request.ts")(config);

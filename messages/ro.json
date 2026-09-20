@@ -1,0 +1,111 @@
+{
+  "nav": {
+    "switchLanguage": "Schimbă pe {lang}",
+    "controlPlane": "Panou de control",
+    "syncNow": "Sincronizează acum",
+    "syncAll": "Sincronizează toate conturile",
+    "synced": "Sincronizat: {accounts} cont(uri) — {instances} instanță(e)",
+    "syncFailed": "Sincronizarea a eșuat",
+    "toggleTheme": "Schimbă tema",
+    "newInstance": "Instanță nouă"
+  },
+  "common": {
+    "save": "Salvează",
+    "saving": "Se salvează…",
+    "saved": "Salvat",
+    "cancel": "Anulează",
+    "close": "Închide",
+    "delete": "Șterge",
+    "edit": "Editează",
+    "add": "Adaugă",
+    "remove": "Elimină",
+    "retry": "Reîncearcă",
+    "refresh": "Reîmprospătează",
+    "ok": "OK",
+    "yes": "Da",
+    "no": "Nu",
+    "on": "Pornit",
+    "off": "Oprit",
+    "open": "Deschis",
+    "closed": "Închis",
+    "unavailable": "Indisponibil",
+    "loading": "Se încarcă…",
+    "none": "Niciunul",
+    "all": "Toate",
+    "failed": "A eșuat",
+    "error": "Ceva nu a mers",
+    "configure": "Configurează",
+    "test": "Test",
+    "minutesShort": "{n} min",
+    "secondsShort": "{n} s",
+    "clear": "Curăță",
+    "search": "Caută"
+  },
+  "home": {
+    "title": "Acasă",
+    "subtitle": "Toate luminile, senzorii și ecranele din apartament — și ambilight-ul care le leagă.",
+    "openHa": "Home Assistant",
+    "haDown": "Home Assistant nu răspunde",
+    "haDownHint": "{error}. Se arată ultima configurație cunoscută; comenzile vor eșua până revine.",
+    "tabs": {
+      "label": "Secțiuni",
+      "home": "Acasă",
+      "ambilight": "Ambilight",
+      "notifications": "Notificări",
+      "nutrition": "Nutriție",
+      "settings": "Setări"
+    },
+    "settings": {
+      "label": "Secțiuni de setări",
+      "turzx": { "title": "Turzx", "hint": "View-uri, fundal și ecranul de birou" },
+      "nestHub": { "title": "Nest Hub", "hint": "Panourile și pozele din dormitor" },
+      "deskButton": { "title": "Buton birou", "hint": "Ce face fiecare apăsare" },
+      "copilot": { "title": "Semnale Copilot", "hint": "Lumini și carduri pentru evenimente agent" }
+    },
+    "quick": {
+      "label": "Acțiuni rapide",
+      "ambilight": "Ambilight",
+      "mode": { "movie": "Film", "music": "Muzică", "off": "Cameră caldă" },
+      "modeApplied": "{name} pornit",
+      "water": "Apă",
+      "waterProgress": "{ml} / {target} ml",
+      "waterAdded": "+{ml} ml notat",
+      "intercom": "Interfon",
+      "armFor": "Auto-deschidere {n} min",
+      "armed": "Interfonul se deschide automat {n} min",
+      "deskButton": "Buton birou",
+      "failed": "Nu a mers"
+    },
+    "vitals": {
+      "bedroom": "Dormitor",
+      "humidity": "Umiditate",
+      "presence": "Prezență",
+      "here": "acasă",
+      "away": "plecat",
+      "mainDoor": "Ușa principală",
+      "open": "deschisă",
+      "closed": "închisă",
+      "lightsOn": "Lumini aprinse"
+    },
+    "rooms": {
+      "bedroom": "Dormitor",
+      "living_room": "Living",
+      "kitchen": "Bucătărie",
+      "office": "Birou"
+    },
+    "sections": {
+      "floorPlan": "Plan",
+      "devices": "Dispozitive",
+      "intercom": "Interfon",
+      "buttons": "Butoane fizice"
+    },
+    "device": {
+      "occupied": "ocupat",
+      "clear": "liber",
+      "open": "deschis",
+      "closed": "închis",
+      "off": "oprit",
+      "unavailable": "indisponibil"
+    }
+  }
+}

@@ -23,6 +23,8 @@ import { ensureGitopsSchedulerRunning } from "@/lib/gitops";
 import { ensureSchedulerRunning } from "@/lib/scheduler";
 import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import { headers } from "next/headers";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -72,15 +74,18 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // /display (Nest Hub kiosk) gets a bare document: no sidebar (which prefetches
   // ~30 routes), no palette / voice / SW / realtime — the Hub has 4 slow cores.
+  const locale = await getLocale();
   if ((await headers()).get("x-vmui-kiosk") === "1") {
     return (
-      <html lang="ro" className="display-root" suppressHydrationWarning>
-        <body>{children}</body>
+      <html lang={locale} className="display-root" suppressHydrationWarning>
+        <body>
+          <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        </body>
       </html>
     );
   }
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -90,6 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen antialiased">
+        <NextIntlClientProvider>
         <ThemeProvider>
           <VibeProvider>
             <QueryProvider>
@@ -99,10 +105,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     <div className="flex min-h-screen">
                       <Sidebar />
                       <div className="flex min-w-0 flex-1 flex-col">
-                        <div className="relative">
-                          <Topbar />
-                          <UserMenuSlot />
-                        </div>
+                        <Topbar user={<UserMenuSlot />} />
                         <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">
                           <IncidentBanner />
                           {children}
@@ -122,6 +125,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </QueryProvider>
           </VibeProvider>
         </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );
@@ -131,13 +135,7 @@ async function UserMenuSlot() {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
-    return (
-      <div className="pointer-events-none absolute right-6 top-0 z-40 flex h-14 items-center lg:right-10">
-        <div className="pointer-events-auto">
-          <UserMenu user={{ email: user.email, displayName: user.displayName, role: user.role }} />
-        </div>
-      </div>
-    );
+    return <UserMenu user={{ email: user.email, displayName: user.displayName, role: user.role }} />;
   } catch {
     return null;
   }

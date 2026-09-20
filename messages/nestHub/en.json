@@ -1,0 +1,42 @@
+{
+  "title": "Nest Hub · bedroom",
+  "summary": "{count, plural, one {# idle panel} other {# idle panels}} · one cycle {min} min {sec} s · new photo every {sec2} s",
+  "open": "/display",
+  "openAria": "Open the kiosk page in a new tab",
+  "save": "Save",
+  "saving": "Saving…",
+  "saveFailed": "Save failed",
+  "saved": "Nest Hub updated — the screen follows in a few seconds",
+  "views": {
+    "title": "Idle panels",
+    "hint": "Order, dwell time and whether a photo sits behind. Music shows up automatically when something plays.",
+    "enabledAria": "{name} enabled",
+    "photo": "photo",
+    "photoAria": "{name} with photo",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "dwell": "Dwell",
+    "dwellAria": "{name} dwell time in seconds",
+    "seconds": "{n} s"
+  },
+  "photos": {
+    "title": "Photos",
+    "sources": "Sources",
+    "interval": "Change photo every · {sec} s",
+    "dim": "Dim over photo · {pct}%",
+    "accent": "Accent",
+    "accentSwatch": "Accent {color}",
+    "accentCustom": "Custom accent"
+  },
+  "behavior": {
+    "title": "Behaviour",
+    "idleAfter": "Back to idle after · {sec} s without touch",
+    "nightFrom": "Night from",
+    "nightTo": "Night until",
+    "nightDim": "Night brightness · {pct}%",
+    "castDevice": "Cast device",
+    "keepAlive": "Re-send the page when the Hub drops it",
+    "keepAliveHint": "hub-cast on the Pi",
+    "respectPlayback": "Do not interrupt YouTube / Spotify on the Hub"
+  }
+}

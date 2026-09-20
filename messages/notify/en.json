@@ -1,0 +1,51 @@
+{
+  "centre": {
+    "title": "Notifications",
+    "description": "What reached the phone and the PC. The buttons do the same thing as there.",
+    "clear": "Clear",
+    "empty": "Nothing active.",
+    "close": "Close",
+    "actionDone": "Done",
+    "actionFailed": "That did not work"
+  },
+  "devices": {
+    "title": "Paired devices",
+    "description": "Phones and PCs running the vmui app. Each has its own token, revocable here.",
+    "pendingBadge": "{count, plural, one {# pending} other {# pending}}",
+    "pendingTitle": "Pairing requests",
+    "pendingHint": "Approve only if the device shows the same code.",
+    "requestFrom": "requesting access from {ip}",
+    "approve": "Approve",
+    "reject": "Reject",
+    "revoke": "Revoke",
+    "revokeAria": "Revoke {name}",
+    "revokeConfirm": "Revoke access for {name}?",
+    "approved": "{name} approved",
+    "rejected": "Request rejected",
+    "revoked": "{name} revoked",
+    "revokedCount": "{count, plural, one {# revoked} other {# revoked}}",
+    "loading": "Loading…",
+    "empty": "No devices yet. Open the app on your phone: it finds the Pi on its own and the request shows up here.",
+    "seen": "seen {ago}",
+    "unused": "unused",
+    "approvedBy": "approved by {name}",
+    "newDeviceTitle": "New device: {name}",
+    "newDeviceBody": "Code {code} · approve from the Notifications tab",
+    "opError": "error",
+    "unknownIp": "?",
+    "platform": {
+      "android": "Android",
+      "ios": "iOS",
+      "windows": "Windows",
+      "macos": "macOS",
+      "linux": "Linux",
+      "web": "Web"
+    },
+    "ago": {
+      "now": "just now",
+      "minutes": "{n} min",
+      "hours": "{n} h",
+      "days": "{n} d"
+    }
+  }
+}

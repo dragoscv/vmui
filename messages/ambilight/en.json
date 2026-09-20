@@ -1,0 +1,96 @@
+{
+	"title": "Ambilight",
+	"description": "The OLED drives every light. Pick what the room does.",
+	"failed": "Failed",
+	"live": {
+		"live": "live",
+		"connecting": "connecting",
+		"offline": "offline"
+	},
+	"hyperhdr": "HyperHDR {status}",
+	"status": {
+		"movie": "movie",
+		"music": "music",
+		"idle": "idle",
+		"unreachable": "OFF",
+		"unknown": "--"
+	},
+	"modes": {
+		"movie": {
+			"name": "Movie",
+			"description": "Screen drives every light. Star projector off."
+		},
+		"music": {
+			"name": "Music",
+			"description": "Audio-reactive, Voicemeeter B1."
+		},
+		"off": {
+			"name": "Warm room",
+			"description": "Grabber off; 3000 K at 60 %."
+		}
+	},
+	"modeApplied": "{name} mode",
+	"capture": {
+		"title": "Screen capture",
+		"hint": "DX11 · 60 fps · HDR tone-mapped",
+		"switch": "Screen capture on all instances"
+	},
+	"clearEffects": "Clear effects",
+	"effectsCleared": "Effects cleared",
+	"wall": {
+		"title": "Wall compensation",
+		"description": "Corrects the monitor strip for the colour of the wall behind it",
+		"colour": "Wall",
+		"colourLabel": "Wall colour",
+		"strength": "Compensation strength",
+		"preview": "Preview of “white” on the wall",
+		"applied": "Wall compensation applied"
+	},
+	"groups": {
+		"music": "Music",
+		"ambient": "Ambient"
+	},
+	"effects": {
+		"musicStereo": "Stereo",
+		"musicStereoFast": "Stereo fast",
+		"musicQuatro": "Quatro",
+		"musicPulseWaves": "Pulse waves",
+		"musicFullscreenPulse": "Fullscreen pulse",
+		"musicFullscreenPulseWhite": "Fullscreen pulse (white)",
+		"warmBlobs": "Warm blobs",
+		"coldBlobs": "Cold blobs",
+		"colorBlobs": "Colour blobs",
+		"seaWaves": "Sea waves",
+		"rainbowSwirl": "Rainbow swirl",
+		"plasma": "Plasma",
+		"candle": "Candle",
+		"breath": "Breath"
+	},
+	"notify": {
+		"title": "Notification flash",
+		"hint": "the phone triggers these automatically",
+		"last": "Last phone notification",
+		"apps": {
+			"whatsapp": "WhatsApp",
+			"phone": "Phone",
+			"messages": "Messages",
+			"gmail": "Gmail"
+		}
+	},
+	"instances": {
+		"label": "inst {n}",
+		"fps": "{n} fps",
+		"0": {
+			"name": "DX Light (monitor)",
+			"target": "65-LED strip behind the OLED"
+		},
+		"1": {
+			"name": "PC glow (OpenRGB)",
+			"target": "Case strips · GPU · board"
+		},
+		"2": {
+			"name": "Room lights (HA)",
+			"target": "MELK strip (whole screen)"
+		}
+	}
+}

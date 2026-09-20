@@ -1,0 +1,124 @@
+{
+	"title": "Jurnal alimentar",
+	"subtitle": "Mesele intră de pe telefon (codai, din poză) sau de aici; țintele urmăresc cântarul și profilul",
+	"weight": "{kg} kg",
+	"weightSource": {
+		"scale": "cântar",
+		"profile": "profil"
+	},
+	"streak": "{n, plural, one {# zi la rând} few {# zile la rând} other {# de zile la rând}}",
+	"tiles": {
+		"kcalToday": "kcal azi",
+		"kcalOfTarget": "din {kcal}",
+		"remaining": "kcal rămase",
+		"over": "kcal peste",
+		"water": "apă azi",
+		"waterOfTarget": "din {l} L",
+		"balance": "balanță kcal",
+		"balanceHint": "față de TDEE",
+		"weight": "greutate",
+		"weightHint": "din {source}"
+	},
+	"today": {
+		"progressAria": "Calorii azi față de țintă"
+	},
+	"macros": {
+		"title": "Macronutrienți",
+		"protein": "Proteine",
+		"carbs": "Carbohidrați",
+		"fats": "Grăsimi",
+		"ofTarget": "/ {g} g"
+	},
+	"water": {
+		"title": "Apă",
+		"liters": "{l} L",
+		"glasses": "{n, plural, =0 {niciun pahar} one {# pahar} few {# pahare} other {# de pahare}}",
+		"last": "ultimul la {time}",
+		"none": "nimic azi",
+		"underPace": "e timpul să bei",
+		"progressAria": "Apă azi",
+		"add": "+{ml} ml",
+		"addAria": "Adaugă {ml} ml de apă",
+		"undo": "Anulează",
+		"undoAria": "Anulează ultimul pahar"
+	},
+	"meals": {
+		"title": "Mesele de azi",
+		"listAria": "Mesele de azi",
+		"empty": "Nimic înregistrat azi. Trimite-i lui codai o poză cu farfuria sau adaugă manual.",
+		"approx": "aprox.",
+		"kcal": "{kcal} kcal",
+		"macrosShort": "{p}p {c}c {f}g",
+		"deleteAria": "Șterge {name}"
+	},
+	"mealType": {
+		"breakfast": "Mic dejun",
+		"lunch": "Prânz",
+		"dinner": "Cină",
+		"snack": "Gustare"
+	},
+	"addMeal": {
+		"title": "Adaugă o masă",
+		"hint": "Doar numele și caloriile sunt obligatorii",
+		"formAria": "Adaugă o masă",
+		"name": "Ce ai mâncat",
+		"namePlaceholder": "Omletă cu legume",
+		"type": "Tip",
+		"kcal": "kcal",
+		"proteinG": "Proteine (g)",
+		"carbsG": "Carbohidrați (g)",
+		"fatsG": "Grăsimi (g)",
+		"submit": "Adaugă"
+	},
+	"week": {
+		"title": "Ultimele 7 zile",
+		"chartAria": "Calorii pe zi: {list}",
+		"barTitle": "{kcal} kcal · {n, plural, one {# masă} few {# mese} other {# de mese}}"
+	},
+	"profile": {
+		"title": "Profil și ținte",
+		"bmrTdee": "BMR {bmr} · TDEE {tdee}",
+		"targets": {
+			"title": "Ținte",
+			"hint": "Obiectivul și activitatea determină țintele de calorii și macronutrienți"
+		},
+		"body": {
+			"title": "Corp",
+			"hint": "Folosite pentru BMR; cântarul are prioritate față de greutatea fallback"
+		},
+		"coach": {
+			"title": "Antrenor",
+			"hint": "Îndemnuri pe telefon în intervalul activ"
+		},
+		"goal": "Obiectiv",
+		"activity": "Activitate",
+		"heightCm": "Înălțime (cm)",
+		"birthDate": "Data nașterii",
+		"weightFallback": "Greutate fallback (kg)",
+		"weightFallbackHint": "Folosită când cântarul nu a raportat",
+		"targetOverride": "Țintă manuală (kcal)",
+		"targetOverrideHint": "Lasă gol pentru ținta calculată",
+		"coachEnabled": "Antrenor pe telefon",
+		"coachWindow": "{from}–{to}",
+		"save": "Salvează"
+	},
+	"goal": {
+		"maintain": "Menținere",
+		"lose": "Slăbire",
+		"gain": "Masă"
+	},
+	"activity": {
+		"sedentary": "Sedentar",
+		"light": "Ușor",
+		"moderate": "Moderat",
+		"active": "Activ",
+		"very_active": "Foarte activ"
+	},
+	"toast": {
+		"mealAdded": "{name} · {kcal} kcal",
+		"mealDeleted": "Șters: {name}",
+		"waterAdded": "+{ml} ml apă",
+		"waterUndone": "Ultimul pahar anulat",
+		"profileSaved": "Profil salvat — țintele se recalculează"
+	}
+}

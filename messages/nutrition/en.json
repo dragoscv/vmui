@@ -1,0 +1,124 @@
+{
+	"title": "Food journal",
+	"subtitle": "Meals come in from the phone (codai, from a photo) or from here; targets follow the scale and your profile",
+	"weight": "{kg} kg",
+	"weightSource": {
+		"scale": "scale",
+		"profile": "profile"
+	},
+	"streak": "{n, plural, one {# day in a row} other {# days in a row}}",
+	"tiles": {
+		"kcalToday": "kcal today",
+		"kcalOfTarget": "of {kcal}",
+		"remaining": "kcal remaining",
+		"over": "kcal over",
+		"water": "water today",
+		"waterOfTarget": "of {l} L",
+		"balance": "kcal balance",
+		"balanceHint": "vs. TDEE",
+		"weight": "weight",
+		"weightHint": "from {source}"
+	},
+	"today": {
+		"progressAria": "Calories today vs. target"
+	},
+	"macros": {
+		"title": "Macros",
+		"protein": "Protein",
+		"carbs": "Carbs",
+		"fats": "Fats",
+		"ofTarget": "/ {g} g"
+	},
+	"water": {
+		"title": "Water",
+		"liters": "{l} L",
+		"glasses": "{n, plural, =0 {no glasses} one {# glass} other {# glasses}}",
+		"last": "last at {time}",
+		"none": "nothing today",
+		"underPace": "time to drink",
+		"progressAria": "Water today",
+		"add": "+{ml} ml",
+		"addAria": "Add {ml} ml of water",
+		"undo": "Undo",
+		"undoAria": "Undo the last glass"
+	},
+	"meals": {
+		"title": "Today's meals",
+		"listAria": "Today's meals",
+		"empty": "Nothing logged today. Send codai a photo of your plate or add a meal manually.",
+		"approx": "approx.",
+		"kcal": "{kcal} kcal",
+		"macrosShort": "{p}p {c}c {f}f",
+		"deleteAria": "Delete {name}"
+	},
+	"mealType": {
+		"breakfast": "Breakfast",
+		"lunch": "Lunch",
+		"dinner": "Dinner",
+		"snack": "Snack"
+	},
+	"addMeal": {
+		"title": "Add a meal",
+		"hint": "Only the name and calories are required",
+		"formAria": "Add a meal",
+		"name": "What did you eat",
+		"namePlaceholder": "Veggie omelette",
+		"type": "Type",
+		"kcal": "kcal",
+		"proteinG": "Protein (g)",
+		"carbsG": "Carbs (g)",
+		"fatsG": "Fats (g)",
+		"submit": "Add"
+	},
+	"week": {
+		"title": "Last 7 days",
+		"chartAria": "Calories per day: {list}",
+		"barTitle": "{kcal} kcal · {n, plural, one {# meal} other {# meals}}"
+	},
+	"profile": {
+		"title": "Profile & targets",
+		"bmrTdee": "BMR {bmr} · TDEE {tdee}",
+		"targets": {
+			"title": "Targets",
+			"hint": "Goal and activity drive the calorie and macro targets"
+		},
+		"body": {
+			"title": "Body",
+			"hint": "Used for BMR; the scale overrides the fallback weight when it reports"
+		},
+		"coach": {
+			"title": "Coach",
+			"hint": "Nudges on the phone within the active window"
+		},
+		"goal": "Goal",
+		"activity": "Activity",
+		"heightCm": "Height (cm)",
+		"birthDate": "Date of birth",
+		"weightFallback": "Fallback weight (kg)",
+		"weightFallbackHint": "Used when the scale has not reported",
+		"targetOverride": "Manual target (kcal)",
+		"targetOverrideHint": "Leave empty to use the computed target",
+		"coachEnabled": "Coach on the phone",
+		"coachWindow": "{from}–{to}",
+		"save": "Save"
+	},
+	"goal": {
+		"maintain": "Maintain",
+		"lose": "Lose weight",
+		"gain": "Gain mass"
+	},
+	"activity": {
+		"sedentary": "Sedentary",
+		"light": "Light",
+		"moderate": "Moderate",
+		"active": "Active",
+		"very_active": "Very active"
+	},
+	"toast": {
+		"mealAdded": "{name} · {kcal} kcal",
+		"mealDeleted": "Deleted: {name}",
+		"waterAdded": "+{ml} ml water",
+		"waterUndone": "Last glass undone",
+		"profileSaved": "Profile saved — targets are being recalculated"
+	}
+}

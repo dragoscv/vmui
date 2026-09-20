@@ -1,0 +1,42 @@
+{
+  "title": "Nest Hub · dormitor",
+  "summary": "{count, plural, one {# panou în idle} few {# panouri în idle} other {# de panouri în idle}} · un ciclu {min} min {sec} s · poză nouă la {sec2} s",
+  "open": "/display",
+  "openAria": "Deschide pagina kiosk într-o filă nouă",
+  "save": "Salvează",
+  "saving": "Se salvează…",
+  "saveFailed": "Salvarea a eșuat",
+  "saved": "Nest Hub actualizat — ecranul urmează în câteva secunde",
+  "views": {
+    "title": "Panouri idle",
+    "hint": "Ordinea, durata și dacă au fotografie în spate. Muzica apare automat când cântă ceva.",
+    "enabledAria": "{name} activ",
+    "photo": "foto",
+    "photoAria": "{name} cu fotografie",
+    "moveUp": "Mută sus",
+    "moveDown": "Mută jos",
+    "dwell": "Durată",
+    "dwellAria": "Durata {name} în secunde",
+    "seconds": "{n} s"
+  },
+  "photos": {
+    "title": "Fotografii",
+    "sources": "Surse",
+    "interval": "Schimbă poza la · {sec} s",
+    "dim": "Întunecare peste poză · {pct}%",
+    "accent": "Accent",
+    "accentSwatch": "Accent {color}",
+    "accentCustom": "Accent personalizat"
+  },
+  "behavior": {
+    "title": "Comportament",
+    "idleAfter": "Înapoi în idle după · {sec} s fără atingere",
+    "nightFrom": "Noapte de la",
+    "nightTo": "Noapte până la",
+    "nightDim": "Luminozitate noaptea · {pct}%",
+    "castDevice": "Dispozitiv Cast",
+    "keepAlive": "Re-trimite pagina când Hub-ul o pierde",
+    "keepAliveHint": "hub-cast pe Pi",
+    "respectPlayback": "Nu întrerupe YouTube / Spotify pe Hub"
+  }
+}

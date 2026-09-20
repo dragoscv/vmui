@@ -1,0 +1,111 @@
+{
+  "nav": {
+    "switchLanguage": "Switch to {lang}",
+    "controlPlane": "Control plane",
+    "syncNow": "Sync now",
+    "syncAll": "Sync all accounts",
+    "synced": "Synced {accounts} account(s) — {instances} instance(s)",
+    "syncFailed": "Sync failed",
+    "toggleTheme": "Toggle theme",
+    "newInstance": "New instance"
+  },
+  "common": {
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "remove": "Remove",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "on": "On",
+    "off": "Off",
+    "open": "Open",
+    "closed": "Closed",
+    "unavailable": "Unavailable",
+    "loading": "Loading…",
+    "none": "None",
+    "all": "All",
+    "failed": "Failed",
+    "error": "Something went wrong",
+    "configure": "Configure",
+    "test": "Test",
+    "minutesShort": "{n} min",
+    "secondsShort": "{n} s",
+    "clear": "Clear",
+    "search": "Search"
+  },
+  "home": {
+    "title": "Home",
+    "subtitle": "Every light, sensor and screen in the flat — and the ambilight that ties them together.",
+    "openHa": "Home Assistant",
+    "haDown": "Home Assistant is not reachable",
+    "haDownHint": "{error}. Showing the last known layout; controls will fail until it is back.",
+    "tabs": {
+      "label": "Home views",
+      "home": "Home",
+      "ambilight": "Ambilight",
+      "notifications": "Notifications",
+      "nutrition": "Nutrition",
+      "settings": "Settings"
+    },
+    "settings": {
+      "label": "Settings sections",
+      "turzx": { "title": "Turzx", "hint": "Desk display views, background, screen" },
+      "nestHub": { "title": "Nest Hub", "hint": "Bedroom kiosk panels and photos" },
+      "deskButton": { "title": "Desk button", "hint": "What each click does" },
+      "copilot": { "title": "Copilot signals", "hint": "Lights and cards for agent events" }
+    },
+    "quick": {
+      "label": "Quick actions",
+      "ambilight": "Ambilight",
+      "mode": { "movie": "Movie", "music": "Music", "off": "Warm room" },
+      "modeApplied": "{name} on",
+      "water": "Water",
+      "waterProgress": "{ml} / {target} ml",
+      "waterAdded": "+{ml} ml logged",
+      "intercom": "Intercom",
+      "armFor": "Auto-open {n} min",
+      "armed": "Intercom opens automatically for {n} min",
+      "deskButton": "Desk button",
+      "failed": "Failed"
+    },
+    "vitals": {
+      "bedroom": "Bedroom",
+      "humidity": "Humidity",
+      "presence": "Presence",
+      "here": "here",
+      "away": "away",
+      "mainDoor": "Main door",
+      "open": "open",
+      "closed": "closed",
+      "lightsOn": "Lights on"
+    },
+    "rooms": {
+      "bedroom": "Bedroom",
+      "living_room": "Living room",
+      "kitchen": "Kitchen",
+      "office": "Office"
+    },
+    "sections": {
+      "floorPlan": "Floor plan",
+      "devices": "Devices",
+      "intercom": "Intercom",
+      "buttons": "Physical buttons"
+    },
+    "device": {
+      "occupied": "occupied",
+      "clear": "clear",
+      "open": "open",
+      "closed": "closed",
+      "off": "off",
+      "unavailable": "unavailable"
+    }
+  }
+}

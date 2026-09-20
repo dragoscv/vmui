@@ -1,0 +1,105 @@
+{
+	"floorPlan": {
+		"hintTap": "Tap a device to control it.",
+		"hintArrange": "Drag a device to where it really sits. Drops save automatically.",
+		"arrange": "Arrange",
+		"done": "Done",
+		"reset": "Reset",
+		"layoutReset": "Layout reset to defaults",
+		"rooms": {
+			"bedroom": "Bedroom",
+			"living_room": "Living room",
+			"kitchen": "Kitchen",
+			"office": "Office"
+		}
+	},
+	"kinds": {
+		"light": "Light",
+		"strip": "LED strip",
+		"projector": "Projector",
+		"ac": "Air conditioner",
+		"tv": "TV",
+		"display": "Smart display",
+		"monitor": "Monitor",
+		"sensor": "Sensor",
+		"presence": "Presence",
+		"door": "Door",
+		"pc": "Computer",
+		"proxy": "Bluetooth proxy"
+	},
+	"device": {
+		"subtitle": "{kind} · {via}",
+		"ambilightZone": "ambilight · {zone}",
+		"openInHa": "Open in Home Assistant",
+		"state": {
+			"pcGlow": "Glow follows the screen (OpenRGB)",
+			"stripHyper": "Driven per-LED by HyperHDR",
+			"notEntity": "Not an HA entity",
+			"unavailable": "Unavailable",
+			"someoneHere": "Someone is here",
+			"nobody": "Nobody detected",
+			"open": "Open",
+			"closed": "Closed",
+			"off": "Off",
+			"on": "On · {pct}%",
+			"acRunning": "{mode} · {target}° → {current}° now"
+		},
+		"power": "Power",
+		"brightness": "Brightness",
+		"warmth": "Warmth",
+		"colourTemperature": "Colour temperature",
+		"colour": "Colour",
+		"customColour": "Custom colour",
+		"presets": {
+			"cinema": "Cinema",
+			"ocean": "Ocean",
+			"forest": "Forest",
+			"violet": "Violet",
+			"rose": "Rose",
+			"daylight": "Daylight"
+		},
+		"staticStrip": {
+			"dxlight": "This strip has no Home Assistant entity — HyperHDR writes to it directly over USB at ~59 fps. Use the Ambilight panel to change what it shows.",
+			"none": "No direct control."
+		},
+		"climate": {
+			"lower": "Lower",
+			"raise": "Raise",
+			"room": "room {t}°",
+			"target": "target",
+			"fan": "Fan",
+			"fanMode": "Fan mode",
+			"hvac": {
+				"off": "Off",
+				"cool": "Cool",
+				"heat": "Heat",
+				"dry": "Dry",
+				"fan_only": "Fan only",
+				"auto": "Auto",
+				"heat_cool": "Heat / cool"
+			}
+		},
+		"media": {
+			"nowPlaying": "Now playing",
+			"turnOn": "Turn on",
+			"turnOff": "Turn off",
+			"playPause": "Play / pause",
+			"volumeDown": "Volume down",
+			"volumeUp": "Volume up",
+			"mute": "Mute",
+			"volume": "Volume {pct}%"
+		},
+		"sensor": {
+			"updated": "updated {ago}"
+		},
+		"more": "More",
+		"press": "Press",
+		"sent": "Sent",
+		"timeAgo": {
+			"justNow": "just now",
+			"minutes": "{n, plural, one {# min ago} other {# min ago}}",
+			"hours": "{n, plural, one {# h ago} other {# h ago}}",
+			"days": "{n, plural, one {# d ago} other {# d ago}}"
+		}
+	}
+}
