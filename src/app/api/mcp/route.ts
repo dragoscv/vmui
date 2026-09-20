@@ -1,6 +1,7 @@
 import "server-only";
 
 import { requireApiRole, validateApiKey } from "@/lib/api-auth";
+import { argsAllowed, toolAllowed, type ApiKeyScopes } from "@/lib/api-key-scopes";
 import { TOOL_BY_NAME, TOOLS } from "@/lib/mcp/tools";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -10,6 +11,8 @@ import { z } from "zod";
  * and this PC as named tools to codai phone/desktop over the tailnet.
  *
  * Auth: bearer `vmui_*` API key with the operator role (Settings -> API keys).
+ * A key may carry scopes (tool allow-list + per-argument limits); tools/list
+ * only advertises what the key may call and tools/call refuses the rest.
  * Each call is audit-logged under accountId "mcp". Tools that interrupt the
  * user or act on the physical world carry `destructiveHint` so the client
  * shows an ask-card first.
@@ -28,8 +31,8 @@ function err(id: Rpc["id"], code: number, message: string) {
   return { jsonrpc: "2.0", id: id ?? null, error: { code, message } };
 }
 
-function toolList() {
-  return TOOLS.map((t) => ({
+function toolList(scopes: ApiKeyScopes | null) {
+  return TOOLS.filter((t) => toolAllowed(t, scopes)).map((t) => ({
     name: t.name,
     description: t.description,
     inputSchema: z.toJSONSchema(t.schema, { target: "openapi-3.0", reused: "inline", io: "input" }),
@@ -43,7 +46,9 @@ function toolList() {
   }));
 }
 
-async function handle(msg: Rpc, by: string): Promise<unknown | null> {
+const NOT_PERMITTED = "tool not permitted for this key";
+
+async function handle(msg: Rpc, by: string, scopes: ApiKeyScopes | null): Promise<unknown | null> {
   switch (msg.method) {
     case "initialize":
       return ok(msg.id, {
@@ -52,6 +57,7 @@ async function handle(msg: Rpc, by: string): Promise<unknown | null> {
         serverInfo: { name: "vmui-home", version: "1.0.0" },
         instructions:
           "Tools control Dragos's home (Home Assistant: lights, AC, Nest Hub, ambilight, door) and his Windows PC. " +
+          "The tool list reflects this key's scope: tools or targets (VMs, entities, PC actions, scripts) outside it are refused. " +
           "Call home_devices/home_state before guessing entity ids. Ask before destructive tools (door_open, pc_action lock/sleep, vm stop/terminate).",
       });
     case "notifications/initialized":
@@ -60,14 +66,18 @@ async function handle(msg: Rpc, by: string): Promise<unknown | null> {
     case "ping":
       return ok(msg.id, {});
     case "tools/list":
-      return ok(msg.id, { tools: toolList() });
+      return ok(msg.id, { tools: toolList(scopes) });
     case "tools/call": {
       const name = String(msg.params?.name ?? "");
       const tool = TOOL_BY_NAME.get(name);
       if (!tool) return err(msg.id, -32602, `Unknown tool ${name}`);
+      if (!toolAllowed(tool, scopes)) return ok(msg.id, { isError: true, content: [{ type: "text", text: NOT_PERMITTED }] });
       const parsed = tool.schema.safeParse(msg.params?.arguments ?? {});
       if (!parsed.success) {
         return ok(msg.id, { isError: true, content: [{ type: "text", text: `Invalid arguments: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}` }] });
+      }
+      if (!argsAllowed(tool.scopeKey?.(parsed.data), scopes)) {
+        return ok(msg.id, { isError: true, content: [{ type: "text", text: NOT_PERMITTED }] });
       }
       const r = await tool.run(parsed.data, by);
       return ok(msg.id, { isError: !r.ok, content: [{ type: "text", text: JSON.stringify(r) }] });
@@ -95,7 +105,7 @@ export async function POST(req: NextRequest) {
       out.push(err((m as Rpc | undefined)?.id ?? null, -32600, "Invalid request"));
       continue;
     }
-    const r = await handle(m, by);
+    const r = await handle(m, by, auth.scopes);
     if (r !== null) out.push(r);
   }
   if (out.length === 0) return new NextResponse(null, { status: 202 });

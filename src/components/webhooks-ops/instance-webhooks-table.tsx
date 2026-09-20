@@ -4,10 +4,10 @@ import { RelativeTime } from "@/components/settings/relative-time";
 import { Badge, Button, DataTable, EmptyState, type ColumnDef } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
-import { ok } from "@/lib/action-result";
+import { ok, type ActionResult } from "@/lib/action-result";
 import type { InstanceWebhookRow } from "@/lib/db/schema";
-import { deleteInstanceWebhookAction } from "@/server/actions/extras";
-import { Plus, Trash2, Webhook } from "lucide-react";
+import { deleteInstanceWebhookAction, testInstanceWebhookAction } from "@/server/actions/extras";
+import { Plus, Send, Trash2, Webhook } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
@@ -33,6 +33,13 @@ export function InstanceWebhooksTable({ rows }: { rows: InstanceWebhookViewRow[]
       return ok();
     },
     { success: t("deleted") },
+  );
+  const test = useAction(
+    async (id: string): Promise<ActionResult> => {
+      const r = await testInstanceWebhookAction(id);
+      return r.ok ? ok() : { ok: false, error: r.error ?? t("testFailed") };
+    },
+    { success: t("tested") },
   );
 
   async function onRemove(row: InstanceWebhookViewRow) {
@@ -114,9 +121,14 @@ export function InstanceWebhooksTable({ rows }: { rows: InstanceWebhookViewRow[]
         />
       }
       rowActions={(row) => (
-        <Button size="icon" variant="ghost" onClick={() => void onRemove(row)} disabled={remove.pending} aria-label={t("deleteAria")}>
-          <Trash2 className="size-4 text-danger" aria-hidden />
-        </Button>
+        <>
+          <Button size="icon" variant="ghost" onClick={() => void test.run(row.id)} disabled={test.pending} aria-label={t("testAria")} title={t("test")}>
+            <Send className="size-4" aria-hidden />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => void onRemove(row)} disabled={remove.pending} aria-label={t("deleteAria")}>
+            <Trash2 className="size-4 text-danger" aria-hidden />
+          </Button>
+        </>
       )}
     />
   );

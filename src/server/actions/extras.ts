@@ -97,6 +97,40 @@ export async function deleteInstanceWebhookAction(id: string) {
   return { ok: true as const };
 }
 
+/* Fire a synthetic event at one instance webhook and report the HTTP outcome. */
+export async function testInstanceWebhookAction(id: string): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try { await requireRole("admin"); } catch (err) { return { ok: false, error: err instanceof Error ? err.message : "Not authorized" }; }
+  const parsed = z.string().min(1).safeParse(id);
+  if (!parsed.success) return { ok: false, error: "Invalid id" };
+  const hook = (await db.select().from(instanceWebhooks).where(eq(instanceWebhooks.id, parsed.data)).limit(1))[0];
+  if (!hook) return { ok: false, error: "Webhook not found" };
+
+  const payload = JSON.stringify({
+    type: "instance.state.test",
+    instanceId: hook.providerInstanceId,
+    accountId: hook.accountId,
+    at: new Date().toISOString(),
+  });
+  let signature: string | null = null;
+  if (hook.secret) {
+    const { createHmac } = await import("node:crypto");
+    signature = "sha256=" + createHmac("sha256", hook.secret).update(payload).digest("hex");
+  }
+  const { deliverOnce } = await import("@/lib/webhook-queue");
+  const r = await deliverOnce({ url: hook.url, payloadJson: payload, signature });
+  const outcome = r.ok ? `${r.status}` : (r.error ?? "fetch failed");
+  await db.update(instanceWebhooks).set({ lastFiredAt: new Date(), lastStatus: outcome }).where(eq(instanceWebhooks.id, hook.id));
+  await db.insert(auditLog).values({
+    accountId: hook.accountId,
+    action: "webhook.test",
+    target: hook.id,
+    status: r.ok ? "ok" : "error",
+    message: `${hook.url} → ${r.ok ? `HTTP ${r.status}` : outcome}`,
+  });
+  revalidatePath("/instance-webhooks");
+  return r.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, error: r.error ?? "fetch failed" };
+}
+
 /* Fire all matching webhooks for an instance state transition. */
 export async function fireWebhooksForState(args: { accountId: string; providerInstanceId: string; instanceName: string; from: string; to: string }) {
   const hooks = await db.select().from(instanceWebhooks).where(eq(instanceWebhooks.enabled, true));

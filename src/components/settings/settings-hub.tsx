@@ -18,6 +18,7 @@ import { parseAsStringLiteral, useQueryState } from "nuqs";
 import * as React from "react";
 import { BackupCard } from "./backup-card";
 import { BootScriptsCard } from "./boot-scripts-card";
+import { ChangePasswordCard } from "./change-password-card";
 import { KnownHostsCard } from "./known-hosts-card";
 import { PasskeysCard } from "./passkeys-card";
 import { QuietHoursPanel } from "./quiet-hours-panel";
@@ -310,6 +311,9 @@ function SecuritySection({ authEnabled }: { authEnabled: boolean }) {
   }
   return (
     <>
+      <PageSection title={t("security.password.title")} description={t("security.password.description")}>
+        <ChangePasswordCard />
+      </PageSection>
       <PageSection title={t("security.passkeys.title")} description={t("security.passkeys.description")}>
         <PasskeysCard />
       </PageSection>

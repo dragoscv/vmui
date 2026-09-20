@@ -615,6 +615,8 @@ export const apiKeys = sqliteTable("api_keys", {
   hash: text("hash").notNull(),
   role: text("role", { enum: ["operator", "viewer"] }).notNull().default("viewer"),
   rateLimitPerMinute: integer("rate_limit_per_minute").notNull().default(60),
+  /** JSON `ApiKeyScopes` (src/lib/api-key-scopes.ts); null = unrestricted. */
+  scopes: text("scopes"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -1154,6 +1156,8 @@ export const instanceTrash = sqliteTable("instance_trash", {
   rawJson: text("raw_json"),
   terminatedAt: integer("terminated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   terminatedBy: text("terminated_by"),
+  /** Snapshot taken by safe-terminate, so restore does not depend on archived audit rows. */
+  safeSnapshotId: text("safe_snapshot_id"),
 });
 export type InstanceTrashRow = typeof instanceTrash.$inferSelect;
 

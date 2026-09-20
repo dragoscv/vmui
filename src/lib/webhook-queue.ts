@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { webhookDeliveries } from "@/lib/db/schema";
+import { webhookDeliveries, type WebhookDeliveryRow } from "@/lib/db/schema";
 import { and, eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -27,6 +27,23 @@ export async function enqueueWebhookDelivery(input: EnqueueInput): Promise<strin
   return id;
 }
 
+export async function deliverOnce(
+  d: Pick<WebhookDeliveryRow, "url" | "payloadJson" | "signature">,
+): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const headers: Record<string, string> = { "content-type": "application/json", "user-agent": "vmui-webhook/1" };
+    if (d.signature) headers["x-vmui-signature"] = d.signature;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10_000);
+    const res = await fetch(d.url, { method: "POST", headers, body: d.payloadJson, signal: ctrl.signal });
+    clearTimeout(t);
+    if (res.ok) return { ok: true, status: res.status };
+    return { ok: false, status: res.status, error: `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "fetch failed" };
+  }
+}
+
 let lastTick = 0;
 export async function maybeFlushWebhookDeliveries(): Promise<void> {
   const now = Date.now();
@@ -39,20 +56,9 @@ export async function maybeFlushWebhookDeliveries(): Promise<void> {
 
   for (const d of due) {
     await db.update(webhookDeliveries).set({ status: "delivering" }).where(eq(webhookDeliveries.id, d.id));
-    let ok = false;
-    let err: string | null = null;
-    try {
-      const headers: Record<string, string> = { "content-type": "application/json", "user-agent": "vmui-webhook/1" };
-      if (d.signature) headers["x-vmui-signature"] = d.signature;
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 10_000);
-      const res = await fetch(d.url, { method: "POST", headers, body: d.payloadJson, signal: ctrl.signal });
-      clearTimeout(t);
-      ok = res.ok;
-      if (!ok) err = `HTTP ${res.status}`;
-    } catch (e) {
-      err = e instanceof Error ? e.message : "fetch failed";
-    }
+    const r = await deliverOnce(d);
+    const ok = r.ok;
+    const err: string | null = r.error ?? null;
 
     if (ok) {
       await db.update(webhookDeliveries).set({ status: "ok", deliveredAt: new Date(), attempts: d.attempts + 1 })

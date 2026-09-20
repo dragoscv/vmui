@@ -90,6 +90,23 @@
     }
   },
   "security": {
+    "password": {
+      "title": "Password",
+      "description": "Change the password you sign in with. Every other browser signed in as you is signed out.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Change password",
+      "changed": "Password changed",
+      "changedHint": "This session stays signed in; all others are revoked.",
+      "errors": {
+        "wrongPassword": "Current password is incorrect",
+        "same": "New password must differ from the current one",
+        "short": "At least 8 characters",
+        "mismatch": "Passwords do not match",
+        "generic": "Could not change the password"
+      }
+    },
     "passkeys": {
       "title": "Passkeys",
       "description": "Sign in with Touch ID, Windows Hello or a hardware key instead of a password.",
@@ -184,8 +201,29 @@
     "confirmDelete": "Delete {email}?",
     "confirmDeleteHint": "Their sessions and passkeys are removed. Cloud resources they created are untouched.",
     "cannotDeleteSelf": "You cannot delete yourself",
-    "resetPassword": "Reset password",
-    "resetPasswordUnavailable": "Password reset is not available yet — delete and recreate the account instead.",
+    "resetPassword": {
+      "action": "Reset password",
+      "title": "Reset password for {email}",
+      "description": "Their current password stops working and every session of theirs is signed out.",
+      "generate": "Generate a random password",
+      "orType": "or type one",
+      "password": "New password",
+      "confirm": "Confirm new password",
+      "mismatch": "Passwords do not match",
+      "short": "At least 8 characters",
+      "submit": "Set password",
+      "done": "Password reset",
+      "doneHint": "Share it with them over a secure channel — it will not be shown again.",
+      "copy": "Copy password",
+      "copied": "Copied",
+      "dismiss": "Done",
+      "errors": {
+        "notFound": "User not found",
+        "self": "Use “Change password” in Security for your own account",
+        "short": "Password must be 8–200 characters",
+        "generic": "Could not reset the password"
+      }
+    },
     "legend": {
       "title": "Roles",
       "admin": "manages users, keys and everything else",
@@ -213,6 +251,31 @@
       "role": "Role",
       "rateLimit": "Rate limit",
       "rateLimitHint": "Requests per minute",
+      "scopes": "Scope",
+      "scopesHint": "What this key may do over MCP. Leave everything unchecked for an unrestricted key.",
+      "presets": {
+        "all": "All tools",
+        "readOnly": "Read-only",
+        "nonDestructive": "Non-destructive",
+        "custom": "Custom"
+      },
+      "scopeTools": "Tools",
+      "scopeVms": "VMs",
+      "scopeEntities": "Home Assistant entities",
+      "scopeEntitiesHint": "Limits lights, switches, climate, media and Nest Hub tools. Tick from the catalog or paste ids separated by commas.",
+      "scopePcActions": "PC actions",
+      "scopeScripts": "HA scripts",
+      "scopeScriptsHint": "Script names ha_script may run, separated by commas. Empty = any script.",
+      "destructive": "destructive",
+      "readOnly": "read-only",
+      "unrestricted": "Unrestricted",
+      "scopeSummary": {
+        "tools": "{count, plural, =1 {# tool} other {# tools}}",
+        "vms": "{count, plural, =1 {# VM} other {# VMs}}",
+        "entities": "{count, plural, =1 {# entity} other {# entities}}",
+        "pc": "{count, plural, =1 {# PC action} other {# PC actions}}",
+        "scripts": "{count, plural, =1 {# script} other {# scripts}}"
+      },
       "create": "Create key",
       "created": "API key created — copy it now",
       "issuedTitle": "New API key",
@@ -230,6 +293,7 @@
       "columns": {
         "name": "Name",
         "role": "Role",
+        "scopes": "Scope",
         "rate": "Rate",
         "created": "Created",
         "lastUsed": "Last used",

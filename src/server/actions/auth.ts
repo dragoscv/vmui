@@ -5,6 +5,7 @@ import {
     signOut as authSignOut,
     createUser,
     getCurrentUser,
+  hashPassword,
     issueSessionForUser,
     requireRole,
     signInWithPassword,
@@ -12,7 +13,7 @@ import {
     verifyUserPassword,
 } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { auditLog, users } from "@/lib/db/schema";
+import { auditLog, sessions, users } from "@/lib/db/schema";
 import { clearFailures, rateLimit, recordFailure } from "@/lib/rate-limit";
 import { redactSecrets } from "@/lib/redact";
 import {
@@ -20,9 +21,11 @@ import {
     decryptTotpSecret,
     verifyTotpCode,
 } from "@/lib/totp";
-import { eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { and, eq, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import "server-only";
 import { z } from "zod";
@@ -290,6 +293,78 @@ export async function updateUserRoleAction(
     status: "ok",
     message: parsed.data.role,
   });
+  return { ok: true };
+}
+
+const adminResetPasswordSchema = z.object({
+  userId: z.string().min(1),
+  password: z.string().min(8).max(200).optional(),
+});
+
+export async function adminResetPasswordAction(
+  input: z.infer<typeof adminResetPasswordSchema>,
+): Promise<{ ok: true; password?: string } | { ok: false; error: string }> {
+  const me = await requireRole("admin");
+  if (!me) return { ok: false, error: "settings.users.resetPassword.errors.generic" };
+  const parsed = adminResetPasswordSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "settings.users.resetPassword.errors.short" };
+  const target = await db.query.users.findFirst({ where: eq(users.id, parsed.data.userId) });
+  if (!target) return { ok: false, error: "settings.users.resetPassword.errors.notFound" };
+  // Own password goes through changeMyPasswordAction (proves the current one, keeps this session).
+  if (target.id === me.id) return { ok: false, error: "settings.users.resetPassword.errors.self" };
+
+  const generated = parsed.data.password === undefined;
+  const password = parsed.data.password ?? randomBytes(12).toString("base64url").slice(0, 16);
+  const passwordHash = await hashPassword(password);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, target.id));
+  await db.delete(sessions).where(eq(sessions.userId, target.id));
+  await db.insert(auditLog).values({
+    action: "auth.user.password-reset",
+    target: target.email,
+    status: "ok",
+    message: generated ? "generated" : "set by admin",
+  });
+  revalidatePath("/settings/users");
+  return generated ? { ok: true, password } : { ok: true };
+}
+
+const changeMyPasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8).max(200),
+  })
+  .refine((v) => v.currentPassword !== v.newPassword, { path: ["newPassword"], message: "same" });
+
+export async function changeMyPasswordAction(
+  input: z.infer<typeof changeMyPasswordSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getCurrentUser();
+  if (!me) return { ok: false, error: "settings.security.password.errors.generic" };
+  const parsed = changeMyPasswordSchema.safeParse(input);
+  if (!parsed.success) {
+    const same = parsed.error.issues.some((i) => i.message === "same");
+    return { ok: false, error: same ? "settings.security.password.errors.same" : "settings.security.password.errors.short" };
+  }
+  const r = await verifyUserPassword(me.email, parsed.data.currentPassword);
+  if (!r.ok) {
+    await db.insert(auditLog).values({
+      action: "auth.password.change",
+      target: me.email,
+      status: "error",
+      message: "wrong current password",
+    });
+    return { ok: false, error: "settings.security.password.errors.wrongPassword" };
+  }
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, me.id));
+  const currentSid = (await cookies()).get("vmui_session")?.value ?? "";
+  await db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, currentSid)));
+  await db.insert(auditLog).values({
+    action: "auth.password.change",
+    target: me.email,
+    status: "ok",
+  });
+  revalidatePath("/settings/users");
   return { ok: true };
 }
 

@@ -4,9 +4,10 @@ import { eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { apiKeys, type ApiKeyRow } from "@/lib/db/schema";
 import { hashPassword, verifyPassword } from "@/lib/auth";
+import { parseApiKeyScopes, type ApiKeyScopes } from "@/lib/api-key-scopes";
 
 export type ApiAuthResult =
-  | { ok: true; keyId: string; role: ApiKeyRow["role"]; rateLimitPerMinute: number }
+  | { ok: true; keyId: string; role: ApiKeyRow["role"]; rateLimitPerMinute: number; scopes: ApiKeyScopes | null }
   | { ok: false; status: 401 | 403 | 429; error: string };
 
 type RateBucket = { count: number; windowStart: number };
@@ -55,7 +56,13 @@ export async function validateApiKey(req: Request): Promise<ApiAuthResult> {
         return { ok: false, status: 429, error: "Rate limit exceeded" };
       }
       await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id));
-      return { ok: true, keyId: row.id, role: row.role, rateLimitPerMinute: row.rateLimitPerMinute };
+      return {
+        ok: true,
+        keyId: row.id,
+        role: row.role,
+        rateLimitPerMinute: row.rateLimitPerMinute,
+        scopes: parseApiKeyScopes(row.scopes),
+      };
     }
   }
   return { ok: false, status: 401, error: "Invalid token" };

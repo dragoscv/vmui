@@ -4,8 +4,11 @@ import { LogViewer } from "@/components/ops/log-viewer";
 import { RelativeTime } from "@/components/settings/relative-time";
 import { Badge, Button, DataTable, EmptyState, type ColumnDef } from "@/components/ui";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import type { WebhookDeliveryRow } from "@/lib/db/schema";
-import { Eye, Send } from "lucide-react";
+import { retryWebhookDeliveryAction } from "@/server/actions/webhooks";
+import { Eye, RotateCcw, Send } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
@@ -30,6 +33,16 @@ export function WebhookDeliveriesTable({ rows }: { rows: WebhookDeliveryRow[] })
   const t = useTranslations("ops.deliveries");
   const format = useFormatter();
   const [selected, setSelected] = useState<WebhookDeliveryRow | null>(null);
+
+  const retry = useAction(
+    async (id: string): Promise<ActionResult> => {
+      const r = await retryWebhookDeliveryAction(id);
+      if (r.ok) return ok();
+      if (r.error === "notRetryable") return { ok: false, error: t("notRetryable") };
+      return { ok: false, error: r.error ?? t("retryFailed") };
+    },
+    { success: t("retried") },
+  );
 
   const columns = useMemo<ColumnDef<WebhookDeliveryRow, unknown>[]>(
     () => [
@@ -124,9 +137,21 @@ export function WebhookDeliveriesTable({ rows }: { rows: WebhookDeliveryRow[] })
         onRowClick={(r) => setSelected(r)}
         emptyState={<EmptyState compact icon={<Send />} title={t("empty")} description={t("emptyHint")} />}
         rowActions={(row) => (
-          <Button size="icon" variant="ghost" onClick={() => setSelected(row)} aria-label={t("viewAria")}>
-            <Eye className="size-4" aria-hidden />
-          </Button>
+          <>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => void retry.run(row.id)}
+              disabled={row.status !== "failed" || retry.pending}
+              aria-label={t("retryAria")}
+              title={t("retry")}
+            >
+              <RotateCcw className="size-4" aria-hidden />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => setSelected(row)} aria-label={t("viewAria")}>
+              <Eye className="size-4" aria-hidden />
+            </Button>
+          </>
         )}
       />
 

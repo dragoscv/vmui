@@ -716,6 +716,7 @@
       "provider": "Furnizor",
       "region": "Regiune",
       "type": "Tip",
+      "snapshot": "Snapshot",
       "terminated": "Terminată"
     },
     "purge": "Elimină",
@@ -725,7 +726,22 @@
       "description": "Metadatele stocate pentru {name} vor fi șterse definitiv.",
       "action": "Elimină"
     },
-    "purged": "Înregistrare eliminată"
+    "purged": "Înregistrare eliminată",
+    "restore": "Restaurează",
+    "restoreAria": "Restaurează {name} din snapshot",
+    "restored": "Instanța a fost relansată din snapshot",
+    "restoreUnavailable": "Nu există un snapshot de terminare sigură înregistrat sau furnizorul nu acceptă restaurarea din snapshot.",
+    "restoreConfirm": {
+      "title": "Relansezi această instanță?",
+      "description": "O mașină virtuală nouă va fi lansată din snapshotul de terminare sigură al {name}. Facturarea începe imediat; snapshotul este păstrat.",
+      "action": "Relansează"
+    },
+    "errors": {
+      "notFound": "Această înregistrare din coș nu mai există.",
+      "unsupportedProvider": "Restaurarea din snapshot este acceptată doar pe AWS, Azure și GCP.",
+      "noSnapshot": "Nicio imagine snapshot nu este asociată acestei instanțe.",
+      "generic": "Restaurarea a eșuat."
+    }
   },
   "providerStatus": {
     "title": "Starea furnizorilor",

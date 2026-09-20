@@ -7,8 +7,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useAction } from "@/hooks/use-action";
 import { ok, type ActionResult } from "@/lib/action-result";
 import { nextRun } from "@/lib/cron";
-import { deleteScheduleAction, setScheduleEnabledAction } from "@/server/actions/schedules";
-import { Clock, Plus, Trash2 } from "lucide-react";
+import { deleteScheduleAction, runScheduleNowAction, setScheduleEnabledAction } from "@/server/actions/schedules";
+import { Clock, Play, Plus, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { ScheduleForm, type ScheduleAction } from "./schedule-form";
@@ -66,6 +66,14 @@ export function SchedulesManager({
       return r.ok ? ok() : { ok: false, error: tc("error") };
     },
     { success: t("deleted") },
+  );
+  const runNow = useAction(
+    async (id: string): Promise<ActionResult> => {
+      const r = await runScheduleNowAction(id);
+      if (!r.ok) return { ok: false, error: r.error };
+      return r.status === "ok" ? ok() : { ok: false, error: r.message ?? t("runFailed") };
+    },
+    { success: t("ran") },
   );
 
   async function onRemove(s: ScheduleSummary) {
@@ -172,9 +180,14 @@ export function SchedulesManager({
           />
         }
         rowActions={(s) => (
-          <Button size="icon" variant="ghost" onClick={() => void onRemove(s)} disabled={remove.pending} aria-label={tc("delete")}>
-            <Trash2 className="size-4 text-danger" aria-hidden />
-          </Button>
+          <>
+            <Button size="icon" variant="ghost" onClick={() => void runNow.run(s.id)} disabled={runNow.pending} aria-label={t("runNowAria")} title={t("runNow")}>
+              <Play className="size-4" aria-hidden />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => void onRemove(s)} disabled={remove.pending} aria-label={tc("delete")}>
+              <Trash2 className="size-4 text-danger" aria-hidden />
+            </Button>
+          </>
         )}
       />
 

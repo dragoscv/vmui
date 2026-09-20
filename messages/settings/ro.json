@@ -87,6 +87,23 @@
     }
   },
   "security": {
+    "password": {
+      "title": "Parolă",
+      "description": "Schimbă parola cu care te autentifici. Toate celelalte browsere autentificate ca tine vor fi deconectate.",
+      "current": "Parola actuală",
+      "new": "Parolă nouă",
+      "confirm": "Confirmă parola nouă",
+      "submit": "Schimbă parola",
+      "changed": "Parolă schimbată",
+      "changedHint": "Această sesiune rămâne autentificată; toate celelalte sunt revocate.",
+      "errors": {
+        "wrongPassword": "Parola actuală este greșită",
+        "same": "Parola nouă trebuie să difere de cea actuală",
+        "short": "Cel puțin 8 caractere",
+        "mismatch": "Parolele nu se potrivesc",
+        "generic": "Parola nu a putut fi schimbată"
+      }
+    },
     "passkeys": {
       "title": "Passkey-uri",
       "description": "Autentifică-te cu Touch ID, Windows Hello sau o cheie hardware în loc de parolă.",
@@ -181,8 +198,29 @@
     "confirmDelete": "Ștergi {email}?",
     "confirmDeleteHint": "Sesiunile și passkey-urile sale sunt eliminate. Resursele cloud create rămân neatinse.",
     "cannotDeleteSelf": "Nu te poți șterge pe tine",
-    "resetPassword": "Resetează parola",
-    "resetPasswordUnavailable": "Resetarea parolei nu este disponibilă încă — șterge și recreează contul.",
+    "resetPassword": {
+      "action": "Resetează parola",
+      "title": "Resetează parola pentru {email}",
+      "description": "Parola actuală nu va mai funcționa și toate sesiunile sale vor fi deconectate.",
+      "generate": "Generează o parolă aleatorie",
+      "orType": "sau introdu una",
+      "password": "Parolă nouă",
+      "confirm": "Confirmă parola nouă",
+      "mismatch": "Parolele nu se potrivesc",
+      "short": "Cel puțin 8 caractere",
+      "submit": "Setează parola",
+      "done": "Parolă resetată",
+      "doneHint": "Transmite-o printr-un canal sigur — nu va mai fi afișată.",
+      "copy": "Copiază parola",
+      "copied": "Copiat",
+      "dismiss": "Gata",
+      "errors": {
+        "notFound": "Utilizatorul nu a fost găsit",
+        "self": "Pentru contul tău folosește „Schimbă parola” din Securitate",
+        "short": "Parola trebuie să aibă între 8 și 200 de caractere",
+        "generic": "Parola nu a putut fi resetată"
+      }
+    },
     "legend": {
       "title": "Roluri",
       "admin": "gestionează utilizatori, chei și tot restul",
@@ -210,6 +248,31 @@
       "role": "Rol",
       "rateLimit": "Limită de rată",
       "rateLimitHint": "Cereri pe minut",
+      "scopes": "Domeniu de acces",
+      "scopesHint": "Ce poate face această cheie prin MCP. Lasă totul nebifat pentru o cheie fără restricții.",
+      "presets": {
+        "all": "Toate uneltele",
+        "readOnly": "Doar citire",
+        "nonDestructive": "Nedistructive",
+        "custom": "Personalizat"
+      },
+      "scopeTools": "Unelte",
+      "scopeVms": "Mașini virtuale",
+      "scopeEntities": "Entități Home Assistant",
+      "scopeEntitiesHint": "Limitează uneltele pentru lumini, întrerupătoare, climatizare, media și Nest Hub. Bifează din catalog sau lipește id-uri separate prin virgulă.",
+      "scopePcActions": "Acțiuni PC",
+      "scopeScripts": "Scripturi HA",
+      "scopeScriptsHint": "Numele scripturilor pe care ha_script le poate rula, separate prin virgulă. Gol = orice script.",
+      "destructive": "distructiv",
+      "readOnly": "doar citire",
+      "unrestricted": "Fără restricții",
+      "scopeSummary": {
+        "tools": "{count, plural, =1 {# unealtă} few {# unelte} other {# de unelte}}",
+        "vms": "{count, plural, =1 {# VM} few {# VM-uri} other {# de VM-uri}}",
+        "entities": "{count, plural, =1 {# entitate} few {# entități} other {# de entități}}",
+        "pc": "{count, plural, =1 {# acțiune PC} few {# acțiuni PC} other {# de acțiuni PC}}",
+        "scripts": "{count, plural, =1 {# script} few {# scripturi} other {# de scripturi}}"
+      },
       "create": "Creează cheia",
       "created": "Cheie API creată — copiaz-o acum",
       "issuedTitle": "Cheie API nouă",
@@ -227,6 +290,7 @@
       "columns": {
         "name": "Nume",
         "role": "Rol",
+        "scopes": "Domeniu",
         "rate": "Rată",
         "created": "Creată",
         "lastUsed": "Ultima utilizare",

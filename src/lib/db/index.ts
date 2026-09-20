@@ -476,10 +476,24 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS api_keys (
   hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'viewer',
   rate_limit_per_minute INTEGER NOT NULL DEFAULT 60,
+  scopes TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   revoked_at INTEGER,
   last_used_at INTEGER
 )`);
+
+// `next build` evaluates this module in many workers at once; two can both observe the column
+// missing and both ALTER, so a duplicate-column error here is a benign lost race, not a fault.
+const addColumnIfMissing = (table: string, name: string, def: string) => {
+  const cols = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (cols.some((c) => c.name === name)) return;
+  try {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${def}`);
+  } catch (e) {
+    if (!(e instanceof Error) || !/duplicate column name/i.test(e.message)) throw e;
+  }
+};
+addColumnIfMissing("api_keys", "scopes", "scopes TEXT");
 
 sqlite.exec(`CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
@@ -834,9 +848,12 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS instance_trash (
   instance_type TEXT,
   raw_json TEXT,
   terminated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-  terminated_by TEXT
+  terminated_by TEXT,
+  safe_snapshot_id TEXT
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_inst_trash_time ON instance_trash(terminated_at)`);
+
+addColumnIfMissing("instance_trash", "safe_snapshot_id", "safe_snapshot_id TEXT");
 
 sqlite.exec(`CREATE TABLE IF NOT EXISTS maintenance_windows (
   id TEXT PRIMARY KEY,

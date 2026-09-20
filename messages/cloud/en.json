@@ -716,6 +716,7 @@
       "provider": "Provider",
       "region": "Region",
       "type": "Type",
+      "snapshot": "Snapshot",
       "terminated": "Terminated"
     },
     "purge": "Purge",
@@ -725,7 +726,22 @@
       "description": "The stored metadata for {name} will be deleted permanently.",
       "action": "Purge"
     },
-    "purged": "Record purged"
+    "purged": "Record purged",
+    "restore": "Restore",
+    "restoreAria": "Restore {name} from its snapshot",
+    "restored": "Instance relaunched from snapshot",
+    "restoreUnavailable": "No safe-terminate snapshot recorded, or the provider does not support restoring from a snapshot.",
+    "restoreConfirm": {
+      "title": "Relaunch this instance?",
+      "description": "A new VM will be launched from the safe-terminate snapshot of {name}. It starts billing immediately; the snapshot is kept.",
+      "action": "Relaunch"
+    },
+    "errors": {
+      "notFound": "This trash record no longer exists.",
+      "unsupportedProvider": "Restoring from a snapshot is only supported on AWS, Azure and GCP.",
+      "noSnapshot": "No snapshot is associated with this instance.",
+      "generic": "Restore failed."
+    }
   },
   "providerStatus": {
     "title": "Provider status board",

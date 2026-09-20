@@ -1,14 +1,15 @@
 "use client";
 
-import { Alert, Badge, Button, DataTable, EmptyState, Field, Input, PageSection, type ColumnDef } from "@/components/ui";
+import { Alert, Badge, Button, Checkbox, DataTable, EmptyState, Field, Input, PageSection, Subsection, ToggleGroup, type ColumnDef, type ToggleOption } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAction } from "@/hooks/use-action";
 import { ok, type ActionResult } from "@/lib/action-result";
+import { isUnrestricted, presetTools, SCOPE_PRESETS, type ApiKeyScopes, type ScopePreset, type ScopedToolInfo } from "@/lib/api-key-scopes";
 import { createApiKeyAction, revokeApiKeyAction } from "@/server/actions/api-keys";
 import { Check, Copy, Key, Plus, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toError, toResult } from "./adapt";
 import { RelativeTime } from "./relative-time";
 
@@ -20,11 +21,46 @@ export type ApiKeyView = {
   createdAt: Date;
   revokedAt: Date | null;
   lastUsedAt: Date | null;
+  scopes: ApiKeyScopes | null;
+};
+
+export type ScopeCatalog = {
+  tools: ScopedToolInfo[];
+  vms: Array<{ id: string; label: string; provider: string }>;
+  entities: Array<{ id: string; label: string }>;
+  pcActions: string[];
 };
 
 const ROLES = ["viewer", "operator"] as const;
+type PresetChoice = ScopePreset | "custom";
+const PRESET_CHOICES: readonly PresetChoice[] = [...SCOPE_PRESETS, "custom"];
 
-export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
+const splitIds = (raw: string) => raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+
+function toggleIn(set: Set<string>, id: string, on: boolean): Set<string> {
+  const next = new Set(set);
+  if (on) next.add(id);
+  else next.delete(id);
+  return next;
+}
+
+function CheckGrid({ items, selected, onToggle, ariaLabel }: { items: Array<{ id: string; label: ReactNode; hint?: ReactNode }>; selected: Set<string>; onToggle: (id: string, on: boolean) => void; ariaLabel: string }) {
+  return (
+    <div role="group" aria-label={ariaLabel} className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((it) => (
+        <label key={it.id} className="flex min-h-9 items-center gap-2 rounded-[var(--radius-sm)] px-1.5 text-sm hover:bg-bg-muted">
+          <Checkbox checked={selected.has(it.id)} onCheckedChange={(v) => onToggle(it.id, v)} />
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="truncate font-mono text-xs">{it.label}</span>
+            {it.hint}
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+export function ApiKeysManager({ keys, catalog }: { keys: ApiKeyView[]; catalog: ScopeCatalog }) {
   const t = useTranslations("settings.access.apiKeys");
   const tr = useTranslations("auth.roles");
   const format = useFormatter();
@@ -34,10 +70,47 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
   const [rate, setRate] = useState(60);
   const [issued, setIssued] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [preset, setPreset] = useState<PresetChoice>("all");
+  const [tools, setTools] = useState<Set<string>>(new Set());
+  const [vmIds, setVmIds] = useState<Set<string>>(new Set());
+  const [entities, setEntities] = useState<Set<string>>(new Set());
+  const [entityText, setEntityText] = useState("");
+  const [pcActions, setPcActions] = useState<Set<string>>(new Set());
+  const [scriptText, setScriptText] = useState("");
+
+  const presetOptions = useMemo<ToggleOption<PresetChoice>[]>(
+    () => PRESET_CHOICES.map((p) => ({ value: p, label: t(`presets.${p}`) })),
+    [t],
+  );
+
+  function buildScopes(): ApiKeyScopes | undefined {
+    if (role !== "operator") return undefined;
+    const toolList = preset === "custom" ? [...tools] : presetTools(preset, catalog.tools);
+    const entityList = [...new Set([...entities, ...splitIds(entityText)])];
+    const scriptList = splitIds(scriptText);
+    const scopes: ApiKeyScopes = {
+      ...(toolList ? { tools: toolList } : {}),
+      ...(vmIds.size ? { vmIds: [...vmIds] } : {}),
+      ...(entityList.length ? { entities: entityList } : {}),
+      ...(pcActions.size ? { pcActions: [...pcActions] } : {}),
+      ...(scriptList.length ? { scripts: scriptList } : {}),
+    };
+    return isUnrestricted(scopes) ? undefined : scopes;
+  }
+
+  function resetScopes() {
+    setPreset("all");
+    setTools(new Set());
+    setVmIds(new Set());
+    setEntities(new Set());
+    setEntityText("");
+    setPcActions(new Set());
+    setScriptText("");
+  }
 
   const create = useAction(
     async (): Promise<ActionResult<string>> => {
-      const r = await createApiKeyAction({ name: name.trim(), role, rateLimitPerMinute: rate });
+      const r = await createApiKeyAction({ name: name.trim(), role, rateLimitPerMinute: rate, scopes: buildScopes() });
       return r.ok ? ok(r.plaintext) : toError(r);
     },
     {
@@ -45,6 +118,7 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
       onSuccess: (plaintext) => {
         setIssued(plaintext);
         setName("");
+        resetScopes();
       },
     },
   );
@@ -68,13 +142,29 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const columns = useMemo<ColumnDef<ApiKeyView, unknown>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<ApiKeyView, unknown>[]>(() => {
+    const scopeSummary = (s: ApiKeyScopes | null) => {
+      if (isUnrestricted(s)) return <Badge variant="muted">{t("unrestricted")}</Badge>;
+      const parts: string[] = [];
+      if (s?.tools) parts.push(t("scopeSummary.tools", { count: s.tools.length }));
+      if (s?.vmIds) parts.push(t("scopeSummary.vms", { count: s.vmIds.length }));
+      if (s?.entities) parts.push(t("scopeSummary.entities", { count: s.entities.length }));
+      if (s?.pcActions) parts.push(t("scopeSummary.pc", { count: s.pcActions.length }));
+      if (s?.scripts) parts.push(t("scopeSummary.scripts", { count: s.scripts.length }));
+      return <Badge variant="info">{parts.join(" · ")}</Badge>;
+    };
+    return [
       { accessorKey: "name", header: t("columns.name"), cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
       {
         accessorKey: "role",
         header: t("columns.role"),
         cell: ({ row }) => <Badge variant={row.original.role === "operator" ? "info" : "muted"}>{tr(row.original.role)}</Badge>,
+      },
+      {
+        id: "scopes",
+        accessorFn: (k) => (isUnrestricted(k.scopes) ? "" : "scoped"),
+        header: t("columns.scopes"),
+        cell: ({ row }) => (row.original.role === "operator" ? scopeSummary(row.original.scopes) : <span className="text-fg-muted">—</span>),
       },
       {
         accessorKey: "rateLimitPerMinute",
@@ -103,9 +193,14 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
         cell: ({ row }) =>
           row.original.revokedAt ? <Badge variant="danger">{t("revokedBadge")}</Badge> : <Badge variant="success">{t("active")}</Badge>,
       },
-    ],
-    [t, tr, format],
-  );
+    ];
+  }, [t, tr, format]);
+
+  const toolItems = catalog.tools.map((tool) => ({
+    id: tool.name,
+    label: tool.name,
+    hint: tool.destructive ? <Badge variant="danger">{t("destructive")}</Badge> : tool.readOnly ? <Badge variant="muted">{t("readOnly")}</Badge> : null,
+  }));
 
   return (
     <div className="space-y-4">
@@ -167,6 +262,56 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
           <Button type="submit" loading={create.pending} disabled={!name.trim()}>
             <Plus className="size-4" aria-hidden /> {t("create")}
           </Button>
+
+          {role === "operator" && (
+            <div className="space-y-3 sm:col-span-4">
+              <Field label={t("scopes")} hint={t("scopesHint")}>
+                <ToggleGroup value={preset} onValueChange={setPreset} options={presetOptions} size="sm" aria-label={t("scopes")} />
+              </Field>
+
+              {preset === "custom" && (
+                <Subsection title={t("scopeTools")} collapsible>
+                  <CheckGrid items={toolItems} selected={tools} onToggle={(id, on) => setTools((s) => toggleIn(s, id, on))} ariaLabel={t("scopeTools")} />
+                </Subsection>
+              )}
+
+              {catalog.vms.length > 0 && (
+                <Subsection title={t("scopeVms")} collapsible defaultOpen={false}>
+                  <CheckGrid
+                    items={catalog.vms.map((v) => ({ id: v.id, label: v.label, hint: <Badge variant="muted">{v.provider}</Badge> }))}
+                    selected={vmIds}
+                    onToggle={(id, on) => setVmIds((s) => toggleIn(s, id, on))}
+                    ariaLabel={t("scopeVms")}
+                  />
+                </Subsection>
+              )}
+
+              <Subsection title={t("scopeEntities")} hint={t("scopeEntitiesHint")} collapsible defaultOpen={false}>
+                {catalog.entities.length > 0 && (
+                  <CheckGrid
+                    items={catalog.entities.map((e) => ({ id: e.id, label: e.id, hint: <span className="truncate text-xs text-fg-muted">{e.label}</span> }))}
+                    selected={entities}
+                    onToggle={(id, on) => setEntities((s) => toggleIn(s, id, on))}
+                    ariaLabel={t("scopeEntities")}
+                  />
+                )}
+                <Input value={entityText} onChange={(e) => setEntityText(e.target.value)} placeholder="light.moodlight, climate.bedroom_ac" className="font-mono text-xs" aria-label={t("scopeEntities")} />
+              </Subsection>
+
+              <Subsection title={t("scopePcActions")} collapsible defaultOpen={false}>
+                <CheckGrid
+                  items={catalog.pcActions.map((a) => ({ id: a, label: a }))}
+                  selected={pcActions}
+                  onToggle={(id, on) => setPcActions((s) => toggleIn(s, id, on))}
+                  ariaLabel={t("scopePcActions")}
+                />
+              </Subsection>
+
+              <Field label={t("scopeScripts")} hint={t("scopeScriptsHint")}>
+                <Input value={scriptText} onChange={(e) => setScriptText(e.target.value)} placeholder="movie_mode_on, copilot_done" className="font-mono text-xs" />
+              </Field>
+            </div>
+          )}
         </form>
       </PageSection>
 

@@ -7,10 +7,11 @@ import { useAction } from "@/hooks/use-action";
 import { deleteUserAction, updateUserRoleAction } from "@/server/actions/auth";
 import { KeyRound, Trash2, Users } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { toResult } from "./adapt";
 import { RelativeTime } from "./relative-time";
+import { ResetPasswordDialog } from "./reset-password-dialog";
 
 export type UserRole = "admin" | "operator" | "viewer";
 const ROLES: UserRole[] = ["admin", "operator", "viewer"];
@@ -30,6 +31,7 @@ export function UsersTable({ users, meId }: { users: UserView[]; meId: string })
   const tr = useTranslations("auth.roles");
   const format = useFormatter();
   const confirm = useConfirm();
+  const [resetTarget, setResetTarget] = useState<{ id: string; email: string } | null>(null);
 
   const setRole = useAction(async (userId: string, role: UserRole) => toResult(await updateUserRoleAction({ userId, role })));
 
@@ -112,36 +114,39 @@ export function UsersTable({ users, meId }: { users: UserView[]; meId: string })
   );
 
   return (
-    <DataTable
-      columns={columns}
-      data={users}
-      dense
-      searchable={users.length > 5}
-      getRowId={(u) => u.id}
-      emptyState={<EmptyState compact icon={<Users />} title={t("count", { count: 0 })} />}
-      rowActions={(u) => (
-        <>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={t("resetPassword")}
-            title={t("resetPasswordUnavailable")}
-            onClick={() => toast.info(t("resetPasswordUnavailable"))}
-          >
-            <KeyRound className="size-4" aria-hidden />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => void onRemove(u)}
-            disabled={remove.pending || u.id === meId}
-            aria-label={u.id === meId ? t("cannotDeleteSelf") : t("delete")}
-            title={u.id === meId ? t("cannotDeleteSelf") : t("delete")}
-          >
-            <Trash2 className="size-4 text-danger" aria-hidden />
-          </Button>
-        </>
-      )}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={users}
+        dense
+        searchable={users.length > 5}
+        getRowId={(u) => u.id}
+        emptyState={<EmptyState compact icon={<Users />} title={t("count", { count: 0 })} />}
+        rowActions={(u) => (
+          <>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={t("resetPassword.action")}
+              title={t("resetPassword.action")}
+              onClick={() => setResetTarget({ id: u.id, email: u.email })}
+            >
+              <KeyRound className="size-4" aria-hidden />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => void onRemove(u)}
+              disabled={remove.pending || u.id === meId}
+              aria-label={u.id === meId ? t("cannotDeleteSelf") : t("delete")}
+              title={u.id === meId ? t("cannotDeleteSelf") : t("delete")}
+            >
+              <Trash2 className="size-4 text-danger" aria-hidden />
+            </Button>
+          </>
+        )}
+      />
+      <ResetPasswordDialog target={resetTarget} onClose={() => setResetTarget(null)} />
+    </>
   );
 }

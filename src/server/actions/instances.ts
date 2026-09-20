@@ -436,6 +436,7 @@ export async function executeInstanceAction(
       }
     }
 
+    let safeSnapshotId: string | null = null;
     if (action === "terminate" && account.safeTerminate && provider.createSnapshot) {
       const fresh = await checkSnapshotFreshness({
         accountId: data.accountId,
@@ -446,6 +447,7 @@ export async function executeInstanceAction(
         try {
           const label = `safe-terminate-${new Date().toISOString().replace(/[:.]/g, "-")}`;
           const snap = await provider.createSnapshot(region, id, label);
+          safeSnapshotId = snap.snapshotId;
           await db.insert(auditLog).values({
             accountId: data.accountId,
             action: "instance.terminate.safe-snapshot",
@@ -507,7 +509,7 @@ export async function executeInstanceAction(
             id: nanoid(),
             accountId: inst.accountId, region: inst.region, providerInstanceId: inst.providerInstanceId,
             name: inst.name, provider: inst.provider, instanceType: inst.instanceType,
-            rawJson: inst.rawJson, terminatedBy: null,
+            rawJson: inst.rawJson, terminatedBy: null, safeSnapshotId,
           });
         }
       } catch { /* best-effort */ }

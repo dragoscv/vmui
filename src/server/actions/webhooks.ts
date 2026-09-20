@@ -2,7 +2,8 @@
 
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { auditLog, webhooks, type WebhookRow } from "@/lib/db/schema";
+import { auditLog, webhookDeliveries, webhooks, type WebhookRow } from "@/lib/db/schema";
+import { deliverOnce } from "@/lib/webhook-queue";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
@@ -112,6 +113,7 @@ const testSchema = z.object({
 export async function testWebhookAction(
   input: z.infer<typeof testSchema>,
 ): Promise<{ ok: boolean; status?: string; error?: string }> {
+  try { await requireRole("operator"); } catch (err) { return { ok: false, error: err instanceof Error ? err.message : "Not authorized" }; }
   const parsed = testSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid id" };
   const row = await db.query.webhooks.findFirst({ where: eq(webhooks.id, parsed.data.id) });
@@ -134,9 +136,51 @@ export async function testWebhookAction(
       .update(webhooks)
       .set({ lastFiredAt: new Date(), lastStatus: status })
       .where(eq(webhooks.id, row.id));
+    await db.insert(auditLog).values({
+      action: "webhook.test",
+      target: row.id,
+      status: res.ok ? "ok" : "error",
+      message: `HTTP ${status}`,
+    });
     return { ok: res.ok, status };
   } catch (err) {
     const message = err instanceof Error ? err.message : "fetch failed";
+    await db.insert(auditLog).values({ action: "webhook.test", target: row.id, status: "error", message });
     return { ok: false, error: message };
   }
+}
+
+export async function retryWebhookDeliveryAction(
+  id: string,
+): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try { await requireRole("operator"); } catch (err) { return { ok: false, error: err instanceof Error ? err.message : "Not authorized" }; }
+  const parsed = z.string().min(1).safeParse(id);
+  if (!parsed.success) return { ok: false, error: "Invalid id" };
+  const row = (await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, parsed.data)).limit(1))[0];
+  if (!row) return { ok: false, error: "Delivery not found" };
+  const retryable =
+    row.status === "failed" || (row.status === "queued" && row.nextAttemptAt.getTime() > Date.now());
+  if (!retryable) return { ok: false, error: "notRetryable" };
+
+  await db.update(webhookDeliveries).set({ status: "delivering" }).where(eq(webhookDeliveries.id, row.id));
+  const r = await deliverOnce(row);
+  if (r.ok) {
+    await db
+      .update(webhookDeliveries)
+      .set({ status: "ok", deliveredAt: new Date(), attempts: row.attempts + 1, lastErrorMessage: null })
+      .where(eq(webhookDeliveries.id, row.id));
+  } else {
+    await db
+      .update(webhookDeliveries)
+      .set({ status: "failed", attempts: row.attempts + 1, lastErrorMessage: r.error ?? "fetch failed" })
+      .where(eq(webhookDeliveries.id, row.id));
+  }
+  await db.insert(auditLog).values({
+    action: "webhook.delivery.retry",
+    target: row.webhookId,
+    status: r.ok ? "ok" : "error",
+    message: `${row.url} → ${r.ok ? `HTTP ${r.status}` : (r.error ?? "fetch failed")}`,
+  });
+  revalidatePath("/webhook-deliveries");
+  return r.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, error: r.error ?? "fetch failed" };
 }

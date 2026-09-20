@@ -5,9 +5,10 @@ import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { instanceSecrets, tagPolicies, instanceTrash, auditLog } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { requireRole } from "@/lib/auth";
 import { encryptJSON, decryptJSON } from "@/lib/crypto";
+import { restoreInstanceFromSnapshotAction } from "@/server/actions/snapshots";
 
 /* -------- secrets vault -------- */
 export async function setInstanceSecretAction(input: { accountId: string; providerInstanceId: string; key: string; value: string }) {
@@ -93,8 +94,70 @@ export async function deleteTagPolicyAction(id: string) {
 /* -------- trash -------- */
 export async function deleteFromTrashAction(id: string) {
   await requireRole("admin");
-  await db.delete(instanceTrash).where(eq(instanceTrash.id, id));
-  await db.insert(auditLog).values({ action: "trash.purge", target: id, status: "ok" });
+  const d = z.string().min(1).parse(id);
+  await db.delete(instanceTrash).where(eq(instanceTrash.id, d));
+  await db.insert(auditLog).values({ action: "trash.purge", target: d, status: "ok" });
   revalidatePath("/trash");
   return { ok: true as const };
+}
+
+const RESTORABLE_PROVIDERS = new Set(["aws", "azure", "gcp"]);
+
+export type RestoreFromTrashResult =
+  | { ok: true; instanceId: string }
+  | { ok: false; error: "notFound" | "unsupportedProvider" | "noSnapshot" | string };
+
+/** Relaunch a trashed VM from its safe-terminate snapshot; drops the trash row on success. */
+export async function restoreFromTrashAction(input: {
+  id: string;
+  instanceType?: string;
+  snapshotId?: string;
+}): Promise<RestoreFromTrashResult> {
+  await requireRole("operator");
+  const d = z.object({
+    id: z.string().min(1),
+    instanceType: z.string().min(1).max(64).optional(),
+    snapshotId: z.string().min(1).max(512).optional(),
+  }).parse(input);
+
+  const row = (await db.select().from(instanceTrash).where(eq(instanceTrash.id, d.id)).limit(1))[0];
+  if (!row) return { ok: false, error: "notFound" };
+  if (!RESTORABLE_PROVIDERS.has(row.provider)) return { ok: false, error: "unsupportedProvider" };
+
+  let snapshotId = d.snapshotId ?? row.safeSnapshotId ?? null;
+  if (!snapshotId) {
+    const audit = (await db.select({ message: auditLog.message }).from(auditLog)
+      .where(and(
+        eq(auditLog.action, "instance.terminate.safe-snapshot"),
+        eq(auditLog.status, "ok"),
+        eq(auditLog.target, row.providerInstanceId),
+      ))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(1))[0];
+    snapshotId = audit?.message ?? null;
+  }
+  if (!snapshotId) return { ok: false, error: "noSnapshot" };
+
+  const res = await restoreInstanceFromSnapshotAction({
+    accountId: row.accountId,
+    region: row.region,
+    snapshotId,
+    label: row.name ?? row.providerInstanceId,
+    instanceType: d.instanceType ?? row.instanceType ?? "",
+  });
+  if (!res.ok) {
+    await db.insert(auditLog).values({
+      accountId: row.accountId, action: "trash.restore", target: row.providerInstanceId, status: "error", message: res.error,
+    });
+    return { ok: false, error: res.error };
+  }
+
+  await db.delete(instanceTrash).where(eq(instanceTrash.id, row.id));
+  await db.insert(auditLog).values({
+    accountId: row.accountId, action: "trash.restore", target: row.providerInstanceId, status: "ok", message: res.providerInstanceId,
+  });
+  revalidatePath("/trash");
+  revalidatePath("/instances");
+  revalidatePath("/");
+  return { ok: true, instanceId: res.providerInstanceId };
 }

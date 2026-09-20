@@ -1,4 +1,3 @@
-import "server-only";
 import { TrashTable } from "@/components/cloud/trash-table";
 import { Badge, EmptyState, PageHeader, PageShell, SkeletonTable } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -7,6 +6,7 @@ import { desc } from "drizzle-orm";
 import { Trash2 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +36,7 @@ export default async function TrashPage() {
               region: r.region,
               instanceType: r.instanceType,
               terminatedAt: r.terminatedAt.toISOString(),
+              safeSnapshotId: r.safeSnapshotId,
             }))}
           />
         </Suspense>

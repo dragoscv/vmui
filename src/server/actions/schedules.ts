@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { schedules, instances, auditLog } from "@/lib/db/schema";
 import { isValidCron } from "@/lib/cron";
+import { executeSchedule } from "@/lib/scheduler";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 
@@ -61,4 +62,16 @@ export async function deleteScheduleAction(id: string) {
   await db.delete(schedules).where(eq(schedules.id, id));
   revalidatePath("/schedules");
   return { ok: true as const };
+}
+
+export async function runScheduleNowAction(id: string) {
+  try { await requireRole("operator"); } catch (err) { return { ok: false as const, error: err instanceof Error ? err.message : "Not authorized" }; }
+  const parsed = z.string().min(1).safeParse(id);
+  if (!parsed.success) return { ok: false as const, error: "Invalid id" };
+  const row = (await db.select().from(schedules).where(eq(schedules.id, parsed.data)).limit(1))[0];
+  if (!row) return { ok: false as const, error: "Schedule not found." };
+  const { status, message } = await executeSchedule(row, { trigger: "manual" });
+  revalidatePath("/schedules");
+  revalidatePath(`/instances/${row.instanceId}`);
+  return message !== undefined ? { ok: true as const, status, message } : { ok: true as const, status };
 }

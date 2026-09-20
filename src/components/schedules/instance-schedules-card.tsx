@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAction } from "@/hooks/use-action";
 import { ok, type ActionResult } from "@/lib/action-result";
 import { isValidCron } from "@/lib/cron";
-import { createScheduleAction, deleteScheduleAction, setScheduleEnabledAction } from "@/server/actions/schedules";
-import { Clock, Pause, Play, Trash2 } from "lucide-react";
+import { createScheduleAction, deleteScheduleAction, runScheduleNowAction, setScheduleEnabledAction } from "@/server/actions/schedules";
+import { Clock, Pause, Play, PlayCircle, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { SCHEDULE_ACTIONS, type ScheduleAction } from "./schedule-form";
@@ -67,6 +67,14 @@ export function InstanceSchedulesCard({
     },
     { success: t("deleted") },
   );
+  const runNow = useAction(
+    async (id: string): Promise<ActionResult> => {
+      const r = await runScheduleNowAction(id);
+      if (!r.ok) return { ok: false, error: r.error };
+      return r.status === "ok" ? ok() : { ok: false, error: r.message ?? t("runFailed") };
+    },
+    { success: t("ran") },
+  );
 
   async function onRemove(s: ScheduleSummary) {
     const yes = await confirm({
@@ -95,11 +103,22 @@ export function InstanceSchedulesCard({
                     variant="ghost"
                     size="icon"
                     className="size-8 sm:size-8"
+                    disabled={runNow.pending}
+                    onClick={() => void runNow.run(s.id)}
+                    aria-label={t("runNowAria")}
+                    title={t("runNow")}
+                  >
+                    <Play className="size-3.5" aria-hidden />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 sm:size-8"
                     disabled={toggle.pending}
                     onClick={() => void toggle.run(s.id, !s.enabled)}
                     aria-label={s.enabled ? t("pause") : t("resume")}
                   >
-                    {s.enabled ? <Pause className="size-3.5" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
+                    {s.enabled ? <Pause className="size-3.5" aria-hidden /> : <PlayCircle className="size-3.5" aria-hidden />}
                   </Button>
                   <Button variant="ghost" size="icon" className="size-8 sm:size-8" disabled={remove.pending} onClick={() => void onRemove(s)} aria-label={tc("delete")}>
                     <Trash2 className="size-3.5 text-danger" aria-hidden />

@@ -7,6 +7,7 @@ import { AMBILIGHT_MODES, DEVICES } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
 import { armAutoOpen, ignoreCall, intercomState, openDoor } from "@/lib/home/intercom";
 import { pcIsUp, pcTarget, wakePc } from "@/lib/home/wol";
+import type { ScopeKey } from "@/lib/api-key-scopes";
 import { executeInstanceAction, syncAccountInstances } from "@/server/actions/instances";
 import { eq } from "drizzle-orm";
 import { spawn } from "node:child_process";
@@ -30,6 +31,8 @@ export type McpTool = {
   schema: z.ZodObject<z.ZodRawShape>;
   destructive?: boolean;
   readOnly?: boolean;
+  /** Which per-key argument limit (Settings -> API keys -> scope) applies to a call with these args. */
+  scopeKey?: (args: Record<string, unknown>) => ScopeKey | undefined;
   run: (args: Record<string, unknown>, by: string) => Promise<ToolResult>;
 };
 
@@ -50,26 +53,29 @@ function assertKnown(entity: string) {
 
 const NEST_HUB = "media_player.bedroom_smart_display";
 
-async function audit(action: string, target: string, message: string, status: "ok" | "error" = "ok") {
-  await db.insert(auditLog).values({ accountId: "mcp", action, target, status, message });
+const entityKey = (args: Record<string, unknown>): ScopeKey | undefined =>
+  typeof args.entity === "string" ? { kind: "entity", id: args.entity } : undefined;
+
+async function audit(action: string, target: string, message: string, by: string, status: "ok" | "error" = "ok") {
+  await db.insert(auditLog).values({ accountId: "mcp", action, target, status, message: `[${by}] ${message}` });
 }
 
-async function run(action: string, target: string, message: string, fn: () => Promise<unknown>): Promise<ToolResult> {
+async function run(action: string, target: string, message: string, by: string, fn: () => Promise<unknown>): Promise<ToolResult> {
   try {
     const extra = await fn();
-    await audit(action, target, message);
+    await audit(action, target, message, by);
     // HA's callService echoes every changed state (kilobytes per call);
     // the model only needs to know it happened.
     const plain = typeof extra === "object" && extra !== null && !Array.isArray(extra) ? (extra as Record<string, unknown>) : {};
     return { ok: true, ...plain };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    await audit(action, target, error, "error");
+    await audit(action, target, error, by, "error");
     return { ok: false, error };
   }
 }
 
-const PC_ACTIONS = [
+export const PC_ACTIONS = [
   "lock", "sleep", "display_off", "volume", "mute", "unmute",
   "restart_tunnel", "unfreeze_vscode", "kill_runaway_renderer",
   "restart_ambilight", "restart_turzx", "restart_vmui",
@@ -130,8 +136,9 @@ export const TOOLS: McpTool[] = [
       kelvin: z.number().int().min(1500).max(9000).optional(),
       transition: z.number().min(0).max(10).optional(),
     }),
-    run: ({ entity, on, rgb: color, brightnessPct, kelvin, transition }) =>
-      run("mcp.light", entity as string, JSON.stringify({ on, color, brightnessPct, kelvin }), async () => {
+    scopeKey: entityKey,
+    run: ({ entity, on, rgb: color, brightnessPct, kelvin, transition }, by) =>
+      run("mcp.light", entity as string, JSON.stringify({ on, color, brightnessPct, kelvin }), by, async () => {
         assertKnown(entity as string);
         if (!on) return ha.callService("light", "turn_off", { entity_id: entity, ...(transition !== undefined ? { transition } : {}) });
         if (color && known.get(entity as string)?.whiteOnly) throw new Error("This light is white-only; use kelvin");
@@ -147,8 +154,8 @@ export const TOOLS: McpTool[] = [
     name: "lights_all",
     description: "Turn every room light on or off at once (moodlight, ambience, desk bar, MELK strip, star projector). 'off' is what 'stinge becurile' means.",
     schema: z.object({ on: z.boolean() }),
-    run: ({ on }) =>
-      run("mcp.lights_all", "all", on ? "on" : "off", async () => {
+    run: ({ on }, by) =>
+      run("mcp.lights_all", "all", on ? "on" : "off", by, async () => {
         const lights = [...known.keys()].filter((e) => e.startsWith("light.") && e !== "light.hyperhdr");
         await ha.callService("light", on ? "turn_on" : "turn_off", { entity_id: lights });
         return { entities: lights };
@@ -158,8 +165,9 @@ export const TOOLS: McpTool[] = [
     name: "switch_set",
     description: "Turn a switch/fan/media_player entity on or off (AC eco/super/purifier switches, TVs, Nest Hub).",
     schema: z.object({ entity: entityId, on: z.boolean() }),
-    run: ({ entity, on }) =>
-      run("mcp.toggle", entity as string, on ? "on" : "off", async () => {
+    scopeKey: entityKey,
+    run: ({ entity, on }, by) =>
+      run("mcp.toggle", entity as string, on ? "on" : "off", by, async () => {
         assertKnown(entity as string);
         const domain = (entity as string).split(".")[0] ?? "homeassistant";
         const svc = ["light", "switch", "fan", "media_player", "climate", "humidifier"].includes(domain) ? domain : "homeassistant";
@@ -175,8 +183,9 @@ export const TOOLS: McpTool[] = [
       temperature: z.number().min(16).max(30).optional(),
       fanMode: z.string().max(32).optional(),
     }),
-    run: ({ entity, hvacMode, temperature, fanMode }) =>
-      run("mcp.climate", entity as string, JSON.stringify({ hvacMode, temperature, fanMode }), async () => {
+    scopeKey: entityKey,
+    run: ({ entity, hvacMode, temperature, fanMode }, by) =>
+      run("mcp.climate", entity as string, JSON.stringify({ hvacMode, temperature, fanMode }), by, async () => {
         assertKnown(entity as string);
         if (hvacMode) await ha.callService("climate", "set_hvac_mode", { entity_id: entity, hvac_mode: hvacMode });
         if (temperature !== undefined) await ha.callService("climate", "set_temperature", { entity_id: entity, temperature });
@@ -187,17 +196,17 @@ export const TOOLS: McpTool[] = [
     name: "ambilight_mode",
     description: `Set the ambilight/room lighting mode. ${AMBILIGHT_MODES.map((m) => `${m.id}: ${m.description}`).join(" | ")}`,
     schema: z.object({ mode: z.enum(AMBILIGHT_MODES.map((m) => m.id) as [string, ...string[]]) }),
-    run: ({ mode }) => {
+    run: ({ mode }, by) => {
       const m = AMBILIGHT_MODES.find((x) => x.id === mode)!;
-      return run("mcp.ambilight_mode", m.id, m.name, () => ha.runScript(m.script));
+      return run("mcp.ambilight_mode", m.id, m.name, by, () => ha.runScript(m.script));
     },
   },
   {
     name: "notify_flash",
     description: "Flash all ambilight LEDs in a colour for a moment (visual notification). Default 1.5 s.",
     schema: z.object({ color: rgb, durationMs: z.number().int().min(200).max(15000).default(1500) }),
-    run: ({ color, durationMs }) =>
-      run("mcp.flash", (color as number[]).join(","), `${durationMs}ms`, () => ha.runScript("notify_flash", { color, duration_ms: durationMs })),
+    run: ({ color, durationMs }, by) =>
+      run("mcp.flash", (color as number[]).join(","), `${durationMs}ms`, by, () => ha.runScript("notify_flash", { color, duration_ms: durationMs })),
   },
   {
     name: "media_command",
@@ -207,8 +216,9 @@ export const TOOLS: McpTool[] = [
       command: z.enum(["play_pause", "volume_up", "volume_down", "volume_mute", "volume_set", "turn_on", "turn_off", "stop"]),
       volumePct: z.number().int().min(0).max(100).optional(),
     }),
-    run: ({ entity, command, volumePct }) =>
-      run("mcp.media", entity as string, command as string, async () => {
+    scopeKey: entityKey,
+    run: ({ entity, command, volumePct }, by) =>
+      run("mcp.media", entity as string, command as string, by, async () => {
         assertKnown(entity as string);
         const data: Record<string, unknown> = { entity_id: entity };
         let svc = command as string;
@@ -226,8 +236,9 @@ export const TOOLS: McpTool[] = [
     name: "nest_hub_say",
     description: "Speak a short message aloud on the Google Nest Hub (bedroom) via text-to-speech. Romanian or English. Use for announcements like 'build finished'.",
     schema: z.object({ message: z.string().min(1).max(300), language: z.enum(["ro", "en"]).default("ro"), entity: entityId.default(NEST_HUB) }),
-    run: ({ message, language, entity }) =>
-      run("mcp.tts", entity as string, (message as string).slice(0, 80), () =>
+    scopeKey: entityKey,
+    run: ({ message, language, entity }, by) =>
+      run("mcp.tts", entity as string, (message as string).slice(0, 80), by, () =>
         ha.callService("tts", "speak", {
           entity_id: "tts.google_translate_en_com",
           media_player_entity_id: entity,
@@ -240,8 +251,9 @@ export const TOOLS: McpTool[] = [
     name: "nest_hub_show",
     description: "Cast a Home Assistant dashboard view onto the Nest Hub screen. viewPath is the view's URL path ('0' = first view of the default dashboard). keep=true arms continuous casting: HA re-sends the view whenever the Hub drops it (~10 min idle), until nest_hub_stop.",
     schema: z.object({ viewPath: z.string().min(1).max(64).default("0"), dashboardPath: z.string().max(64).default("lovelace"), keep: z.boolean().default(false), entity: entityId.default(NEST_HUB) }),
-    run: ({ viewPath, dashboardPath, keep, entity }) =>
-      run("mcp.cast", entity as string, `${dashboardPath}/${viewPath}${keep ? " (keep)" : ""}`, () =>
+    scopeKey: entityKey,
+    run: ({ viewPath, dashboardPath, keep, entity }, by) =>
+      run("mcp.cast", entity as string, `${dashboardPath}/${viewPath}${keep ? " (keep)" : ""}`, by, () =>
         keep
           // script.turn_on is fire-and-forget; calling script/<name> directly blocks on
           // cast.show_lovelace_view and HA answers 400 when it times out.
@@ -253,20 +265,22 @@ export const TOOLS: McpTool[] = [
     name: "nest_hub_stop",
     description: "Stop casting to the Nest Hub and disarm continuous casting (back to the ambient photo frame).",
     schema: z.object({}),
-    run: () => run("mcp.cast_stop", NEST_HUB, "stop", () => ha.callService("script", "turn_on", { entity_id: "script.vmui_cast_stop" })),
+    scopeKey: () => ({ kind: "entity", id: NEST_HUB }),
+    run: (_a, by) => run("mcp.cast_stop", NEST_HUB, "stop", by, () => ha.callService("script", "turn_on", { entity_id: "script.vmui_cast_stop" })),
   },
   {
     name: "ha_script",
     description: "Run a Home Assistant script by name (e.g. movie_mode_on, movie_mode_off, music_mode, copilot_done). Only for scripts not covered by a dedicated tool.",
     schema: z.object({ name: z.string().regex(/^[a-z0-9_]+$/).max(64), data: z.record(z.string(), z.unknown()).optional() }),
-    run: ({ name, data }) => run("mcp.ha_script", name as string, JSON.stringify(data ?? {}), () => ha.runScript(name as string, (data as Record<string, unknown>) ?? {})),
+    scopeKey: ({ name }) => (typeof name === "string" ? { kind: "script", id: name } : undefined),
+    run: ({ name, data }, by) => run("mcp.ha_script", name as string, JSON.stringify(data ?? {}), by, () => ha.runScript(name as string, (data as Record<string, unknown>) ?? {})),
   },
   {
     name: "desk_display_message",
     description: "Show a short title + body on the ESP32 OLED desk display for a few seconds.",
     schema: z.object({ title: z.string().max(24), body: z.string().max(120), seconds: z.number().int().min(2).max(60).default(10), node: z.string().default("desk") }),
-    run: ({ title, body, seconds, node }) =>
-      run("mcp.oled", node as string, title as string, async () => { showMessage(node as string, title as string, body as string, seconds as number); }),
+    run: ({ title, body, seconds, node }, by) =>
+      run("mcp.oled", node as string, title as string, by, async () => { showMessage(node as string, title as string, body as string, seconds as number); }),
   },
   {
     name: "door_state",
@@ -280,7 +294,7 @@ export const TOOLS: McpTool[] = [
     description: "Open the building door via the intercom (buzz in). DESTRUCTIVE: physically opens the door. Only when the user explicitly asks.",
     schema: z.object({}),
     destructive: true,
-    run: (_a, by) => run("mcp.door_open", "intercom", by, async () => {
+    run: (_a, by) => run("mcp.door_open", "intercom", by, by, async () => {
       const r = await openDoor(by);
       if (!r.ok) throw new Error(r.error ?? "open failed");
     }),
@@ -290,7 +304,7 @@ export const TOOLS: McpTool[] = [
     description: "Arm auto-open for the next ring for N minutes (courier coming), or ignore the current ring (minutes=0).",
     schema: z.object({ minutes: z.number().int().min(0).max(120) }),
     destructive: true,
-    run: ({ minutes }, by) => run("mcp.door_arm", "intercom", `${minutes}m`, async () => {
+    run: ({ minutes }, by) => run("mcp.door_arm", "intercom", `${minutes}m`, by, async () => {
       if ((minutes as number) === 0) return ignoreCall(by);
       return armAutoOpen(minutes as number, by);
     }),
@@ -300,8 +314,9 @@ export const TOOLS: McpTool[] = [
     description: `Run a named action on the Windows PC (no arbitrary shell). Actions: ${PC_ACTIONS.join(", ")}. 'volume' needs value 0-100. lock/sleep/restart_vmui are destructive (interrupt the user's session).`,
     schema: z.object({ action: z.enum(PC_ACTIONS), value: z.number().int().min(0).max(100).optional() }),
     destructive: true,
-    run: ({ action, value }) =>
-      run("mcp.pc", action as string, value !== undefined ? String(value) : "", async () => {
+    scopeKey: ({ action }) => (typeof action === "string" ? { kind: "pc", id: action } : undefined),
+    run: ({ action, value }, by) =>
+      run("mcp.pc", action as string, value !== undefined ? String(value) : "", by, async () => {
         if ((action as string) === "volume" && value === undefined) throw new Error("volume needs value 0-100");
         const out = await pcAction(action as string, value as number | undefined);
         return { output: out, destructive: PC_DESTRUCTIVE.has(action as string) };
@@ -334,6 +349,9 @@ export const TOOLS: McpTool[] = [
     name: "vm_sync",
     description: "Refresh the VM list from the hypervisor/cloud (Hyper-V and WSL VMs on the PC are reached over SSH). Pass accountId from vm_list, or omit to sync every account. Slow: up to ~10 s per account.",
     schema: z.object({ accountId: z.string().min(1).optional() }),
+    // vm_sync has no VM id; the `vm` limit is matched against the accountId instead,
+    // and an unscoped call (sync everything) is refused for keys with a vmIds list.
+    scopeKey: ({ accountId }) => ({ kind: "vm", id: typeof accountId === "string" ? accountId : "*" }),
     run: async ({ accountId }) => {
       const ids = accountId ? [accountId as string] : (await db.query.cloudAccounts.findMany({ columns: { id: true } })).map((a) => a.id);
       const results: Array<{ accountId: string; count?: number; error?: string }> = [];
@@ -354,8 +372,9 @@ export const TOOLS: McpTool[] = [
     description: "start / stop / reboot / terminate a VM by id (from vm_list). stop/reboot/terminate are destructive.",
     schema: z.object({ id: z.string().min(1), action: z.enum(["start", "stop", "reboot", "terminate"]) }),
     destructive: true,
-    run: ({ id, action }) =>
-      run("mcp.vm", id as string, action as string, async () => {
+    scopeKey: ({ id }) => (typeof id === "string" ? { kind: "vm", id } : undefined),
+    run: ({ id, action }, by) =>
+      run("mcp.vm", id as string, action as string, by, async () => {
         const row = await db.query.instances.findFirst({ where: eq(instances.id, id as string) });
         if (!row) throw new Error("VM not found");
         const r = await executeInstanceAction(action as "start" | "stop" | "reboot" | "terminate", { accountId: row.accountId, region: row.region, providerInstanceId: row.providerInstanceId });
