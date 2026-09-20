@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Field, SettingsPanel, Subsection } from "@/components/ui/settings-panel";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { DISPLAY_VIEW_META, type DisplaySettings, type DisplayView } from "@/lib/display/settings-meta";
@@ -10,13 +11,15 @@ import { BG_SOURCE_META, TURZX_BG_SOURCES, type TurzxBgSource } from "@/lib/turz
 import { cn } from "@/lib/utils";
 import { saveDisplaySettingsAction } from "@/server/actions/home";
 import { ArrowDown, ArrowUp, ExternalLink, Tablet } from "lucide-react";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
 const ACCENTS = ["#f2b85a", "#7c9cff", "#34d399", "#f472b6", "#a78bfa", "#22d3ee", "#fb923c"];
 
 /** Settings for the Nest Hub kiosk (/display). Saved to the same table as Turzx, row 4. */
-export function DisplayCard({ initial, espToken }: { initial: DisplaySettings; espToken: string }) {
+export function DisplayCard({ initial, espToken, defaultOpen = false }: { initial: DisplaySettings; espToken: string; defaultOpen?: boolean }) {
+  const t = useTranslations("nestHub");
   const [s, setS] = React.useState<DisplaySettings>(initial);
   const [busy, setBusy] = React.useState(false);
   const dirty = JSON.stringify(s) !== JSON.stringify(initial);
@@ -38,135 +41,139 @@ export function DisplayCard({ initial, espToken }: { initial: DisplaySettings; e
     setBusy(true);
     const r = await saveDisplaySettingsAction(s);
     setBusy(false);
-    if (!r.ok) toast.error(r.error ?? "Failed");
-    else toast.success("Nest Hub actualizat — ecranul urmează în câteva secunde");
+    if (!r.ok) toast.error(r.error ?? t("saveFailed"));
+    else toast.success(t("saved"));
   };
 
   const on = s.views.filter((v) => v.enabled);
   const cycle = on.reduce((a, v) => a + v.dwellSec, 0);
   const url = typeof window === "undefined" ? "" : `${window.location.origin}/display?k=${espToken}`;
+  const pct = (x: number) => Math.round(x * 100);
 
   return (
-    <section className="space-y-5" aria-labelledby="display-h">
-      <header className="glass rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Tablet className="size-5 text-primary" aria-hidden />
-          <div>
-            <h3 id="display-h" className="font-semibold">Nest Hub · dormitor</h3>
-            <p className="text-xs text-muted">{on.length} panouri în idle · un ciclu {Math.round(cycle / 60)} min {cycle % 60} s · poză nouă la {s.photoSec} s</p>
-          </div>
-        </div>
+    <SettingsPanel
+      id="nest-hub"
+      icon={<Tablet aria-hidden />}
+      title={t("title")}
+      summary={t("summary", { count: on.length, min: Math.floor(cycle / 60), sec: cycle % 60, sec2: s.photoSec })}
+      defaultOpen={defaultOpen}
+      action={
         <div className="flex items-center gap-2">
           {url ? (
             <Button size="sm" variant="ghost" asChild>
-              <a href={url} target="_blank" rel="noreferrer"><ExternalLink className="size-4" aria-hidden /> Deschide /display</a>
+              <a href={url} target="_blank" rel="noreferrer" aria-label={t("openAria")}><ExternalLink className="size-4" aria-hidden /> <span className="hidden sm:inline">{t("open")}</span></a>
             </Button>
           ) : null}
-          <Button size="sm" onClick={save} disabled={!dirty || busy}>{busy ? "Se salvează…" : "Salvează"}</Button>
+          <Button size="sm" onClick={save} disabled={!dirty || busy}>{busy ? t("saving") : t("save")}</Button>
         </div>
-      </header>
-
-      <div className="glass rounded-2xl p-4 sm:p-5 space-y-3">
-        <p className="text-xs text-muted">Panouri idle — ordinea, durata și dacă au fotografie în spate. Muzica apare automat când cântă ceva.</p>
-        <ul className="space-y-2">
-          {s.views.map((v, i) => {
-            const meta = DISPLAY_VIEW_META[v.id];
-            return (
-              <li key={v.id} className={cn("rounded-xl border px-3 py-2 flex flex-wrap items-center gap-3 transition", v.enabled ? "border-primary/40 bg-primary/5" : "border-border opacity-70")}>
-                <Switch checked={v.enabled} onCheckedChange={(en) => setView(v.id, { enabled: en })} aria-label={`${meta.label} activ`} />
-                <div className="flex-1 min-w-40">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{meta.label}</span>
-                    <Badge variant="muted">{v.dwellSec}s</Badge>
-                  </div>
-                  <p className="text-xs text-muted">{meta.description}</p>
-                </div>
-                <label className="flex items-center gap-2 text-xs text-muted">
-                  <Switch checked={v.photo} onCheckedChange={(ph) => setView(v.id, { photo: ph })} aria-label={`${meta.label} cu fotografie`} />
-                  foto
-                </label>
-                <div className="w-36">
-                  <Slider value={v.dwellSec} min={5} max={180} step={5} onChange={(n) => setView(v.id, { dwellSec: n })} aria-label={`Durată ${meta.label}`} />
-                </div>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" aria-label="Mută sus" onClick={() => move(v.id, -1)} disabled={i === 0}><ArrowUp className="size-4" /></Button>
-                  <Button size="icon" variant="ghost" aria-label="Mută jos" onClick={() => move(v.id, 1)} disabled={i === s.views.length - 1}><ArrowDown className="size-4" /></Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="glass rounded-2xl p-4 sm:p-5 space-y-4">
-          <p className="text-xs text-muted">Fotografii</p>
-          <div className="flex flex-wrap gap-2">
-            {TURZX_BG_SOURCES.map((src) => {
-              const active = s.photoSources.includes(src);
+      }
+    >
+      <div className="space-y-5">
+        <Subsection title={t("views.title")} hint={t("views.hint")}>
+          <ul className="space-y-2">
+            {s.views.map((v, i) => {
+              const meta = DISPLAY_VIEW_META[v.id];
               return (
-                <button key={src} type="button" onClick={() => toggleSource(src)} aria-pressed={active} title={BG_SOURCE_META[src].description}
-                  className={cn("rounded-full border px-3 py-1 text-xs transition", active ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted")}>
-                  {BG_SOURCE_META[src].label}
-                </button>
+                <li key={v.id} className={cn("grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 transition", v.enabled ? "border-primary/40 bg-primary/5" : "border-border opacity-70")}>
+                  <Switch checked={v.enabled} onCheckedChange={(en) => setView(v.id, { enabled: en })} aria-label={t("views.enabledAria", { name: meta.label })} />
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate text-sm font-medium leading-tight">{meta.label}</span>
+                      <Badge variant="muted" className="shrink-0">{t("views.seconds", { n: v.dwellSec })}</Badge>
+                    </div>
+                    <p className="truncate text-xs leading-snug text-muted">{meta.description}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-0.5">
+                    <Button size="icon" variant="ghost" aria-label={t("views.moveUp")} onClick={() => move(v.id, -1)} disabled={i === 0}><ArrowUp className="size-4" /></Button>
+                    <Button size="icon" variant="ghost" aria-label={t("views.moveDown")} onClick={() => move(v.id, 1)} disabled={i === s.views.length - 1}><ArrowDown className="size-4" /></Button>
+                  </div>
+                  <div className="col-span-2 col-start-2 flex min-w-0 items-center gap-3">
+                    <label className="flex shrink-0 items-center gap-2 text-xs text-muted">
+                      <Switch checked={v.photo} onCheckedChange={(ph) => setView(v.id, { photo: ph })} aria-label={t("views.photoAria", { name: meta.label })} />
+                      {t("views.photo")}
+                    </label>
+                    <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted">
+                      <span className="shrink-0">{t("views.dwell")}</span>
+                      <Slider value={v.dwellSec} min={5} max={180} step={5} onChange={(n) => setView(v.id, { dwellSec: n })} aria-label={t("views.dwellAria", { name: meta.label })} className="min-w-0 flex-1" />
+                    </label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={5}
+                      max={180}
+                      step={5}
+                      value={v.dwellSec}
+                      onChange={(e) => setView(v.id, { dwellSec: Math.min(180, Math.max(5, Number(e.target.value) || 5)) })}
+                      aria-label={t("views.dwellAria", { name: meta.label })}
+                      className="w-20 shrink-0 tabular-nums"
+                    />
+                  </div>
+                </li>
               );
             })}
+          </ul>
+        </Subsection>
+
+        <Subsection title={t("photos.title")} collapsible defaultOpen={false}>
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted">{t("photos.sources")}</p>
+            <div className="flex flex-wrap gap-2">
+              {TURZX_BG_SOURCES.map((src) => {
+                const active = s.photoSources.includes(src);
+                return (
+                  <button key={src} type="button" onClick={() => toggleSource(src)} aria-pressed={active} title={BG_SOURCE_META[src].description}
+                    className={cn("rounded-full border px-3 py-1 text-xs transition", active ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted")}>
+                    {BG_SOURCE_META[src].label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <Field label={`Schimbă poza la · ${s.photoSec} s`}>
-            <Slider value={s.photoSec} min={10} max={300} step={5} onChange={(n) => setS((p) => ({ ...p, photoSec: n }))} />
-          </Field>
-          <Field label={`Întunecare peste poză · ${Math.round(s.dim * 100)}%`}>
-            <Slider value={s.dim} min={0} max={0.9} step={0.05} onChange={(n) => setS((p) => ({ ...p, dim: n }))} />
-          </Field>
-          <Field label="Accent">
+          <div className="grid items-start gap-3 sm:grid-cols-2">
+            <Field label={t("photos.interval", { sec: s.photoSec })}>
+              <Slider value={s.photoSec} min={10} max={300} step={5} onChange={(n) => setS((p) => ({ ...p, photoSec: n }))} />
+            </Field>
+            <Field label={t("photos.dim", { pct: pct(s.dim) })}>
+              <Slider value={s.dim} min={0} max={0.9} step={0.05} onChange={(n) => setS((p) => ({ ...p, dim: n }))} />
+            </Field>
+          </div>
+          <Field label={t("photos.accent")}>
             <div className="flex flex-wrap items-center gap-2">
               {ACCENTS.map((c) => (
-                <button key={c} type="button" aria-label={`Accent ${c}`} aria-pressed={s.accent === c} onClick={() => setS((p) => ({ ...p, accent: c }))}
-                  className={cn("size-7 rounded-full border-2 transition", s.accent === c ? "border-foreground scale-110" : "border-transparent")} style={{ background: c }} />
+                <button key={c} type="button" aria-label={t("photos.accentSwatch", { color: c })} aria-pressed={s.accent === c} onClick={() => setS((p) => ({ ...p, accent: c }))}
+                  className={cn("size-7 shrink-0 rounded-full border-2 transition", s.accent === c ? "scale-110 border-foreground" : "border-transparent")} style={{ background: c }} />
               ))}
-              <Input type="color" value={s.accent} onChange={(e) => setS((p) => ({ ...p, accent: e.target.value }))} className="h-8 w-12 p-1" aria-label="Accent personalizat" />
+              <Input type="color" value={s.accent} onChange={(e) => setS((p) => ({ ...p, accent: e.target.value }))} className="h-8 w-12 shrink-0 p-1" aria-label={t("photos.accentCustom")} />
             </div>
           </Field>
-        </div>
+        </Subsection>
 
-        <div className="glass rounded-2xl p-4 sm:p-5 space-y-4">
-          <p className="text-xs text-muted">Comportament</p>
-          <Field label={`Înapoi în idle după · ${s.idleAfterSec} s fără atingere`}>
+        <Subsection title={t("behavior.title")} collapsible defaultOpen={false}>
+          <Field label={t("behavior.idleAfter", { sec: s.idleAfterSec })}>
             <Slider value={s.idleAfterSec} min={10} max={300} step={5} onChange={(n) => setS((p) => ({ ...p, idleAfterSec: n }))} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Noapte de la">
+          <div className="grid items-start gap-3 sm:grid-cols-2">
+            <Field label={t("behavior.nightFrom")}>
               <Input type="time" value={s.nightFrom} onChange={(e) => setS((p) => ({ ...p, nightFrom: e.target.value }))} />
             </Field>
-            <Field label="până la">
+            <Field label={t("behavior.nightTo")}>
               <Input type="time" value={s.nightTo} onChange={(e) => setS((p) => ({ ...p, nightTo: e.target.value }))} />
             </Field>
+            <Field label={t("behavior.nightDim", { pct: pct(s.nightDim) })}>
+              <Slider value={s.nightDim} min={0.05} max={1} step={0.05} onChange={(n) => setS((p) => ({ ...p, nightDim: n }))} />
+            </Field>
+            <Field label={t("behavior.castDevice")}>
+              <Input value={s.cast.device} onChange={(e) => setS((p) => ({ ...p, cast: { ...p.cast, device: e.target.value } }))} />
+            </Field>
           </div>
-          <Field label={`Luminozitate noaptea · ${Math.round(s.nightDim * 100)}%`}>
-            <Slider value={s.nightDim} min={0.05} max={1} step={0.05} onChange={(n) => setS((p) => ({ ...p, nightDim: n }))} />
-          </Field>
-          <Field label="Dispozitiv Cast">
-            <Input value={s.cast.device} onChange={(e) => setS((p) => ({ ...p, cast: { ...p.cast, device: e.target.value } }))} />
-          </Field>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span>Re-trimite pagina când Hub-ul o pierde <span className="text-xs text-muted">(hub-cast pe Pi)</span></span>
+          <Field inline label={t("behavior.keepAlive")} hint={t("behavior.keepAliveHint")}>
             <Switch checked={s.cast.keepAlive} onCheckedChange={(on) => setS((p) => ({ ...p, cast: { ...p.cast, keepAlive: on } }))} />
-          </label>
-          <label className="flex items-center justify-between gap-3 text-sm">
-            <span>Nu întrerupe YouTube / Spotify pe Hub</span>
+          </Field>
+          <Field inline label={t("behavior.respectPlayback")}>
             <Switch checked={s.cast.respectPlayback} onCheckedChange={(on) => setS((p) => ({ ...p, cast: { ...p.cast, respectPlayback: on } }))} />
-          </label>
-        </div>
+          </Field>
+        </Subsection>
       </div>
-    </section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-2">
-      <span className="text-xs text-muted">{label}</span>
-      {children}
-    </label>
+    </SettingsPanel>
   );
 }

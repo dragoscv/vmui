@@ -1,3 +1,5 @@
+"use client";
+
 import type { DeviceKind } from "@/lib/home/catalog";
 import {
     Bluetooth,
@@ -13,6 +15,7 @@ import {
     Tv,
     type LucideIcon,
 } from "lucide-react";
+  import { useTranslations } from "next-intl";
 
 export const KIND_ICON: Record<DeviceKind, LucideIcon> = {
   light: Lightbulb,
@@ -29,17 +32,7 @@ export const KIND_ICON: Record<DeviceKind, LucideIcon> = {
   proxy: Bluetooth,
 };
 
-export const KIND_LABEL: Record<DeviceKind, string> = {
-  light: "Light",
-  strip: "LED strip",
-  projector: "Projector",
-  ac: "Air conditioner",
-  tv: "TV",
-  display: "Smart display",
-  monitor: "Monitor",
-  sensor: "Sensor",
-  presence: "Presence",
-  door: "Door",
-  pc: "Computer",
-  proxy: "Bluetooth proxy",
-};
+export function useKindLabel(): (k: DeviceKind) => string {
+  const t = useTranslations("homeCards.kinds");
+  return (k) => t(k);
+}

@@ -3,30 +3,38 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Field, Subsection } from "@/components/ui/settings-panel";
 import { Switch } from "@/components/ui/switch";
 import { ACTIVITY, GOALS, MEAL_TYPES, type MealType, type NutritionProfile } from "@/lib/nutrition/schema";
 import type { NutritionSummary } from "@/lib/nutrition/summary";
 import { cn } from "@/lib/utils";
 import { addMealAction, addWaterAction, deleteMealAction, saveNutritionProfileAction, undoWaterAction } from "@/server/actions/nutrition";
 import { Droplets, Flame, Plus, Salad, Scale, Trash2, Undo2, UtensilsCrossed } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
-const MEAL_LABEL: Record<MealType, string> = { breakfast: "Mic dejun", lunch: "Prânz", dinner: "Cină", snack: "Gustare" };
-const GOAL_LABEL: Record<(typeof GOALS)[number], string> = { maintain: "Menținere", lose: "Slăbire", gain: "Masă" };
-const ACTIVITY_LABEL: Record<(typeof ACTIVITY)[number], string> = { sedentary: "Sedentar", light: "Ușor", moderate: "Moderat", active: "Activ", very_active: "Foarte activ" };
+const SELECT_CLASS = "block h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-transparent px-2 text-sm text-[var(--color-fg)]";
+const TRACK_CLASS = "overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--color-fg)_10%,transparent)]";
+const GLASS_ML = 250;
+const SIP_ML = 100;
 
-const fmtTime = (ms: number) => new Intl.DateTimeFormat("ro-RO", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Bucharest" }).format(new Date(ms));
-const fmtDay = (day: string) => new Intl.DateTimeFormat("ro-RO", { weekday: "short", timeZone: "Europe/Bucharest" }).format(new Date(day + "T12:00:00"));
+const liters = (ml: number) => (ml / 1000).toFixed(2).replace(/\.?0+$/, "");
 
 /** Meal journal + targets. Same data the phone assistant writes via
  *  POST /api/nutrition/meal; this is the desk view and the manual fallback. */
 export function NutritionCard({ initial, profile }: { initial: NutritionSummary; profile: NutritionProfile }) {
+  const t = useTranslations("nutrition");
+  const fmt = useFormatter();
   const s = initial;
   const [busy, setBusy] = React.useState<string | null>(null);
   const [form, setForm] = React.useState({ name: "", mealType: "snack" as MealType, calories: "", protein: "", carbs: "", fats: "" });
   const [p, setP] = React.useState<NutritionProfile>(profile);
   const dirty = JSON.stringify(p) !== JSON.stringify(profile);
+
+  const fmtTime = (ms: number) => fmt.dateTime(new Date(ms), { hour: "2-digit", minute: "2-digit" });
+  const fmtDay = (day: string) => fmt.dateTime(new Date(day + "T12:00:00"), { weekday: "short" });
+  const mealLabel = (type: string) => (MEAL_TYPES.includes(type as MealType) ? t(`mealType.${type as MealType}`) : type);
 
   const pct = s.targets.calories > 0 ? Math.min(1.2, s.today.calories / s.targets.calories) : 0;
   const over = s.today.calories > s.targets.calories;
@@ -47,7 +55,7 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
     setBusy(null);
     if (!r.ok) toast.error(r.error);
     else {
-      toast.success(`${form.name.trim()} · ${form.calories} kcal`);
+      toast.success(t("toast.mealAdded", { name: form.name.trim(), kcal: form.calories }));
       setForm({ name: "", mealType: form.mealType, calories: "", protein: "", carbs: "", fats: "" });
     }
   };
@@ -56,228 +64,263 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
     const r = await deleteMealAction(id);
     setBusy(null);
     if (!r.ok) toast.error(r.error);
-    else toast.success(`Șters: ${name}`);
+    else toast.success(t("toast.mealDeleted", { name }));
   };
-  const water = async (kind: "add" | "undo") => {
+  const water = async (ml: number | "undo") => {
     setBusy("water");
-    const r = kind === "add" ? await addWaterAction(250) : await undoWaterAction();
+    const r = ml === "undo" ? await undoWaterAction() : await addWaterAction(ml);
     setBusy(null);
     if (!r.ok) toast.error(r.error);
-    else toast.success(kind === "add" ? "+250 ml apă" : "Ultimul pahar anulat");
+    else toast.success(ml === "undo" ? t("toast.waterUndone") : t("toast.waterAdded", { ml }));
   };
   const saveProfile = async () => {
     setBusy("profile");
     const r = await saveNutritionProfileAction(p);
     setBusy(null);
     if (!r.ok) toast.error(r.error);
-    else toast.success("Profil salvat — țintele se recalculează");
+    else toast.success(t("toast.profileSaved"));
   };
 
+  const tiles: Array<{ key: string; value: string; label: string; hint?: string; tone?: string }> = [
+    { key: "kcal", value: fmt.number(Math.round(s.today.calories)), label: t("tiles.kcalToday"), hint: t("tiles.kcalOfTarget", { kcal: fmt.number(s.targets.calories) }) },
+    {
+      key: "remaining",
+      value: fmt.number(Math.round(Math.abs(s.remaining.calories))),
+      label: over ? t("tiles.over") : t("tiles.remaining"),
+      tone: over ? "text-[var(--color-warning)]" : "text-[var(--color-success)]",
+    },
+    { key: "water", value: t("water.liters", { l: liters(s.water.ml) }), label: t("tiles.water"), hint: t("tiles.waterOfTarget", { l: liters(s.water.targetMl) }) },
+    s.balance !== null
+      ? { key: "balance", value: `${s.balance > 0 ? "+" : ""}${fmt.number(Math.round(s.balance))}`, label: t("tiles.balance"), hint: t("tiles.balanceHint") }
+      : { key: "weight", value: t("weight", { kg: s.targets.weightKg.toFixed(1) }), label: t("tiles.weight"), hint: t("tiles.weightHint", { source: t(`weightSource.${s.targets.weightSource === "scale" ? "scale" : "profile"}`) }) },
+  ];
+
+  const macros = [
+    { key: "protein", label: t("macros.protein"), v: s.today.protein, target: s.targets.protein },
+    { key: "carbs", label: t("macros.carbs"), v: s.today.carbs, target: s.targets.carbs },
+    { key: "fats", label: t("macros.fats"), v: s.today.fats, target: s.targets.fats },
+  ];
+
+  const numericFields = [
+    { key: "calories", label: t("addMeal.kcal"), required: true },
+    { key: "protein", label: t("addMeal.proteinG"), required: false },
+    { key: "carbs", label: t("addMeal.carbsG"), required: false },
+    { key: "fats", label: t("addMeal.fatsG"), required: false },
+  ] as const;
+
   return (
-    <section className="space-y-5" aria-labelledby="nutrition-h">
-      <header className="glass rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Salad className="size-5 text-primary" aria-hidden />
-          <div>
-            <h3 id="nutrition-h" className="font-semibold">Jurnal alimentar</h3>
-            <p className="text-xs text-muted">Mesele intră de pe telefon (codai, din poză) sau de aici; țintele urmăresc cântarul și profilul</p>
+    <section className="space-y-4" aria-labelledby="nutrition-h">
+      <header className="surface flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--color-bg-muted)] text-[var(--color-primary)]"><Salad className="size-4.5" aria-hidden /></span>
+          <div className="min-w-0">
+            <h3 id="nutrition-h" className="text-sm font-semibold">{t("title")}</h3>
+            <p className="text-xs leading-snug text-muted">{t("subtitle")}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted">
           <Scale className="size-3.5" aria-hidden />
-          <span>
-            {s.targets.weightKg.toFixed(1)} kg <span className="opacity-70">({s.targets.weightSource === "scale" ? "cântar" : "profil"})</span>
+          <span className="tabular-nums">
+            {t("weight", { kg: s.targets.weightKg.toFixed(1) })} <span className="opacity-70">({t(`weightSource.${s.targets.weightSource === "scale" ? "scale" : "profile"}`)})</span>
           </span>
-          <Badge variant={s.streak >= 3 ? "success" : "muted"}>{s.streak} zile la rând</Badge>
+          <Badge variant={s.streak >= 3 ? "success" : "muted"}>{t("streak", { n: s.streak })}</Badge>
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        {/* Today */}
-        <div className="glass rounded-2xl p-4 sm:p-5 space-y-4">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted">Azi</p>
-              <p className="text-3xl font-semibold tabular-nums">
-                {Math.round(s.today.calories)} <span className="text-base font-normal text-muted">/ {s.targets.calories} kcal</span>
-              </p>
-            </div>
-            <div className="text-right text-sm">
-              <p className={cn("tabular-nums font-medium", over ? "text-[var(--color-warning)]" : "text-[var(--color-success)]")}>
-                {over ? `+${Math.round(-s.remaining.calories)}` : Math.round(s.remaining.calories)} kcal {over ? "peste" : "rămase"}
-              </p>
-              {s.balance !== null && (
-                <p className="text-xs text-muted tabular-nums">
-                  balanță {s.balance > 0 ? "+" : ""}{Math.round(s.balance)} kcal
-                </p>
-              )}
-            </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <div className="surface min-w-0 space-y-4 p-4 sm:p-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {tiles.map((tile) => (
+              <div key={tile.key} className="min-w-0 rounded-xl border border-[var(--color-border)] p-3">
+                <p className={cn("truncate text-lg font-semibold tabular-nums", tile.tone)}>{tile.value}</p>
+                <p className="text-xs text-muted">{tile.label}</p>
+                {tile.hint && <p className="truncate text-xs text-muted tabular-nums">{tile.hint}</p>}
+              </div>
+            ))}
           </div>
-          <div className="h-2 rounded-full bg-[color-mix(in_oklch,var(--color-fg)_10%,transparent)] overflow-hidden" role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={120} aria-label="Calorii azi față de țintă">
+          <div className={cn("h-2", TRACK_CLASS)} role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={120} aria-label={t("today.progressAria")}>
             <div className={cn("h-full rounded-full transition-[width]", over ? "bg-[var(--color-warning)]" : "bg-primary")} style={{ width: `${Math.min(100, pct * 100)}%` }} />
           </div>
-          <dl className="grid grid-cols-3 gap-3 text-sm">
-            {(
-              [
-                ["Proteine", s.today.protein, s.targets.protein],
-                ["Carbo", s.today.carbs, s.targets.carbs],
-                ["Grăsimi", s.today.fats, s.targets.fats],
-              ] as const
-            ).map(([label, v, t]) => (
-              <div key={label} className="rounded-xl border border-[var(--color-border)] p-2.5">
-                <dt className="text-xs text-muted">{label}</dt>
-                <dd className="tabular-nums font-medium">
-                  {Math.round(v)} <span className="text-xs font-normal text-muted">/ {t} g</span>
+
+          <dl className="grid grid-cols-3 gap-3 text-sm" aria-label={t("macros.title")}>
+            {macros.map((m) => (
+              <div key={m.key} className="min-w-0 rounded-xl border border-[var(--color-border)] p-3">
+                <dt className="truncate text-xs text-muted">{m.label}</dt>
+                <dd className="font-medium tabular-nums">
+                  {fmt.number(Math.round(m.v))} <span className="text-xs font-normal text-muted">{t("macros.ofTarget", { g: fmt.number(m.target) })}</span>
                 </dd>
-                <div className="mt-1 h-1 rounded-full bg-[color-mix(in_oklch,var(--color-fg)_10%,transparent)] overflow-hidden">
-                  <div className="h-full bg-primary/80" style={{ width: `${Math.min(100, t > 0 ? (v / t) * 100 : 0)}%` }} />
+                <div className={cn("mt-1 h-1", TRACK_CLASS)}>
+                  <div className="h-full bg-primary/80" style={{ width: `${Math.min(100, m.target > 0 ? (m.v / m.target) * 100 : 0)}%` }} />
                 </div>
               </div>
             ))}
           </dl>
 
-          <div className="rounded-xl border border-[var(--color-border)] p-3 flex flex-wrap items-center gap-3">
-            <Droplets className={cn("size-4 shrink-0", s.water.underPace ? "text-[var(--color-warning)]" : "text-primary")} aria-hidden />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2 text-sm">
-                <span className="tabular-nums font-medium">
-                  {(s.water.ml / 1000).toFixed(2).replace(/\.?0+$/, "")} L <span className="text-xs font-normal text-muted">/ {(s.water.targetMl / 1000).toFixed(2).replace(/\.?0+$/, "")} L · {s.water.glasses} pahare</span>
-                </span>
-                <span className="text-xs text-muted">
-                  {s.water.lastAt ? `ultimul ${fmtTime(s.water.lastAt)}` : "nimic azi"}
-                  {s.water.underPace && <span className="ml-2 text-[var(--color-warning)]">e timpul să bei</span>}
-                </span>
-              </div>
-              <div className="mt-1.5 h-1.5 rounded-full bg-[color-mix(in_oklch,var(--color-fg)_10%,transparent)] overflow-hidden" role="progressbar" aria-valuenow={s.water.ml} aria-valuemin={0} aria-valuemax={s.water.targetMl} aria-label="Apă azi">
-                <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, s.water.targetMl > 0 ? (s.water.ml / s.water.targetMl) * 100 : 0)}%` }} />
-              </div>
+          <div className="space-y-3 rounded-xl border border-[var(--color-border)] p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <Droplets className={cn("size-4 shrink-0", s.water.underPace ? "text-[var(--color-warning)]" : "text-primary")} aria-hidden />
+                <span className="font-medium tabular-nums">{t("water.liters", { l: liters(s.water.ml) })}</span>
+                <span className="text-xs text-muted tabular-nums">{t("water.glasses", { n: s.water.glasses })}</span>
+              </span>
+              <span className="text-xs text-muted tabular-nums">
+                {s.water.lastAt ? t("water.last", { time: fmtTime(s.water.lastAt) }) : t("water.none")}
+                {s.water.underPace && <span className="ml-2 text-[var(--color-warning)]">{t("water.underPace")}</span>}
+              </span>
             </div>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" disabled={busy === "water"} onClick={() => water("add")} aria-label="Adaugă un pahar de 250 ml">
-                <Plus className="size-3.5" aria-hidden /> pahar
+            <div className={cn("h-1.5", TRACK_CLASS)} role="progressbar" aria-valuenow={s.water.ml} aria-valuemin={0} aria-valuemax={s.water.targetMl} aria-label={t("water.progressAria")}>
+              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, s.water.targetMl > 0 ? (s.water.ml / s.water.targetMl) * 100 : 0)}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" disabled={busy === "water"} onClick={() => water(GLASS_ML)} aria-label={t("water.addAria", { ml: GLASS_ML })}>
+                <Plus className="size-3.5" aria-hidden /> {t("water.add", { ml: GLASS_ML })}
               </Button>
-              <Button size="sm" variant="ghost" disabled={busy === "water" || s.water.glasses === 0} onClick={() => water("undo")} aria-label="Anulează ultimul pahar">
-                <Undo2 className="size-3.5" aria-hidden />
+              <Button size="sm" variant="outline" disabled={busy === "water"} onClick={() => water(SIP_ML)} aria-label={t("water.addAria", { ml: SIP_ML })}>
+                <Plus className="size-3.5" aria-hidden /> {t("water.add", { ml: SIP_ML })}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busy === "water" || s.water.glasses === 0} onClick={() => water("undo")} aria-label={t("water.undoAria")}>
+                <Undo2 className="size-3.5" aria-hidden /> {t("water.undo")}
               </Button>
             </div>
           </div>
 
-          <ul className="divide-y divide-[var(--color-border)]" aria-label="Mesele de azi">
-            {s.meals.length === 0 && <li className="py-3 text-sm text-muted">Nimic înregistrat azi. Trimite-i lui codai o poză cu farfuria sau adaugă manual.</li>}
-            {s.meals.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 py-2 text-sm">
-                <span className="w-12 shrink-0 tabular-nums text-xs text-muted">{fmtTime(m.at)}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {m.name}
-                  <span className="ml-2 text-xs text-muted">{MEAL_LABEL[m.mealType as MealType] ?? m.mealType}</span>
-                  {m.confidence < 0.5 && <span className="ml-2 text-xs text-[var(--color-warning)]">aprox.</span>}
-                  {m.source !== "web" && <span className="ml-2 text-xs text-muted">· {m.source}</span>}
-                </span>
-                <span className="tabular-nums font-medium">{Math.round(m.calories)} kcal</span>
-                <span className="hidden sm:inline tabular-nums text-xs text-muted w-24 text-right">{Math.round(m.protein)}p {Math.round(m.carbs)}c {Math.round(m.fats)}g</span>
-                <Button variant="ghost" size="icon" aria-label={`Șterge ${m.name}`} disabled={busy === m.id} onClick={() => remove(m.id, m.name)}>
-                  <Trash2 className="size-3.5" aria-hidden />
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">{t("meals.title")}</p>
+            <ul className="divide-y divide-[var(--color-border)]" aria-label={t("meals.listAria")}>
+              {s.meals.length === 0 && <li className="py-3 text-sm text-muted">{t("meals.empty")}</li>}
+              {s.meals.map((m) => (
+                <li key={m.id} className="flex items-center gap-3 py-2 text-sm">
+                  <span className="w-12 shrink-0 text-xs text-muted tabular-nums">{fmtTime(m.at)}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {m.name}
+                    <span className="ml-2 text-xs text-muted">{mealLabel(m.mealType)}</span>
+                    {m.confidence < 0.5 && <span className="ml-2 text-xs text-[var(--color-warning)]">{t("meals.approx")}</span>}
+                    {m.source !== "web" && <span className="ml-2 text-xs text-muted">· {m.source}</span>}
+                  </span>
+                  <span className="shrink-0 font-medium tabular-nums">{t("meals.kcal", { kcal: fmt.number(Math.round(m.calories)) })}</span>
+                  <span className="hidden w-24 shrink-0 text-right text-xs text-muted tabular-nums sm:inline">{t("meals.macrosShort", { p: Math.round(m.protein), c: Math.round(m.carbs), f: Math.round(m.fats) })}</span>
+                  <Button variant="ghost" size="icon" aria-label={t("meals.deleteAria", { name: m.name })} disabled={busy === m.id} onClick={() => remove(m.id, m.name)}>
+                    <Trash2 className="size-3.5" aria-hidden />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-          <form onSubmit={add} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_5rem_4rem_4rem_4rem_auto] sm:items-end" aria-label="Adaugă masă">
-            <label className="col-span-2 sm:col-span-1 text-xs text-muted">
-              Ce ai mâncat
-              <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Omletă cu legume" />
-            </label>
-            <label className="text-xs text-muted">
-              Tip
-              <select className="mt-1 block h-9 w-full rounded-md border border-[var(--color-border)] bg-transparent px-2 text-sm" value={form.mealType} onChange={(e) => setForm({ ...form, mealType: e.target.value as MealType })}>
-                {MEAL_TYPES.map((t) => (
-                  <option key={t} value={t}>{MEAL_LABEL[t]}</option>
+          <Subsection title={t("addMeal.title")} hint={t("addMeal.hint")}>
+            <form onSubmit={add} className="space-y-3" aria-label={t("addMeal.formAria")}>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                <Field label={t("addMeal.name")}>
+                  <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t("addMeal.namePlaceholder")} />
+                </Field>
+                <Field label={t("addMeal.type")}>
+                  <select className={SELECT_CLASS} value={form.mealType} onChange={(e) => setForm({ ...form, mealType: e.target.value as MealType })}>
+                    {MEAL_TYPES.map((type) => (
+                      <option key={type} value={type}>{t(`mealType.${type}`)}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {numericFields.map((f) => (
+                  <Field key={f.key} label={f.label}>
+                    <Input type="number" inputMode="numeric" min={0} required={f.required} value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className="min-w-0 px-2" />
+                  </Field>
                 ))}
-              </select>
-            </label>
-            {(["calories", "protein", "carbs", "fats"] as const).map((k) => (
-              <label key={k} className="text-xs text-muted">
-                {k === "calories" ? "kcal" : k === "protein" ? "P g" : k === "carbs" ? "C g" : "G g"}
-                <Input type="number" inputMode="decimal" min={0} required={k === "calories"} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-              </label>
-            ))}
-            <Button type="submit" disabled={busy === "add"} className="col-span-2 sm:col-span-1">
-              <Plus className="size-4" aria-hidden /> Adaugă
-            </Button>
-          </form>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={busy === "add"}>
+                  <Plus className="size-4" aria-hidden /> {t("addMeal.submit")}
+                </Button>
+              </div>
+            </form>
+          </Subsection>
         </div>
 
-        {/* Week + profile */}
-        <div className="space-y-4">
-          <div className="glass rounded-2xl p-4 sm:p-5">
-            <p className="text-xs uppercase tracking-wide text-muted mb-3">Ultimele 7 zile</p>
-            <div className="flex items-end gap-1.5 h-24" role="img" aria-label={`Calorii pe zi: ${s.week.map((d) => `${fmtDay(d.day)} ${Math.round(d.calories)}`).join(", ")}`}>
+        <div className="min-w-0 space-y-4">
+          <div className="surface p-4 sm:p-5">
+            <p className="mb-3 text-sm font-semibold">{t("week.title")}</p>
+            <div className="flex h-24 items-end gap-1.5" role="img" aria-label={t("week.chartAria", { list: s.week.map((d) => `${fmtDay(d.day)} ${Math.round(d.calories)}`).join(", ") })}>
               {s.week.map((d) => {
                 const h = s.targets.calories > 0 ? Math.min(1, d.calories / (s.targets.calories * 1.2)) : 0;
                 const o = d.calories > s.targets.calories;
                 return (
-                  <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full flex-1 flex items-end">
-                      <div className={cn("w-full rounded-t", o ? "bg-[var(--color-warning)]" : d.meals ? "bg-primary" : "bg-[color-mix(in_oklch,var(--color-fg)_12%,transparent)]")} style={{ height: `${Math.max(4, h * 100)}%` }} title={`${Math.round(d.calories)} kcal · ${d.meals} mese`} />
+                  <div key={d.day} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                    <div className="flex w-full flex-1 items-end">
+                      <div className={cn("w-full rounded-t", o ? "bg-[var(--color-warning)]" : d.meals ? "bg-primary" : "bg-[color-mix(in_oklch,var(--color-fg)_12%,transparent)]")} style={{ height: `${Math.max(4, h * 100)}%` }} title={t("week.barTitle", { kcal: fmt.number(Math.round(d.calories)), n: d.meals })} />
                     </div>
-                    <span className="text-[10px] text-muted">{fmtDay(d.day)}</span>
+                    <span className="truncate text-xs text-muted">{fmtDay(d.day)}</span>
                   </div>
                 );
               })}
             </div>
             {s.coach && (
-              <p className="mt-3 text-xs text-muted border-t border-[var(--color-border)] pt-3">
-                <UtensilsCrossed className="inline size-3 mr-1" aria-hidden />
+              <p className="mt-3 border-t border-[var(--color-border)] pt-3 text-xs text-muted">
+                <UtensilsCrossed className="mr-1 inline size-3" aria-hidden />
                 {s.coach.message}
               </p>
             )}
           </div>
 
-          <div className="glass rounded-2xl p-4 sm:p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-muted">Profil și ținte</p>
-              <span className="text-xs text-muted tabular-nums">BMR {s.targets.bmr} · TDEE {s.targets.tdee}</span>
+          <div className="surface space-y-4 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <p className="text-sm font-semibold">{t("profile.title")}</p>
+              <span className="text-xs text-muted tabular-nums">{t("profile.bmrTdee", { bmr: fmt.number(s.targets.bmr), tdee: fmt.number(s.targets.tdee) })}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-muted">
-              <label>
-                Obiectiv
-                <select className="mt-1 block h-9 w-full rounded-md border border-[var(--color-border)] bg-transparent px-2 text-sm text-[var(--color-fg)]" value={p.goal} onChange={(e) => setP({ ...p, goal: e.target.value as NutritionProfile["goal"] })}>
-                  {GOALS.map((g) => (
-                    <option key={g} value={g}>{GOAL_LABEL[g]}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Activitate
-                <select className="mt-1 block h-9 w-full rounded-md border border-[var(--color-border)] bg-transparent px-2 text-sm text-[var(--color-fg)]" value={p.activity} onChange={(e) => setP({ ...p, activity: e.target.value as NutritionProfile["activity"] })}>
-                  {ACTIVITY.map((a) => (
-                    <option key={a} value={a}>{ACTIVITY_LABEL[a]}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Înălțime (cm)
-                <Input type="number" min={100} max={230} value={p.heightCm} onChange={(e) => setP({ ...p, heightCm: Number(e.target.value) })} />
-              </label>
-              <label>
-                Data nașterii
-                <Input type="date" value={p.birthDate} onChange={(e) => setP({ ...p, birthDate: e.target.value })} />
-              </label>
-              <label>
-                Greutate fallback (kg)
-                <Input type="number" min={30} max={300} step={0.1} value={p.weightKgFallback} onChange={(e) => setP({ ...p, weightKgFallback: Number(e.target.value) })} />
-              </label>
-              <label>
-                Țintă manuală (kcal, gol = calculată)
-                <Input type="number" min={800} max={6000} value={p.targetCaloriesOverride ?? ""} onChange={(e) => setP({ ...p, targetCaloriesOverride: e.target.value ? Number(e.target.value) : null })} />
-              </label>
-            </div>
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <Switch checked={p.coachEnabled} onCheckedChange={(v) => setP({ ...p, coachEnabled: v })} aria-label="Antrenor pe telefon" />
-                <Flame className="size-3.5" aria-hidden /> Antrenor pe telefon ({p.coachFrom}–{p.coachTo})
-              </label>
-              <Button size="sm" disabled={!dirty || busy === "profile"} onClick={saveProfile}>Salvează</Button>
+
+            <Subsection title={t("profile.targets.title")} hint={t("profile.targets.hint")}>
+              <div className="grid grid-cols-2 items-start gap-3">
+                <Field label={t("profile.goal")}>
+                  <select className={SELECT_CLASS} value={p.goal} onChange={(e) => setP({ ...p, goal: e.target.value as NutritionProfile["goal"] })}>
+                    {GOALS.map((g) => (
+                      <option key={g} value={g}>{t(`goal.${g}`)}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={t("profile.activity")}>
+                  <select className={SELECT_CLASS} value={p.activity} onChange={(e) => setP({ ...p, activity: e.target.value as NutritionProfile["activity"] })}>
+                    {ACTIVITY.map((a) => (
+                      <option key={a} value={a}>{t(`activity.${a}`)}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={t("profile.targetOverride")} hint={t("profile.targetOverrideHint")} className="col-span-2">
+                  <Input type="number" inputMode="numeric" min={800} max={6000} value={p.targetCaloriesOverride ?? ""} onChange={(e) => setP({ ...p, targetCaloriesOverride: e.target.value ? Number(e.target.value) : null })} />
+                </Field>
+              </div>
+            </Subsection>
+
+            <Subsection title={t("profile.body.title")} hint={t("profile.body.hint")}>
+              <div className="grid grid-cols-2 items-start gap-3">
+                <Field label={t("profile.heightCm")}>
+                  <Input type="number" inputMode="numeric" min={100} max={230} value={p.heightCm} onChange={(e) => setP({ ...p, heightCm: Number(e.target.value) })} />
+                </Field>
+                <Field label={t("profile.birthDate")}>
+                  <Input type="date" value={p.birthDate} onChange={(e) => setP({ ...p, birthDate: e.target.value })} />
+                </Field>
+                <Field label={t("profile.weightFallback")} hint={t("profile.weightFallbackHint")} className="col-span-2">
+                  <Input type="number" inputMode="decimal" min={30} max={300} step={0.1} value={p.weightKgFallback} onChange={(e) => setP({ ...p, weightKgFallback: Number(e.target.value) })} />
+                </Field>
+              </div>
+            </Subsection>
+
+            <Subsection title={t("profile.coach.title")} hint={t("profile.coach.hint")}>
+              <Field
+                inline
+                label={
+                  <span className="flex items-center gap-2">
+                    <Flame className="size-3.5 shrink-0" aria-hidden />
+                    {t("profile.coachEnabled")}
+                  </span>
+                }
+                hint={t("profile.coachWindow", { from: p.coachFrom, to: p.coachTo })}
+              >
+                <Switch checked={p.coachEnabled} onCheckedChange={(v) => setP({ ...p, coachEnabled: v })} aria-label={t("profile.coachEnabled")} />
+              </Field>
+            </Subsection>
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="sm" disabled={!dirty || busy === "profile"} onClick={saveProfile}>{t("profile.save")}</Button>
             </div>
           </div>
         </div>

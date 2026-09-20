@@ -1,93 +1,115 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Activity, AlertTriangle, Archive, BarChart3, Bell, Bot, Boxes, Clock, Cloud, Container, FileSearch, FileStack, GitBranch, Globe, Hammer, History, House, KeyRound, LineChart, Lock, Network, Package, PiggyBank, RotateCcw, Server, Settings, ShieldAlert, Ship, Sparkles, Spline, Tag, TerminalSquare, TrendingUp, Trophy, Users, Zap } from "lucide-react";
+import { ChevronDown, Cloud } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import * as React from "react";
+import { isNavActive, NAV_GROUPS, NAV_PRIMARY, NAV_SETTINGS, type NavGroup, type NavItem } from "./nav-model";
 
-const items = [
-  { href: "/", label: "Instances", icon: Server },
-  { href: "/home", label: "Home", icon: House },
-  { href: "/resources", label: "Resources", icon: Boxes },
-  { href: "/containers", label: "Containers", icon: Container },
-  { href: "/compose", label: "Compose", icon: FileStack },
-  { href: "/terminal", label: "Terminal", icon: TerminalSquare },
-  { href: "/builds", label: "Builds", icon: Hammer },
-  { href: "/gitops", label: "GitOps", icon: GitBranch },
-  { href: "/secrets", label: "Secrets", icon: Lock },
-  { href: "/monitoring", label: "Monitoring", icon: LineChart },
-  { href: "/mesh", label: "Mesh", icon: Spline },
-  { href: "/cost-optimizer", label: "Cost optimizer", icon: PiggyBank },
-  { href: "/k8s", label: "Kubernetes", icon: Ship },
-  { href: "/restore", label: "Restore", icon: RotateCcw },
-  { href: "/ai", label: "AI Agent", icon: Bot },
-  { href: "/timeline", label: "Time machine", icon: History },
-  { href: "/achievements", label: "Achievements", icon: Trophy },
-  { href: "/forecast", label: "Cost forecast", icon: TrendingUp },
-  { href: "/dr", label: "DR drill", icon: Zap },
-  { href: "/status", label: "Public status", icon: Globe },
-  { href: "/teams", label: "Teams", icon: Users },
-  { href: "/topology", label: "Topology", icon: Network },
-  { href: "/costs", label: "Costs", icon: BarChart3 },
-  { href: "/recipes", label: "Recipes", icon: Sparkles },
-  { href: "/catalog", label: "Catalog", icon: Package },
-  { href: "/schedules", label: "Schedules", icon: Clock },
-  { href: "/backups", label: "Backups", icon: Archive },
-  { href: "/alerts", label: "Alerts", icon: AlertTriangle },
-  { href: "/tags", label: "Tags", icon: Tag },
-  { href: "/compliance", label: "Compliance", icon: ShieldAlert },
-  { href: "/accounts", label: "Accounts", icon: KeyRound },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/logs", label: "Logs", icon: FileSearch },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const STORAGE_KEY = "vmui.sidebar.open";
+const DEFAULT_OPEN: Record<NavGroup["id"], boolean> = { cloud: true, ops: true, observe: true, govern: false, more: false };
+
+function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+  const t = useTranslations("shell.items");
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] font-medium text-[var(--color-fg)]"
+          : "text-muted hover:bg-[color-mix(in_oklch,var(--color-fg)_6%,transparent)] hover:text-[var(--color-fg)]",
+      )}
+    >
+      <Icon className={cn("size-4 shrink-0", active && "text-[var(--color-primary)]")} aria-hidden />
+      <span className="truncate">{t(item.id as Parameters<typeof t>[0])}</span>
+    </Link>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
-  return (
-    <aside data-vmui-sidebar className="hidden w-60 shrink-0 border-r border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-surface)_50%,transparent)] backdrop-blur-md md:flex md:flex-col">
-      <div className="flex items-center gap-2 px-5 py-5">
-        <div className="grid h-9 w-9 place-items-center rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] text-white shadow-[var(--shadow-glow)]">
-          <Cloud className="h-5 w-5" />
-        </div>
-        <div className="leading-tight">
-          <div className="text-base font-semibold">vmui</div>
-          <div className="text-[11px] text-muted">multi-cloud control</div>
-        </div>
-      </div>
+  const t = useTranslations("shell");
+  const [open, setOpen] = React.useState<Record<NavGroup["id"], boolean>>(DEFAULT_OPEN);
+  React.useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) setOpen((o) => ({ ...o, ...(JSON.parse(raw) as Partial<typeof o>) }));
+    } catch {
+      /* corrupt or blocked storage: keep defaults */
+    }
+  }, []);
+  const toggle = (id: NavGroup["id"]) =>
+    setOpen((o) => {
+      const next = { ...o, [id]: !o[id] };
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
 
-      <nav className="flex flex-col gap-0.5 px-3">
-        {items.map((it) => {
-          const active = pathname === it.href || (it.href !== "/" && pathname.startsWith(it.href));
-          const Icon = it.icon;
+  return (
+    <aside data-vmui-sidebar className="hidden h-dvh w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-surface)_50%,transparent)] backdrop-blur-md md:sticky md:top-0 md:flex">
+      <Link href="/home" className="flex items-center gap-2.5 px-5 pb-4 pt-5">
+        <div className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] text-white shadow-[var(--shadow-glow)]">
+          <Cloud className="size-5" aria-hidden />
+        </div>
+        <div className="min-w-0 leading-tight">
+          <div className="text-base font-semibold">vmui</div>
+          <div className="truncate text-xs text-muted">{t("brand.tagline")}</div>
+        </div>
+      </Link>
+
+      <nav aria-label={t("sidebar.label")} className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 [scrollbar-width:thin]">
+        <div className="flex flex-col gap-0.5">
+          {NAV_PRIMARY.map((it) => (
+            <NavLink key={it.href} item={it} active={isNavActive(pathname, it)} />
+          ))}
+        </div>
+        {NAV_GROUPS.map((g) => {
+          const hasActive = g.items.some((it) => isNavActive(pathname, it));
+          const expanded = open[g.id] || hasActive;
+          const bodyId = `nav-group-${g.id}`;
           return (
-            <Link
-              key={it.href}
-              href={it.href}
-              className={cn(
-                "group flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] text-[var(--color-fg)]"
-                  : "text-muted hover:bg-[color-mix(in_oklch,var(--color-fg)_6%,transparent)] hover:text-[var(--color-fg)]",
-              )}
-            >
-              <Icon className={cn("h-4 w-4", active && "text-[var(--color-primary)]")} />
-              {it.label}
-            </Link>
+            <div key={g.id} className="mt-3">
+              <button
+                type="button"
+                onClick={() => toggle(g.id)}
+                aria-expanded={expanded}
+                aria-controls={bodyId}
+                aria-label={t("sidebar.toggleGroup", { group: t(`groups.${g.id}`) })}
+                className="flex w-full items-center justify-between rounded-[var(--radius-md)] px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted transition-colors hover:text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+              >
+                <span className="truncate">{t(`groups.${g.id}`)}</span>
+                <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} aria-hidden />
+              </button>
+              <div id={bodyId} hidden={!expanded} className="mt-0.5 flex flex-col gap-0.5">
+                {g.items.map((it) => (
+                  <NavLink key={it.href} item={it} active={isNavActive(pathname, it)} />
+                ))}
+              </div>
+            </div>
           );
         })}
+        <div className="mt-3 border-t border-[var(--color-border)] pt-3">
+          <NavLink item={NAV_SETTINGS} active={isNavActive(pathname, NAV_SETTINGS)} />
+        </div>
       </nav>
 
-      <div className="mt-auto space-y-2 p-4 text-[11px] text-muted">
+      <div className="space-y-2 border-t border-[var(--color-border)] p-4 text-xs text-muted">
         <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-2 py-1.5">
-          <span>Command palette</span>
-          <kbd className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-[10px]">
+          <span className="truncate">{t("brand.commandPalette")}</span>
+          <kbd className="shrink-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 font-mono text-xs">
             ⌘ K
           </kbd>
         </div>
-        <div>localhost:3737</div>
-        <div>AES-256-GCM at rest</div>
+        <div className="truncate">{t("brand.encryption")}</div>
       </div>
     </aside>
   );
