@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { Bell, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  getVapidPublicKeyAction,
-  subscribePushAction,
-  unsubscribePushAction,
-  testPushAction,
-} from "@/server/actions/push";
 import { haptic } from "@/lib/haptics";
+import {
+    getVapidPublicKeyAction,
+    subscribePushAction,
+    testPushAction,
+    unsubscribePushAction,
+} from "@/server/actions/push";
+import { Bell, BellOff } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useEffect, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);

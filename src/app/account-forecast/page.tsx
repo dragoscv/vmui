@@ -1,11 +1,11 @@
-import "server-only";
 import { AccountForecastCards } from "@/components/cloud/account-forecast-cards";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
-import { snapshotHistory, cloudAccounts, accountBudgets } from "@/lib/db/schema";
+import { accountBudgets, cloudAccounts, snapshotHistory } from "@/lib/db/schema";
 import { gte } from "drizzle-orm";
 import { LineChart } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

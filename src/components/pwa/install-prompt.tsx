@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Download, X } from "lucide-react";
-import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { haptic } from "@/lib/haptics";
+import { Download, X } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];

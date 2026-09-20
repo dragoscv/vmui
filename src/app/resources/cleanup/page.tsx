@@ -1,4 +1,3 @@
-import "server-only";
 import { ResourceCleanupTable } from "@/components/resources/resource-cleanup-table";
 import { Alert, EmptyState, PageHeader, PageShell, SkeletonTable } from "@/components/ui";
 import { formatUsd } from "@/lib/utils";
@@ -7,6 +6,7 @@ import { Trash2 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Suspense } from "react";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

@@ -1,4 +1,3 @@
-import "server-only";
 import { TagDriftTable, type DriftRow } from "@/components/tags/tag-drift-table";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -6,6 +5,7 @@ import { instances, instanceTags } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { GitCompareArrows } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

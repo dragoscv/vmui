@@ -1,9 +1,9 @@
-import "server-only";
 import { ProviderStatusGrid } from "@/components/cloud/provider-status-grid";
 import { Alert, EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { getProviderStatuses } from "@/lib/provider-status";
 import { Activity } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 60;

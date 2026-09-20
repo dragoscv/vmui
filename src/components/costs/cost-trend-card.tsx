@@ -1,4 +1,3 @@
-import "server-only";
 import { PageSection } from "@/components/ui";
 import { Sparkline } from "@/components/ui/sparkline";
 import { db } from "@/lib/db";
@@ -6,6 +5,7 @@ import { snapshotHistory } from "@/lib/db/schema";
 import { cn, formatUsdPerHour } from "@/lib/utils";
 import { gte } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 /**
  * 7-day hourly-burn trend from snapshot_history, aggregated into one-hour

@@ -1,7 +1,7 @@
-import "server-only";
 import { Badge, PageSection } from "@/components/ui";
 import { findIdleAwsInstances } from "@/server/actions/idle-scan";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 import { IdleHintList } from "./idle-hint-list";
 
 export async function IdleScanSection() {

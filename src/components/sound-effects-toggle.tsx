@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { setSoundsEnabled, sfx, soundsEnabled } from "@/lib/sfx";
 import { useTranslations } from "next-intl";
-import { soundsEnabled, setSoundsEnabled, sfx } from "@/lib/sfx";
+import { useEffect, useState } from "react";
 
 export function SoundEffectsToggle() {
   const t = useTranslations("misc.sound");

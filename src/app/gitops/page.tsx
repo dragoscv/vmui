@@ -1,5 +1,5 @@
-import { listInstances } from "@/server/queries";
 import { GitopsWorkspace } from "@/components/gitops/gitops-workspace";
+import { listInstances } from "@/server/queries";
 
 export const dynamic = "force-dynamic";
 

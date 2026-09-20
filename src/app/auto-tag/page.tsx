@@ -1,4 +1,3 @@
-import "server-only";
 import { AutoTagWorkspace } from "@/components/tags/auto-tag-workspace";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -6,6 +5,7 @@ import { autoTagRules } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import { Tag } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

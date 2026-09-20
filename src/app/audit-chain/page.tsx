@@ -1,4 +1,3 @@
-import "server-only";
 import { AuditChainView } from "@/components/audit-chain/audit-chain-view";
 import { PageHeader, PageShell } from "@/components/ui";
 import { verifyAuditChain } from "@/lib/audit-chain";
@@ -7,6 +6,7 @@ import { auditChain } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import { ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

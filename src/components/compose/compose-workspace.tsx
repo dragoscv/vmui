@@ -3,17 +3,17 @@
 import { LogViewer } from "@/components/ops/log-viewer";
 import { RelativeTime } from "@/components/settings/relative-time";
 import {
-  Badge,
-  Button,
-  DataTable,
-  EmptyState,
-  Field,
-  Input,
-  PageSection,
-  Textarea,
-  ToggleGroup,
-  sortableHeader,
-  type ColumnDef,
+    Badge,
+    Button,
+    DataTable,
+    EmptyState,
+    Field,
+    Input,
+    PageSection,
+    Textarea,
+    ToggleGroup,
+    sortableHeader,
+    type ColumnDef,
 } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,9 +22,9 @@ import { useAction } from "@/hooks/use-action";
 import { err, ok, type ActionResult } from "@/lib/action-result";
 import type { ComposeRecipeRow, ComposeRecipeVersionRow } from "@/lib/db/schema";
 import {
-  applyComposeRecipeAction,
-  deleteComposeRecipeAction,
-  upsertComposeRecipeAction,
+    applyComposeRecipeAction,
+    deleteComposeRecipeAction,
+    upsertComposeRecipeAction,
 } from "@/server/actions/compose";
 import { FileStack, History, Play, Plus, Save, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";

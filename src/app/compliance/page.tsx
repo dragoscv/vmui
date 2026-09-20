@@ -1,9 +1,9 @@
-import "server-only";
 import { ComplianceWorkspace } from "@/components/compliance/compliance-workspace";
 import { PageHeader, PageShell } from "@/components/ui";
 import { scanCompliance } from "@/server/queries/compliance";
 import { ShieldAlert } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

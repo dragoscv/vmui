@@ -1,4 +1,3 @@
-import "server-only";
 import { DiffView, type DiffOp } from "@/components/ops/diff-view";
 import { Button, EmptyState, Field, PageHeader, PageSection, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -7,6 +6,7 @@ import { asc } from "drizzle-orm";
 import { ArrowRight, ChevronDown, GitCompare } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import type * as React from "react";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

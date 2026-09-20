@@ -1,5 +1,5 @@
-import { loadTopology } from "@/server/queries/topology";
 import { TopologyGraph } from "@/components/topology/topology-graph";
+import { loadTopology } from "@/server/queries/topology";
 
 export const dynamic = "force-dynamic";
 

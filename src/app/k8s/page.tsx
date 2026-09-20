@@ -1,5 +1,5 @@
-import { listInstances } from "@/server/queries";
 import { K8sWorkspace } from "@/components/k8s/k8s-workspace";
+import { listInstances } from "@/server/queries";
 
 export const dynamic = "force-dynamic";
 

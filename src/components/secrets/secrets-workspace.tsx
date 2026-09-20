@@ -7,13 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAction } from "@/hooks/use-action";
 import { ok, type ActionResult } from "@/lib/action-result";
 import {
-  createSecretAction,
-  deleteSecretAction,
-  exportSealedSecretAction,
-  listSecretsAction,
-  pushSecretToInstanceAction,
-  revealSecretAction,
-  rotateSecretAction,
+    createSecretAction,
+    deleteSecretAction,
+    exportSealedSecretAction,
+    listSecretsAction,
+    pushSecretToInstanceAction,
+    revealSecretAction,
+    rotateSecretAction,
 } from "@/server/actions/secrets";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Database, Download, Eye, KeyRound, Lock, Plus, RotateCw, Send, Sparkles, Trash2 } from "lucide-react";

@@ -1,8 +1,8 @@
-import "server-only";
 import { PageSection } from "@/components/ui";
 import { cn, formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
 import { computeCostForecast } from "@/server/queries/forecast";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export async function CostForecastCard() {
   const [t, tc, f] = await Promise.all([

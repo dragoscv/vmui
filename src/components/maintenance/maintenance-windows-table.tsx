@@ -1,8 +1,8 @@
 "use client";
 
+import { toResult } from "@/components/settings/adapt";
 import { Badge, Button, DataTable, EmptyState, type ColumnDef } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { toResult } from "@/components/settings/adapt";
 import { useAction } from "@/hooks/use-action";
 import { deleteMaintenanceWindowAction } from "@/server/actions/maintenance";
 import { CalendarClock, Plus, Trash2 } from "lucide-react";

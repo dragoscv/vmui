@@ -7,11 +7,11 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useAction } from "@/hooks/use-action";
 import { ok, type ActionResult } from "@/lib/action-result";
 import {
-  recipeDryRun,
-  recipeRebootAllRunning,
-  recipeStartAllStopped,
-  recipeStopAllRunning,
-  type RecipeResult,
+    recipeDryRun,
+    recipeRebootAllRunning,
+    recipeStartAllStopped,
+    recipeStopAllRunning,
+    type RecipeResult,
 } from "@/server/actions/recipes";
 import { Eye, Play, RefreshCw, StopCircle } from "lucide-react";
 import { motion } from "motion/react";

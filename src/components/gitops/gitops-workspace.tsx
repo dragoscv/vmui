@@ -1,17 +1,17 @@
 "use client";
 
 import { LogViewer } from "@/components/ops/log-viewer";
-import { RelativeTime } from "@/components/settings/relative-time";
 import { toResult } from "@/components/settings/adapt";
+import { RelativeTime } from "@/components/settings/relative-time";
 import { Badge, Button, DataTable, EmptyState, PageHeader, PageSection, PageShell, type ColumnDef } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
 import {
-  deleteGitSourceAction,
-  listGitHistoryAction,
-  listGitSourcesAction,
-  syncGitSourceNowAction,
-  toggleGitSourceAction,
+    deleteGitSourceAction,
+    listGitHistoryAction,
+    listGitSourcesAction,
+    syncGitSourceNowAction,
+    toggleGitSourceAction,
 } from "@/server/actions/gitops";
 import { GitBranch, Pause, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";

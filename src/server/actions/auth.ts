@@ -5,7 +5,7 @@ import {
     signOut as authSignOut,
     createUser,
     getCurrentUser,
-  hashPassword,
+    hashPassword,
     issueSessionForUser,
     requireRole,
     signInWithPassword,
@@ -21,12 +21,12 @@ import {
     decryptTotpSecret,
     verifyTotpCode,
 } from "@/lib/totp";
-import { randomBytes } from "node:crypto";
 import { and, eq, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { randomBytes } from "node:crypto";
 import "server-only";
 import { z } from "zod";
 

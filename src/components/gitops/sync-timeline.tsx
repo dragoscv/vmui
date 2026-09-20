@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui";
 import { RelativeTime } from "@/components/settings/relative-time";
+import { Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import type { GitSourceLite, HistoryRow } from "./types";

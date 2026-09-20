@@ -33,8 +33,8 @@ vi.mock("@/lib/audit-chain", () => ({ maybeAppendAuditChain: async () => undefin
 vi.mock("@/lib/webhook-queue", () => ({ maybeFlushWebhookDeliveries: async () => undefined }));
 vi.mock("@/lib/disk-watchdog", () => ({ maybeRunDiskWatchdog: async () => undefined }));
 
-import { executeSchedule } from "./scheduler";
 import type { ScheduleRow } from "@/lib/db/schema";
+import { executeSchedule } from "./scheduler";
 
 const row: ScheduleRow = {
   id: "s1",

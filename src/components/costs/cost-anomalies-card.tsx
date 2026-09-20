@@ -1,9 +1,9 @@
-import "server-only";
 import { ProviderTile } from "@/components/cloud/provider-tile";
 import { Badge, PageSection } from "@/components/ui";
 import { formatUsdPerHour } from "@/lib/utils";
 import { detectCostAnomalies } from "@/server/queries/cost-anomalies";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export async function CostAnomaliesCard() {
   const rows = await detectCostAnomalies();

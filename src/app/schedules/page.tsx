@@ -1,4 +1,3 @@
-import "server-only";
 import { SchedulesManager } from "@/components/schedules/schedules-manager";
 import { PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -6,6 +5,7 @@ import { cloudAccounts, instances } from "@/lib/db/schema";
 import { listSchedules } from "@/server/queries/schedules";
 import { CalendarClock, Clock, PauseCircle, PlayCircle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

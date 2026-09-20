@@ -1,11 +1,11 @@
-import "server-only";
 import { ErrorHeatmap, RecentErrorsTable } from "@/components/cloud/error-heatmap";
 import { PageHeader, PageSection, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
-import { eq, gte, desc } from "drizzle-orm";
+import { desc, eq, gte } from "drizzle-orm";
 import { AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

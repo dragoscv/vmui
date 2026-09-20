@@ -1,4 +1,3 @@
-import "server-only";
 import { MaintenanceCreateForm } from "@/components/maintenance/maintenance-create-form";
 import { MaintenanceWindowsTable, type MaintenanceRow } from "@/components/maintenance/maintenance-windows-table";
 import { Badge, PageHeader, PageSection, PageShell } from "@/components/ui";
@@ -7,6 +6,7 @@ import { cloudAccounts, maintenanceWindows } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import { CalendarClock } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

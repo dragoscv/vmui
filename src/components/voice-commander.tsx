@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, X } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type SpeechRec = (typeof globalThis & { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown });

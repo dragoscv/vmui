@@ -1,10 +1,10 @@
-import "server-only";
 import { FleetDiffView, type FleetChangeRow, type FleetDiffData } from "@/components/cloud/fleet-diff-view";
 import { Button, PageHeader, PageShell } from "@/components/ui";
 import { requireRole } from "@/lib/auth";
 import { captureFleetSnapshot, diffFleetSnapshots, getLatestFleetDiff, listFleetSnapshots, type FleetDiff, type FleetMember } from "@/lib/fleet-diff";
 import { Camera, GitCompare } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 async function captureAction() {
   "use server";

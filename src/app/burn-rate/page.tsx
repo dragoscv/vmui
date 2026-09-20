@@ -1,16 +1,16 @@
-import "server-only";
 import { BurnRateChart } from "@/components/cloud/burn-rate-chart";
 import { BurnRateThresholdForm } from "@/components/cloud/burn-rate-threshold-form";
 import { Alert, PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
-import { computeBurnRate, getBurnRateThreshold, setBurnRateThreshold } from "@/lib/burn-rate";
 import { requireRole } from "@/lib/auth";
-import { formatUsd } from "@/lib/utils";
-import { revalidatePath } from "next/cache";
+import { computeBurnRate, getBurnRateThreshold, setBurnRateThreshold } from "@/lib/burn-rate";
 import { db } from "@/lib/db";
 import { snapshotHistory } from "@/lib/db/schema";
+import { formatUsd } from "@/lib/utils";
 import { gte } from "drizzle-orm";
 import { Flame } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import { revalidatePath } from "next/cache";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

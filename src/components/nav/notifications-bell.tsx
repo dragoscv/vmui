@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Bell, Check, X, AlertTriangle, AlertCircle, Info, CheckCircle2 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  dismissAllNotificationsAction,
-  dismissNotificationAction,
-  listNotificationsAction,
-  markAllSeenAction,
-} from "@/server/actions/notifications";
 import type { NotificationRow } from "@/lib/db/schema";
+import {
+    dismissAllNotificationsAction,
+    dismissNotificationAction,
+    listNotificationsAction,
+    markAllSeenAction,
+} from "@/server/actions/notifications";
+import { AlertCircle, AlertTriangle, Bell, Check, CheckCircle2, Info, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 
 type BellT = ReturnType<typeof useTranslations<"misc.bell">>;
 

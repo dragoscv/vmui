@@ -1,16 +1,16 @@
 "use server";
 
-import "server-only";
-import { eq, inArray } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { nanoid } from "nanoid";
-import { z } from "zod";
-import { db } from "@/lib/db";
-import { auditLog, apiKeys, instances } from "@/lib/db/schema";
-import { requireRole } from "@/lib/auth";
 import { generateApiKey } from "@/lib/api-auth";
 import { apiKeyScopesSchema, isUnrestricted, type ApiKeyScopes } from "@/lib/api-key-scopes";
+import { requireRole } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { apiKeys, auditLog, instances } from "@/lib/db/schema";
 import { PC_ACTIONS, TOOL_BY_NAME } from "@/lib/mcp/tools";
+import { eq, inArray } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { revalidatePath } from "next/cache";
+import "server-only";
+import { z } from "zod";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),

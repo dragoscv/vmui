@@ -1,4 +1,3 @@
-import "server-only";
 import { RecommendationCards, type RecommendationCardData } from "@/components/costs/recommendation-cards";
 import { RecomputeButton } from "@/components/costs/recompute-button";
 import { EmptyState, PageHeader, PageShell, Stat, StatGrid } from "@/components/ui";
@@ -6,6 +5,7 @@ import { formatUsd } from "@/lib/utils";
 import { listCostRecommendations, totalProjectedMonthlySavings } from "@/server/queries/cost-recommendations";
 import { PiggyBank, Power, Sparkles } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

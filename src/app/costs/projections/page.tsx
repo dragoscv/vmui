@@ -1,4 +1,3 @@
-import "server-only";
 import { ProjectionChart } from "@/components/costs/projection-chart";
 import { Badge, Button, EmptyState, PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
 import { formatUsd } from "@/lib/utils";
@@ -6,6 +5,7 @@ import { computeProjections } from "@/server/queries/projections";
 import { ChevronRight, TrendingUp } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

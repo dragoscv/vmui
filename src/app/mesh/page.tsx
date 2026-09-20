@@ -1,5 +1,5 @@
-import { listInstances } from "@/server/queries";
 import { MeshWorkspace } from "@/components/mesh/mesh-workspace";
+import { listInstances } from "@/server/queries";
 
 export const dynamic = "force-dynamic";
 

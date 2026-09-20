@@ -1,8 +1,8 @@
-import "server-only";
-import { randomBytes } from "node:crypto";
-import { eq, desc, and } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { teams, teamMembers, teamInvitations, users } from "@/lib/db/schema";
+import { teamInvitations, teamMembers, teams, users } from "@/lib/db/schema";
+import { and, desc, eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import "server-only";
 
 export interface TeamWithMembers {
   id: string;

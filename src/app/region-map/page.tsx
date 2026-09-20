@@ -1,10 +1,10 @@
-import "server-only";
 import { REGION_MAP_HEIGHT, REGION_MAP_WIDTH, RegionMap } from "@/components/cloud/region-map";
 import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
 import { instances } from "@/lib/db/schema";
 import { Globe } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

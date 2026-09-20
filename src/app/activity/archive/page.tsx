@@ -1,4 +1,3 @@
-import "server-only";
 import { ArchiveList, type ArchiveFile } from "@/components/activity/archive-list";
 import { Badge, PageHeader, PageSection, PageShell } from "@/components/ui";
 import { env } from "@/lib/env";
@@ -6,6 +5,7 @@ import { Archive } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

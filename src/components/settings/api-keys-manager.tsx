@@ -5,7 +5,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAction } from "@/hooks/use-action";
 import { ok, type ActionResult } from "@/lib/action-result";
-import { isUnrestricted, presetTools, SCOPE_PRESETS, type ApiKeyScopes, type ScopePreset, type ScopedToolInfo } from "@/lib/api-key-scopes";
+import { isUnrestricted, presetTools, SCOPE_PRESETS, type ApiKeyScopes, type ScopedToolInfo, type ScopePreset } from "@/lib/api-key-scopes";
 import { createApiKeyAction, revokeApiKeyAction } from "@/server/actions/api-keys";
 import { Check, Copy, Key, Plus, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";

@@ -1,12 +1,12 @@
-import "server-only";
 import { BillMovers, InstanceTypesTable, type AccountTrend } from "@/components/cloud/bill-movers";
 import { Button, PageHeader, PageSection, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
-import { snapshotHistory, cloudAccounts, instances } from "@/lib/db/schema";
+import { cloudAccounts, instances, snapshotHistory } from "@/lib/db/schema";
 import { gte } from "drizzle-orm";
 import { Receipt } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

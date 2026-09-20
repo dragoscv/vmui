@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 import { categorizeError } from "@/lib/errors";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 interface AuditEvent {
   id: number;

@@ -1,13 +1,13 @@
-import "server-only";
 import { Badge, Button, PageHeader, PageSection, PageShell } from "@/components/ui";
 import { InstanceWebhookForm } from "@/components/webhooks-ops/instance-webhook-form";
 import { InstanceWebhooksTable, type InstanceWebhookViewRow } from "@/components/webhooks-ops/instance-webhooks-table";
 import { db } from "@/lib/db";
-import { instanceWebhooks, cloudAccounts } from "@/lib/db/schema";
+import { cloudAccounts, instanceWebhooks } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import { Activity } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

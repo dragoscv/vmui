@@ -1,10 +1,10 @@
-import "server-only";
 import { CostRecosTable } from "@/components/costs/cost-recos-table";
 import { EmptyState, PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
 import { generateCostRecommendations } from "@/lib/cost-recos";
 import { formatUsd } from "@/lib/utils";
 import { PiggyBank, Server } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

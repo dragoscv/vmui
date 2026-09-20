@@ -1,10 +1,10 @@
-import "server-only";
 import { Badge, PageSection, Progress } from "@/components/ui";
 import { db } from "@/lib/db";
 import { instances, instanceTags } from "@/lib/db/schema";
 import { priceInstances } from "@/lib/pricing";
 import { formatUsd, formatUsdPerHour, HOURS_PER_MONTH } from "@/lib/utils";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 interface TagBucket {
   key: string;

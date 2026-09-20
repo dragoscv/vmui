@@ -1,11 +1,11 @@
-import "server-only";
 import { CisWorkspace, type CisResultRow } from "@/components/compliance/cis-workspace";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
-import { cisCheckResults, instances, cloudAccounts } from "@/lib/db/schema";
+import { cisCheckResults, cloudAccounts, instances } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

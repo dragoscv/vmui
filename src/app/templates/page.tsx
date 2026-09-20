@@ -1,4 +1,3 @@
-import "server-only";
 import { TemplatesGrid } from "@/components/templates/templates-grid";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -6,6 +5,7 @@ import { cloudAccounts, launchTemplates } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import { LayoutTemplate } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

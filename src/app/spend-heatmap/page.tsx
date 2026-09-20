@@ -1,4 +1,3 @@
-import "server-only";
 import { SpendHeatmapGrid } from "@/components/cloud/spend-heatmap-grid";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -6,6 +5,7 @@ import { snapshotHistory } from "@/lib/db/schema";
 import { gte } from "drizzle-orm";
 import { Grid3x3 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

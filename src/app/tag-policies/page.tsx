@@ -1,4 +1,3 @@
-import "server-only";
 import { TagPoliciesWorkspace } from "@/components/tags/tag-policies-workspace";
 import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -7,6 +6,7 @@ import { evaluateTagPolicies } from "@/lib/tag-policy";
 import { desc } from "drizzle-orm";
 import { Tag } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

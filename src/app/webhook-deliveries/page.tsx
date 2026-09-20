@@ -1,4 +1,3 @@
-import "server-only";
 import { Button, PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
 import { WebhookDeliveriesTable } from "@/components/webhooks-ops/webhook-deliveries-table";
 import { db } from "@/lib/db";
@@ -7,6 +6,7 @@ import { desc } from "drizzle-orm";
 import { CheckCircle2, Clock, Send, XCircle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

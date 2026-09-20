@@ -1,9 +1,9 @@
-import "server-only";
 import { CostOptimizerView } from "@/components/cost-optimizer/cost-optimizer-view";
 import { PageHeader, PageShell } from "@/components/ui";
 import { generateCostRecommendations } from "@/lib/cost-optimizer";
 import { Gauge } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

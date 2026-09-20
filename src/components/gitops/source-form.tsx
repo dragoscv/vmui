@@ -1,9 +1,9 @@
 "use client";
 
+import { toResult } from "@/components/settings/adapt";
 import { Button, Field, Input, Subsection, Textarea } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAction } from "@/hooks/use-action";
-import { toResult } from "@/components/settings/adapt";
 import { createGitSourceAction } from "@/server/actions/gitops";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";

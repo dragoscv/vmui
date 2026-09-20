@@ -1,10 +1,10 @@
 import "server-only";
 
-import { eq, isNull } from "drizzle-orm";
+import { parseApiKeyScopes, type ApiKeyScopes } from "@/lib/api-key-scopes";
+import { hashPassword, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiKeys, type ApiKeyRow } from "@/lib/db/schema";
-import { hashPassword, verifyPassword } from "@/lib/auth";
-import { parseApiKeyScopes, type ApiKeyScopes } from "@/lib/api-key-scopes";
+import { eq, isNull } from "drizzle-orm";
 
 export type ApiAuthResult =
   | { ok: true; keyId: string; role: ApiKeyRow["role"]; rateLimitPerMinute: number; scopes: ApiKeyScopes | null }

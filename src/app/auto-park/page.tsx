@@ -1,4 +1,3 @@
-import "server-only";
 import { AutoParkEnableForm } from "@/components/auto-park/auto-park-enable-form";
 import { AutoParkPoliciesTable, type AutoParkRow } from "@/components/auto-park/auto-park-policies-table";
 import { Badge, PageHeader, PageSection, PageShell } from "@/components/ui";
@@ -7,6 +6,7 @@ import { idleParkPolicies, instances } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import { Pause } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

@@ -1,8 +1,8 @@
 "use client";
 
+import { useThemeTokens } from "@/components/topology/theme-colors";
 import { Badge } from "@/components/ui";
 import { useTranslations } from "next-intl";
-import { useThemeTokens } from "@/components/topology/theme-colors";
 
 export interface PreviewPeer {
   id: string;

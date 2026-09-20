@@ -1,5 +1,5 @@
-import * as React from "react";
 import { cn } from "@/lib/utils";
+import * as React from "react";
 
 type Variant = "default" | "success" | "warning" | "danger" | "info" | "muted";
 const styles: Record<Variant, string> = {

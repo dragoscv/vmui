@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { ScopeKey } from "@/lib/api-key-scopes";
 import { db } from "@/lib/db";
 import { auditLog, instances } from "@/lib/db/schema";
 import { showMessage } from "@/lib/esp/gallery";
@@ -7,7 +8,6 @@ import { AMBILIGHT_MODES, DEVICES } from "@/lib/home/catalog";
 import { ha } from "@/lib/home/ha-client";
 import { armAutoOpen, ignoreCall, intercomState, openDoor } from "@/lib/home/intercom";
 import { pcIsUp, pcTarget, wakePc } from "@/lib/home/wol";
-import type { ScopeKey } from "@/lib/api-key-scopes";
 import { executeInstanceAction, syncAccountInstances } from "@/server/actions/instances";
 import { eq } from "drizzle-orm";
 import { spawn } from "node:child_process";

@@ -1,4 +1,3 @@
-import "server-only";
 import { AccountBudgetsTable } from "@/components/cloud/account-budgets-table";
 import { Button, EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -7,6 +6,7 @@ import { gte } from "drizzle-orm";
 import { Wallet } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 

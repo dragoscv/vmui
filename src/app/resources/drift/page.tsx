@@ -1,4 +1,3 @@
-import "server-only";
 import { DriftTable } from "@/components/resources/drift-table";
 import { Alert, EmptyState, PageHeader, PageShell, SkeletonTable } from "@/components/ui";
 import { db } from "@/lib/db";
@@ -8,6 +7,7 @@ import { GitCommitVertical } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Suspense } from "react";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 
