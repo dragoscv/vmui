@@ -1,15 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Loader2, ShieldCheck, KeyRound, HelpCircle, ExternalLink, Cloud } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Field, Textarea } from "@/components/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { addGcpAccount, type GcpAccountFormState } from "@/server/actions/accounts";
+import { Cloud, HelpCircle, KeyRound } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { CodeBlock, ConnectField, ConnectPanel, ConnectSelect, ExternalLinkRow, RICH, SubmitButton } from "./connect-shared";
 
 const ZONES = [
   "us-central1-a",
@@ -29,14 +28,15 @@ const ZONES = [
 const initial: GcpAccountFormState = {};
 
 export function GcpAccountConnect() {
+  const t = useTranslations("cloud.connect.gcp");
   return (
     <Tabs defaultValue="sa" className="w-full">
       <TabsList className="grid w-full grid-cols-2">
         <TabsTrigger value="sa">
-          <KeyRound className="mr-1.5 h-3.5 w-3.5" /> Service-account JSON
+          <KeyRound className="mr-1.5 size-3.5" aria-hidden /> {t("tabs.sa")}
         </TabsTrigger>
         <TabsTrigger value="help">
-          <HelpCircle className="mr-1.5 h-3.5 w-3.5" /> Guided setup
+          <HelpCircle className="mr-1.5 size-3.5" aria-hidden /> {t("tabs.help")}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="sa">
@@ -50,97 +50,57 @@ export function GcpAccountConnect() {
 }
 
 function ServiceAccountPanel() {
+  const t = useTranslations("cloud.connect.gcp");
+  const tp = useTranslations("cloud.shared.provider");
   const [state, action, pending] = useActionState(addGcpAccount, initial);
   const router = useRouter();
   const [zone, setZone] = useState("us-central1-a");
 
   useEffect(() => {
     if (state.ok && state.accountId) {
-      toast.success("GCP project connected");
+      toast.success(t("connected"));
       router.push("/");
       router.refresh();
     } else if (state.error && !state.fieldErrors) {
       toast.error(state.error);
     }
-  }, [state, router]);
+  }, [state, router, t]);
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <h2 className="text-lg font-semibold">Connect with a service-account key</h2>
-        <p className="text-xs text-muted">
-          Create a service account in IAM with the Compute Viewer (or Compute Admin for actions) role, then
-          download a JSON key. Encrypted locally with AES-256-GCM.
-        </p>
-      </CardHeader>
-      <CardContent>
-        <form action={action} className="grid gap-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="name">Display name</Label>
-            <Input id="name" name="name" placeholder="My GCP project" required />
-            {state.fieldErrors?.name && <p className="text-xs text-[var(--color-danger)]">{state.fieldErrors.name}</p>}
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="keyJson">Service-account key JSON</Label>
-            <textarea
-              id="keyJson"
-              name="keyJson"
-              required
-              spellCheck={false}
-              placeholder={`{\n  "type": "service_account",\n  "project_id": "...",\n  "private_key_id": "...",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",\n  "client_email": "vmui@my-project.iam.gserviceaccount.com",\n  ...\n}`}
-              rows={10}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs"
-            />
-            <p className="text-xs text-muted">
-              Paste the entire JSON file. The <code>project_id</code> field determines which GCP project we connect to.
-            </p>
-            {state.fieldErrors?.keyJson && <p className="text-xs text-[var(--color-danger)]">{state.fieldErrors.keyJson}</p>}
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="defaultZone">Default zone</Label>
-            <select
-              id="defaultZone"
-              name="defaultZone"
-              value={zone}
-              onChange={(e) => setZone(e.target.value)}
-              className="flex h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-            >
-              {ZONES.map((z) => (
-                <option key={z} value={z}>{z}</option>
-              ))}
-            </select>
-            {state.fieldErrors?.defaultZone && (
-              <p className="text-xs text-[var(--color-danger)]">{state.fieldErrors.defaultZone}</p>
-            )}
-          </div>
-          <Button type="submit" disabled={pending} size="lg">
-            {pending ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Verifying with Google Cloud…</>
-            ) : (
-              <><ShieldCheck className="h-4 w-4" /> Verify &amp; connect</>
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <ConnectPanel title={t("sa.title")} description={t("sa.description")}>
+      <form action={action} className="grid gap-4">
+        <ConnectField name="name" label={t("sa.name")} placeholder={t("sa.namePlaceholder")} error={state.fieldErrors?.name} required />
+        <Field label={t("sa.keyJson")} hint={state.fieldErrors?.keyJson ? <span className="text-danger">{state.fieldErrors.keyJson}</span> : t.rich("sa.keyJsonHint", RICH)}>
+          <Textarea
+            name="keyJson"
+            required
+            spellCheck={false}
+            placeholder={`{\n  "type": "service_account",\n  "project_id": "...",\n  "private_key_id": "...",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n",\n  "client_email": "vmui@my-project.iam.gserviceaccount.com",\n  ...\n}`}
+            rows={10}
+            className="font-mono text-xs"
+          />
+        </Field>
+        <ConnectSelect
+          name="defaultZone"
+          label={t("sa.defaultZone")}
+          value={zone}
+          onValueChange={setZone}
+          error={state.fieldErrors?.defaultZone}
+          options={ZONES.map((z) => ({ value: z, label: z }))}
+        />
+        <SubmitButton pending={pending} provider={tp("gcp")} />
+      </form>
+    </ConnectPanel>
   );
 }
 
 function GuidedPanel() {
+  const t = useTranslations("cloud.connect.gcp");
   return (
-    <Card className="mt-4">
-      <CardHeader className="flex-row items-center gap-3">
-        <div className="grid h-9 w-9 place-items-center rounded-[var(--radius-md)] bg-[color-mix(in_oklch,var(--color-primary)_15%,transparent)]">
-          <Cloud className="h-5 w-5 text-[var(--color-primary)]" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold">Create a GCP service account</h2>
-          <p className="text-xs text-muted">A JSON key file is all vmui needs.</p>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <pre className="overflow-auto rounded-md bg-[var(--color-bg-muted)] p-3 text-xs">
-{`gcloud config set project <PROJECT_ID>
+    <ConnectPanel icon={<Cloud />} title={t("guide.title")} description={t("guide.description")}>
+      <div className="space-y-3 text-sm">
+        <CodeBlock
+          code={`gcloud config set project <PROJECT_ID>
 gcloud iam service-accounts create vmui-reader \\
   --display-name "vmui reader"
 gcloud projects add-iam-policy-binding <PROJECT_ID> \\
@@ -148,20 +108,10 @@ gcloud projects add-iam-policy-binding <PROJECT_ID> \\
   --role "roles/compute.viewer"
 gcloud iam service-accounts keys create vmui-key.json \\
   --iam-account vmui-reader@<PROJECT_ID>.iam.gserviceaccount.com`}
-        </pre>
-        <p className="text-xs text-muted">
-          Use <code>roles/compute.instanceAdmin.v1</code> instead of <code>compute.viewer</code> if you want vmui
-          to start/stop/reboot VMs.
-        </p>
-        <a
-          href="https://cloud.google.com/iam/docs/service-accounts-create"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)] hover:underline"
-        >
-          Google Cloud docs <ExternalLink className="h-3 w-3" />
-        </a>
-      </CardContent>
-    </Card>
+        />
+        <p className="text-xs text-muted">{t.rich("guide.outro", RICH)}</p>
+        <ExternalLinkRow href="https://cloud.google.com/iam/docs/service-accounts-create" label={t("guide.docs")} />
+      </div>
+    </ConnectPanel>
   );
 }

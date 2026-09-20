@@ -1,1 +1,76 @@
-{}
+{
+  "voice": {
+    "unsupported": "Web Speech is not supported in this browser.",
+    "start": "Start listening",
+    "stop": "Stop listening",
+    "listening": "Listening…",
+    "hint": "Press the mic and say a page name",
+    "close": "Close",
+    "error": "Voice: {error}",
+    "goingTo": "Going to {label}",
+    "noMatch": "Heard \"{text}\" but no command matched.",
+    "commands": {
+      "dashboard": "Dashboard",
+      "instances": "Instances",
+      "newVm": "Launch new VM",
+      "accounts": "Cloud accounts",
+      "costs": "Costs",
+      "forecast": "Cost forecast",
+      "anomalies": "Cost anomalies",
+      "recordings": "Recordings",
+      "runbooks": "Runbooks",
+      "budgets": "Tag budgets",
+      "autoPark": "Idle auto-park",
+      "keyRotation": "Key rotation",
+      "digest": "Digest",
+      "mesh": "Mesh",
+      "ai": "AI",
+      "dr": "DR drill",
+      "restore": "Restore",
+      "status": "Status",
+      "teams": "Teams",
+      "settings": "Settings"
+    }
+  },
+  "push": {
+    "unsupported": "Push is not supported in this browser.",
+    "notConfigured": "Push is not configured (set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).",
+    "permissionDenied": "Notification permission denied",
+    "enabled": "Push notifications enabled",
+    "disabled": "Push notifications disabled",
+    "sent": "Sent to {count, plural, one {# device} other {# devices}}",
+    "noSubscriptions": "No active subscriptions or VAPID not configured",
+    "enable": "Enable push",
+    "disable": "Disable push",
+    "sendTest": "Send test"
+  },
+  "install": {
+    "title": "Install vmui",
+    "description": "Add to the home screen for full-screen access, offline cache and push notifications.",
+    "install": "Install",
+    "notNow": "Not now",
+    "dismiss": "Dismiss",
+    "unavailable": "Already installed or unavailable"
+  },
+  "bell": {
+    "title": "Notifications",
+    "tooltip": "Notifications",
+    "tooltipNew": "Notifications · {count} new",
+    "clearAll": "Clear all",
+    "empty": "You're all caught up.",
+    "dismiss": "Dismiss",
+    "justNow": "just now",
+    "minutesAgo": "{n}m ago",
+    "hoursAgo": "{n}h ago",
+    "daysAgo": "{n}d ago"
+  },
+  "realtime": {
+    "transition": "{id}: {prev} → {state}",
+    "syncTitle": "Sync · {region}",
+    "stateChanges": "{count, plural, one {# state change} other {# state changes}}",
+    "snapshotCreated": "Snapshot created"
+  },
+  "sound": {
+    "label": "Sound effects on action complete"
+  }
+}

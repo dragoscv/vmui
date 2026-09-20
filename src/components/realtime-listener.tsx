@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { categorizeError } from "@/lib/errors";
 
@@ -31,6 +32,7 @@ const QUIET_ACTIONS = new Set(["sync.region"]);
  */
 export function RealtimeListener() {
   const router = useRouter();
+  const t = useTranslations("misc.realtime");
   const lastRefresh = useRef(0);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function RealtimeListener() {
         const p = JSON.parse(raw.data) as InstanceChangedPayload;
         // Only surface a toast when the transition is interesting.
         if (p.prev && p.prev !== p.state) {
-          toast(`${p.providerInstanceId}: ${p.prev} → ${p.state}`);
+          toast(t("transition", { id: p.providerInstanceId, prev: p.prev, state: p.state }));
         }
       } catch {
         /* ignore */
@@ -96,8 +98,8 @@ export function RealtimeListener() {
           const parts: string[] = [];
           if (added) parts.push(`+${added}`);
           if (removed) parts.push(`-${removed}`);
-          if (changed) parts.push(`${changed} state change${changed === 1 ? "" : "s"}`);
-          toast(`Sync · ${p.region}`, { description: parts.join(" / ") });
+          if (changed) parts.push(t("stateChanges", { count: changed }));
+          toast(t("syncTitle", { region: p.region }), { description: parts.join(" / ") });
         }
       } catch {
         /* ignore */
@@ -108,7 +110,7 @@ export function RealtimeListener() {
     es.addEventListener("snapshot.created", (raw: MessageEvent) => {
       try {
         const p = JSON.parse(raw.data) as { snapshotId: string };
-        toast.success("Snapshot created", { description: p.snapshotId });
+        toast.success(t("snapshotCreated"), { description: p.snapshotId });
       } catch {
         /* ignore */
       }
@@ -120,7 +122,7 @@ export function RealtimeListener() {
     };
 
     return () => es.close();
-  }, [router]);
+  }, [router, t]);
 
   return null;
 }

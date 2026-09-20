@@ -1,11 +1,16 @@
+import { StatusBoard } from "@/components/monitoring/status-board";
+import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
-import { instances, snapshotHistory, auditLog } from "@/lib/db/schema";
-import { desc, and, eq, gte } from "drizzle-orm";
+import { auditLog, instances, snapshotHistory } from "@/lib/db/schema";
+import { and, desc, eq, gte } from "drizzle-orm";
+import { Activity } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { createHmac } from "node:crypto";
-import { CheckCircle2, XCircle, Activity } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 30;
+
+const UPTIME_DAYS = 30;
 
 interface StatusPayload {
   generatedAt: string;
@@ -22,6 +27,7 @@ function signPayload(p: StatusPayload): string {
 }
 
 export default async function StatusPage() {
+  const t = await getTranslations("observe.status");
   const all = await db.select().from(instances).limit(1000);
   const byState: Record<string, number> = {};
   const byProvider: Record<string, number> = {};
@@ -30,11 +36,18 @@ export default async function StatusPage() {
     byProvider[i.provider] = (byProvider[i.provider] ?? 0) + 1;
   }
   const snap = db.select().from(snapshotHistory).orderBy(desc(snapshotHistory.capturedAt)).limit(1).get();
+  const since30d = new Date(Date.now() - UPTIME_DAYS * 86_400_000);
+  const audits = db
+    .select({ status: auditLog.status, createdAt: auditLog.createdAt })
+    .from(auditLog)
+    .where(gte(auditLog.createdAt, since30d))
+    .all();
   const errs24h = db
     .select({ id: auditLog.id })
     .from(auditLog)
     .where(and(eq(auditLog.status, "error"), gte(auditLog.createdAt, new Date(Date.now() - 86_400_000))))
     .all().length;
+
   const payload: StatusPayload = {
     generatedAt: new Date().toISOString(),
     totalInstances: all.length,
@@ -43,49 +56,39 @@ export default async function StatusPage() {
     fleetHourlyUsd: snap?.hourlyUsd ?? 0,
     recentErrors24h: errs24h,
   };
-  const sig = signPayload(payload);
+
+  const perDay = new Map<string, { ok: number; total: number }>();
+  for (const a of audits) {
+    const day = a.createdAt.toISOString().slice(0, 10);
+    const b = perDay.get(day) ?? { ok: 0, total: 0 };
+    b.total++;
+    if (a.status === "ok") b.ok++;
+    perDay.set(day, b);
+  }
+  const uptime = Array.from({ length: UPTIME_DAYS }, (_, i) => {
+    const day = new Date(Date.now() - (UPTIME_DAYS - 1 - i) * 86_400_000).toISOString().slice(0, 10);
+    const b = perDay.get(day);
+    return { day, okRatio: b && b.total > 0 ? b.ok / b.total : null };
+  });
 
   const running = byState["running"] ?? 0;
   const healthy = running > 0 && (byState["stopped"] ?? 0) < running;
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
-      <header className="text-center">
-        <div className={`mx-auto inline-flex items-center gap-2 rounded-full px-4 py-1 text-sm font-semibold ${healthy ? "bg-emerald-500/15 text-emerald-200" : "bg-rose-500/15 text-rose-200"}`}>
-          {healthy ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-          {healthy ? "All systems operational" : "Degraded"}
-        </div>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">vmui status</h1>
-        <p className="text-xs text-muted">Public read-only snapshot. Generated {new Date(payload.generatedAt).toLocaleString()}.</p>
-      </header>
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Instances" value={payload.totalInstances.toString()} />
-        <Stat label="Running" value={running.toString()} />
-        <Stat label="Stopped" value={(byState["stopped"] ?? 0).toString()} />
-        <Stat label="$/hr" value={`$${payload.fleetHourlyUsd.toFixed(2)}`} />
-      </section>
-      <section>
-        <h2 className="mb-2 flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted"><Activity className="h-3 w-3" /> By provider</h2>
-        <ul className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          {Object.entries(payload.byProvider).map(([p, n]) => (
-            <li key={p} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1">
-              <span className="font-semibold">{p}</span> · {n}
-            </li>
-          ))}
-        </ul>
-      </section>
-      <footer className="text-center text-[10px] text-muted">
-        Signature <code className="font-mono">{sig}</code> · verify with <code className="font-mono">HMAC-SHA256(VMUI_MASTER_KEY, payload)</code>
-      </footer>
-    </main>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-2 text-center">
-      <div className="text-2xl font-semibold tabular-nums">{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-muted">{label}</div>
-    </div>
+    <PageShell width="narrow">
+      <PageHeader title={t("title")} description={t("description")} icon={<Activity />} />
+      <StatusBoard
+        healthy={healthy}
+        generatedAt={Date.parse(payload.generatedAt)}
+        totalInstances={payload.totalInstances}
+        running={running}
+        stopped={byState["stopped"] ?? 0}
+        fleetHourlyUsd={payload.fleetHourlyUsd}
+        recentErrors24h={errs24h}
+        byProvider={Object.entries(byProvider).map(([name, value]) => ({ name, value }))}
+        uptime={uptime}
+        signature={signPayload(payload)}
+      />
+    </PageShell>
   );
 }

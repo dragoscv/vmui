@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Button } from "@/components/ui";
 import type { SnapshotEvent } from "@/server/queries/snapshots";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+import { useFormatter, useTranslations } from "next-intl";
+import { useMemo, useState } from "react";
 
 function ymKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function SnapshotMonth({ events }: { events: SnapshotEvent[] }) {
+  const t = useTranslations("ops.backups.month");
+  const format = useFormatter();
   const today = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
 
@@ -40,38 +42,27 @@ export function SnapshotMonth({ events }: { events: SnapshotEvent[] }) {
   }
   while (cells.length % 7 !== 0) cells.push({ day: null, key: null, count: 0, events: [] });
 
+  // 2024-01-07 is a Sunday; the week header follows the locale's short names.
+  const weekdays = Array.from({ length: 7 }, (_, i) => format.dateTime(new Date(2024, 0, 7 + i), { weekday: "short" }));
+
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm font-semibold">
-          {cursor.toLocaleString("en-US", { month: "long", year: "numeric" })}
-        </div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-semibold">{format.dateTime(cursor, { month: "long", year: "numeric" })}</div>
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="grid h-7 w-7 place-items-center rounded-[var(--radius-md)] border border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))}
-            className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-2 py-0.5 text-[11px] hover:bg-[var(--color-surface-muted)]"
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="grid h-7 w-7 place-items-center rounded-[var(--radius-md)] border border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
+          <Button variant="outline" size="icon" className="size-8 sm:size-8" onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label={t("previousMonth")}>
+            <ChevronLeft className="size-3.5" aria-hidden />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))}>
+            {t("today")}
+          </Button>
+          <Button variant="outline" size="icon" className="size-8 sm:size-8" onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label={t("nextMonth")}>
+            <ChevronRight className="size-3.5" aria-hidden />
+          </Button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-[10px] text-muted">
-        {DAYS.map((d) => (
+      <div className="grid grid-cols-7 gap-1 text-[10px] text-fg-muted">
+        {weekdays.map((d) => (
           <div key={d} className="px-1 py-0.5">
             {d}
           </div>
@@ -79,39 +70,33 @@ export function SnapshotMonth({ events }: { events: SnapshotEvent[] }) {
       </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((cell, i) => {
-          const isToday =
-            cell.day &&
-            year === today.getFullYear() &&
-            month === today.getMonth() &&
-            cell.day === today.getDate();
+          const isToday = cell.day !== null && year === today.getFullYear() && month === today.getMonth() && cell.day === today.getDate();
           return (
             <div
               key={i}
-              title={cell.key ? `${cell.key} — ${cell.count} snapshot${cell.count === 1 ? "" : "s"}` : ""}
+              title={cell.key ? t("cellTitle", { date: cell.key, count: cell.count }) : undefined}
               className={`min-h-[64px] rounded-[var(--radius-md)] border p-1.5 text-xs transition ${
                 cell.day === null
                   ? "border-transparent"
                   : isToday
-                  ? "border-[var(--color-primary)] bg-[color-mix(in_oklch,var(--color-primary)_8%,transparent)]"
-                  : "border-[var(--color-border)] hover:bg-[var(--color-surface-muted)]"
+                    ? "border-primary bg-[color-mix(in_oklch,var(--color-primary)_8%,transparent)]"
+                    : "border-border hover:bg-surface-muted"
               }`}
             >
               {cell.day !== null && (
                 <>
-                  <div className="text-[10px] text-muted">{cell.day}</div>
+                  <div className="text-[10px] text-fg-muted">{cell.day}</div>
                   {cell.count > 0 && (
-                    <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-primary)]">
+                    <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                       {cell.count}
                     </div>
                   )}
                   {cell.events.slice(0, 2).map((e) => (
-                    <div key={e.id} className="mt-0.5 truncate text-[10px] text-muted">
+                    <div key={e.id} className="mt-0.5 truncate text-[10px] text-fg-muted">
                       {e.name ?? e.externalId}
                     </div>
                   ))}
-                  {cell.events.length > 2 && (
-                    <div className="mt-0.5 text-[10px] text-muted">+{cell.events.length - 2} more</div>
-                  )}
+                  {cell.events.length > 2 && <div className="mt-0.5 text-[10px] text-fg-muted">{t("more", { count: cell.events.length - 2 })}</div>}
                 </>
               )}
             </div>

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Bell, BellOff, Loader2 } from "lucide-react";
+import { Bell, BellOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   getVapidPublicKeyAction,
   subscribePushAction,
@@ -21,6 +23,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function PushManager() {
+  const t = useTranslations("misc.push");
   const [supported, setSupported] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [vapid, setVapid] = useState<string | null>(null);
@@ -43,12 +46,12 @@ export function PushManager() {
   const enable = () =>
     start(async () => {
       if (!vapid) {
-        toast.error("Push not configured (set VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY).");
+        toast.error(t("notConfigured"));
         return;
       }
       const perm = await Notification.requestPermission();
       if (perm !== "granted") {
-        toast.error("Notification permission denied");
+        toast.error(t("permissionDenied"));
         return;
       }
       const reg = await navigator.serviceWorker.ready;
@@ -69,7 +72,7 @@ export function PushManager() {
       if (res.ok) {
         setEnabled(true);
         haptic("success");
-        toast.success("Push notifications enabled");
+        toast.success(t("enabled"));
       }
     });
 
@@ -83,50 +86,35 @@ export function PushManager() {
       }
       setEnabled(false);
       haptic("tap");
-      toast.success("Disabled");
+      toast.success(t("disabled"));
     });
 
   const test = () =>
     start(async () => {
       const r = await testPushAction({ topics: ["state"] });
-      if (r.ok && r.sent > 0) toast.success(`Sent to ${r.sent} device(s)`);
-      else toast.error("No active subscriptions or VAPID not configured");
+      if (r.ok && r.sent > 0) toast.success(t("sent", { count: r.sent }));
+      else toast.error(t("noSubscriptions"));
     });
 
   if (!supported) {
-    return <p className="text-xs text-muted">Push not supported in this browser.</p>;
+    return <p className="text-xs text-fg-muted">{t("unsupported")}</p>;
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       {enabled ? (
-        <button
-          type="button"
-          onClick={disable}
-          disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-1.5 text-xs font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
-        >
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <BellOff className="h-3 w-3" />} Disable push
-        </button>
+        <Button type="button" variant="secondary" size="sm" onClick={disable} loading={pending}>
+          <BellOff className="h-3 w-3" aria-hidden /> {t("disable")}
+        </Button>
       ) : (
-        <button
-          type="button"
-          onClick={enable}
-          disabled={pending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-50"
-        >
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bell className="h-3 w-3" />} Enable push
-        </button>
+        <Button type="button" size="sm" onClick={enable} loading={pending}>
+          <Bell className="h-3 w-3" aria-hidden /> {t("enable")}
+        </Button>
       )}
       {enabled && (
-        <button
-          type="button"
-          onClick={test}
-          disabled={pending}
-          className="rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
-        >
-          Send test
-        </button>
+        <Button type="button" variant="outline" size="sm" onClick={test} disabled={pending}>
+          {t("sendTest")}
+        </Button>
       )}
     </div>
   );

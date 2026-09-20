@@ -1,20 +1,25 @@
-import { Suspense } from "react";
-import { listSnapshotEvents } from "@/server/queries/snapshots";
+import { BackupsWorkspace } from "@/components/backups/backups-workspace";
+import { LocalBackupCard } from "@/components/backups/local-backup-card";
+import { SnapshotCalendar } from "@/components/backups/snapshot-calendar";
+import { SnapshotTable } from "@/components/backups/snapshot-table";
+import { Button, PageHeader, PageSection, PageShell, SkeletonCard, Stat, StatGrid } from "@/components/ui";
 import { listLocalBackupsAction } from "@/server/actions/local-backup";
 import { listInstances } from "@/server/queries";
-import { SnapshotCalendar } from "@/components/backups/snapshot-calendar";
-import { LocalBackupCard } from "@/components/backups/local-backup-card";
-import { BackupsWorkspace } from "@/components/backups/backups-workspace";
-import { Card, CardContent } from "@/components/ui/card";
-import { ShieldCheck, Layers, CalendarDays } from "lucide-react";
+import { listSnapshotEvents } from "@/server/queries/snapshots";
+import { CalendarDays, DatabaseBackup, Layers, RotateCcw, ShieldCheck } from "lucide-react";
+import { getFormatter, getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
 export default async function BackupsPage() {
-  const [events, files, all] = await Promise.all([
+  const [events, files, all, t, format] = await Promise.all([
     listSnapshotEvents(),
     listLocalBackupsAction(),
     listInstances(),
+    getTranslations("ops.backups"),
+    getFormatter(),
   ]);
   const reachable = all.map((i) => ({
     id: i.id,
@@ -26,59 +31,42 @@ export default async function BackupsPage() {
   const totalBytes = events.reduce((a, e) => a + (e.sizeBytes ?? 0), 0);
   const accounts = new Set(events.map((e) => e.accountId)).size;
   const last7d = events.filter((e) => Date.now() - e.capturedAt < 7 * 24 * 60 * 60 * 1000).length;
+  const totalGb = format.number(totalBytes / 1024 / 1024 / 1024, { maximumFractionDigits: 1 });
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Backups & Disaster Recovery</h1>
-        <p className="text-sm text-muted">
-          Snapshots across all your cloud accounts plus local AES-256-GCM archives. Replicate, restore, verify.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<DatabaseBackup />}
+        actions={
+          <Button asChild variant="secondary">
+            <Link href="/restore">
+              <RotateCcw className="size-4" aria-hidden /> {t("restore")}
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <Layers className="h-6 w-6 text-[var(--color-primary)]" />
-            <div>
-              <div className="text-2xl font-semibold">{events.length}</div>
-              <div className="text-xs text-muted">total snapshots across {accounts} account{accounts === 1 ? "" : "s"}</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <CalendarDays className="h-6 w-6 text-[var(--color-primary)]" />
-            <div>
-              <div className="text-2xl font-semibold">{last7d}</div>
-              <div className="text-xs text-muted">captured in the last 7 days</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <ShieldCheck className="h-6 w-6 text-[var(--color-primary)]" />
-            <div>
-              <div className="text-2xl font-semibold">{(totalBytes / 1024 / 1024 / 1024).toFixed(1)} GB</div>
-              <div className="text-xs text-muted">approximate total snapshot size</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={3}>
+        <Stat label={t("stats.total")} value={events.length} hint={t("stats.totalHint", { accounts })} icon={<Layers />} />
+        <Stat label={t("stats.last7d")} value={last7d} hint={t("stats.last7dHint")} icon={<CalendarDays />} />
+        <Stat label={t("stats.size")} value={t("stats.sizeValue", { gb: totalGb })} hint={t("stats.sizeHint")} icon={<ShieldCheck />} />
+      </StatGrid>
 
-      <Suspense>
+      <Suspense fallback={<SkeletonCard />}>
         <SnapshotCalendar events={events} />
       </Suspense>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Scheduled policies</h2>
-        <p className="text-xs text-muted">
-          Cron-driven cloud snapshots, S3 dumps, local copies, or cross-region snapshots with retention windows.
-        </p>
+      <PageSection title={t("snapshots.title")} description={t("snapshots.description")}>
+        <SnapshotTable events={events} />
+      </PageSection>
+
+      <PageSection title={t("policies.title")} description={t("policies.description")}>
         <BackupsWorkspace instances={reachable} />
-      </section>
+      </PageSection>
 
       <LocalBackupCard initialBackups={files} />
-    </div>
+    </PageShell>
   );
 }

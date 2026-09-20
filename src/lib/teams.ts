@@ -77,3 +77,7 @@ export function acceptInvitation(token: string, userId: string): { ok: true; tea
 export function removeMember(teamId: string, userId: string): void {
   db.delete(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId))).run();
 }
+
+export function setMemberRole(teamId: string, userId: string, role: "admin" | "operator" | "viewer" | "member"): void {
+  db.update(teamMembers).set({ role }).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId))).run();
+}

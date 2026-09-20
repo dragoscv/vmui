@@ -28,7 +28,7 @@ export function useContextRail(node: React.ReactNode): React.ReactPortal | null 
   return createPortal(node, ctx.slot);
 }
 
-function RailCard({ title, icon, children, className }: { title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }) {
+export function RailCard({ title, icon, children, className }: { title: string; icon?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section aria-label={title} className={cn("surface p-4", className)}>
       <h2 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">

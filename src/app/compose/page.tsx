@@ -1,6 +1,10 @@
+import { ComposeWorkspace } from "@/components/compose/compose-workspace";
+import { Badge, Button, PageHeader, PageShell } from "@/components/ui";
 import { getComposeRecipeAction, listComposeRecipesAction } from "@/server/actions/compose";
 import { listInstances } from "@/server/queries";
-import { ComposeWorkspace } from "@/components/compose/compose-workspace";
+import { Boxes, FileStack } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +14,12 @@ interface PageProps {
 
 export default async function ComposePage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const recipes = await listComposeRecipesAction();
-  const initial = sp.id
-    ? await getComposeRecipeAction(sp.id)
-    : { recipe: null, versions: [] };
-  const allInstances = await listInstances();
+  const [recipes, initial, allInstances, t] = await Promise.all([
+    listComposeRecipesAction(),
+    sp.id ? getComposeRecipeAction(sp.id) : Promise.resolve({ recipe: null, versions: [] }),
+    listInstances(),
+    getTranslations("ops.compose"),
+  ]);
   const reachable = allInstances
     .filter((i) => i.state === "running" && i.platform === "linux" && (i.publicIp || i.publicDns))
     .map((i) => ({
@@ -26,15 +31,21 @@ export default async function ComposePage({ searchParams }: PageProps) {
     }));
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Compose recipes</h1>
-        <p className="max-w-2xl text-sm text-muted">
-          Author and version-control docker-compose YAMLs, then apply them to
-          any reachable Linux VM. Each save creates a new version.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<FileStack />}
+        badge={<Badge variant="muted">{t("stackCount", { count: recipes.length })}</Badge>}
+        actions={
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/containers">
+              <Boxes className="size-4" aria-hidden /> {t("viewContainers")}
+            </Link>
+          </Button>
+        }
+      />
       <ComposeWorkspace recipes={recipes} initial={initial} instances={reachable} />
-    </main>
+    </PageShell>
   );
 }

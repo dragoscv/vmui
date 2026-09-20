@@ -14,15 +14,5 @@ export default async function K8sPage() {
       provider: i.provider,
     }));
 
-  return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Kubernetes</h1>
-        <p className="text-sm text-muted">
-          One-click k3s / k0s install, web-based kubectl proxy, and Helm chart deploys — all over SSH, no exposed API server.
-        </p>
-      </header>
-      <K8sWorkspace instances={reachable} />
-    </main>
-  );
+  return <K8sWorkspace instances={reachable} />;
 }

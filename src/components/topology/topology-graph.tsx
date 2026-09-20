@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Html } from "@react-three/drei";
-import { BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Vector3 } from "three";
-import { Save, RotateCcw, Box, Square } from "lucide-react";
+import { Badge, Button, EmptyState, PageHeader, PageSection, PageShell, Skeleton, ToggleGroup } from "@/components/ui";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 import type { TopologyData, TopologyEdge, TopologyNode, TopologyNodeKind } from "@/server/queries/topology";
+import { Html, OrbitControls } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Box, Maximize2, Network, RotateCcw, Save, Square } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BufferAttribute, BufferGeometry, Color, DynamicDrawUsage, Vector3 } from "three";
+import { mixRgb, rgbToCss, useResolvedTokens, type Rgb } from "./theme-colors";
+
+interface ControlsLike {
+  target: Vector3;
+  update: () => void;
+}
 
 interface Props {
   data: TopologyData;
@@ -17,19 +29,47 @@ interface SimNode extends TopologyNode {
   fixed: boolean;
 }
 
-const KIND_COLOR: Record<TopologyNodeKind, string> = {
-  account: "#a78bfa",
-  instance: "#22d3ee",
-  volume: "#34d399",
-  snapshot: "#86efac",
-  "security-group": "#fbbf24",
-  vpc: "#60a5fa",
-  subnet: "#93c5fd",
-  bucket: "#f472b6",
-  "load-balancer": "#fb7185",
-  database: "#fb923c",
-  dns: "#a3e635",
-};
+const TOKENS = ["primary", "accent", "success", "warning", "danger", "info", "border", "fg", "fg-muted", "bg", "surface"] as const;
+type Tokens = Record<(typeof TOKENS)[number], Rgb>;
+
+interface Palette {
+  node: Record<TopologyNodeKind, Rgb>;
+  edge: Record<TopologyEdge["kind"], Rgb>;
+  background: Rgb;
+  label: Rgb;
+  fallback: Rgb;
+}
+
+function buildPalette(t: Tokens): Palette {
+  return {
+    node: {
+      account: t.primary,
+      instance: t.accent,
+      volume: t.success,
+      snapshot: mixRgb(t.success, t.fg, 0.35),
+      "security-group": t.warning,
+      vpc: t.info,
+      subnet: mixRgb(t.info, t.fg, 0.35),
+      bucket: mixRgb(t.primary, t.danger, 0.5),
+      "load-balancer": t.danger,
+      database: mixRgb(t.warning, t.danger, 0.5),
+      dns: mixRgb(t.success, t.accent, 0.5),
+    },
+    edge: {
+      "owned-by": t["fg-muted"],
+      attaches: t.success,
+      "in-group": t.warning,
+      "in-vpc": t.info,
+      "in-subnet": mixRgb(t.info, t.fg, 0.35),
+    },
+    background: t.bg,
+    label: t["fg-muted"],
+    fallback: t["fg-muted"],
+  };
+}
+
+const NODE_KINDS: TopologyNodeKind[] = ["account", "instance", "volume", "snapshot", "security-group", "vpc", "subnet", "bucket", "load-balancer", "database", "dns"];
+const EDGE_KINDS: TopologyEdge["kind"][] = ["owned-by", "attaches", "in-group", "in-vpc", "in-subnet"];
 
 const KIND_SIZE: Record<TopologyNodeKind, number> = {
   account: 0.6,
@@ -43,14 +83,6 @@ const KIND_SIZE: Record<TopologyNodeKind, number> = {
   "load-balancer": 0.34,
   database: 0.34,
   dns: 0.26,
-};
-
-const EDGE_COLOR: Record<TopologyEdge["kind"], string> = {
-  "owned-by": "#475569",
-  attaches: "#34d399",
-  "in-group": "#fbbf24",
-  "in-vpc": "#60a5fa",
-  "in-subnet": "#93c5fd",
 };
 
 const LAYOUT_STORAGE_KEY = "vmui:topology:layout";
@@ -67,6 +99,10 @@ const DEFAULT_SETTINGS: SavedSettings = {
   edgeKinds: ["owned-by", "attaches", "in-group", "in-vpc", "in-subnet"],
   providers: [],
 };
+
+function toColor(rgb: Rgb): Color {
+  return new Color().setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+}
 
 function initialLayout(nodes: TopologyNode[]): Map<string, Vector3> {
   const accounts = nodes.filter((n) => n.kind === "account");
@@ -109,16 +145,45 @@ function loadSavedLayout(): Map<string, [number, number, number]> | null {
   }
 }
 
+function FitCamera({ nodesRef, fitSignal }: { nodesRef: React.RefObject<SimNode[]>; fitSignal: number }) {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as ControlsLike | null;
+  useEffect(() => {
+    const nodes = nodesRef.current;
+    if (!nodes || nodes.length === 0) return;
+    const center = new Vector3();
+    for (const n of nodes) center.add(n.pos);
+    center.divideScalar(nodes.length);
+    let radius = 1;
+    for (const n of nodes) radius = Math.max(radius, n.pos.distanceTo(center));
+    const fov = "fov" in camera && typeof camera.fov === "number" ? camera.fov : 55;
+    const distance = (radius * 1.25) / Math.sin((fov * Math.PI) / 360);
+    const dir = camera.position.clone().sub(controls?.target ?? new Vector3()).normalize();
+    if (dir.lengthSq() === 0) dir.set(0, 0.6, 1).normalize();
+    camera.position.copy(center.clone().add(dir.multiplyScalar(distance)));
+    camera.lookAt(center);
+    if (controls) {
+      controls.target.copy(center);
+      controls.update();
+    }
+  }, [fitSignal, camera, controls, nodesRef]);
+  return null;
+}
+
 function ForceScene({
   data,
+  palette,
   onHover,
   onSelect,
   saveSignal,
+  fitSignal,
 }: {
   data: TopologyData;
+  palette: Palette;
   onHover: (n: TopologyNode | null) => void;
   onSelect: (n: TopologyNode) => void;
   saveSignal: number;
+  fitSignal: number;
 }) {
   const nodesRef = useRef<SimNode[]>([]);
   const indexRef = useRef<Map<string, SimNode>>(new Map());
@@ -237,77 +302,85 @@ function ForceScene({
     if (geom) (geom.getAttribute("position") as BufferAttribute).needsUpdate = true;
   });
 
+  const edgeColor = useMemo(() => toColor(palette.edge["owned-by"]), [palette]);
+  const nodeColors = useMemo(() => {
+    const m = new Map<TopologyNodeKind, Color>();
+    for (const k of NODE_KINDS) m.set(k, toColor(palette.node[k]));
+    return m;
+  }, [palette]);
+  const fallbackColor = useMemo(() => toColor(palette.fallback), [palette]);
+
   return (
     <>
       <ambientLight intensity={0.55} />
       <directionalLight position={[10, 14, 6]} intensity={0.8} />
+      <FitCamera nodesRef={nodesRef} fitSignal={fitSignal} />
       {lineGeomRef.current && (
         <lineSegments geometry={lineGeomRef.current}>
-          <lineBasicMaterial color={new Color("#475569")} transparent opacity={0.45} />
+          <lineBasicMaterial color={edgeColor} transparent opacity={0.45} />
         </lineSegments>
       )}
-      {nodesRef.current.map((n) => (
-        <mesh
-          key={n.id}
-          position={n.pos}
-          ref={(m) => {
-            if (m) sphereRefs.current.set(n.id, m);
-          }}
-          onPointerOver={(e) => {
-            e.stopPropagation();
-            onHover(n);
-          }}
-          onPointerOut={() => onHover(null)}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(n);
-          }}
-        >
-          <sphereGeometry args={[KIND_SIZE[n.kind] ?? 0.3, 16, 16]} />
-          <meshStandardMaterial
-            color={new Color(KIND_COLOR[n.kind] ?? "#94a3b8")}
-            emissive={new Color(KIND_COLOR[n.kind] ?? "#94a3b8")}
-            emissiveIntensity={n.status === "running" || n.kind === "account" ? 0.45 : 0.1}
-            roughness={0.4}
-            metalness={0.15}
-          />
-        </mesh>
-      ))}
+      {nodesRef.current.map((n) => {
+        const color = nodeColors.get(n.kind) ?? fallbackColor;
+        return (
+          <mesh
+            key={n.id}
+            position={n.pos}
+            ref={(m) => {
+              if (m) sphereRefs.current.set(n.id, m);
+            }}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              onHover(n);
+            }}
+            onPointerOut={() => onHover(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(n);
+            }}
+          >
+            <sphereGeometry args={[KIND_SIZE[n.kind] ?? 0.3, 16, 16]} />
+            <meshStandardMaterial
+              color={color}
+              emissive={color}
+              emissiveIntensity={n.status === "running" || n.kind === "account" ? 0.45 : 0.1}
+              roughness={0.4}
+              metalness={0.15}
+            />
+          </mesh>
+        );
+      })}
     </>
   );
 }
 
-function Canvas2D({ data, onSelect }: { data: TopologyData; onSelect: (n: TopologyNode) => void }) {
+function Canvas2D({ data, palette, onSelect }: { data: TopologyData; palette: Palette; onSelect: (n: TopologyNode) => void }) {
   const positions = useMemo(() => initialLayout(data.nodes), [data]);
   const points = data.nodes.map((n) => {
     const p = positions.get(n.id)!;
-    return { node: n, x: p.x * 30 + 400, y: p.z * 30 + 300 };
+    return { node: n, x: p.x * 30, y: p.z * 30 };
   });
   const pointById = new Map(points.map((p) => [p.node.id, p]));
+  const box = points.reduce(
+    (b, p) => ({ minX: Math.min(b.minX, p.x), minY: Math.min(b.minY, p.y), maxX: Math.max(b.maxX, p.x), maxY: Math.max(b.maxY, p.y) }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
+  );
+  const pad = 60;
+  const viewBox = Number.isFinite(box.minX)
+    ? `${box.minX - pad} ${box.minY - pad} ${Math.max(200, box.maxX - box.minX + pad * 2)} ${Math.max(150, box.maxY - box.minY + pad * 2)}`
+    : "0 0 800 600";
   return (
-    <svg viewBox="0 0 800 600" className="h-full w-full">
-      <rect width="800" height="600" fill="#0b0f17" />
+    <svg viewBox={viewBox} className="h-full w-full" style={{ background: rgbToCss(palette.background) }}>
       {data.edges.map((e, i) => {
         const a = pointById.get(e.from);
         const b = pointById.get(e.to);
         if (!a || !b) return null;
-        return (
-          <line
-            key={i}
-            x1={a.x}
-            y1={a.y}
-            x2={b.x}
-            y2={b.y}
-            stroke={EDGE_COLOR[e.kind] ?? "#475569"}
-            strokeOpacity={0.45}
-            strokeWidth={1}
-          />
-        );
+        return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={rgbToCss(palette.edge[e.kind] ?? palette.fallback)} strokeOpacity={0.45} strokeWidth={1} />;
       })}
       {points.map((p) => (
         <g key={p.node.id} onClick={() => onSelect(p.node)} style={{ cursor: "pointer" }}>
-          <circle cx={p.x} cy={p.y} r={(KIND_SIZE[p.node.kind] ?? 0.3) * 12} fill={KIND_COLOR[p.node.kind] ?? "#94a3b8"} />
-          <text x={p.x + 8} y={p.y + 3} fontSize="9" fill="#cbd5e1">
+          <circle cx={p.x} cy={p.y} r={(KIND_SIZE[p.node.kind] ?? 0.3) * 12} fill={rgbToCss(palette.node[p.node.kind] ?? palette.fallback)} />
+          <text x={p.x + 8} y={p.y + 3} fontSize="9" fill={rgbToCss(palette.label)}>
             {p.node.label.slice(0, 18)}
           </text>
         </g>
@@ -316,53 +389,42 @@ function Canvas2D({ data, onSelect }: { data: TopologyData; onSelect: (n: Topolo
   );
 }
 
-function SidePanel({ node, onClose }: { node: TopologyNode; onClose: () => void }) {
+function NodeDetails({ node, palette, onClose }: { node: TopologyNode | null; palette: Palette; onClose: () => void }) {
+  const t = useTranslations("ops.topology");
   return (
-    <div className="absolute right-3 top-3 z-10 w-72 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: KIND_COLOR[node.kind] }} />
-        <button onClick={onClose} className="text-xs text-muted hover:underline">
-          close
-        </button>
-      </div>
-      <div className="text-sm font-semibold">{node.label}</div>
-      <div className="text-[10px] uppercase tracking-wide text-muted">
-        {node.kind} · {node.provider} · {node.region || "—"}
-      </div>
-      {node.status && (
-        <div className="mt-1 text-xs">
-          status: <span className="font-mono">{node.status}</span>
-        </div>
-      )}
-      {node.meta && (
-        <dl className="mt-2 space-y-0.5 text-[11px]">
-          {Object.entries(node.meta).map(([k, v]) =>
-            v == null || v === "" ? null : (
-              <div key={k} className="flex justify-between gap-2">
-                <dt className="text-muted">{k}</dt>
-                <dd className="font-mono">{String(v)}</dd>
-              </div>
-            ),
+    <Sheet open={node !== null} onOpenChange={(o) => !o && onClose()}>
+      {node && (
+        <SheetContent title={node.label} description={`${t(`kinds.${node.kind}`)} · ${node.provider} · ${node.region || "—"}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-block size-2.5 rounded-full" style={{ background: rgbToCss(palette.node[node.kind] ?? palette.fallback) }} aria-hidden />
+            <Badge variant="muted">{t(`kinds.${node.kind}`)}</Badge>
+            {node.status && <Badge variant={node.status === "running" ? "success" : "muted"}>{node.status}</Badge>}
+          </div>
+          {node.meta && Object.values(node.meta).some((v) => v != null && v !== "") && (
+            <dl className="space-y-1 text-xs">
+              {Object.entries(node.meta).map(([k, v]) =>
+                v == null || v === "" ? null : (
+                  <div key={k} className="flex justify-between gap-3">
+                    <dt className="text-muted">{k}</dt>
+                    <dd className="min-w-0 truncate font-mono">{String(v)}</dd>
+                  </div>
+                ),
+              )}
+            </dl>
           )}
-        </dl>
+          {node.kind === "instance" && (
+            <Button variant="secondary" asChild>
+              <Link href={`/instances/${encodeURIComponent(node.id)}`}>{t("openInstance")}</Link>
+            </Button>
+          )}
+          {node.kind === "account" && (
+            <Button variant="secondary" asChild>
+              <Link href={`/accounts/${encodeURIComponent(node.accountId)}`}>{t("openAccount")}</Link>
+            </Button>
+          )}
+        </SheetContent>
       )}
-      {node.kind === "instance" && (
-        <a
-          href={`/instances/${encodeURIComponent(node.id)}`}
-          className="mt-3 inline-flex w-full items-center justify-center rounded-md border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-muted)]"
-        >
-          Open instance →
-        </a>
-      )}
-      {node.kind === "account" && (
-        <a
-          href={`/accounts/${encodeURIComponent(node.accountId)}`}
-          className="mt-3 inline-flex w-full items-center justify-center rounded-md border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-muted)]"
-        >
-          Open account →
-        </a>
-      )}
-    </div>
+    </Sheet>
   );
 }
 
@@ -378,10 +440,15 @@ function readSettings(): SavedSettings {
 }
 
 export function TopologyGraph({ data }: Props) {
+  const t = useTranslations("ops.topology");
+  const tc = useTranslations("common");
+  const tokens = useResolvedTokens(TOKENS);
+  const palette = useMemo(() => (tokens ? buildPalette(tokens) : null), [tokens]);
   const [hover, setHover] = useState<TopologyNode | null>(null);
   const [selected, setSelected] = useState<TopologyNode | null>(null);
   const [settings, setSettings] = useState<SavedSettings>(readSettings);
   const [saveSignal, setSaveSignal] = useState(0);
+  const [fitSignal, setFitSignal] = useState(0);
   const [accountFilter, setAccountFilter] = useState<string | null>(null);
 
   useEffect(() => {
@@ -399,162 +466,211 @@ export function TopologyGraph({ data }: Props) {
       return true;
     });
     const allowedIds = new Set(nodes.map((n) => n.id));
-    const edges = data.edges.filter(
-      (e) => allowedIds.has(e.from) && allowedIds.has(e.to) && settings.edgeKinds.includes(e.kind),
-    );
+    const edges = data.edges.filter((e) => allowedIds.has(e.from) && allowedIds.has(e.to) && settings.edgeKinds.includes(e.kind));
     return { nodes, edges, generatedAt: data.generatedAt };
   }, [data, accountFilter, settings]);
 
+  const presentKinds = useMemo(() => NODE_KINDS.filter((k) => filtered.nodes.some((n) => n.kind === k)), [filtered]);
+
+  const toggleEdge = (k: TopologyEdge["kind"]) =>
+    setSettings((s) => ({ ...s, edgeKinds: s.edgeKinds.includes(k) ? s.edgeKinds.filter((x) => x !== k) : [...s.edgeKinds, k] }));
+  const toggleProvider = (p: string) =>
+    setSettings((s) => ({ ...s, providers: s.providers.includes(p) ? s.providers.filter((x) => x !== p) : [...s.providers, p] }));
+
+  const header = (
+    <PageHeader
+      title={t("title")}
+      description={t("description")}
+      icon={<Network />}
+      badge={<Badge variant="muted">{t("counts", { nodes: filtered.nodes.length, edges: filtered.edges.length })}</Badge>}
+      actions={
+        data.nodes.length > 0 ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setFitSignal((s) => s + 1)}>
+              <Maximize2 className="size-4" aria-hidden />
+              {t("fit")}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setSaveSignal((s) => s + 1)} disabled={settings.view !== "3d"}>
+              <Save className="size-4" aria-hidden />
+              {t("saveLayout")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                window.localStorage.removeItem(LAYOUT_STORAGE_KEY);
+                window.location.reload();
+              }}
+            >
+              <RotateCcw className="size-4" aria-hidden />
+              {t("resetLayout")}
+            </Button>
+          </>
+        ) : undefined
+      }
+    />
+  );
+
   if (data.nodes.length === 0) {
     return (
-      <div className="grid h-full place-items-center text-sm text-muted">
-        No resources yet — sync an account to populate the topology.
-      </div>
+      <PageShell>
+        {header}
+        <EmptyState
+          icon={<Network />}
+          title={t("empty.title")}
+          description={t("empty.description")}
+          action={
+            <Button asChild>
+              <Link href="/accounts">{t("empty.cta")}</Link>
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
-  const toggleEdge = (k: TopologyEdge["kind"]) => {
-    setSettings((s) => ({
-      ...s,
-      edgeKinds: s.edgeKinds.includes(k) ? s.edgeKinds.filter((x) => x !== k) : [...s.edgeKinds, k],
-    }));
-  };
-  const toggleProvider = (p: string) => {
-    setSettings((s) => ({
-      ...s,
-      providers: s.providers.includes(p) ? s.providers.filter((x) => x !== p) : [...s.providers, p],
-    }));
-  };
-
   return (
-    <div className="relative h-full w-full">
-      <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-start gap-2">
-        <div className="pointer-events-auto flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-[11px]">
-          <button
-            type="button"
-            onClick={() => setSettings((s) => ({ ...s, view: "3d" }))}
-            className={`flex items-center gap-1 rounded px-2 py-1 ${settings.view === "3d" ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]" : ""}`}
-          >
-            <Box className="h-3 w-3" /> 3D
-          </button>
-          <button
-            type="button"
-            onClick={() => setSettings((s) => ({ ...s, view: "2d" }))}
-            className={`flex items-center gap-1 rounded px-2 py-1 ${settings.view === "2d" ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]" : ""}`}
-          >
-            <Square className="h-3 w-3" /> 2D
-          </button>
-        </div>
+    <PageShell>
+      {header}
 
-        {accounts.length > 0 && (
-          <div className="pointer-events-auto flex flex-wrap gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setAccountFilter(null)}
-              className={`rounded px-2 py-1 ${accountFilter === null ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]" : ""}`}
-            >
-              all
-            </button>
-            {accounts.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setAccountFilter(a.accountId)}
-                className={`rounded px-2 py-1 ${accountFilter === a.accountId ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]" : ""}`}
-              >
-                {a.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {providers.length > 0 && (
-          <div className="pointer-events-auto flex flex-wrap gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-[11px]">
-            {providers.map((p) => {
-              const on = settings.providers.length === 0 || settings.providers.includes(p);
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => toggleProvider(p)}
-                  className={`rounded px-2 py-1 ${on ? "bg-[var(--color-surface-muted)]" : "opacity-40"}`}
-                >
-                  {p}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="pointer-events-auto flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-[11px]">
-          <button
-            type="button"
-            onClick={() => setSaveSignal((s) => s + 1)}
-            className="flex items-center gap-1 rounded px-2 py-1 hover:bg-[var(--color-surface-muted)]"
-          >
-            <Save className="h-3 w-3" /> Save layout
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                window.localStorage.removeItem(LAYOUT_STORAGE_KEY);
-                window.location.reload();
-              }
-            }}
-            className="flex items-center gap-1 rounded px-2 py-1 hover:bg-[var(--color-surface-muted)]"
-          >
-            <RotateCcw className="h-3 w-3" /> Reset
-          </button>
-        </div>
-      </div>
-
-      {settings.view === "3d" ? (
-        <Canvas camera={{ position: [0, 12, 18], fov: 55 }}>
-          <color attach="background" args={["#0b0f17"]} />
-          <ForceScene data={filtered} onHover={setHover} onSelect={setSelected} saveSignal={saveSignal} />
-          <OrbitControls makeDefault enableDamping />
-          {hover && !selected && (
-            <Html position={[0, 0, 0]} center>
-              <div className="pointer-events-none rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] shadow-lg">
-                <div className="font-semibold">{hover.label}</div>
-                <div className="text-muted">{hover.kind} · {hover.provider}</div>
+      <PageSection
+        title={t("filters.title")}
+        description={t("filters.description")}
+        action={
+          <ToggleGroup
+            size="sm"
+            value={settings.view}
+            onValueChange={(v) => setSettings((s) => ({ ...s, view: v }))}
+            aria-label={t("filters.view")}
+            options={[
+              { value: "3d", label: t("filters.view3d"), icon: <Box className="size-3.5" aria-hidden /> },
+              { value: "2d", label: t("filters.view2d"), icon: <Square className="size-3.5" aria-hidden /> },
+            ]}
+          />
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {accounts.length > 0 && (
+            <fieldset className="min-w-0">
+              <legend className="mb-1.5 text-xs text-muted">{t("filters.accounts")}</legend>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip pressed={accountFilter === null} onClick={() => setAccountFilter(null)}>
+                  {tc("all")}
+                </Chip>
+                {accounts.map((a) => (
+                  <Chip key={a.id} pressed={accountFilter === a.accountId} onClick={() => setAccountFilter(a.accountId)}>
+                    {a.label}
+                  </Chip>
+                ))}
               </div>
-            </Html>
+            </fieldset>
           )}
-        </Canvas>
-      ) : (
-        <Canvas2D data={filtered} onSelect={setSelected} />
-      )}
+          {providers.length > 0 && (
+            <fieldset className="min-w-0">
+              <legend className="mb-1.5 text-xs text-muted">{t("filters.providers")}</legend>
+              <div className="flex flex-wrap gap-1.5">
+                {providers.map((p) => (
+                  <Chip key={p} pressed={settings.providers.length === 0 || settings.providers.includes(p)} onClick={() => toggleProvider(p)}>
+                    {p}
+                  </Chip>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <fieldset className="min-w-0">
+            <legend className="mb-1.5 text-xs text-muted">{t("filters.edges")}</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {EDGE_KINDS.map((k) => (
+                <Chip key={k} pressed={settings.edgeKinds.includes(k)} onClick={() => toggleEdge(k)}>
+                  <span className="inline-block h-0.5 w-3 rounded-full" style={{ background: palette ? rgbToCss(palette.edge[k]) : undefined }} aria-hidden />
+                  {t(`edges.${k}`)}
+                </Chip>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+      </PageSection>
 
-      {selected && <SidePanel node={selected} onClose={() => setSelected(null)} />}
+      <PageSection title={t("graph.title")} description={t("graph.hint")} className="hidden md:block">
+        <div className="relative aspect-[16/10] min-h-[420px] max-h-[72vh] w-full overflow-hidden rounded-[var(--radius-lg)] border border-border bg-bg">
+          {!palette ? (
+            <Skeleton className="h-full w-full rounded-none" />
+          ) : settings.view === "3d" ? (
+            <Canvas camera={{ position: [0, 12, 18], fov: 55 }}>
+              <color attach="background" args={[rgbToCss(palette.background)]} />
+              <ForceScene data={filtered} palette={palette} onHover={setHover} onSelect={setSelected} saveSignal={saveSignal} fitSignal={fitSignal} />
+              <OrbitControls makeDefault enableDamping />
+              {hover && !selected && (
+                <Html position={[0, 0, 0]} center>
+                  <div className="pointer-events-none surface px-2 py-1 text-[11px] shadow-lg">
+                    <div className="font-semibold">{hover.label}</div>
+                    <div className="text-muted">
+                      {t(`kinds.${hover.kind}`)} · {hover.provider}
+                    </div>
+                  </div>
+                </Html>
+              )}
+            </Canvas>
+          ) : (
+            <Canvas2D key={fitSignal} data={filtered} palette={palette} onSelect={setSelected} />
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label={t("legend.title")}>
+          {presentKinds.map((k) => (
+            <Badge key={k} variant="default">
+              <span className="inline-block size-2 rounded-full" style={{ background: palette ? rgbToCss(palette.node[k]) : undefined }} aria-hidden />
+              {t(`kinds.${k}`)}
+            </Badge>
+          ))}
+        </div>
+      </PageSection>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 grid gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[10px]">
-        <div className="mb-1 font-semibold uppercase tracking-wide text-muted">Nodes</div>
-        {Object.entries(KIND_COLOR).map(([k, c]) => (
-          <div key={k} className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: c }} />
-            <span className="capitalize">{k}</span>
-          </div>
-        ))}
-      </div>
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[10px]">
-        <div className="mb-1 font-semibold uppercase tracking-wide text-muted">Edges</div>
-        {Object.entries(EDGE_COLOR).map(([k, c]) => {
-          const on = settings.edgeKinds.includes(k as TopologyEdge["kind"]);
-          return (
-            <button
-              key={k}
-              type="button"
-              onClick={() => toggleEdge(k as TopologyEdge["kind"])}
-              className={`flex items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-[var(--color-surface-muted)] ${on ? "" : "opacity-30"}`}
+      <PageSection title={t("list.title")} description={t("list.description")} className="md:hidden">
+        <ul className="divide-y divide-border">
+          {filtered.nodes.slice(0, 200).map((n, i) => (
+            <motion.li
+              key={n.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
             >
-              <span className="inline-block h-0.5 w-3" style={{ background: c }} />
-              <span>{k}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+              <button
+                type="button"
+                onClick={() => setSelected(n)}
+                className="flex min-h-11 w-full items-center gap-3 px-1 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <span className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: palette ? rgbToCss(palette.node[n.kind]) : undefined }} aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{n.label}</span>
+                  <span className="block truncate text-xs text-muted">
+                    {n.provider} · {n.region || "—"}
+                  </span>
+                </span>
+                <Badge variant="muted">{t(`kinds.${n.kind}`)}</Badge>
+              </button>
+            </motion.li>
+          ))}
+        </ul>
+        {filtered.nodes.length > 200 && <p className="mt-2 text-xs text-muted">{t("list.truncated", { count: filtered.nodes.length - 200 })}</p>}
+      </PageSection>
+
+      {palette && <NodeDetails node={selected} palette={palette} onClose={() => setSelected(null)} />}
+    </PageShell>
+  );
+}
+
+function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn(
+        "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        pressed ? "border-primary bg-[color-mix(in_oklch,var(--color-primary)_14%,transparent)] text-fg" : "border-border text-muted hover:text-fg",
+      )}
+    >
+      {children}
+    </button>
   );
 }

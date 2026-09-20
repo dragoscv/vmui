@@ -1,7 +1,11 @@
 import "server-only";
+import { AccountForecastCards } from "@/components/cloud/account-forecast-cards";
+import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
 import { snapshotHistory, cloudAccounts, accountBudgets } from "@/lib/db/schema";
 import { gte } from "drizzle-orm";
+import { LineChart } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +27,8 @@ function linRegress(points: { x: number; y: number }[]): { slope: number; interc
 
 export default async function AccountForecastPage() {
   const since = new Date(Date.now() - 30 * 24 * 3600_000);
-  const [snaps, accs, budgets] = await Promise.all([
+  const [t, snaps, accs, budgets] = await Promise.all([
+    getTranslations("cloud.accountForecast"),
     db.select().from(snapshotHistory).where(gte(snapshotHistory.capturedAt, since)),
     db.select().from(cloudAccounts),
     db.select().from(accountBudgets),
@@ -64,54 +69,18 @@ export default async function AccountForecastPage() {
   forecasts.sort((a, b) => b.projected30dUsd - a.projected30dUsd);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Per-account spend forecast</h1>
-        <p className="text-sm text-zinc-400">30-day projection per account via linear regression of daily peak spend.</p>
-      </header>
-      {forecasts.length === 0 && <div className="text-sm text-zinc-500">Not enough history yet.</div>}
-      <div className="space-y-3">
-        {forecasts.map((f) => (
-          <div key={f.accountId} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-            <div className="flex items-center justify-between">
-              <div className="font-medium">{f.accountName}</div>
-              <div className="text-xs text-zinc-500">slope ${f.slopePerDay.toFixed(2)}/day{f.budget ? ` · cap $${f.budget.toFixed(0)}/mo` : ""}</div>
-            </div>
-            <div className="mt-3 flex items-center gap-6">
-              <div>
-                <div className="text-2xl font-semibold">${f.projected30dUsd.toFixed(0)}</div>
-                <div className="text-xs text-zinc-500">projected next 30d</div>
-              </div>
-              {f.pctOfBudget !== null && (
-                <div>
-                  <div className={`text-2xl font-semibold ${f.pctOfBudget >= 1 ? "text-rose-400" : f.pctOfBudget >= 0.8 ? "text-amber-400" : "text-emerald-400"}`}>
-                    {(f.pctOfBudget * 100).toFixed(0)}%
-                  </div>
-                  <div className="text-xs text-zinc-500">of monthly cap</div>
-                </div>
-              )}
-              <Sparkline daily={f.daily} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Sparkline({ daily }: { daily: DailyPoint[] }) {
-  if (daily.length < 2) return null;
-  const W = 220, H = 50, P = 2;
-  const xs = daily.map((d) => d.ts);
-  const ys = daily.map((d) => d.usd);
-  const xMin = Math.min(...xs), xMax = Math.max(...xs);
-  const yMax = Math.max(...ys, 1);
-  const sx = (x: number) => P + ((x - xMin) / Math.max(1, xMax - xMin)) * (W - 2 * P);
-  const sy = (y: number) => H - P - (y / yMax) * (H - 2 * P);
-  const path = daily.map((d, i) => `${i === 0 ? "M" : "L"} ${sx(d.ts).toFixed(1)} ${sy(d.usd).toFixed(1)}`).join(" ");
-  return (
-    <svg width={W} height={H} className="ml-auto">
-      <path d={path} stroke="rgb(52, 211, 153)" fill="none" strokeWidth={1.5} />
-    </svg>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<LineChart />} />
+      <AccountForecastCards
+        forecasts={forecasts.map((f) => ({
+          accountId: f.accountId,
+          accountName: f.accountName,
+          daily: f.daily.map((d) => d.usd),
+          projected30dUsd: f.projected30dUsd,
+          slopePerDay: f.slopePerDay,
+          budget: f.budget,
+        }))}
+      />
+    </PageShell>
   );
 }

@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Activity, Download, ExternalLink, Loader2 } from "lucide-react";
+import { AreaChartCard } from "@/components/charts";
+import { Badge, Button, DataTable, EmptyState, PageSection, type ColumnDef } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import type { ActionResult } from "@/lib/action-result";
 import { deployNodeExporterAction, generatePromConfigAction } from "@/server/actions/monitoring";
+import { Activity, Download, ExternalLink, Server } from "lucide-react";
+import { motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
+import * as React from "react";
 
-interface InstanceLite {
+export interface InstanceLite {
   id: string;
   name: string | null;
   providerInstanceId: string;
@@ -14,111 +19,216 @@ interface InstanceLite {
   publicDns: string | null;
   state: string;
   platform: string;
+  lastCpu: number | null;
+  lastMem: number | null;
 }
 
-export function MonitoringWorkspace({ instances, grafanaUrl }: { instances: InstanceLite[]; grafanaUrl: string }) {
-  const [pending, start] = useTransition();
-  const [results, setResults] = useState<Record<string, string>>({});
-  const [yaml, setYaml] = useState<string>("");
+export interface FleetSample {
+  t: number;
+  cpu: number | null;
+  mem: number | null;
+  netIn: number | null;
+  netOut: number | null;
+}
+
+interface Props {
+  instances: InstanceLite[];
+  samples: FleetSample[];
+  grafanaUrl: string;
+}
+
+async function deploy(id: string): Promise<ActionResult<{ url?: string }>> {
+  const r = await deployNodeExporterAction(id);
+  return r.ok ? { ok: true, data: { url: r.url } } : { ok: false, error: r.error };
+}
+
+export function MonitoringWorkspace({ instances, samples, grafanaUrl }: Props) {
+  const t = useTranslations("observe.monitoring");
+  const format = useFormatter();
+  const [results, setResults] = React.useState<Record<string, { ok: boolean; text: string }>>({});
+  const [yaml, setYaml] = React.useState("");
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+
+  const deployAction = useAction(deploy, { success: t("deployed"), refresh: false });
+  const [promPending, startProm] = React.useTransition();
+
+  const runDeploy = async (i: InstanceLite) => {
+    setBusyId(i.id);
+    const r = await deployAction.run(i.id);
+    setBusyId(null);
+    setResults((p) => ({
+      ...p,
+      [i.id]: r.ok ? { ok: true, text: r.data?.url ?? t("deployed") } : { ok: false, text: r.error },
+    }));
+  };
+
+  const chartData = React.useMemo(
+    () =>
+      samples.map((s) => ({
+        t: format.dateTime(new Date(s.t), { hour: "2-digit", minute: "2-digit" }),
+        cpu: s.cpu,
+        mem: s.mem,
+        netIn: s.netIn === null ? null : s.netIn / 1024,
+        netOut: s.netOut === null ? null : s.netOut / 1024,
+      })),
+    [samples, format],
+  );
+
+  const columns: ColumnDef<InstanceLite>[] = React.useMemo(
+    () => [
+      {
+        id: "name",
+        header: t("columns.instance"),
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.original.name ?? row.original.providerInstanceId}</div>
+            <div className="truncate font-mono text-[11px] text-fg-muted">{row.original.publicIp ?? row.original.publicDns ?? "—"}</div>
+          </div>
+        ),
+      },
+      {
+        id: "provider",
+        header: t("columns.provider"),
+        cell: ({ row }) => <Badge variant="info">{row.original.provider}</Badge>,
+      },
+      {
+        id: "cpu",
+        header: t("columns.cpu"),
+        cell: ({ row }) => <span className="tabular-nums text-xs">{row.original.lastCpu === null ? "—" : `${format.number(row.original.lastCpu, { maximumFractionDigits: 0 })}%`}</span>,
+      },
+      {
+        id: "mem",
+        header: t("columns.mem"),
+        cell: ({ row }) => <span className="tabular-nums text-xs">{row.original.lastMem === null ? "—" : `${format.number(row.original.lastMem, { maximumFractionDigits: 0 })}%`}</span>,
+      },
+      {
+        id: "result",
+        header: t("columns.result"),
+        cell: ({ row }) => {
+          const r = results[row.original.id];
+          if (!r) return <span className="text-xs text-fg-muted">—</span>;
+          return (
+            <span className={`block max-w-[16rem] truncate text-xs ${r.ok ? "text-success" : "text-danger"}`} title={r.text}>
+              {r.text}
+            </span>
+          );
+        },
+      },
+    ],
+    [t, format, results],
+  );
 
   return (
-    <div className="grid gap-6">
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">node_exporter deployment</h2>
-        <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--color-surface-muted)] text-xs uppercase text-muted">
-              <tr>
-                <th className="px-2 py-2 text-left">Instance</th>
-                <th className="px-2 py-2 text-left">Provider</th>
-                <th className="px-2 py-2 text-left">IP</th>
-                <th className="px-2 py-2 text-left">Result</th>
-                <th className="w-32 px-2 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {instances.map((i) => (
-                <tr key={i.id} className="border-t border-[var(--color-border)]">
-                  <td className="px-2 py-2 font-medium">{i.name ?? i.providerInstanceId}</td>
-                  <td className="px-2 py-2 text-xs">{i.provider}</td>
-                  <td className="px-2 py-2 font-mono text-xs">{i.publicIp ?? i.publicDns ?? "—"}</td>
-                  <td className="px-2 py-2 text-xs text-muted">{results[i.id] ?? ""}</td>
-                  <td className="px-2 py-2 text-right">
-                    <button
-                      type="button"
-                      disabled={pending || !(i.publicIp || i.publicDns) || i.platform === "windows"}
-                      onClick={() =>
-                        start(async () => {
-                          const r = await deployNodeExporterAction(i.id);
-                          setResults((p) => ({ ...p, [i.id]: r.ok ? `OK: ${r.url}` : `ERR: ${r.error}` }));
-                          if (r.ok) toast.success("Deployed");
-                          else toast.error(r.error);
-                        })
-                      }
-                      className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-2 py-1 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-40"
-                    >
-                      {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Activity className="h-3 w-3" />}
-                      Deploy
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {instances.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-xs text-muted">
-                    No reachable Linux/macOS instances.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <div className="space-y-4">
+      <div className="grid gap-3 xl:grid-cols-3">
+        <AreaChartCard
+          title={t("charts.cpu")}
+          description={t("charts.fleetAvg")}
+          data={chartData}
+          x="t"
+          series={[{ key: "cpu", label: t("charts.cpu"), tone: "primary" }]}
+          unit="%"
+          yDomain={[0, 100]}
+          ariaLabel={t("charts.cpuAria")}
+          emptyTitle={t("charts.noSamples")}
+        />
+        <AreaChartCard
+          title={t("charts.mem")}
+          description={t("charts.fleetAvg")}
+          data={chartData}
+          x="t"
+          series={[{ key: "mem", label: t("charts.mem"), tone: "accent" }]}
+          unit="%"
+          yDomain={[0, 100]}
+          ariaLabel={t("charts.memAria")}
+          emptyTitle={t("charts.noSamples")}
+        />
+        <AreaChartCard
+          title={t("charts.net")}
+          description={t("charts.fleetSum")}
+          data={chartData}
+          x="t"
+          series={[
+            { key: "netIn", label: t("charts.netIn"), tone: "success" },
+            { key: "netOut", label: t("charts.netOut"), tone: "info" },
+          ]}
+          unit="KB/s"
+          ariaLabel={t("charts.netAria")}
+          emptyTitle={t("charts.noSamples")}
+        />
+      </div>
 
-      <section>
-        <header className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Prometheus scrape config</h2>
-          <button
-            type="button"
-            disabled={pending}
+      <PageSection title={t("hosts.title")} description={t("hosts.description")}>
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <DataTable
+            columns={columns}
+            data={instances}
+            dense
+            searchable
+            getRowId={(r) => r.id}
+            emptyState={<EmptyState compact icon={<Server />} title={t("hosts.empty.title")} description={t("hosts.empty.description")} />}
+            rowActions={(i) => (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={busyId === i.id}
+                disabled={busyId !== null || !(i.publicIp || i.publicDns) || i.platform === "windows"}
+                onClick={() => void runDeploy(i)}
+              >
+                <Activity className="size-4" aria-hidden /> {t("hosts.deploy")}
+              </Button>
+            )}
+          />
+        </motion.div>
+      </PageSection>
+
+      <PageSection
+        title={t("prom.title")}
+        description={t("prom.description")}
+        action={
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={promPending}
             onClick={() =>
-              start(async () => {
+              startProm(async () => {
                 const r = await generatePromConfigAction();
                 if (r.ok) setYaml(r.yaml);
               })
             }
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs hover:bg-[var(--color-surface-muted)]"
           >
-            <Download className="h-3 w-3" /> Generate
-          </button>
-        </header>
-        <pre className="overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs font-mono">{yaml || "(click Generate)"}</pre>
-      </section>
+            <Download className="size-4" aria-hidden /> {t("prom.generate")}
+          </Button>
+        }
+      >
+        {yaml ? (
+          <pre className="max-h-80 overflow-auto rounded-[var(--radius-md)] border border-border bg-bg-muted p-3 font-mono text-xs leading-relaxed">{yaml}</pre>
+        ) : (
+          <EmptyState compact title={t("prom.empty")} />
+        )}
+      </PageSection>
 
-      <section>
-        <header className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Grafana embed</h2>
-          {grafanaUrl ? (
-            <a
-              href={grafanaUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs"
-            >
-              Open <ExternalLink className="h-3 w-3" />
-            </a>
-          ) : null}
-        </header>
+      <PageSection
+        title={t("grafana.title")}
+        description={grafanaUrl ? t("grafana.description") : t("grafana.missing")}
+        action={
+          grafanaUrl ? (
+            <Button size="sm" variant="ghost" asChild>
+              <a href={grafanaUrl} target="_blank" rel="noreferrer noopener">
+                {t("grafana.open")} <ExternalLink className="size-4" aria-hidden />
+              </a>
+            </Button>
+          ) : undefined
+        }
+      >
         {grafanaUrl ? (
-          <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-black">
-            <iframe src={grafanaUrl} className="h-[600px] w-full" title="Grafana" />
+          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-bg">
+            <iframe src={grafanaUrl} className="h-[600px] w-full" title={t("grafana.title")} />
           </div>
         ) : (
-          <p className="text-xs text-muted">
-            Set <code className="rounded bg-[var(--color-surface-muted)] px-1 font-mono">VMUI_GRAFANA_URL</code> in your env to embed a Grafana dashboard here.
-          </p>
+          <EmptyState compact title={t("grafana.emptyTitle")} description={t("grafana.emptyHint")} />
         )}
-      </section>
+      </PageSection>
     </div>
   );
 }

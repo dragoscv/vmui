@@ -1,32 +1,24 @@
 "use client";
 
-import { useTransition } from "react";
-import { RefreshCw, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { err, ok } from "@/lib/action-result";
 import { syncAllResources } from "@/server/actions/resources";
-import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useCallback } from "react";
 
 export function SyncResourcesButton() {
-  const [pending, start] = useTransition();
-  const router = useRouter();
+  const t = useTranslations("cloud.resources");
+  const sync = useCallback(async () => {
+    const r = await syncAllResources();
+    return r.ok ? ok(r.total) : err("cloud.resources.syncFailed");
+  }, []);
+  const { run, pending } = useAction(sync, { success: (total) => t("synced", { count: total }) });
   return (
-    <Button
-      onClick={() =>
-        start(async () => {
-          const r = await syncAllResources();
-          if (r.ok) {
-            toast.success(`Synced ${r.total} resources`);
-            router.refresh();
-          } else {
-            toast.error("Resource sync failed");
-          }
-        })
-      }
-      disabled={pending}
-    >
-      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-      Sync resources
+    <Button onClick={() => void run()} loading={pending}>
+      <RefreshCw className="size-4" aria-hidden />
+      {t("sync")}
     </Button>
   );
 }

@@ -1,1 +1,76 @@
-{}
+{
+  "voice": {
+    "unsupported": "Web Speech nu este suportat în acest browser.",
+    "start": "Pornește ascultarea",
+    "stop": "Oprește ascultarea",
+    "listening": "Ascult…",
+    "hint": "Apasă microfonul și spune numele unei pagini",
+    "close": "Închide",
+    "error": "Voce: {error}",
+    "goingTo": "Mergem la {label}",
+    "noMatch": "Am auzit „{text}”, dar nicio comandă nu se potrivește.",
+    "commands": {
+      "dashboard": "Panou",
+      "instances": "Instanțe",
+      "newVm": "Pornește un VM nou",
+      "accounts": "Conturi cloud",
+      "costs": "Costuri",
+      "forecast": "Prognoză costuri",
+      "anomalies": "Anomalii de cost",
+      "recordings": "Înregistrări",
+      "runbooks": "Runbook-uri",
+      "budgets": "Bugete pe etichete",
+      "autoPark": "Parcare automată la inactivitate",
+      "keyRotation": "Rotire chei",
+      "digest": "Rezumat",
+      "mesh": "Mesh",
+      "ai": "AI",
+      "dr": "Exercițiu DR",
+      "restore": "Restaurare",
+      "status": "Stare",
+      "teams": "Echipe",
+      "settings": "Setări"
+    }
+  },
+  "push": {
+    "unsupported": "Notificările push nu sunt suportate în acest browser.",
+    "notConfigured": "Push neconfigurat (setează VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).",
+    "permissionDenied": "Permisiunea pentru notificări a fost refuzată",
+    "enabled": "Notificările push au fost activate",
+    "disabled": "Notificările push au fost dezactivate",
+    "sent": "Trimis către {count, plural, one {# dispozitiv} few {# dispozitive} other {# de dispozitive}}",
+    "noSubscriptions": "Niciun abonament activ sau VAPID neconfigurat",
+    "enable": "Activează push",
+    "disable": "Dezactivează push",
+    "sendTest": "Trimite test"
+  },
+  "install": {
+    "title": "Instalează vmui",
+    "description": "Adaugă pe ecranul principal pentru acces pe tot ecranul, cache offline și notificări push.",
+    "install": "Instalează",
+    "notNow": "Nu acum",
+    "dismiss": "Închide",
+    "unavailable": "Deja instalat sau indisponibil"
+  },
+  "bell": {
+    "title": "Notificări",
+    "tooltip": "Notificări",
+    "tooltipNew": "Notificări · {count} noi",
+    "clearAll": "Șterge tot",
+    "empty": "Ești la zi.",
+    "dismiss": "Închide",
+    "justNow": "chiar acum",
+    "minutesAgo": "acum {n} min",
+    "hoursAgo": "acum {n} h",
+    "daysAgo": "acum {n} z"
+  },
+  "realtime": {
+    "transition": "{id}: {prev} → {state}",
+    "syncTitle": "Sincronizare · {region}",
+    "stateChanges": "{count, plural, one {# schimbare de stare} few {# schimbări de stare} other {# de schimbări de stare}}",
+    "snapshotCreated": "Snapshot creat"
+  },
+  "sound": {
+    "label": "Efecte sonore la finalizarea acțiunilor"
+  }
+}

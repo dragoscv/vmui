@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2, Save, Trash2, Camera } from "lucide-react";
+import { toError, toResult } from "@/components/settings/adapt";
+import { Button, Field, Input } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { ok } from "@/lib/action-result";
+import { applySnapshotRetentionAction, updateSnapshotRetentionAction } from "@/server/actions/snapshot-retention";
+import { Save, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  applySnapshotRetentionAction,
-  updateSnapshotRetentionAction,
-} from "@/server/actions/snapshot-retention";
 
 interface Props {
   accountId: string;
@@ -16,65 +16,51 @@ interface Props {
 }
 
 export function SnapshotRetentionEditor({ accountId, initial }: Props) {
+  const t = useTranslations("cloud.accountDetail");
+  const tc = useTranslations("common");
   const [keepLast, setKeepLast] = useState<string>(initial == null ? "" : String(initial));
-  const [savePending, startSave] = useTransition();
-  const [runPending, startRun] = useTransition();
 
-  function save() {
+  const save = useAction(async (n: number) => toResult(await updateSnapshotRetentionAction({ accountId, keepLast: n })), {
+    success: () => (keepLast.trim() === "" || keepLast.trim() === "0" ? t("retention.disabled") : t("retention.saved", { count: Number.parseInt(keepLast, 10) })),
+  });
+
+  const runNow = useAction(
+    async () => {
+      const r = await applySnapshotRetentionAction(accountId);
+      return r.ok ? ok(r.deleted) : toError(r);
+    },
+    { success: (deleted) => t("retention.deleted", { count: deleted }) },
+  );
+
+  function submit() {
     const n = keepLast.trim() === "" ? 0 : Number.parseInt(keepLast, 10);
     if (!Number.isFinite(n) || n < 0 || n > 1000) {
-      toast.error("Enter a non-negative integer up to 1000.");
+      toast.error(t("retention.invalid"));
       return;
     }
-    startSave(async () => {
-      const r = await updateSnapshotRetentionAction({ accountId, keepLast: n });
-      if (r.ok) toast.success(n === 0 ? "Retention disabled" : `Retention: keep last ${n}`);
-      else toast.error("Save failed", { description: r.error });
-    });
-  }
-
-  function runNow() {
-    startRun(async () => {
-      const r = await applySnapshotRetentionAction(accountId);
-      if (r.ok) toast.success(`Deleted ${r.deleted} old snapshot${r.deleted === 1 ? "" : "s"}`);
-      else toast.error("Retention run incomplete", {
-        description: r.error ?? `${r.deleted} ok / ${r.failed} failed`,
-      });
-    });
+    void save.run(n);
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Camera className="h-3.5 w-3.5" />
-        Keep at most N snapshots per instance. Leave 0 / empty to disable.
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
-          value={keepLast}
-          onChange={(e) => setKeepLast(e.target.value)}
-          placeholder="0"
-          type="number"
-          inputMode="numeric"
-          min="0"
-          max="1000"
-          className="max-w-32 text-xs"
-        />
-        <Button size="sm" onClick={save} disabled={savePending}>
-          {savePending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          Save
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={runNow}
-          disabled={runPending || keepLast === "" || keepLast === "0"}
-          title="Apply retention now"
-        >
-          {runPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-          Run now
-        </Button>
-      </div>
+    <div className="flex flex-wrap items-end gap-2">
+      <Field label={t("retention.label")} hint={t("retention.hint")} className="min-w-0 flex-1 basis-40">
+        <Input value={keepLast} onChange={(e) => setKeepLast(e.target.value)} placeholder="0" type="number" inputMode="numeric" min="0" max="1000" />
+      </Field>
+      <Button size="sm" className="h-9" loading={save.pending} onClick={submit}>
+        <Save className="size-3.5" aria-hidden />
+        {tc("save")}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-9"
+        loading={runNow.pending}
+        disabled={keepLast === "" || keepLast === "0"}
+        onClick={() => void runNow.run()}
+      >
+        <Trash2 className="size-3.5" aria-hidden />
+        {t("retention.runNow")}
+      </Button>
     </div>
   );
 }

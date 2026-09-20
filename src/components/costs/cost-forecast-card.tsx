@@ -1,56 +1,46 @@
 import "server-only";
-import { TrendingUp, TrendingDown } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageSection } from "@/components/ui";
+import { cn, formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
 import { computeCostForecast } from "@/server/queries/forecast";
-import { formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
+import { getTranslations } from "next-intl/server";
 
 export async function CostForecastCard() {
-  const f = await computeCostForecast();
+  const [t, tc, f] = await Promise.all([
+    getTranslations("cloud.costs.forecast"),
+    getTranslations("cloud.costs"),
+    computeCostForecast(),
+  ]);
+
   if (!f) {
     return (
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="h-4 w-4 text-[var(--color-primary)]" />
-            7-day cost forecast
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-muted">
-          Not enough history yet. The forecast appears after ~4 sync snapshots — run syncs over a few hours/days.
-        </CardContent>
-      </Card>
+      <PageSection title={t("title")}>
+        <p className="text-xs text-muted">{t("notEnough")}</p>
+      </PageSection>
     );
   }
-  const trendingUp = f.slopeUsdPerDay > 0.01;
-  const trendingDown = f.slopeUsdPerDay < -0.01;
-  const Icon = trendingUp ? TrendingUp : trendingDown ? TrendingDown : TrendingUp;
-  const color = trendingUp ? "var(--color-warning)" : trendingDown ? "var(--color-success)" : "var(--color-primary)";
+
+  const up = f.slopeUsdPerDay > 0.01;
+  const down = f.slopeUsdPerDay < -0.01;
+  const slopeTone = up ? "text-warning" : down ? "text-success" : "text-fg";
 
   return (
-    <Card className="surface">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="h-4 w-4" style={{ color }} />
-          7-day cost forecast
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-2 sm:grid-cols-3">
-        <div>
-          <div className="text-2xl font-semibold tracking-tight">{formatUsd(f.forecastHourlyUsd)}/hr</div>
-          <div className="text-xs text-muted">projected hourly burn 7 days from now</div>
+    <PageSection title={t("title")} description={t("description", { days: f.rangeDays, count: f.pointsUsed })}>
+      <dl className="grid gap-4 sm:grid-cols-3">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted">{t("hourly")}</dt>
+          <dd className="mt-1 text-2xl font-semibold leading-none tabular-nums">{tc("perHour", { amount: formatUsd(f.forecastHourlyUsd) })}</dd>
         </div>
-        <div>
-          <div className="text-2xl font-semibold tracking-tight">{formatUsd(f.forecastHourlyUsd * HOURS_PER_MONTH)}</div>
-          <div className="text-xs text-muted">projected monthly run-rate</div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted">{t("monthly")}</dt>
+          <dd className="mt-1 text-2xl font-semibold leading-none tabular-nums">{formatUsd(f.forecastHourlyUsd * HOURS_PER_MONTH)}</dd>
         </div>
-        <div>
-          <div className="text-2xl font-semibold tracking-tight" style={{ color }}>
-            {f.slopeUsdPerDay >= 0 ? "+" : ""}
-            {formatUsd(f.slopeUsdPerDay)}/day
-          </div>
-          <div className="text-xs text-muted">trend over last {f.rangeDays} days · {f.pointsUsed} samples</div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted">{t("slope")}</dt>
+          <dd className={cn("mt-1 text-2xl font-semibold leading-none tabular-nums", slopeTone)}>
+            {tc("perDay", { amount: `${f.slopeUsdPerDay >= 0 ? "+" : ""}${formatUsd(f.slopeUsdPerDay)}` })}
+          </dd>
         </div>
-      </CardContent>
-    </Card>
+      </dl>
+    </PageSection>
   );
 }

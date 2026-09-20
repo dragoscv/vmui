@@ -8,7 +8,7 @@ const styles: Record<Variant, string> = {
   success:
     "bg-[color-mix(in_oklch,var(--color-success)_18%,transparent)] text-[var(--color-success)]",
   warning:
-    "bg-[color-mix(in_oklch,var(--color-warning)_22%,transparent)] text-[oklch(0.5_0.16_75)] dark:text-[var(--color-warning)]",
+    "bg-[color-mix(in_oklch,var(--color-warning)_22%,transparent)] text-[color-mix(in_oklch,var(--color-warning)_70%,var(--color-fg))]",
   danger:
     "bg-[color-mix(in_oklch,var(--color-danger)_18%,transparent)] text-[var(--color-danger)]",
   info: "bg-[color-mix(in_oklch,var(--color-accent)_18%,transparent)] text-[var(--color-accent)]",

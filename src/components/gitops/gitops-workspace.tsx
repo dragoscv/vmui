@@ -1,343 +1,275 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { toast } from "sonner";
+import { LogViewer } from "@/components/ops/log-viewer";
+import { RelativeTime } from "@/components/settings/relative-time";
+import { toResult } from "@/components/settings/adapt";
+import { Badge, Button, DataTable, EmptyState, PageHeader, PageSection, PageShell, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
 import {
-  Loader2,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Play,
-  Pause,
-  GitBranch,
-  ChevronDown,
-  ChevronRight,
-  History as HistoryIcon,
-} from "lucide-react";
-import {
-  createGitSourceAction,
   deleteGitSourceAction,
-  toggleGitSourceAction,
-  syncGitSourceNowAction,
-  listGitSourcesAction,
   listGitHistoryAction,
+  listGitSourcesAction,
+  syncGitSourceNowAction,
+  toggleGitSourceAction,
 } from "@/server/actions/gitops";
+import { GitBranch, Pause, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { SourceForm } from "./source-form";
+import { SyncTimeline, sourceState } from "./sync-timeline";
+import type { GitSourceLite, HistoryRow, InstanceLite } from "./types";
 
-interface GitSourceLite {
-  id: string;
-  name: string;
-  url: string;
-  branch: string;
-  authType: "none" | "token" | "ssh";
-  composeGlob: string;
-  targetInstanceId: string | null;
-  pollSeconds: number;
-  enabled: boolean;
-  lastCommit: string | null;
-  lastSyncedAt: Date | null;
-  lastError: string | null;
-  createdAt: Date;
-}
-
-interface HistoryRow {
-  id: string;
-  sourceId: string;
-  commit: string;
-  path: string;
-  status: "success" | "failed" | "skipped";
-  message: string | null;
-  createdAt: Date;
-}
-
-interface InstanceLite {
-  id: string;
-  name: string | null;
-  providerInstanceId: string;
-  provider: string;
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  success: "bg-emerald-500/20 text-emerald-200",
-  failed: "bg-red-500/20 text-red-200",
-  skipped: "bg-slate-500/20 text-slate-200",
-};
+const STATUS_VARIANT = { done: "success", running: "info", failed: "danger", idle: "muted" } as const;
 
 export function GitopsWorkspace({ instances }: { instances: InstanceLite[] }) {
+  const t = useTranslations("ops.gitops");
+  const tc = useTranslations("common");
+  const format = useFormatter();
+  const confirm = useConfirm();
   const [sources, setSources] = useState<GitSourceLite[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const [s, h] = await Promise.all([listGitSourcesAction(), listGitHistoryAction({})]);
     if (s.ok) setSources(s.rows as GitSourceLite[]);
     if (h.ok) setHistory(h.rows as HistoryRow[]);
-  };
+    setLoaded(true);
+  }, []);
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
-  }, []);
+    const id = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
-  return (
-    <div className="grid gap-6">
-      <section>
-        <header className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Git sources</h2>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs hover:bg-[var(--color-surface-muted)]"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-2 py-1 text-xs font-semibold text-[var(--color-primary-fg)]"
-          >
-            <Plus className="h-3 w-3" /> Add source
-          </button>
-        </header>
-        {showAdd && <AddForm instances={instances} onSaved={() => { setShowAdd(false); void refresh(); }} />}
-        <div className="overflow-hidden rounded-md border border-[var(--color-border)] bg-[var(--color-surface)]">
-          <table className="w-full text-xs">
-            <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[10px] uppercase tracking-wide text-muted">
-              <tr>
-                <th className="w-6"></th>
-                <th className="px-3 py-1.5 text-left">Name</th>
-                <th className="px-3 py-1.5 text-left">URL @ branch</th>
-                <th className="px-3 py-1.5 text-left">Last sync</th>
-                <th className="px-3 py-1.5 text-left">Commit</th>
-                <th className="px-3 py-1.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sources.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-muted">
-                    No git sources yet.
-                  </td>
-                </tr>
-              )}
-              {sources.map((s) => (
-                <SourceRow
-                  key={s.id}
-                  src={s}
-                  expanded={expanded === s.id}
-                  history={history.filter((h) => h.sourceId === s.id)}
-                  onToggle={() => setExpanded(expanded === s.id ? null : s.id)}
-                  onRefresh={refresh}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function SourceRow({
-  src,
-  expanded,
-  history,
-  onToggle,
-  onRefresh,
-}: {
-  src: GitSourceLite;
-  expanded: boolean;
-  history: HistoryRow[];
-  onToggle: () => void;
-  onRefresh: () => void | Promise<void>;
-}) {
-  const [pending, start] = useTransition();
-  const act = (fn: () => Promise<unknown>) =>
-    start(async () => {
-      await fn();
-      await onRefresh();
-    });
-  return (
-    <>
-      <tr className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-muted)]/40">
-        <td className="cursor-pointer px-2 py-1.5 text-center text-muted" onClick={onToggle}>
-          {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        </td>
-        <td className="px-3 py-1.5 font-semibold">
-          <div className="flex items-center gap-1">
-            <GitBranch className="h-3 w-3 opacity-60" />
-            {src.name}
-          </div>
-        </td>
-        <td className="px-3 py-1.5 font-mono text-[11px] text-muted">{src.url}@{src.branch}</td>
-        <td className="px-3 py-1.5 text-[10px] text-muted">
-          {src.lastSyncedAt ? new Date(src.lastSyncedAt).toLocaleString() : "never"}
-          {src.lastError && <span className="ml-1 text-red-300" title={src.lastError}>· err</span>}
-        </td>
-        <td className="px-3 py-1.5 font-mono text-[10px] text-muted">{src.lastCommit?.slice(0, 8) ?? "—"}</td>
-        <td className="px-3 py-1.5 text-right">
-          <div className="inline-flex gap-1">
-            <button
-              type="button"
-              onClick={() => act(() => syncGitSourceNowAction({ id: src.id }))}
-              disabled={pending}
-              title="Sync now"
-              className="rounded border border-[var(--color-border)] p-1 hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
-            >
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => act(() => toggleGitSourceAction({ id: src.id, enabled: !src.enabled }))}
-              title={src.enabled ? "Pause" : "Resume"}
-              className="rounded border border-[var(--color-border)] p-1 hover:bg-[var(--color-surface-muted)]"
-            >
-              {src.enabled ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm("Delete source and its local cache?")) {
-                  act(async () => {
-                    const r = await deleteGitSourceAction({ id: src.id });
-                    if (r.ok) toast.success("Deleted");
-                  });
-                }
-              }}
-              className="rounded border border-red-500/30 p-1 text-red-300 hover:bg-red-500/10"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="border-b border-[var(--color-border)] bg-black/30">
-          <td colSpan={6} className="px-4 py-2">
-            <div className="mb-2 flex items-center gap-2 text-[10px] text-muted">
-              <HistoryIcon className="h-3 w-3" />
-              <span>Apply history</span>
-            </div>
-            {history.length === 0 ? (
-              <p className="text-[10px] text-muted">No applies yet.</p>
-            ) : (
-              <ul className="space-y-1 text-[11px]">
-                {history.slice(0, 10).map((h) => (
-                  <li key={h.id} className="flex items-center gap-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${STATUS_COLOR[h.status]}`}>
-                      {h.status}
-                    </span>
-                    <span className="font-mono text-muted">{h.commit.slice(0, 8)}</span>
-                    <span className="font-mono">{h.path}</span>
-                    <span className="ml-auto text-[10px] text-muted">{new Date(h.createdAt).toLocaleString()}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-function AddForm({ instances, onSaved }: { instances: InstanceLite[]; onSaved: () => void }) {
-  const [authType, setAuthType] = useState<"none" | "token" | "ssh">("none");
-  const [pending, start] = useTransition();
-  const [form, setForm] = useState({
-    name: "",
-    url: "",
-    branch: "main",
-    token: "",
-    sshKey: "",
-    username: "",
-    composeGlob: "**/docker-compose.y*ml",
-    targetInstanceId: instances[0]?.id ?? "",
-    pollSeconds: 60,
+  const sync = useAction(async (id: string) => toResult(await syncGitSourceNowAction({ id })), {
+    success: t("toast.synced"),
+    refresh: false,
+    onSuccess: () => void refresh(),
   });
-  const setField = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const v = e.target.value;
-    setForm((s) => ({ ...s, [k]: k === "pollSeconds" ? Number(v) : v }));
+  const toggle = useAction(async (id: string, enabled: boolean) => toResult(await toggleGitSourceAction({ id, enabled })), {
+    refresh: false,
+    onSuccess: () => void refresh(),
+  });
+  const del = useAction(async (id: string) => toResult(await deleteGitSourceAction({ id })), {
+    success: t("toast.deleted"),
+    refresh: false,
+    onSuccess: () => {
+      setSelectedId(null);
+      void refresh();
+    },
+  });
+
+  const runBusy = async (id: string, fn: () => Promise<unknown>) => {
+    setBusy(id);
+    try {
+      await fn();
+    } finally {
+      setBusy(null);
+    }
   };
-  const submit = () =>
-    start(async () => {
-      const res = await createGitSourceAction({ ...form, authType });
-      if (res.ok) {
-        toast.success("Source added — first sync will run within 30s");
-        onSaved();
-      } else {
-        toast.error("Failed");
-      }
+
+  const onDelete = async (src: GitSourceLite) => {
+    const yes = await confirm({
+      title: t("confirmDelete.title", { name: src.name }),
+      description: t("confirmDelete.description"),
+      tone: "danger",
+      confirmText: tc("delete"),
     });
+    if (yes) await runBusy(src.id, () => del.run(src.id));
+  };
+
+  const selected = useMemo(() => sources.find((s) => s.id === selectedId) ?? sources[0] ?? null, [sources, selectedId]);
+  const selectedHistory = useMemo(() => (selected ? history.filter((h) => h.sourceId === selected.id) : []), [history, selected]);
+  const syncingId = sync.pending ? busy : null;
+
+  const logLines = useMemo(() => {
+    if (!selected) return [];
+    const lines = [...selectedHistory]
+      .reverse()
+      .map(
+        (h) =>
+          `${format.dateTime(new Date(h.createdAt), { dateStyle: "short", timeStyle: "medium" })}  ${h.status.toUpperCase().padEnd(7)}  ${h.commit.slice(0, 8)}  ${h.path}${h.message ? `  — ${h.message}` : ""}`,
+      );
+    if (selected.lastError) lines.push(`ERROR    ${selected.lastError}`);
+    return lines;
+  }, [selected, selectedHistory, format]);
+
+  const columns = useMemo<ColumnDef<GitSourceLite, unknown>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: t("columns.name"),
+        cell: ({ row }) => (
+          <span className="flex min-w-0 items-center gap-2 font-medium">
+            <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden />
+            <span className="truncate">{row.original.name}</span>
+          </span>
+        ),
+      },
+      {
+        id: "repo",
+        accessorFn: (s) => `${s.url}@${s.branch}`,
+        header: t("columns.repo"),
+        cell: ({ row }) => (
+          <span className="block max-w-[28rem] truncate font-mono text-xs text-fg-muted" title={`${row.original.url}@${row.original.branch}`}>
+            {row.original.url}
+            <span className="text-fg-soft">@{row.original.branch}</span>
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        accessorFn: (s) => sourceState(s, false),
+        header: t("columns.status"),
+        cell: ({ row }) => {
+          const state = sourceState(row.original, syncingId === row.original.id);
+          return (
+            <Badge variant={STATUS_VARIANT[state]} dot={state === "running"}>
+              {t(`stepState.${state}`)}
+            </Badge>
+          );
+        },
+      },
+      {
+        accessorKey: "lastSyncedAt",
+        header: t("columns.lastSync"),
+        cell: ({ row }) =>
+          row.original.lastSyncedAt ? (
+            <RelativeTime date={row.original.lastSyncedAt} className="whitespace-nowrap text-fg-muted" />
+          ) : (
+            <span className="text-fg-muted">{t("steps.never")}</span>
+          ),
+      },
+      {
+        accessorKey: "lastCommit",
+        header: t("columns.commit"),
+        cell: ({ row }) => <span className="font-mono text-xs text-fg-muted">{row.original.lastCommit?.slice(0, 8) ?? "—"}</span>,
+      },
+    ],
+    [t, syncingId],
+  );
+
   return (
-    <div className="mb-2 grid gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
-      <div className="flex flex-wrap gap-2">
-        <label className="flex flex-1 flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Name</span>
-          <input value={form.name} onChange={setField("name")} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1" />
-        </label>
-        <label className="flex flex-[2] flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">URL</span>
-          <input value={form.url} onChange={setField("url")} placeholder="https://github.com/me/stacks.git" className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Branch</span>
-          <input value={form.branch} onChange={setField("branch")} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono" />
-        </label>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Auth</span>
-          <select value={authType} onChange={(e) => setAuthType(e.target.value as typeof authType)} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1">
-            <option value="none">none (public)</option>
-            <option value="token">HTTPS token</option>
-            <option value="ssh">SSH key</option>
-          </select>
-        </label>
-        {authType === "token" && (
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<GitBranch />}
+        badge={loaded ? <Badge variant="muted">{t("count", { count: sources.length })}</Badge> : undefined}
+        actions={
           <>
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase text-muted">Username (optional)</span>
-              <input value={form.username} onChange={setField("username")} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono" />
-            </label>
-            <label className="flex flex-1 flex-col gap-1">
-              <span className="text-[10px] uppercase text-muted">Token / PAT</span>
-              <input type="password" value={form.token} onChange={setField("token")} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono" />
-            </label>
+            <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+              <RefreshCw className="size-4" aria-hidden />
+              {tc("refresh")}
+            </Button>
+            <Button size="sm" onClick={() => setShowAdd((v) => !v)} aria-expanded={showAdd}>
+              <Plus className="size-4" aria-hidden />
+              {t("addSource")}
+            </Button>
           </>
+        }
+      />
+
+      <AnimatePresence initial={false}>
+        {showAdd && (
+          <motion.div key="add" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+            <SourceForm
+              instances={instances}
+              onCancel={() => setShowAdd(false)}
+              onSaved={() => {
+                setShowAdd(false);
+                void refresh();
+              }}
+            />
+          </motion.div>
         )}
-      </div>
-      {authType === "ssh" && (
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Private SSH key (OpenSSH format)</span>
-          <textarea value={form.sshKey} onChange={setField("sshKey")} rows={6} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono text-[10px]" />
-        </label>
+      </AnimatePresence>
+
+      <PageSection title={t("sources.title")} description={t("sources.description")}>
+        <DataTable
+          columns={columns}
+          data={sources}
+          loading={!loaded}
+          dense
+          searchable={sources.length > 5}
+          getRowId={(s) => s.id}
+          onRowClick={(s) => setSelectedId(s.id)}
+          emptyState={
+            <EmptyState
+              compact
+              icon={<GitBranch />}
+              title={t("empty.title")}
+              description={t("empty.description")}
+              action={
+                <Button size="sm" onClick={() => setShowAdd(true)}>
+                  <Plus className="size-4" aria-hidden />
+                  {t("addSource")}
+                </Button>
+              }
+            />
+          }
+          rowActions={(s) => (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("actions.syncNow")}
+                title={t("actions.syncNow")}
+                loading={sync.pending && busy === s.id}
+                onClick={() => void runBusy(s.id, () => sync.run(s.id))}
+              >
+                <RefreshCw className="size-4" aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={s.enabled ? t("actions.pause") : t("actions.resume")}
+                title={s.enabled ? t("actions.pause") : t("actions.resume")}
+                loading={toggle.pending && busy === s.id}
+                onClick={() => void runBusy(s.id, () => toggle.run(s.id, !s.enabled))}
+              >
+                {s.enabled ? <Pause className="size-4" aria-hidden /> : <Play className="size-4" aria-hidden />}
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={tc("delete")} title={tc("delete")} loading={del.pending && busy === s.id} onClick={() => void onDelete(s)}>
+                <Trash2 className="size-4 text-danger" aria-hidden />
+              </Button>
+            </>
+          )}
+        />
+      </PageSection>
+
+      {selected && (
+        <PageSection
+          title={t("pipeline.title", { name: selected.name })}
+          description={t("pipeline.description")}
+          action={
+            <Badge variant={selected.enabled ? "success" : "muted"} dot={selected.enabled}>
+              {selected.enabled ? t("enabled") : t("paused")}
+            </Badge>
+          }
+        >
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <SyncTimeline src={selected} history={selectedHistory} syncing={syncingId === selected.id} />
+            <LogViewer
+              title={t("log.title")}
+              lines={logLines}
+              height="max-h-72"
+              emptyLabel={t("log.empty")}
+              loading={syncingId === selected.id}
+              lineTone={(line) =>
+                line.includes("FAILED") || line.startsWith("ERROR") ? "danger" : line.includes("SKIPPED") ? "muted" : line.includes("SUCCESS") ? "success" : undefined
+              }
+            />
+          </div>
+        </PageSection>
       )}
-      <div className="flex flex-wrap gap-2">
-        <label className="flex flex-1 flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Compose glob</span>
-          <input value={form.composeGlob} onChange={setField("composeGlob")} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Target instance</span>
-          <select value={form.targetInstanceId} onChange={(e) => setForm((s) => ({ ...s, targetInstanceId: e.target.value }))} className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1">
-            <option value="">— (none, just track)</option>
-            {instances.map((i) => (
-              <option key={i.id} value={i.id}>{i.name ?? i.providerInstanceId} · {i.provider}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase text-muted">Poll seconds</span>
-          <input type="number" min={15} max={86400} value={form.pollSeconds} onChange={setField("pollSeconds")} className="w-24 rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1 font-mono" />
-        </label>
-      </div>
-      <div className="flex justify-end">
-        <button type="button" onClick={submit} disabled={pending || !form.name || !form.url} className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-2.5 py-1 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-50">
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Save source
-        </button>
-      </div>
-    </div>
+    </PageShell>
   );
 }

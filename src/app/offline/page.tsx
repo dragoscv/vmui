@@ -1,18 +1,34 @@
+import { Alert, Button, EmptyState, PageHeader, PageShell } from "@/components/ui";
+import { LayoutDashboard, WifiOff } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+
 export const dynamic = "force-static";
 
-export default function OfflinePage() {
+export default async function OfflinePage() {
+  const t = await getTranslations("observe.offline");
   return (
-    <main className="mx-auto flex min-h-[70vh] w-full max-w-xl flex-col items-center justify-center gap-4 p-6 text-center">
-      <div className="text-5xl">🛰️</div>
-      <h1 className="text-2xl font-semibold tracking-tight">You&apos;re offline</h1>
-      <p className="text-sm text-muted">
-        vmui can&apos;t reach the control plane right now. The fleet snapshot you last viewed is still cached on this device — open <a href="/" className="underline">Dashboard</a> to use what we have.
-      </p>
-      <ul className="mt-2 space-y-1 text-xs text-muted">
-        <li>• Live actions (start/stop/snapshot) need the server back online.</li>
-        <li>• Reads from cached pages will return what was last seen.</li>
-        <li>• This page comes from the service worker fallback.</li>
-      </ul>
-    </main>
+    <PageShell width="prose">
+      <PageHeader title={t("title")} description={t("description")} icon={<WifiOff />} />
+      <EmptyState
+        icon={<WifiOff />}
+        title={t("empty.title")}
+        description={t("empty.description")}
+        action={
+          <Button asChild>
+            <Link href="/">
+              <LayoutDashboard className="size-4" aria-hidden /> {t("openDashboard")}
+            </Link>
+          </Button>
+        }
+      />
+      <Alert tone="info" title={t("whatWorks.title")}>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>{t("whatWorks.live")}</li>
+          <li>{t("whatWorks.cached")}</li>
+          <li>{t("whatWorks.sw")}</li>
+        </ul>
+      </Alert>
+    </PageShell>
   );
 }

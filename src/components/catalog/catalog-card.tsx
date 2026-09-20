@@ -1,96 +1,109 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Copy, Save, ExternalLink, Boxes } from "lucide-react";
-import { saveCatalogTemplateAction } from "@/server/actions/catalog";
+import { LogViewer } from "@/components/ops/log-viewer";
+import { Badge, Button } from "@/components/ui";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import type { CatalogTemplate } from "@/lib/catalog";
+import { saveCatalogTemplateAction } from "@/server/actions/catalog";
+import { Copy, ExternalLink, FileCode2, Save } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
 
-const CATEGORY_COLOR: Record<CatalogTemplate["category"], string> = {
-  automation: "bg-violet-500/15 text-violet-300",
-  analytics: "bg-amber-500/15 text-amber-300",
-  docs: "bg-emerald-500/15 text-emerald-300",
-  monitoring: "bg-sky-500/15 text-sky-300",
-  security: "bg-rose-500/15 text-rose-300",
-  dev: "bg-cyan-500/15 text-cyan-300",
+type CatalogCategory = CatalogTemplate["category"];
+
+const CATEGORY_VARIANT: Record<CatalogCategory, "default" | "success" | "warning" | "danger" | "info" | "muted"> = {
+  automation: "info",
+  analytics: "warning",
+  docs: "success",
+  monitoring: "info",
+  security: "danger",
+  dev: "muted",
 };
 
-export function CatalogCard({ template }: { template: CatalogTemplate }) {
-  const [pending, start] = useTransition();
-  const [expanded, setExpanded] = useState(false);
+export function CatalogCard({ template, index = 0 }: { template: CatalogTemplate; index?: number }) {
+  const t = useTranslations("ops.catalog");
+  const [open, setOpen] = useState(false);
+
+  const save = useAction(
+    async (): Promise<ActionResult> => {
+      const res = await saveCatalogTemplateAction(template.id);
+      return res.ok ? ok() : { ok: false, error: res.error ?? t("saveFailed") };
+    },
+    { success: t("saved", { name: template.name }) },
+  );
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(template.cloudInit);
+  };
 
   return (
-    <article className="flex flex-col rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <header className="mb-2 flex items-start justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold">{template.name}</h2>
-          <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${CATEGORY_COLOR[template.category]}`}>
-            {template.category}
-          </span>
+    <>
+      <motion.article
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, delay: Math.min(index, 12) * 0.03 }}
+        className="surface card-hover flex flex-col gap-3 p-4"
+      >
+        <header className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold">{template.name}</h3>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Badge variant={CATEGORY_VARIANT[template.category]}>{t(`categories.${template.category}`)}</Badge>
+              <Badge variant="muted">{t("port", { port: template.defaultPort })}</Badge>
+            </div>
+          </div>
+          <Button asChild variant="ghost" size="icon" aria-label={t("homepage", { name: template.name })}>
+            <a href={template.homepage} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-4" aria-hidden />
+            </a>
+          </Button>
+        </header>
+
+        <p className="flex-1 text-sm text-fg-muted">{template.description}</p>
+
+        <dl className="grid grid-cols-3 gap-2 text-[11px]">
+          <div>
+            <dt className="text-fg-muted">{t("specs.vcpu")}</dt>
+            <dd className="font-mono tabular-nums">{template.recommends.vcpu}</dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">{t("specs.ram")}</dt>
+            <dd className="font-mono tabular-nums">{t("specs.gb", { n: template.recommends.ramGb })}</dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">{t("specs.disk")}</dt>
+            <dd className="font-mono tabular-nums">{t("specs.gb", { n: template.recommends.diskGb })}</dd>
+          </div>
+        </dl>
+
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => void save.run()} loading={save.pending}>
+            <Save className="size-4" aria-hidden /> {t("use")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+            <FileCode2 className="size-4" aria-hidden /> {t("view")}
+          </Button>
         </div>
-        <a
-          href={template.homepage}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)]"
-          aria-label={`Open ${template.name} homepage`}
-        >
-          <ExternalLink className="h-4 w-4" />
-        </a>
-      </header>
-      <p className="mb-3 flex-1 text-sm text-muted">{template.description}</p>
-      <dl className="mb-3 grid grid-cols-3 gap-2 text-[11px]">
-        <div>
-          <dt className="text-muted">vCPU</dt>
-          <dd className="font-mono">{template.recommends.vcpu}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">RAM</dt>
-          <dd className="font-mono">{template.recommends.ramGb} GB</dd>
-        </div>
-        <div>
-          <dt className="text-muted">Disk</dt>
-          <dd className="font-mono">{template.recommends.diskGb} GB</dd>
-        </div>
-      </dl>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              const res = await saveCatalogTemplateAction(template.id);
-              if (res.ok) toast.success(`Saved “${template.name}” as a boot script`);
-              else toast.error(res.error ?? "Save failed");
-            })
-          }
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-50"
-        >
-          <Save className="h-3.5 w-3.5" /> Save as boot script
-        </button>
-        <button
-          type="button"
-          onClick={async () => {
-            await navigator.clipboard.writeText(template.cloudInit);
-            toast.success("cloud-init copied to clipboard");
-          }}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-muted)]"
-        >
-          <Copy className="h-3.5 w-3.5" /> Copy YAML
-        </button>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-[var(--color-surface-muted)]"
-        >
-          <Boxes className="h-3.5 w-3.5" /> {expanded ? "Hide" : "Show"} cloud-init
-        </button>
-      </div>
-      {expanded && (
-        <pre className="mt-3 max-h-72 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-2 text-[11px]">
-          <code>{template.cloudInit}</code>
-        </pre>
-      )}
-    </article>
+      </motion.article>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent title={template.name} description={template.description} className="md:w-[640px]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => void save.run()} loading={save.pending}>
+                <Save className="size-4" aria-hidden /> {t("use")}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void copy()}>
+                <Copy className="size-4" aria-hidden /> {t("copyYaml")}
+              </Button>
+            </div>
+            <LogViewer title={t("cloudInit")} text={template.cloudInit} height="max-h-[60vh]" wrap autoScroll={false} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

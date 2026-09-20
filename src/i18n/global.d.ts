@@ -14,6 +14,11 @@ import type settings from "../../messages/settings/en.json";
 import type shell from "../../messages/shell/en.json";
 import type turzx from "../../messages/turzx/en.json";
 import type vm from "../../messages/vm/en.json";
+import type extras from "../../messages/extras/en.json";
+import type govern from "../../messages/govern/en.json";
+import type observe from "../../messages/observe/en.json";
+import type ops from "../../messages/ops/en.json";
+import type cloud from "../../messages/cloud/en.json";
 import type { LOCALES } from "./config";
 
 declare module "next-intl" {
@@ -31,6 +36,11 @@ declare module "next-intl" {
       shell: typeof shell;
       appearance: typeof appearance;
       vm: typeof vm;
+      extras: typeof extras;
+      govern: typeof govern;
+      observe: typeof observe;
+      ops: typeof ops;
+      cloud: typeof cloud;
       dashboard: typeof dashboard;
       settings: typeof settings;
       auth: typeof auth;

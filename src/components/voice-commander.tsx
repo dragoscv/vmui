@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 type SpeechRec = (typeof globalThis & { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown });
@@ -19,30 +20,39 @@ interface SRInstance {
 }
 interface SREvent { results: { 0: { transcript: string }; isFinal: boolean }[] }
 
-const COMMANDS: { phrases: string[]; href: string; label: string }[] = [
-  { phrases: ["dashboard", "home"], href: "/", label: "Dashboard" },
-  { phrases: ["instances", "vms", "machines", "servers"], href: "/instances", label: "Instances" },
-  { phrases: ["new vm", "new instance", "launch", "create vm"], href: "/instances/new", label: "Launch new VM" },
-  { phrases: ["accounts", "providers"], href: "/accounts", label: "Cloud accounts" },
-  { phrases: ["costs", "billing"], href: "/costs", label: "Costs" },
-  { phrases: ["forecast", "projection"], href: "/forecast", label: "Cost forecast" },
-  { phrases: ["anomaly", "anomalies"], href: "/anomalies", label: "Cost anomalies" },
-  { phrases: ["recordings", "asciinema", "replay"], href: "/recordings", label: "Recordings" },
-  { phrases: ["runbook", "runbooks"], href: "/runbooks", label: "Runbooks" },
-  { phrases: ["budget", "budgets"], href: "/budgets", label: "Tag budgets" },
-  { phrases: ["auto park", "park"], href: "/auto-park", label: "Idle auto-park" },
-  { phrases: ["key rotation", "rotate keys"], href: "/key-rotation", label: "Key rotation" },
-  { phrases: ["digest", "what changed"], href: "/digest", label: "Digest" },
-  { phrases: ["mesh", "wireguard"], href: "/mesh", label: "Mesh" },
-  { phrases: ["ai agent", "ai", "chat"], href: "/ai", label: "AI" },
-  { phrases: ["disaster recovery", "dr drill"], href: "/dr", label: "DR drill" },
-  { phrases: ["restore"], href: "/restore", label: "Restore" },
-  { phrases: ["status"], href: "/status", label: "Status" },
-  { phrases: ["teams"], href: "/teams", label: "Teams" },
-  { phrases: ["settings"], href: "/settings", label: "Settings" },
+type CommandKey =
+  | "dashboard" | "instances" | "newVm" | "accounts" | "costs" | "forecast" | "anomalies" | "recordings"
+  | "runbooks" | "budgets" | "autoPark" | "keyRotation" | "digest" | "mesh" | "ai" | "dr" | "restore"
+  | "status" | "teams" | "settings";
+
+// Phrases are matched against the lowercased transcript; the recogniser runs in
+// the UI locale, so both English and Romanian forms are listed.
+const COMMANDS: { phrases: string[]; href: string; key: CommandKey }[] = [
+  { phrases: ["dashboard", "home", "panou", "acasă"], href: "/", key: "dashboard" },
+  { phrases: ["instances", "vms", "machines", "servers", "instanțe", "mașini", "servere"], href: "/instances", key: "instances" },
+  { phrases: ["new vm", "new instance", "launch", "create vm", "vm nou", "instanță nouă"], href: "/instances/new", key: "newVm" },
+  { phrases: ["accounts", "providers", "conturi", "furnizori"], href: "/accounts", key: "accounts" },
+  { phrases: ["costs", "billing", "costuri", "facturare"], href: "/costs", key: "costs" },
+  { phrases: ["forecast", "projection", "prognoză", "proiecție"], href: "/forecast", key: "forecast" },
+  { phrases: ["anomaly", "anomalies", "anomalii"], href: "/anomalies", key: "anomalies" },
+  { phrases: ["recordings", "asciinema", "replay", "înregistrări"], href: "/recordings", key: "recordings" },
+  { phrases: ["runbook", "runbooks"], href: "/runbooks", key: "runbooks" },
+  { phrases: ["budget", "budgets", "buget", "bugete"], href: "/budgets", key: "budgets" },
+  { phrases: ["auto park", "park", "parcare"], href: "/auto-park", key: "autoPark" },
+  { phrases: ["key rotation", "rotate keys", "rotire chei"], href: "/key-rotation", key: "keyRotation" },
+  { phrases: ["digest", "what changed", "rezumat", "ce s-a schimbat"], href: "/digest", key: "digest" },
+  { phrases: ["mesh", "wireguard"], href: "/mesh", key: "mesh" },
+  { phrases: ["ai agent", "ai", "chat"], href: "/ai", key: "ai" },
+  { phrases: ["disaster recovery", "dr drill", "exercițiu dr"], href: "/dr", key: "dr" },
+  { phrases: ["restore", "restaurare"], href: "/restore", key: "restore" },
+  { phrases: ["status", "stare"], href: "/status", key: "status" },
+  { phrases: ["teams", "echipe"], href: "/teams", key: "teams" },
+  { phrases: ["settings", "setări"], href: "/settings", key: "settings" },
 ];
 
 export function VoiceCommander() {
+  const t = useTranslations("misc.voice");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -71,7 +81,7 @@ export function VoiceCommander() {
     const Ctor = (w.SpeechRecognition || w.webkitSpeechRecognition) as new () => SRInstance;
     if (!Ctor) return;
     const r = new Ctor();
-    r.lang = "en-US";
+    r.lang = locale === "ro" ? "ro-RO" : "en-US";
     r.interimResults = true;
     r.continuous = false;
     r.onresult = (e) => {
@@ -81,7 +91,7 @@ export function VoiceCommander() {
       setTranscript(text);
       if (last.isFinal) match(text);
     };
-    r.onerror = (e) => toast.error(`Voice: ${e.error}`);
+    r.onerror = (e) => toast.error(t("error", { error: e.error }));
     r.onend = () => setListening(false);
     r.start();
     recRef.current = r;
@@ -101,11 +111,11 @@ export function VoiceCommander() {
       }
     }
     if (best) {
-      toast.success(`Going to ${best.cmd.label}`);
+      toast.success(t("goingTo", { label: t(`commands.${best.cmd.key}`) }));
       router.push(best.cmd.href);
       setOpen(false);
     } else {
-      toast.message(`Heard "${text}" but no command matched.`);
+      toast.message(t("noMatch", { text }));
     }
   };
 
@@ -113,21 +123,31 @@ export function VoiceCommander() {
 
   return (
     <div className="fixed inset-x-0 bottom-20 z-[90] flex justify-center px-4 sm:bottom-8">
-      <div className="flex w-full max-w-md items-center gap-3 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-2xl">
+      <div className="flex w-full max-w-md items-center gap-3 rounded-full border border-border bg-surface p-2 shadow-2xl">
         {!supported ? (
-          <span className="px-3 text-sm text-muted">Web Speech not supported in this browser.</span>
+          <span className="px-3 text-sm text-fg-muted">{t("unsupported")}</span>
         ) : (
           <>
-            <button onClick={listening ? stop : start} className={`flex h-9 w-9 items-center justify-center rounded-full ${listening ? "bg-rose-500 text-white animate-pulse" : "bg-[var(--color-primary)] text-white"}`} aria-label={listening ? "Stop listening" : "Start listening"}>
-              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            <button
+              type="button"
+              onClick={listening ? stop : start}
+              className={`flex h-10 w-10 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-primary ${listening ? "bg-danger text-danger-fg animate-pulse" : "bg-primary text-primary-fg"}`}
+              aria-label={listening ? t("stop") : t("start")}
+            >
+              {listening ? <MicOff className="h-4 w-4" aria-hidden /> : <Mic className="h-4 w-4" aria-hidden />}
             </button>
-            <span className="flex-1 truncate font-mono text-xs text-muted">
-              {listening ? (transcript || "Listening…") : "Press the mic and say a page name"}
+            <span className="flex-1 truncate font-mono text-xs text-fg-muted">
+              {listening ? (transcript || t("listening")) : t("hint")}
             </span>
           </>
         )}
-        <button onClick={() => { stop(); setOpen(false); }} aria-label="Close" className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-[var(--color-surface-muted)]">
-          <X className="h-3 w-3" />
+        <button
+          type="button"
+          onClick={() => { stop(); setOpen(false); }}
+          aria-label={t("close")}
+          className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <X className="h-3 w-3" aria-hidden />
         </button>
       </div>
     </div>

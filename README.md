@@ -118,11 +118,26 @@ section: the UI is on **port 80**, `http:` YAML is ignored on HA 2026.9, and
 putting HA itself on 443 boots it into recovery mode.
 
 The `/home` page in vmui is the phone-first control surface for that
-appliance: floor plan with live device dots, per-device sheets (lights,
-climate, media, sensors) and the HyperHDR ambilight modes. It is reachable
-over the tailnet at `https://mui.dragoscatalin.ro` via
+appliance, in five tabs: **Home** (floor plan with live device dots,
+per-device sheets for lights / climate / media / sensors, intercom),
+**Ambilight** (HyperHDR modes), **Notifications** (notification centre +
+paired devices), **Nutrition** (meals, water, per member) and **Settings**
+(owner only, sections `family`, `turzx`, `nestHub`, `deskButton`, `copilot`).
+Access follows the family model — `owner | adult | child | guest` with
+per-room view/control grants, members joining via `/invite/<token>` — not the
+VM control plane's `users.role`. It is reachable over the tailnet at
+`https://mui.dragoscatalin.ro` via
 `scripts\vmui-service.ps1 -Install` (production server as a logon task) and
 `scripts\publish-vmui.ps1` (DNS, Let's Encrypt, Caddy route).
+
+### Appearance
+
+The palette icon in the top bar opens the appearance switcher: theme
+(light / dark / system), accent (eight presets or a custom hue), surface
+(glass / flat / high-contrast), density (comfortable / compact) and vibe
+presets (cyberpunk, cockpit, terminal, aurora…) that set accent + surface in
+one click. The choice is stored per user (`users.preferences`) and mirrored in
+the `vmui_appearance` cookie so the first paint already matches.
 
 ### Agent access (codai) — MCP action server
 

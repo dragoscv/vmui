@@ -82,5 +82,10 @@
     "keepAlive": "Re-trimite pagina când Hub-ul o pierde",
     "keepAliveHint": "hub-cast pe Pi",
     "respectPlayback": "Nu întrerupe YouTube / Spotify pe Hub"
+  },
+  "kiosk": {
+    "loading": "se încarcă…",
+    "offline": "vmui offline",
+    "throttled": "încetinit"
   }
 }

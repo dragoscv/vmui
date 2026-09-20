@@ -1,142 +1,143 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Archive, Download, RefreshCw, Trash2, ShieldCheck } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  writeLocalBackupAction,
-  deleteLocalBackupAction,
-  verifyLocalBackupAction,
-} from "@/server/actions/local-backup";
+import { RelativeTime } from "@/components/settings/relative-time";
+import { Badge, Button, DataTable, EmptyState, PageSection, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import type { BackupFileSummary } from "@/lib/local-backup";
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let val = n / 1024;
-  let i = 0;
-  while (val >= 1024 && i < units.length - 1) {
-    val /= 1024;
-    i++;
-  }
-  return `${val.toFixed(1)} ${units[i]}`;
-}
+import { deleteLocalBackupAction, verifyLocalBackupAction, writeLocalBackupAction } from "@/server/actions/local-backup";
+import { Archive, Download, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { formatBytes } from "./bytes";
 
 export function LocalBackupCard({ initialBackups }: { initialBackups: BackupFileSummary[] }) {
+  const t = useTranslations("ops.backups.local");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
   const [backups, setBackups] = useState(initialBackups);
-  const [pending, startTransition] = useTransition();
+  const [refreshing, startRefresh] = useTransition();
 
   const refresh = () => {
-    startTransition(async () => {
+    startRefresh(async () => {
       const res = await fetch("/api/local-backups");
-      if (res.ok) setBackups(await res.json());
+      if (res.ok) setBackups((await res.json()) as BackupFileSummary[]);
     });
   };
 
-  const handleCreate = () => {
-    startTransition(async () => {
+  const create = useAction(
+    async (): Promise<ActionResult<string>> => {
       const out = await writeLocalBackupAction();
-      if (out.ok) {
-        toast.success(`Backup written: ${out.file?.name ?? ""}`);
-        refresh();
-      } else {
-        toast.error(out.error ?? "Backup failed");
-      }
-    });
-  };
+      if (!out.ok) return { ok: false, error: out.error ?? t("createFailed") };
+      refresh();
+      return ok(out.file?.name ?? "");
+    },
+    { success: (name) => t("created", { name }), refresh: false },
+  );
 
-  const handleVerify = (name: string) => {
-    startTransition(async () => {
+  const verify = useAction(
+    async (name: string): Promise<ActionResult<string>> => {
       const out = await verifyLocalBackupAction({ name });
-      if (out.ok) {
-        const counts = Object.entries(out.counts ?? {})
-          .map(([k, v]) => `${k}=${v}`)
-          .join(" · ");
-        toast.success(`Verified: ${counts}`);
-      } else {
-        toast.error(out.error ?? "Verify failed");
-      }
-    });
-  };
+      if (!out.ok) return { ok: false, error: out.error ?? t("verifyFailed") };
+      const counts = Object.entries(out.counts ?? {})
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" · ");
+      return ok(counts);
+    },
+    { success: (counts) => t("verified", { counts }), refresh: false },
+  );
 
-  const handleDelete = (name: string) => {
-    if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
-    startTransition(async () => {
+  const remove = useAction(
+    async (name: string): Promise<ActionResult> => {
       const out = await deleteLocalBackupAction({ name });
-      if (out.ok) {
-        toast.success("Backup deleted");
-        refresh();
-      } else {
-        toast.error(out.error ?? "Delete failed");
-      }
+      if (!out.ok) return { ok: false, error: out.error ?? t("deleteFailed") };
+      refresh();
+      return ok();
+    },
+    { success: t("deleted"), refresh: false },
+  );
+
+  async function onRemove(b: BackupFileSummary) {
+    const yes = await confirm({
+      title: t("confirmDelete", { name: b.name }),
+      description: t("confirmDeleteHint"),
+      tone: "danger",
+      confirmText: tc("delete"),
     });
-  };
+    if (yes) await remove.run(b.name);
+  }
+
+  const columns = useMemo<ColumnDef<BackupFileSummary, unknown>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: t("columns.file"),
+        cell: ({ row }) => (
+          <div className="flex min-w-0 items-center gap-2">
+            <code className="block truncate font-mono text-xs">{row.original.name}</code>
+            {row.original.partial && <Badge variant="warning">{t("partial")}</Badge>}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "bytes",
+        header: t("columns.size"),
+        cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-xs">{formatBytes(row.original.bytes)}</span>,
+      },
+      {
+        accessorKey: "modifiedAt",
+        header: t("columns.modified"),
+        cell: ({ row }) => <RelativeTime date={row.original.modifiedAt} className="whitespace-nowrap text-xs text-fg-muted" />,
+      },
+    ],
+    [t],
+  );
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Archive className="h-4 w-4" /> Local encrypted backups
-          </h2>
-          <p className="text-xs text-muted">
-            AES-256-GCM streaming archives stored under <code className="font-mono">~/.vmui/backups</code>.
-            Sealed with your <code className="font-mono">VMUI_MASTER_KEY</code>.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={refresh} variant="ghost" size="sm" disabled={pending}>
-            <RefreshCw className={`h-3.5 w-3.5 ${pending ? "animate-spin" : ""}`} />
+    <PageSection
+      title={t("title")}
+      description={t.rich("description", { code: (chunks: ReactNode) => <code className="font-mono">{chunks}</code> })}
+      action={
+        <>
+          <Button variant="ghost" size="icon" onClick={refresh} loading={refreshing} aria-label={tc("refresh")}>
+            <RefreshCw className="size-4" aria-hidden />
           </Button>
-          <Button onClick={handleCreate} disabled={pending} size="sm">
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Create backup now
+          <Button size="sm" onClick={() => void create.run()} loading={create.pending}>
+            <Download className="size-4" aria-hidden /> {t("createNow")}
           </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {backups.length === 0 ? (
-          <div className="grid place-items-center rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] py-8 text-sm text-muted">
-            No local backups yet. Click <strong className="mx-1">Create backup now</strong> to make one.
-          </div>
-        ) : (
-          <ul className="divide-y divide-[var(--color-border)]">
-            {backups.map((b) => (
-              <li key={b.name} className="flex flex-wrap items-center gap-3 py-2 text-xs">
-                <div className="min-w-0 flex-1 truncate font-mono">{b.name}</div>
-                <span className="text-muted">{formatBytes(b.bytes)}</span>
-                <span className="text-muted">
-                  {new Date(b.modifiedAt).toLocaleString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                {b.partial && (
-                  <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-600 dark:text-amber-400">
-                    partial
-                  </span>
-                )}
-                <Button variant="ghost" size="sm" onClick={() => handleVerify(b.name)} disabled={pending}>
-                  <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Verify
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(b.name)}
-                  disabled={pending}
-                  className="text-red-600 hover:bg-red-500/10 dark:text-red-400"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </li>
-            ))}
-          </ul>
+        </>
+      }
+    >
+      <DataTable
+        columns={columns}
+        data={backups}
+        dense
+        getRowId={(b) => b.name}
+        emptyState={
+          <EmptyState
+            compact
+            icon={<Archive />}
+            title={t("empty")}
+            description={t("emptyHint")}
+            action={
+              <Button size="sm" onClick={() => void create.run()} loading={create.pending}>
+                <Download className="size-4" aria-hidden /> {t("createNow")}
+              </Button>
+            }
+          />
+        }
+        rowActions={(b) => (
+          <>
+            <Button size="sm" variant="ghost" onClick={() => void verify.run(b.name)} disabled={verify.pending}>
+              <ShieldCheck className="size-4" aria-hidden /> {t("verify")}
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => void onRemove(b)} disabled={remove.pending} aria-label={tc("delete")}>
+              <Trash2 className="size-4 text-danger" aria-hidden />
+            </Button>
+          </>
         )}
-      </CardContent>
-    </Card>
+      />
+    </PageSection>
   );
 }

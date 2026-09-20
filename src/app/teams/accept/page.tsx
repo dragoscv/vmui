@@ -1,28 +1,55 @@
-import { acceptInvitationAction } from "@/server/actions/teams";
-import { redirect } from "next/navigation";
+import { Alert, Button, PageHeader, PageShell } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
+import { acceptInvitationAction } from "@/server/actions/teams";
+import { MailCheck } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+type ErrorKey = "missing" | "notFound" | "accepted" | "expired" | "generic";
+
+function errorKey(error: string): ErrorKey {
+  if (error.includes("not found")) return "notFound";
+  if (error.includes("already accepted")) return "accepted";
+  if (error.includes("expired")) return "expired";
+  return "generic";
+}
+
 export default async function AcceptInvitationPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token } = await searchParams;
-  if (!token) return <main className="p-6"><p className="text-rose-300">Missing token.</p></main>;
+  const t = await getTranslations("govern.accept");
+
+  if (!token) return <AcceptResult title={t("title")} failure={t("errors.missing")} />;
+
   const user = await getCurrentUser();
   if (!user) redirect(`/sign-in?next=${encodeURIComponent(`/teams/accept?token=${token}`)}`);
+
   const r = await acceptInvitationAction({ token });
+  if (!r.ok) return <AcceptResult title={t("title")} failure={t(`errors.${errorKey(r.error)}`)} />;
+  return <AcceptResult title={t("title")} />;
+}
+
+async function AcceptResult({ title, failure }: { title: string; failure?: string }) {
+  const t = await getTranslations("govern.accept");
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-3 p-6 text-sm">
-      {r.ok ? (
-        <>
-          <h1 className="text-xl font-semibold text-emerald-300">Joined team!</h1>
-          <a href="/teams" className="underline">Go to teams →</a>
-        </>
-      ) : (
-        <>
-          <h1 className="text-xl font-semibold text-rose-300">Could not accept</h1>
-          <p>{r.error}</p>
-        </>
-      )}
-    </main>
+    <PageShell width="narrow">
+      <PageHeader title={title} icon={<MailCheck />} />
+      <div className="surface space-y-4 p-6">
+        {failure ? (
+          <Alert tone="danger" title={t("failure.title")}>
+            {failure}
+          </Alert>
+        ) : (
+          <Alert tone="success" title={t("success.title")}>
+            {t("success.description")}
+          </Alert>
+        )}
+        <Button asChild variant={failure ? "secondary" : "primary"}>
+          <Link href="/teams">{failure ? t("failure.cta") : t("success.cta")}</Link>
+        </Button>
+      </div>
+    </PageShell>
   );
 }

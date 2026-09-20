@@ -1,0 +1,658 @@
+{
+	"compliance": {
+		"title": "Conformitate",
+		"description": "Controale statice evaluate peste resursele cloud din cache. Fără apeluri către furnizori în afara unei sincronizări obișnuite.",
+		"scan": "Rulează scanarea",
+		"scanned": "Scanare finalizată — {count, plural, =0 {nicio constatare} one {# constatare} few {# constatări} other {# de constatări}}",
+		"stats": {
+			"score": "Scor",
+			"scoreHint": "{passing} din {total} controale trec",
+			"findings": "Constatări deschise",
+			"critical": "Critice",
+			"criticalHint": "{high} ridicate, {medium} medii, {low} scăzute",
+			"failing": "Controale picate"
+		},
+		"donut": {
+			"title": "Starea controalelor",
+			"ariaLabel": "Controale care trec față de cele picate",
+			"passing": "Trec",
+			"failing": "Picate",
+			"total": "controale"
+		},
+		"filter": {
+			"label": "Filtrează controalele",
+			"all": "Toate",
+			"failing": "Picate",
+			"passing": "Trec"
+		},
+		"columns": {
+			"control": "Control",
+			"severity": "Severitate",
+			"status": "Stare",
+			"resources": "Resurse"
+		},
+		"status": {
+			"failing": "Picat",
+			"passing": "Trece"
+		},
+		"severity": {
+			"critical": "Critică",
+			"high": "Ridicată",
+			"medium": "Medie",
+			"low": "Scăzută"
+		},
+		"empty": {
+			"title": "Nimic de afișat",
+			"description": "Niciun control nu se potrivește cu acest filtru."
+		},
+		"sheet": {
+			"affected": "Resurse afectate",
+			"affectedCount": "{count, plural, =0 {Nicio resursă} one {# resursă} few {# resurse} other {# de resurse}}",
+			"remediation": "Cum se remediază",
+			"clean": "Acest control trece — nu există resurse afectate.",
+			"openDetail": "Deschide detaliile controlului"
+		},
+		"fix": {
+			"revoke": "Revocă",
+			"revokeLabel": "Revocă regula deschisă către internet pe {id}",
+			"delete": "Șterge",
+			"deleteLabel": "Șterge resursa orfană {id}"
+		},
+		"controls": {
+			"ssh-open-world": {
+				"title": "SSH nu este deschis către internet",
+				"steps": {
+					"1": "Deschide grupul de securitate și găsește regula 0.0.0.0/0 pe portul 22.",
+					"2": "Înlocuiește-o cu CIDR-ul biroului sau al VPN-ului, ori folosește un bastion.",
+					"3": "Rulează din nou scanarea pentru a confirma că constatarea a dispărut."
+				}
+			},
+			"rdp-open-world": {
+				"title": "RDP nu este deschis către internet",
+				"steps": {
+					"1": "Deschide grupul de securitate și găsește regula 0.0.0.0/0 pe portul 3389.",
+					"2": "Restrânge-o la un CIDR cunoscut sau publică desktopul printr-un gateway.",
+					"3": "Rulează din nou scanarea pentru a confirma că constatarea a dispărut."
+				}
+			},
+			"any-open-world": {
+				"title": "Niciun acces pe toate porturile din internet",
+				"steps": {
+					"1": "Găsește regula cu protocol -1 și sursă 0.0.0.0/0.",
+					"2": "Împarte-o în reguli explicite pe port, cu surse restrânse.",
+					"3": "Rulează din nou scanarea pentru a confirma că constatarea a dispărut."
+				}
+			},
+			"public-bucket": {
+				"title": "Bucket-urile nu sunt publice",
+				"steps": {
+					"1": "Elimină permisiunile AllUsers și AuthenticatedUsers din ACL-ul bucket-ului.",
+					"2": "Setează prevenirea accesului public pe „enforced” și servește fișierele prin URL-uri semnate.",
+					"3": "Sincronizează contul și rulează din nou scanarea."
+				}
+			},
+			"unencrypted-volume": {
+				"title": "Volume criptate în repaus",
+				"steps": {
+					"1": "Fă un snapshot al volumului, apoi copiază snapshotul cu criptarea activată.",
+					"2": "Creează un volum nou din snapshotul criptat și schimbă atașarea.",
+					"3": "Șterge volumul necriptat și snapshotul lui."
+				}
+			},
+			"stopped-but-billable": {
+				"title": "Nicio mașină oprită care plătește stocare",
+				"steps": {
+					"1": "Decide dacă mașina mai este necesară.",
+					"2": "Dacă nu, fă un snapshot și termin-o ca să se elibereze volumele.",
+					"3": "Dacă da, mută datele pe stocare mai ieftină sau acceptă costul."
+				}
+			},
+			"long-stopped": {
+				"title": "Nicio mașină oprită de mult timp",
+				"steps": {
+					"1": "Verifică cu proprietarul din etichetă dacă mașina mai este dorită.",
+					"2": "Fă un ultim snapshot de siguranță.",
+					"3": "Termină mașina pentru a opri facturarea stocării."
+				}
+			},
+			"missing-required-tags": {
+				"title": "Etichetele obligatorii sunt prezente peste tot",
+				"steps": {
+					"1": "Deschide contul și citește lista de etichete obligatorii.",
+					"2": "Aplică cheile lipsă în masă din pagina Etichete.",
+					"3": "Adaugă o regulă de etichetare automată ca mașinile noi să le primească la sincronizare."
+				}
+			},
+			"orphan-snapshot": {
+				"title": "Niciun snapshot orfan",
+				"steps": {
+					"1": "Confirmă că volumul sursă nu mai există.",
+					"2": "Exportă snapshotul dacă mai ai nevoie de date.",
+					"3": "Șterge snapshotul pentru a opri facturarea stocării."
+				}
+			},
+			"orphan-volume": {
+				"title": "Niciun volum neatașat",
+				"steps": {
+					"1": "Confirmă că nicio mașină nu mai are nevoie de volum.",
+					"2": "Fă un snapshot dacă datele mai contează.",
+					"3": "Șterge volumul pentru a opri facturarea stocării."
+				}
+			},
+			"orphan-elastic-ip": {
+				"title": "Niciun IP elastic neatașat",
+				"steps": {
+					"1": "Verifică dacă vreo înregistrare DNS mai indică spre adresă.",
+					"2": "Reatașează-l unei mașini sau actualizează întâi DNS-ul.",
+					"3": "Eliberează adresa pentru a opri taxa orară."
+				}
+			}
+		}
+	},
+	"cis": {
+		"title": "Benchmark CIS Linux",
+		"description": "Un subset din CIS Linux Benchmark v3, evaluat prin SSH cu cheia de sondare. Trece = exit 0.",
+		"instance": "Instanță Linux",
+		"instancePlaceholder": "Alege o instanță",
+		"run": "Rulează scanarea",
+		"scanned": "Scanare încheiată",
+		"pickFirst": {
+			"title": "Alege o instanță",
+			"description": "Selectează o mașină Linux mai sus pentru a vedea ultimele rezultate."
+		},
+		"noInstances": {
+			"title": "Nicio instanță Linux",
+			"description": "Sincronizează un cont cu o mașină Linux pentru a rula benchmarkul."
+		},
+		"stats": {
+			"score": "Scor",
+			"scoreHint": "{pass} din {total} verificări trec",
+			"pass": "Trec",
+			"fail": "Picate",
+			"error": "Erori",
+			"skip": "Sărite"
+		},
+		"donut": {
+			"title": "Rezultatele verificărilor",
+			"ariaLabel": "Verificări care trec față de cele picate",
+			"total": "verificări"
+		},
+		"filter": {
+			"label": "Filtrează verificările",
+			"all": "Toate",
+			"failing": "Picate",
+			"passing": "Trec"
+		},
+		"columns": {
+			"check": "Verificare",
+			"name": "Titlu",
+			"result": "Rezultat",
+			"evidence": "Dovadă"
+		},
+		"result": {
+			"pass": "Trece",
+			"fail": "Picat",
+			"error": "Eroare",
+			"skip": "Sărit"
+		},
+		"empty": {
+			"title": "Niciun rezultat încă",
+			"description": "Rulează o scanare pentru a colecta rezultatele acestei instanțe."
+		},
+		"sheet": {
+			"evidence": "Dovadă",
+			"noEvidence": "Verificarea nu a produs nicio ieșire.",
+			"remediation": "Cum se remediază",
+			"steps": {
+				"1": "Conectează-te la mașină și reprodu manual comanda verificării.",
+				"2": "Aplică setarea recomandată de CIS și persistă-o (sysctl.d, sshd_config, unitate systemd).",
+				"3": "Rulează din nou scanarea ca rezultatul să fie înregistrat."
+			},
+			"ranAt": "Ultima rulare",
+			"openDetail": "Deschide detaliile verificării"
+		}
+	},
+	"secrets": {
+		"title": "Secrete",
+		"description": "Secrete criptate AES-256-GCM, cu memento de rotație, audit al dezvăluirilor, trimitere pe mașină și export sigilat.",
+		"add": "Adaugă secret",
+		"columns": {
+			"name": "Nume",
+			"scope": "Domeniu",
+			"rotation": "Rotație",
+			"lastRotated": "Ultima rotație"
+		},
+		"kinds": {
+			"db": "Bază de date",
+			"api-key": "Cheie API",
+			"password": "Parolă",
+			"generic": "Generic"
+		},
+		"sealed": "Sigilat",
+		"rotationDays": "{n, plural, one {# zi} few {# zile} other {# de zile}}",
+		"noRotation": "Fără memento",
+		"never": "Niciodată",
+		"actions": {
+			"reveal": "Dezvăluie o dată",
+			"rotate": "Rotește",
+			"push": "Trimite pe mașină",
+			"export": "Export sigilat",
+			"delete": "Șterge"
+		},
+		"empty": {
+			"title": "Niciun secret stocat",
+			"description": "Adaugă unul și este criptat cu cheia principală înainte să ajungă pe disc."
+		},
+		"create": {
+			"title": "Secret nou",
+			"description": "Valoarea este criptată imediat și nu mai este afișată decât dacă o dezvălui.",
+			"name": "Nume",
+			"namePlaceholder": "DATABASE_URL",
+			"nameHint": "Litere, cifre, underscore sau cratimă.",
+			"kind": "Tip",
+			"value": "Valoare",
+			"rotation": "Memento de rotație (zile)",
+			"rotationHint": "0 dezactivează mementoul.",
+			"sealed": "Sigilat",
+			"sealedHint": "Cere reautentificare înainte de dezvăluire.",
+			"submit": "Stochează secretul"
+		},
+		"revealed": {
+			"title": "{name} — afișat o singură dată",
+			"hint": "Copiază-l acum. Dispare automat și nu mai este afișat.",
+			"copy": "Copiază valoarea",
+			"copied": "Copiat",
+			"dismiss": "Ascunde acum",
+			"countdown": "Se ascunde în {seconds}s"
+		},
+		"push": {
+			"title": "Trimite {name} pe o mașină",
+			"description": "Scrie secretul într-un fișier env pe o mașină pornită și accesibilă, prin SSH.",
+			"instance": "Instanță",
+			"path": "Calea fișierului env",
+			"submit": "Trimite",
+			"none": "Nicio mașină pornită cu adresă accesibilă."
+		},
+		"export": {
+			"title": "Export sigilat pentru {name}",
+			"description": "Descarcă un fișier JSON criptat cu scrypt pe care îl poți restaura altundeva.",
+			"passphrase": "Frază de acces",
+			"passphraseHint": "Cel puțin 8 caractere. Ai nevoie de ea pentru a deschide fișierul.",
+			"submit": "Descarcă"
+		},
+		"confirm": {
+			"rotate": {
+				"title": "Rotești {name}?",
+				"description": "O valoare nouă o înlocuiește pe cea curentă. Tot ce folosește valoarea veche se strică.",
+				"confirm": "Rotește"
+			},
+			"delete": {
+				"title": "Ștergi {name}?",
+				"description": "Valoarea criptată este eliminată definitiv. Acțiunea nu poate fi anulată.",
+				"confirm": "Șterge"
+			}
+		},
+		"toast": {
+			"created": "Secret stocat",
+			"rotated": "Rotit — valoarea nouă este afișată o singură dată",
+			"deleted": "Secret șters",
+			"pushed": "Trimis pe mașină",
+			"exported": "Fișier sigilat descărcat"
+		}
+	},
+	"teams": {
+		"title": "Echipe",
+		"description": "Grupează utilizatori, invită colaboratori și delimitează conturile cloud. Invitațiile sunt tokenuri de unică folosință, valabile 7 zile.",
+		"create": {
+			"title": "Echipă nouă",
+			"name": "Nume",
+			"namePlaceholder": "Platformă",
+			"slug": "Slug",
+			"slugPlaceholder": "platforma",
+			"submit": "Creează echipa"
+		},
+		"members": {
+			"title": "Membri",
+			"count": "{count, plural, one {# membru} few {# membri} other {# de membri}}",
+			"columns": {
+				"member": "Membru",
+				"role": "Rol",
+				"joined": "Alăturat"
+			},
+			"roleLabel": "Rolul lui {name}",
+			"remove": "Elimină pe {name}",
+			"empty": {
+				"title": "Niciun membru",
+				"description": "Invită pe cineva pentru a începe."
+			}
+		},
+		"roles": {
+			"owner": "Proprietar",
+			"admin": "Administrator",
+			"operator": "Operator",
+			"viewer": "Vizualizator",
+			"member": "Membru"
+		},
+		"invitations": {
+			"title": "Invitații în așteptare",
+			"empty": "Nicio invitație în așteptare.",
+			"expires": "Expiră {date}"
+		},
+		"invite": {
+			"open": "Invită",
+			"title": "Invită în {team}",
+			"description": "Creează un link de unică folosință. Nu se trimite niciun e-mail — îl distribui tu.",
+			"email": "E-mail",
+			"emailPlaceholder": "persoana@exemplu.ro",
+			"role": "Rol",
+			"submit": "Creează invitația",
+			"linkTitle": "Link de invitație",
+			"linkHint": "Afișat o singură dată. Trimite-l persoanei invitate.",
+			"copy": "Copiază linkul",
+			"copied": "Copiat"
+		},
+		"confirmRemove": {
+			"title": "Elimini pe {name}?",
+			"description": "Pierde imediat accesul la această echipă. Poți invita persoana din nou mai târziu.",
+			"confirm": "Elimină"
+		},
+		"empty": {
+			"title": "Nicio echipă încă",
+			"description": "Creează una pentru a grupa utilizatori și a partaja conturi cloud."
+		},
+		"toast": {
+			"created": "Echipă creată",
+			"invited": "Invitație creată",
+			"removed": "Membru eliminat",
+			"roleChanged": "Rol actualizat"
+		}
+	},
+	"accept": {
+		"title": "Invitație în echipă",
+		"success": {
+			"title": "Te-ai alăturat echipei",
+			"description": "Invitația a fost acceptată și calitatea de membru este activă.",
+			"cta": "Mergi la echipe"
+		},
+		"failure": {
+			"title": "Invitația nu a fost acceptată",
+			"cta": "Înapoi la echipe"
+		},
+		"errors": {
+			"missing": "Acest link nu conține un token de invitație.",
+			"notFound": "Această invitație nu există. Cere un link nou.",
+			"accepted": "Această invitație a fost deja folosită.",
+			"expired": "Această invitație a expirat. Cere un link nou.",
+			"generic": "Invitația nu a putut fi acceptată."
+		}
+	},
+	"tags": {
+		"title": "Etichete",
+		"description": "Guvernează, auditează și aplică etichete în masă pe întreaga flotă.",
+		"stats": {
+			"instances": "Instanțe",
+			"tagged": "Etichetate",
+			"taggedHint": "{pct}% din flotă",
+			"untagged": "Neetichetate"
+		},
+		"keys": {
+			"title": "Cele mai folosite chei",
+			"description": "Cheile cele mai folosite la toți furnizorii.",
+			"empty": "Nicio etichetă aplicată încă.",
+			"usage": "{instances, plural, one {# instanță} few {# instanțe} other {# de instanțe}} · {values, plural, one {# valoare} few {# valori} other {# de valori}}"
+		},
+		"coverage": {
+			"title": "Acoperirea etichetelor obligatorii",
+			"description": "Pe fiecare cont, câte instanțe au toate cheile obligatorii.",
+			"empty": "Niciun cont cloud încă.",
+			"noRequired": "Nu sunt configurate etichete obligatorii.",
+			"compliant": "{compliant} din {total} complet etichetate",
+			"requires": "Necesită"
+		},
+		"bulk": {
+			"title": "Etichetare în masă",
+			"description": "Aplică același set de etichete pe mai multe mașini deodată. Suportă AWS, Azure și GCP.",
+			"tagsTitle": "1 · Alege etichetele",
+			"targetsTitle": "2 · Alege țintele",
+			"key": "Cheie",
+			"keyPlaceholder": "owner",
+			"value": "Valoare",
+			"valuePlaceholder": "echipa-platforma",
+			"addTag": "Adaugă etichetă",
+			"removeTag": "Elimină rândul",
+			"filterPlaceholder": "Filtrează după nume, regiune sau tip…",
+			"provider": "Furnizor",
+			"allProviders": "Toți furnizorii",
+			"selected": "{count, plural, =0 {nimic selectat} one {# selectată} few {# selectate} other {# selectate}}",
+			"selectAll": "Selectează tot ce este vizibil",
+			"select": "Selectează {name}",
+			"columns": {
+				"name": "Nume",
+				"provider": "Furnizor",
+				"region": "Regiune",
+				"type": "Tip",
+				"state": "Stare"
+			},
+			"empty": {
+				"title": "Nicio mașină nu se potrivește",
+				"description": "Relaxează filtrul sau sincronizează alt cont."
+			},
+			"apply": "Aplică pe {count, plural, one {# mașină} few {# mașini} other {# de mașini}}",
+			"confirm": {
+				"title": "Aplici {tags, plural, one {# etichetă} few {# etichete} other {# de etichete}} pe {vms, plural, one {# mașină} few {# mașini} other {# de mașini}}?",
+				"description": "Valorile existente pentru aceleași chei sunt suprascrise la furnizor.",
+				"confirm": "Aplică"
+			},
+			"toast": {
+				"noTags": "Adaugă cel puțin o cheie",
+				"noTargets": "Selectează cel puțin o mașină",
+				"success": "{count, plural, one {# mașină etichetată} few {# mașini etichetate} other {# de mașini etichetate}}",
+				"partial": "{ok} reușite, {failed} eșuate: {error}"
+			}
+		}
+	},
+	"tagPolicies": {
+		"title": "Politici de etichetare",
+		"description": "O politică selectează instanțe printr-o condiție și le cere un set de chei de etichete.",
+		"dslTitle": "Sintaxa condiției",
+		"dslHint": "Operatori = != ~ !~ legați cu AND / OR. Câmpuri: provider, region, state, tag.<cheie>.",
+		"dslExample": "provider=aws AND region~^eu AND tag.team!=\"\"",
+		"stats": {
+			"policies": "Politici",
+			"enabled": "Active",
+			"violations": "Încălcări"
+		},
+		"create": {
+			"title": "Politică nouă",
+			"name": "Nume",
+			"namePlaceholder": "Producția din UE trebuie să aibă proprietar",
+			"condition": "Condiție",
+			"requiredKeys": "Chei obligatorii",
+			"requiredKeysPlaceholder": "owner, env",
+			"requiredKeysHint": "Separate prin virgulă.",
+			"enabled": "Activă",
+			"enabledHint": "Politicile dezactivate sunt păstrate, dar nu sunt evaluate.",
+			"submit": "Adaugă politica"
+		},
+		"columns": {
+			"name": "Nume",
+			"condition": "Condiție",
+			"required": "Chei obligatorii",
+			"enabled": "Activă"
+		},
+		"toggleLabel": "Activează {name}",
+		"delete": "Șterge politica {name}",
+		"confirmDelete": {
+			"title": "Ștergi {name}?",
+			"description": "Politica și încălcările ei dispar din raport.",
+			"confirm": "Șterge"
+		},
+		"empty": {
+			"title": "Nicio politică",
+			"description": "Adaugă una mai sus pentru a impune chei de etichete."
+		},
+		"violations": {
+			"title": "Încălcări curente",
+			"description": "Instanțe selectate de o politică cărora le lipsește cel puțin o cheie obligatorie.",
+			"none": {
+				"title": "Toate instanțele sunt conforme",
+				"description": "Nicio politică nu este încălcată în acest moment."
+			},
+			"columns": {
+				"instance": "Instanță",
+				"policy": "Politică",
+				"missing": "Chei lipsă"
+			}
+		},
+		"toast": {
+			"created": "Politică salvată",
+			"deleted": "Politică ștearsă",
+			"toggled": "Politică actualizată"
+		}
+	},
+	"tagDrift": {
+		"title": "Derivă etichete",
+		"description": "Mașini ale căror etichete locale din vmui nu mai corespund cu etichetele sau labelurile native ale furnizorului.",
+		"stats": {
+			"drifting": "Mașini cu derivă",
+			"conflicts": "Chei în conflict",
+			"onlyLocal": "Chei doar locale",
+			"onlyProvider": "Chei doar la furnizor"
+		},
+		"none": {
+			"title": "Nicio derivă detectată",
+			"description": "Etichetele locale ale fiecărei mașini corespund cu cele ale furnizorului."
+		},
+		"columns": {
+			"instance": "Instanță",
+			"provider": "Furnizor",
+			"onlyProvider": "Doar la furnizor",
+			"onlyLocal": "Doar local",
+			"conflicting": "În conflict"
+		},
+		"push": "Trimite etichetele locale",
+		"pushLabel": "Trimite etichetele locale pentru {name}",
+		"confirmPush": {
+			"title": "Trimiți etichetele locale către {name}?",
+			"description": "Etichetele furnizorului pentru aceste chei sunt suprascrise cu valorile locale din vmui.",
+			"confirm": "Trimite"
+		},
+		"sheet": {
+			"onlyProvider": "Doar la furnizor",
+			"onlyLocal": "Doar în vmui",
+			"conflicting": "Valori în conflict",
+			"none": "Nimic în acest grup.",
+			"empty": "gol",
+			"providerValue": "Furnizor",
+			"localValue": "Local",
+			"openDetail": "Arată detaliile derivei pentru {name}"
+		},
+		"toast": {
+			"pushed": "Etichetele locale au fost trimise la furnizor"
+		}
+	},
+	"autoTag": {
+		"title": "Reguli de etichetare automată",
+		"description": "Mașinile al căror nume se potrivește cu modelul primesc eticheta la sincronizare. Prioritatea cea mai mare câștigă.",
+		"create": {
+			"title": "Regulă nouă",
+			"pattern": "Model de nume",
+			"patternPlaceholder": "^prod-",
+			"patternHint": "Expresie regulată JavaScript.",
+			"key": "Cheie",
+			"keyPlaceholder": "env",
+			"value": "Valoare",
+			"valuePlaceholder": "prod",
+			"priority": "Prioritate",
+			"priorityHint": "Valoarea mai mare rulează prima.",
+			"enabled": "Activă",
+			"enabledHint": "Regulile dezactivate sunt păstrate, dar sărite la sincronizare.",
+			"submit": "Adaugă regula"
+		},
+		"columns": {
+			"pattern": "Model",
+			"tag": "Etichetă",
+			"priority": "Prioritate",
+			"enabled": "Activă"
+		},
+		"toggleLabel": "Activează regula {pattern}",
+		"delete": "Șterge regula {pattern}",
+		"confirmDelete": {
+			"title": "Ștergi această regulă?",
+			"description": "Etichetele deja aplicate rămân pe mașini; nimic nou nu mai este etichetat.",
+			"confirm": "Șterge"
+		},
+		"empty": {
+			"title": "Nicio regulă încă",
+			"description": "Adaugă una pentru a eticheta automat mașinile pe măsură ce sunt descoperite."
+		},
+		"toast": {
+			"created": "Regulă salvată",
+			"deleted": "Regulă ștearsă",
+			"toggled": "Regulă actualizată"
+		}
+	},
+	"achievements": {
+		"title": "Realizări",
+		"description": "XP de operator, calculat din jurnalul de audit.",
+		"stats": {
+			"unlocked": "Deblocate",
+			"unlockedHint": "din {total}",
+			"streak": "Serie curentă",
+			"streakHint": "cea mai lungă: {days, plural, one {# zi} few {# zile} other {# de zile}}",
+			"actions": "Acțiuni auditate"
+		},
+		"next": {
+			"title": "Cel mai aproape de deblocare",
+			"description": "Insigna de care ești cel mai apropiat."
+		},
+		"progress": "{progress} / {goal}",
+		"unlocked": "Deblocată",
+		"locked": "Blocată",
+		"items": {
+			"first-vm": { "title": "Prima lumină", "description": "Provizionează prima mașină virtuală" },
+			"fleet-builder": { "title": "Constructor de flotă", "description": "Rulează 10 mașini virtuale" },
+			"snap-happy": { "title": "Pasionat de snapshoturi", "description": "Fă 25 de snapshoturi" },
+			"backup-believer": { "title": "Credincios al backupului", "description": "Finalizează 5 backupuri reușite" },
+			"restore-hero": { "title": "Eroul restaurării", "description": "Restaurează o mașină dintr-un snapshot" },
+			"polyglot": { "title": "Poliglot", "description": "Rulează mașini pe 3 clouduri diferite" },
+			"ai-curious": { "title": "Curios de AI", "description": "Poartă o conversație cu agentul AI" },
+			"centurion": { "title": "Centurion", "description": "Atinge 100 de acțiuni auditate" },
+			"streak-7": { "title": "Pe val", "description": "Menține o serie de activitate de 7 zile" },
+			"streak-30": { "title": "Zi de zi", "description": "Menține o serie de activitate de 30 de zile" }
+		}
+	},
+	"auditChain": {
+		"title": "Lanțul de semnare a auditului",
+		"description": "La fiecare cinci minute, planificatorul adaugă rândurile noi de audit într-un lanț de hashuri SHA-256, apoi semnează fiecare segment cu HMAC folosind cheia principală. Orice modificare rupe verificarea.",
+		"verify": "Verifică lanțul",
+		"verified": {
+			"title": "Lanț verificat",
+			"description": "Toate hashurile și HMAC-urile corespund pe {count, plural, =0 {niciun segment} one {# segment} few {# segmente} other {# de segmente}}."
+		},
+		"invalid": {
+			"title": "Lanțul este rupt",
+			"description": "Verificarea a eșuat la segmentul {segment}: {reason}"
+		},
+		"stats": {
+			"segments": "Segmente",
+			"covered": "Rânduri de audit acoperite",
+			"latest": "Ultimul segment"
+		},
+		"columns": {
+			"segment": "Segment",
+			"range": "Rânduri de audit",
+			"hash": "Hash",
+			"hmac": "HMAC",
+			"when": "Calculat"
+		},
+		"empty": {
+			"title": "Niciun segment încă",
+			"description": "Planificatorul adaugă primul segment la următorul tact."
+		},
+		"toast": {
+			"verified": "Lanț verificat",
+			"invalid": "Verificarea lanțului a eșuat"
+		}
+	}
+}

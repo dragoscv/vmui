@@ -1,11 +1,10 @@
 import "server-only";
+import { Badge, PageSection, Progress } from "@/components/ui";
 import { db } from "@/lib/db";
 import { instances, instanceTags } from "@/lib/db/schema";
 import { priceInstances } from "@/lib/pricing";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tags } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { formatUsd, formatUsdPerHour, HOURS_PER_MONTH } from "@/lib/utils";
+import { getTranslations } from "next-intl/server";
 
 interface TagBucket {
   key: string;
@@ -14,24 +13,47 @@ interface TagBucket {
   count: number;
 }
 
+function TagRow({
+  label,
+  hourly,
+  max,
+  muted,
+  monthly,
+  vms,
+}: {
+  label: string;
+  hourly: number;
+  max: number;
+  muted?: boolean;
+  monthly: string;
+  vms: string;
+}) {
+  return (
+    <li className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 text-sm sm:grid-cols-[minmax(0,10rem)_1fr_6rem_5rem_4rem]">
+      <Badge variant={muted ? "muted" : "info"} className="max-w-full truncate">
+        {label}
+      </Badge>
+      <Progress value={(hourly / max) * 100} size="sm" className={muted ? "opacity-60" : undefined} />
+      <span className="text-right text-xs tabular-nums">{formatUsdPerHour(hourly)}</span>
+      <span className="col-start-3 text-right text-xs tabular-nums text-muted sm:col-start-auto">{monthly}</span>
+      <span className="hidden text-right text-[11px] text-muted sm:inline">{vms}</span>
+    </li>
+  );
+}
+
 /**
- * Aggregates running-instance hourly burn by tag key=value. An instance with
- * multiple tags contributes to every bucket it belongs to (so totals can
- * exceed the global burn — that's expected when slicing by tag). Untagged
- * running VMs roll into a synthetic "(untagged)" bucket so the user always
- * sees 100% of spend accounted for somewhere.
+ * Running-instance hourly burn by tag key=value. A VM with several tags lands
+ * in every bucket, so totals intentionally exceed the global burn; untagged
+ * VMs roll into one synthetic bucket so 100% of spend is visible somewhere.
  */
 export async function CostByTagCard() {
-  const [instanceList, tagRows] = await Promise.all([
-    db.select().from(instances),
-    db.select().from(instanceTags),
-  ]);
+  const [instanceList, tagRows] = await Promise.all([db.select().from(instances), db.select().from(instanceTags)]);
 
   const tagsByInstance = new Map<string, { key: string; value: string }[]>();
-  for (const t of tagRows) {
-    const arr = tagsByInstance.get(t.instanceId) ?? [];
-    arr.push({ key: t.key, value: t.value });
-    tagsByInstance.set(t.instanceId, arr);
+  for (const tag of tagRows) {
+    const arr = tagsByInstance.get(tag.instanceId) ?? [];
+    arr.push({ key: tag.key, value: tag.value });
+    tagsByInstance.set(tag.instanceId, arr);
   }
 
   const running = instanceList.filter((i) => i.state === "running");
@@ -72,73 +94,39 @@ export async function CostByTagCard() {
   const sorted = [...buckets.values()].sort((a, b) => b.hourlyUsd - a.hourlyUsd).slice(0, 12);
   if (sorted.length === 0 && untaggedCount === 0) return null;
 
-  const max = Math.max(
-    untaggedHourly,
-    ...sorted.map((b) => b.hourlyUsd),
-    0.0001,
-  );
+  const t = await getTranslations("cloud.costs.byTag");
+  const tc = await getTranslations("cloud.costs");
+  const max = Math.max(untaggedHourly, ...sorted.map((b) => b.hourlyUsd), 0.0001);
+  const monthly = (hourly: number) => tc("perMonth", { amount: formatUsd(hourly * HOURS_PER_MONTH) });
 
   return (
-    <Card className="surface">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Tags className="h-4 w-4 text-[var(--color-primary)]" />
-          Cost by tag
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="mb-3 text-xs text-muted">
-          Running burn grouped by tag key=value. An instance with multiple tags appears in each bucket — totals
-          intentionally over-count so every slice is honest.
-        </p>
-        <ul className="space-y-1.5">
-          {sorted.map((b) => {
-            const id = `${b.key}=${b.value}`;
-            const pct = (b.hourlyUsd / max) * 100;
-            return (
-              <li key={id} className="flex items-center gap-3 text-sm">
-                <Badge variant="info" className="shrink-0 text-[10px]">
-                  {b.key}
-                  {b.value ? `=${b.value}` : ""}
-                </Badge>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-                  <div
-                    className="h-full rounded-full bg-[var(--color-primary)]"
-                    style={{ width: `${Math.min(100, pct)}%` }}
-                  />
-                </div>
-                <div className="w-24 text-right tabular-nums text-xs">{formatUsdPerHour(b.hourlyUsd)}</div>
-                <div className="w-20 text-right tabular-nums text-xs text-muted">
-                  {formatUsd(b.hourlyUsd * HOURS_PER_MONTH)}/mo
-                </div>
-                <div className="hidden w-12 text-right text-[11px] text-muted sm:inline">
-                  {b.count} VM{b.count === 1 ? "" : "s"}
-                </div>
-              </li>
-            );
-          })}
-          {untaggedCount > 0 && (
-            <li className="flex items-center gap-3 border-t border-[var(--color-border)] pt-2 text-sm">
-              <Badge variant="muted" className="shrink-0 text-[10px]">
-                (untagged)
-              </Badge>
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
-                <div
-                  className="h-full rounded-full bg-[var(--color-muted)]"
-                  style={{ width: `${Math.min(100, (untaggedHourly / max) * 100)}%` }}
-                />
-              </div>
-              <div className="w-24 text-right tabular-nums text-xs">{formatUsdPerHour(untaggedHourly)}</div>
-              <div className="w-20 text-right tabular-nums text-xs text-muted">
-                {formatUsd(untaggedHourly * HOURS_PER_MONTH)}/mo
-              </div>
-              <div className="hidden w-12 text-right text-[11px] text-muted sm:inline">
-                {untaggedCount} VM{untaggedCount === 1 ? "" : "s"}
-              </div>
-            </li>
-          )}
-        </ul>
-      </CardContent>
-    </Card>
+    <PageSection title={t("title")} description={t("description")}>
+      <ul className="space-y-2">
+        {sorted.map((b) => (
+          <TagRow
+            key={`${b.key}=${b.value}`}
+            label={b.value ? `${b.key}=${b.value}` : b.key}
+            hourly={b.hourlyUsd}
+            max={max}
+            monthly={monthly(b.hourlyUsd)}
+            vms={t("vmCount", { count: b.count })}
+          />
+        ))}
+        {untaggedCount > 0 && (
+          <li className="border-t border-border pt-2">
+            <ul>
+              <TagRow
+                label={t("untagged")}
+                hourly={untaggedHourly}
+                max={max}
+                muted
+                monthly={monthly(untaggedHourly)}
+                vms={t("vmCount", { count: untaggedCount })}
+              />
+            </ul>
+          </li>
+        )}
+      </ul>
+    </PageSection>
   );
 }

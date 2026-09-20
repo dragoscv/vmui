@@ -1,7 +1,9 @@
-import { listAccounts, listAuditLogFiltered, auditLogStats24h } from "@/server/queries";
 import { ActivityExplorer } from "@/components/activity/activity-explorer";
+import { Badge, Button, PageHeader, PageShell, Stat, StatGrid } from "@/components/ui";
+import { auditLogStats24h, listAccounts, listAuditLogFiltered } from "@/server/queries";
+import { CheckCircle2, Download, History, XCircle } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
-import { History, Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,7 @@ interface Props {
 
 export default async function ActivityPage({ searchParams }: Props) {
   const sp = await searchParams;
+  const t = await getTranslations("observe.activity");
   const status = sp.status === "ok" || sp.status === "error" ? sp.status : undefined;
   const range = sp.range && sp.range in RANGE_TO_MS ? sp.range : "24h";
   const sinceMs = RANGE_TO_MS[range];
@@ -42,40 +45,36 @@ export default async function ActivityPage({ searchParams }: Props) {
   ]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
-          <p className="text-sm text-muted">Operations performed by vmui — searchable, filterable, exportable.</p>
-        </div>
-        <div className="flex items-center gap-3 text-xs text-muted">
-          <Link
-            href="/activity/sync"
-            className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-          >
-            <History className="h-3.5 w-3.5" /> Sync history
-          </Link>
-          <a
-            href="/api/audit/export"
-            className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-          >
-            <Download className="h-3.5 w-3.5" /> NDJSON
-          </a>
-          <a
-            href="/api/audit/export?format=csv"
-            className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] px-2 py-1 hover:bg-white/5"
-          >
-            <Download className="h-3.5 w-3.5" /> CSV
-          </a>
-          <span>Last 24h:</span>
-          <span className="rounded-full bg-[color-mix(in_oklch,var(--color-success)_20%,transparent)] px-2 py-0.5 font-mono text-[var(--color-success)]">
-            {stats.ok} ok
-          </span>
-          <span className="rounded-full bg-[color-mix(in_oklch,var(--color-danger)_20%,transparent)] px-2 py-0.5 font-mono text-[var(--color-danger)]">
-            {stats.error} error
-          </span>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<History />}
+        badge={<Badge variant="muted">{t("eventCount", { count: page.total })}</Badge>}
+        actions={
+          <>
+            <Button variant="secondary" size="sm" asChild>
+              <Link href="/activity/sync">
+                <History className="size-4" aria-hidden /> {t("syncHistory")}
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/api/audit/export">
+                <Download className="size-4" aria-hidden /> {t("exportNdjson")}
+              </a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/api/audit/export?format=csv">
+                <Download className="size-4" aria-hidden /> {t("exportCsv")}
+              </a>
+            </Button>
+          </>
+        }
+      />
+      <StatGrid cols={2}>
+        <Stat label={t("stats.ok24h")} value={stats.ok} tone="success" icon={<CheckCircle2 />} />
+        <Stat label={t("stats.error24h")} value={stats.error} tone={stats.error > 0 ? "danger" : "default"} icon={<XCircle />} />
+      </StatGrid>
       <ActivityExplorer
         initialRows={page.rows}
         initialNextCursor={page.nextCursor}
@@ -88,7 +87,7 @@ export default async function ActivityPage({ searchParams }: Props) {
           range,
         }}
       />
-    </div>
+    </PageShell>
   );
 }
 

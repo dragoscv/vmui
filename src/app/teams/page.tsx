@@ -1,15 +1,19 @@
 import { TeamsWorkspace } from "@/components/teams/teams-workspace";
+import { PageHeader, PageShell } from "@/components/ui";
+import { getCurrentUser } from "@/lib/auth";
+import { listTeamsForUser } from "@/lib/teams";
+import { Users } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
-export default function TeamsPage() {
+export default async function TeamsPage() {
+  const [user, t] = await Promise.all([getCurrentUser(), getTranslations("govern.teams")]);
+  const teams = user ? await listTeamsForUser(user.id) : [];
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Teams</h1>
-        <p className="text-sm text-muted">Group users, invite collaborators, and scope future per-team cloud accounts. Invitations are one-time tokens valid for 7 days.</p>
-      </header>
-      <TeamsWorkspace />
-    </main>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<Users />} />
+      <TeamsWorkspace teams={teams} />
+    </PageShell>
   );
 }

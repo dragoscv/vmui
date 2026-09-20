@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Download, Network, Copy, Sparkles } from "lucide-react";
-import { generateWgMeshAction, generateTailscaleCommandAction, autoBuildMeshFromFleetAction } from "@/server/actions/mesh";
+import { LogViewer } from "@/components/ops/log-viewer";
+import { toError } from "@/components/settings/adapt";
+import { Badge, Button, Checkbox, DataTable, EmptyState, Field, Input, PageHeader, PageSection, PageShell, Switch, type ColumnDef } from "@/components/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
+import { autoBuildMeshFromFleetAction, generateTailscaleCommandAction, generateWgMeshAction } from "@/server/actions/mesh";
+import { Download, Network, Server, Sparkles, Spline } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
+import { MeshPreview } from "./mesh-preview";
 
 interface InstanceLite {
   id: string;
@@ -14,229 +23,265 @@ interface InstanceLite {
   privateIp: string | null;
 }
 
-const INPUT_CLS = "rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1";
+type Tab = "wireguard" | "tailscale";
 
 export function MeshWorkspace({ instances }: { instances: InstanceLite[] }) {
-  const [tab, setTab] = useState<"wireguard" | "tailscale">("wireguard");
+  const t = useTranslations("ops.mesh");
+  const [tab, setTab] = useState<Tab>("wireguard");
 
   return (
-    <div className="grid gap-4">
-      <div className="flex gap-2 text-xs">
-        <button
-          type="button"
-          onClick={() => setTab("wireguard")}
-          className={`rounded-md px-3 py-1 ${tab === "wireguard" ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]" : "border border-[var(--color-border)] bg-[var(--color-surface)]"}`}
-        >
-          WireGuard mesh
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("tailscale")}
-          className={`rounded-md px-3 py-1 ${tab === "tailscale" ? "bg-[var(--color-primary)] text-[var(--color-primary-fg)]" : "border border-[var(--color-border)] bg-[var(--color-surface)]"}`}
-        >
-          Tailscale
-        </button>
-      </div>
-      {tab === "wireguard" ? <WireguardTab instances={instances} /> : <TailscaleTab instances={instances} />}
-    </div>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<Spline />}
+        badge={<Badge variant="muted">{t("reachable", { count: instances.length })}</Badge>}
+        actions={
+          <Button variant="secondary" size="sm" asChild>
+            <Link href="/terminal">{t("openTerminal")}</Link>
+          </Button>
+        }
+      />
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList className="h-auto flex-wrap justify-start" aria-label={t("title")}>
+          <TabsTrigger value="wireguard" className="min-h-10 gap-1.5 sm:min-h-8">
+            <Network className="size-4" aria-hidden />
+            {t("tabs.wireguard")}
+          </TabsTrigger>
+          <TabsTrigger value="tailscale" className="min-h-10 gap-1.5 sm:min-h-8">
+            <Spline className="size-4" aria-hidden />
+            {t("tabs.tailscale")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="wireguard">
+          <WireguardTab instances={instances} />
+        </TabsContent>
+        <TabsContent value="tailscale">
+          <TailscaleTab instances={instances} />
+        </TabsContent>
+      </Tabs>
+    </PageShell>
   );
 }
 
 function WireguardTab({ instances }: { instances: InstanceLite[] }) {
-  const [pending, start] = useTransition();
+  const t = useTranslations("ops.mesh");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [subnet, setSubnet] = useState("10.66.0.0/24");
   const [configs, setConfigs] = useState<Record<string, string>>({});
 
-  const toggle = (id: string) => {
-    const s = new Set(selected);
-    if (s.has(id)) s.delete(id);
-    else s.add(id);
-    setSelected(s);
+  const toggle = useCallback((id: string) => {
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id);
+      else s.add(id);
+      return s;
+    });
+  }, []);
+  const allSelected = instances.length > 0 && selected.size === instances.length;
+  const toggleAll = useCallback(() => setSelected(allSelected ? new Set() : new Set(instances.map((i) => i.id))), [allSelected, instances]);
+
+  const generate = useAction(
+    async (): Promise<ActionResult<Record<string, string>>> => {
+      const peers = instances
+        .filter((i) => selected.has(i.id))
+        .map((i) => ({
+          name: i.name?.replace(/\s+/g, "-") ?? i.providerInstanceId,
+          ip: i.privateIp ?? i.publicIp ?? "",
+          publicIp: i.publicIp,
+          listenPort: 51820,
+        }));
+      const r = await generateWgMeshAction({ subnet, peers });
+      return r.ok ? ok(r.configs) : toError(r);
+    },
+    { refresh: false, success: (cfg) => t("wireguard.generated", { count: Object.keys(cfg).length }), onSuccess: setConfigs },
+  );
+
+  const autoBuild = useAction(
+    async (): Promise<ActionResult<{ configs: Record<string, string>; peerCount: number }>> => {
+      const r = await autoBuildMeshFromFleetAction({ subnet, listenPort: 51820 });
+      return r.ok ? ok({ configs: r.configs, peerCount: r.peerCount }) : toError(r);
+    },
+    { refresh: false, success: (d) => t("wireguard.autoBuilt", { count: d.peerCount }), onSuccess: (d) => setConfigs(d.configs) },
+  );
+
+  const download = (name: string, body: string) => {
+    const blob = new Blob([body], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.wg0.conf`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
+  const columns = useMemo<ColumnDef<InstanceLite, unknown>[]>(
+    () => [
+      {
+        id: "select",
+        enableSorting: false,
+        header: () => <Checkbox checked={allSelected} indeterminate={selected.size > 0 && !allSelected} onCheckedChange={toggleAll} aria-label={t("wireguard.selectAll")} />,
+        cell: ({ row }) => <Checkbox checked={selected.has(row.original.id)} onCheckedChange={() => toggle(row.original.id)} aria-label={t("wireguard.selectPeer", { name: row.original.name ?? row.original.providerInstanceId })} />,
+      },
+      {
+        id: "name",
+        accessorFn: (i) => i.name ?? i.providerInstanceId,
+        header: t("columns.name"),
+        cell: ({ row }) => (
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-medium">{row.original.name ?? row.original.providerInstanceId}</span>
+            <span className="truncate text-xs text-fg-muted">{row.original.provider}</span>
+          </span>
+        ),
+      },
+      { accessorKey: "publicIp", header: t("columns.publicIp"), cell: ({ row }) => <span className="font-mono text-xs">{row.original.publicIp ?? "—"}</span> },
+      { accessorKey: "privateIp", header: t("columns.privateIp"), cell: ({ row }) => <span className="font-mono text-xs">{row.original.privateIp ?? "—"}</span> },
+      {
+        id: "endpoint",
+        accessorFn: (i) => (i.publicIp ? "public" : "private"),
+        header: t("columns.endpoint"),
+        cell: ({ row }) => <Badge variant={row.original.publicIp ? "info" : "warning"}>{row.original.publicIp ? t("legend.public") : t("legend.private")}</Badge>,
+      },
+    ],
+    [t, selected, allSelected, toggle, toggleAll],
+  );
+
+  const entries = Object.entries(configs);
+
   return (
-    <div className="grid gap-3">
-      <label className="grid w-full max-w-xs gap-1 text-xs">
-        <span className="text-[10px] uppercase tracking-wide text-muted">VPN subnet</span>
-        <input value={subnet} onChange={(e) => setSubnet(e.target.value)} className={`${INPUT_CLS} font-mono`} />
-      </label>
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-        <table className="w-full text-sm">
-          <thead className="bg-[var(--color-surface-muted)] text-xs uppercase text-muted">
-            <tr>
-              <th className="w-8 px-2 py-2"></th>
-              <th className="px-2 py-2 text-left">Name</th>
-              <th className="px-2 py-2 text-left">Public IP</th>
-              <th className="px-2 py-2 text-left">Private IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {instances.map((i) => (
-              <tr key={i.id} className="border-t border-[var(--color-border)]">
-                <td className="px-2 py-2">
-                  <input type="checkbox" checked={selected.has(i.id)} onChange={() => toggle(i.id)} />
-                </td>
-                <td className="px-2 py-2 font-medium">{i.name ?? i.providerInstanceId}</td>
-                <td className="px-2 py-2 font-mono text-xs">{i.publicIp ?? "—"}</td>
-                <td className="px-2 py-2 font-mono text-xs">{i.privateIp ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <PageSection
+          title={t("wireguard.peersTitle")}
+          description={t("wireguard.peersDescription")}
+          action={<Badge variant={selected.size >= 2 ? "success" : "muted"}>{t("wireguard.selectedCount", { count: selected.size })}</Badge>}
+        >
+          <div className="mb-3 max-w-xs">
+            <Field label={t("wireguard.subnet")}>
+              <Input value={subnet} onChange={(e) => setSubnet(e.target.value)} className="font-mono" spellCheck={false} />
+            </Field>
+          </div>
+          <DataTable
+            columns={columns}
+            data={instances}
+            dense
+            searchable={instances.length > 5}
+            getRowId={(i) => i.id}
+            onRowClick={(i) => toggle(i.id)}
+            emptyState={
+              <EmptyState
+                compact
+                icon={<Server />}
+                title={t("noInstances.title")}
+                description={t("noInstances.description")}
+                action={
+                  <Button size="sm" asChild>
+                    <Link href="/instances">{t("noInstances.cta")}</Link>
+                  </Button>
+                }
+              />
+            }
+          />
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => void autoBuild.run()} loading={autoBuild.pending} disabled={generate.pending}>
+              <Sparkles className="size-4" aria-hidden />
+              {t("wireguard.autoBuild")}
+            </Button>
+            <Button onClick={() => void generate.run()} loading={generate.pending} disabled={selected.size < 2 || autoBuild.pending}>
+              <Network className="size-4" aria-hidden />
+              {t("wireguard.generate")}
+            </Button>
+          </div>
+        </PageSection>
+        <PageSection title={t("preview.title")} description={t("preview.description")}>
+          <MeshPreview peers={instances.map((i) => ({ id: i.id, label: i.name ?? i.providerInstanceId, publicIp: i.publicIp, selected: selected.has(i.id) }))} />
+        </PageSection>
       </div>
-      <button
-        type="button"
-        disabled={pending || selected.size < 2}
-        onClick={() =>
-          start(async () => {
-            const peers = instances
-              .filter((i) => selected.has(i.id))
-              .map((i) => ({
-                name: i.name?.replace(/\s+/g, "-") ?? i.providerInstanceId,
-                ip: i.privateIp ?? i.publicIp ?? "",
-                publicIp: i.publicIp,
-                listenPort: 51820,
-              }));
-            const r = await generateWgMeshAction({ subnet, peers });
-            if (r.ok) {
-              setConfigs(r.configs);
-              toast.success(`Generated ${Object.keys(r.configs).length} wg0.conf files`);
-            } else toast.error(r.error);
-          })
-        }
-        className="inline-flex w-fit items-center gap-1 rounded-md bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-40"
-      >
-        <Network className="h-3 w-3" /> Generate mesh
-      </button>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const r = await autoBuildMeshFromFleetAction({ subnet, listenPort: 51820 });
-            if (r.ok) {
-              setConfigs(r.configs);
-              toast.success(`Auto-built mesh for ${r.peerCount} reachable VMs`);
-            } else toast.error(r.error);
-          })
-        }
-        className="inline-flex w-fit items-center gap-1 rounded-md border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-3 py-1 text-xs font-semibold disabled:opacity-40"
-      >
-        <Sparkles className="h-3 w-3" /> Auto-build from fleet
-      </button>
-      {Object.keys(configs).length > 0 ? (
-        <div className="grid gap-2">
-          {Object.entries(configs).map(([name, body]) => (
-            <details key={name} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-xs">
-              <summary className="flex cursor-pointer items-center gap-2 font-mono">
-                {name} / wg0.conf
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    void navigator.clipboard.writeText(body);
-                    toast.success("Copied");
-                  }}
-                  className="ml-auto inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px]"
-                >
-                  <Copy className="h-3 w-3" /> Copy
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const blob = new Blob([body], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `${name}.wg0.conf`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px]"
-                >
-                  <Download className="h-3 w-3" /> Download
-                </button>
-              </summary>
-              <pre className="mt-2 overflow-auto font-mono text-xs">{body}</pre>
-            </details>
-          ))}
-        </div>
-      ) : null}
+
+      {entries.length > 0 && (
+        <PageSection title={t("wireguard.configsTitle")} description={t("wireguard.configsDescription", { count: entries.length })}>
+          <div className="grid gap-3 xl:grid-cols-2">
+            {entries.map(([name, body], i) => (
+              <motion.div key={name} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }} className="min-w-0">
+                <LogViewer
+                  title={<span className="font-mono">{name}/wg0.conf</span>}
+                  text={body}
+                  height="max-h-64"
+                  searchable={false}
+                  autoScroll={false}
+                  actions={
+                    <Button variant="ghost" size="icon" className="size-8" aria-label={t("wireguard.download")} title={t("wireguard.download")} onClick={() => download(name, body)}>
+                      <Download className="size-4" aria-hidden />
+                    </Button>
+                  }
+                />
+              </motion.div>
+            ))}
+          </div>
+        </PageSection>
+      )}
     </div>
   );
 }
 
 function TailscaleTab({ instances }: { instances: InstanceLite[] }) {
-  const [pending, start] = useTransition();
-  const [form, setForm] = useState({
-    authKey: "",
-    hostname: "",
-    tags: "tag:server",
-    ssh: true,
-    advertiseRoutes: "",
-  });
+  const t = useTranslations("ops.mesh");
+  const [form, setForm] = useState({ authKey: "", hostname: "", tags: "tag:server", ssh: true, advertiseRoutes: "" });
   const [out, setOut] = useState<{ install: string; up: string } | null>(null);
 
+  const generate = useAction(
+    async (): Promise<ActionResult<{ install: string; up: string }>> => {
+      const r = await generateTailscaleCommandAction({
+        authKey: form.authKey,
+        hostname: form.hostname || undefined,
+        tags: form.tags ? form.tags.split(",").map((x) => x.trim()).filter(Boolean) : undefined,
+        ssh: form.ssh,
+        advertiseRoutes: form.advertiseRoutes ? form.advertiseRoutes.split(",").map((x) => x.trim()).filter(Boolean) : undefined,
+      });
+      return r.ok ? ok({ install: r.install, up: r.up }) : toError(r);
+    },
+    { refresh: false, onSuccess: setOut },
+  );
+
   return (
-    <div className="grid gap-3 text-xs">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="grid gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted">Auth key</span>
-          <input
-            type="password"
-            value={form.authKey}
-            onChange={(e) => setForm({ ...form, authKey: e.target.value })}
-            className={`${INPUT_CLS} font-mono`}
-            placeholder="tskey-auth-…"
-          />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted">Hostname (optional)</span>
-          <input value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} className={INPUT_CLS} />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted">Tags (comma)</span>
-          <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className={INPUT_CLS} />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-muted">Advertise routes (comma)</span>
-          <input value={form.advertiseRoutes} onChange={(e) => setForm({ ...form, advertiseRoutes: e.target.value })} className={INPUT_CLS} placeholder="10.0.0.0/16" />
-        </label>
-        <label className="flex items-end gap-2">
-          <input type="checkbox" checked={form.ssh} onChange={(e) => setForm({ ...form, ssh: e.target.checked })} />
-          <span>Enable Tailscale SSH</span>
-        </label>
-      </div>
-      <button
-        type="button"
-        disabled={pending || !form.authKey}
-        onClick={() =>
-          start(async () => {
-            const r = await generateTailscaleCommandAction({
-              authKey: form.authKey,
-              hostname: form.hostname || undefined,
-              tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
-              ssh: form.ssh,
-              advertiseRoutes: form.advertiseRoutes ? form.advertiseRoutes.split(",").map((r) => r.trim()).filter(Boolean) : undefined,
-            });
-            if (r.ok) setOut({ install: r.install, up: r.up });
-            else toast.error(r.error);
-          })
-        }
-        className="w-fit rounded-md bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-40"
-      >
-        Generate
-      </button>
-      {out ? (
-        <pre className="overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-mono">
-          {`# Install Tailscale\n${out.install}\n\n# Connect\n${out.up}`}
-        </pre>
-      ) : null}
-      <p className="text-[11px] text-muted">
-        Run these commands on the {instances.length} reachable VM{instances.length === 1 ? "" : "s"} via the built-in terminal.
-      </p>
+    <div className="space-y-4">
+      <PageSection title={t("tailscale.title")} description={t("tailscale.description")}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Field label={t("tailscale.authKey")}>
+            <Input type="password" value={form.authKey} onChange={(e) => setForm({ ...form, authKey: e.target.value })} placeholder="tskey-auth-…" className="font-mono" autoComplete="off" />
+          </Field>
+          <Field label={t("tailscale.hostname")}>
+            <Input value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} />
+          </Field>
+          <Field label={t("tailscale.tags")} hint={t("tailscale.commaHint")}>
+            <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} className="font-mono" />
+          </Field>
+          <Field label={t("tailscale.routes")} hint={t("tailscale.commaHint")}>
+            <Input value={form.advertiseRoutes} onChange={(e) => setForm({ ...form, advertiseRoutes: e.target.value })} placeholder="10.0.0.0/16" className="font-mono" />
+          </Field>
+          <Field label={t("tailscale.ssh")} hint={t("tailscale.sshHint")} inline className="self-end">
+            <Switch checked={form.ssh} onCheckedChange={(v) => setForm({ ...form, ssh: v })} aria-label={t("tailscale.ssh")} />
+          </Field>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void generate.run()} loading={generate.pending} disabled={!form.authKey}>
+            <Spline className="size-4" aria-hidden />
+            {t("tailscale.generate")}
+          </Button>
+        </div>
+      </PageSection>
+      {out && (
+        <LogViewer
+          title={t("tailscale.outputTitle")}
+          text={`# ${t("tailscale.installComment")}\n${out.install}\n\n# ${t("tailscale.connectComment")}\n${out.up}`}
+          height="max-h-72"
+          searchable={false}
+          autoScroll={false}
+          wrap
+          lineTone={(line) => (line.startsWith("#") ? "muted" : undefined)}
+        />
+      )}
+      <p className="text-xs text-fg-muted">{t("tailscale.runHint", { count: instances.length })}</p>
     </div>
   );
 }

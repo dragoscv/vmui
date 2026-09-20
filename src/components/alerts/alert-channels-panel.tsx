@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Plus, Trash2, Send, MessageCircle, Hash, Bell, Webhook, Mail } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  createAlertChannelAction,
-  deleteAlertChannelAction,
-  testAlertChannelAction,
-} from "@/server/actions/alerts";
+import { Badge, Button, EmptyState, Field, Input } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useAction } from "@/hooks/use-action";
+import type { ActionResult } from "@/lib/action-result";
 import type { AlertChannelRow } from "@/lib/db/schema";
+import { createAlertChannelAction, deleteAlertChannelAction, testAlertChannelAction } from "@/server/actions/alerts";
+import { Bell, Hash, Mail, MessageCircle, Plus, Send, Trash2, Webhook } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import * as React from "react";
 
 const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   toast: Bell,
@@ -21,224 +22,231 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   smtp: Mail,
 };
 
-interface Props {
-  channels: AlertChannelRow[];
-}
-
 type Kind = "toast" | "discord" | "slack" | "ntfy" | "webhook" | "smtp";
+const KINDS: Kind[] = ["toast", "discord", "slack", "ntfy", "webhook", "smtp"];
+type FieldKey = "webhookUrl" | "username" | "channel" | "baseUrl" | "topic" | "token" | "url" | "hmacSecret" | "host" | "port" | "password" | "from" | "to";
 
-export function AlertChannelsPanel({ channels }: Props) {
-  const [adding, setAdding] = useState(false);
-  const [kind, setKind] = useState<Kind>("discord");
-  const [name, setName] = useState("");
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [pending, startTransition] = useTransition();
+const wrap =
+  <A extends unknown[]>(fn: (...a: A) => Promise<{ ok: boolean; error?: string }>) =>
+  async (...a: A): Promise<ActionResult> => {
+    const r = await fn(...a);
+    return r.ok ? { ok: true } : { ok: false, error: r.error ?? "common.error" };
+  };
 
+export function AlertChannelsPanel({ channels }: { channels: AlertChannelRow[] }) {
+  const t = useTranslations("observe.alerts.channels");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
+  const [open, setOpen] = React.useState(false);
+  const [kind, setKind] = React.useState<Kind>("discord");
+  const [name, setName] = React.useState("");
+  const [fields, setFields] = React.useState<Record<string, string>>({});
   const setF = (k: string, v: string) => setFields((s) => ({ ...s, [k]: v }));
+  const [testingId, setTestingId] = React.useState<string | null>(null);
+
+  const create = useAction(wrap(createAlertChannelAction), {
+    success: t("created"),
+    onSuccess: () => {
+      setOpen(false);
+      setName("");
+      setFields({});
+    },
+  });
+  const remove = useAction(wrap(deleteAlertChannelAction), { success: tc("delete") });
+  const test = useAction(wrap(testAlertChannelAction), { success: t("testSent"), refresh: false });
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     let channel: Parameters<typeof createAlertChannelAction>[0]["channel"];
-    try {
-      switch (kind) {
-        case "toast":
-          channel = { kind: "toast" };
-          break;
-        case "discord":
-          channel = { kind: "discord", webhookUrl: fields.webhookUrl ?? "", username: fields.username || undefined };
-          break;
-        case "slack":
-          channel = { kind: "slack", webhookUrl: fields.webhookUrl ?? "", channel: fields.channel || undefined };
-          break;
-        case "ntfy":
-          channel = {
-            kind: "ntfy",
-            baseUrl: fields.baseUrl ?? "https://ntfy.sh",
-            topic: fields.topic ?? "",
-            token: fields.token || undefined,
-          };
-          break;
-        case "webhook":
-          channel = {
-            kind: "webhook",
-            url: fields.url ?? "",
-            hmacSecret: fields.hmacSecret || undefined,
-          };
-          break;
-        case "smtp":
-          channel = {
-            kind: "smtp",
-            host: fields.host ?? "",
-            port: Number(fields.port ?? "587"),
-            secure: fields.secure === "true",
-            username: fields.username || undefined,
-            password: fields.password || undefined,
-            from: fields.from ?? "",
-            to: fields.to ?? "",
-          };
-          break;
-      }
-    } catch {
-      toast.error("Invalid input");
-      return;
+    switch (kind) {
+      case "toast":
+        channel = { kind: "toast" };
+        break;
+      case "discord":
+        channel = { kind: "discord", webhookUrl: fields.webhookUrl ?? "", username: fields.username || undefined };
+        break;
+      case "slack":
+        channel = { kind: "slack", webhookUrl: fields.webhookUrl ?? "", channel: fields.channel || undefined };
+        break;
+      case "ntfy":
+        channel = { kind: "ntfy", baseUrl: fields.baseUrl || "https://ntfy.sh", topic: fields.topic ?? "", token: fields.token || undefined };
+        break;
+      case "webhook":
+        channel = { kind: "webhook", url: fields.url ?? "", hmacSecret: fields.hmacSecret || undefined };
+        break;
+      case "smtp":
+        channel = {
+          kind: "smtp",
+          host: fields.host ?? "",
+          port: Number(fields.port ?? "587"),
+          secure: fields.secure === "true",
+          username: fields.username || undefined,
+          password: fields.password || undefined,
+          from: fields.from ?? "",
+          to: fields.to ?? "",
+        };
+        break;
     }
-    startTransition(async () => {
-      const out = await createAlertChannelAction({ name, channel });
-      if (out.ok) {
-        toast.success("Channel created");
-        setAdding(false);
-        setName("");
-        setFields({});
-      } else {
-        toast.error(out.error ?? "Create failed");
-      }
-    });
+    void create.run({ name, channel });
   };
 
-  const remove = (id: string) => {
-    if (!confirm("Delete this channel?")) return;
-    startTransition(async () => {
-      await deleteAlertChannelAction({ id });
-      toast.success("Deleted");
-    });
-  };
-
-  const test = (id: string) => {
-    startTransition(async () => {
-      const out = await testAlertChannelAction({ id });
-      if (out.ok) toast.success("Test alert sent");
-      else toast.error(out.error ?? "Test failed");
-    });
-  };
+  const text = (key: FieldKey, opts?: { required?: boolean; type?: string; placeholder?: string }) => (
+    <Field label={t(`fields.${key}`)} key={key}>
+      <Input
+        type={opts?.type ?? "text"}
+        value={fields[key] ?? ""}
+        onChange={(e) => setF(key, e.target.value)}
+        required={opts?.required}
+        placeholder={opts?.placeholder}
+        autoComplete={opts?.type === "password" ? "off" : undefined}
+      />
+    </Field>
+  );
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-sm">Channels</CardTitle>
-        <Button size="sm" onClick={() => setAdding((s) => !s)}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> {adding ? "Cancel" : "Add"}
+    <>
+      <div className="mb-3 flex justify-end">
+        <Button size="sm" onClick={() => setOpen(true)}>
+          <Plus className="size-4" aria-hidden /> {t("add")}
         </Button>
-      </CardHeader>
-      <CardContent>
-        {adding && (
-          <form onSubmit={submit} className="mb-4 space-y-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 text-xs">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label>
-                <span className="mb-0.5 block font-medium">Name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1" />
-              </label>
-              <label>
-                <span className="mb-0.5 block font-medium">Kind</span>
-                <select value={kind} onChange={(e) => setKind(e.target.value as Kind)} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1">
-                  <option value="toast">Toast / browser notif</option>
-                  <option value="discord">Discord</option>
-                  <option value="slack">Slack</option>
-                  <option value="ntfy">ntfy.sh</option>
-                  <option value="webhook">Generic webhook</option>
-                  <option value="smtp">Email (SMTP)</option>
-                </select>
-              </label>
+      </div>
+
+      {channels.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<Bell />}
+          title={t("empty.title")}
+          description={t("empty.description")}
+          action={
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <Plus className="size-4" aria-hidden /> {t("add")}
+            </Button>
+          }
+        />
+      ) : (
+        <ul className="divide-y divide-border">
+          <AnimatePresence initial={false}>
+            {channels.map((c, i) => {
+              const Icon = KIND_ICON[c.kind] ?? Bell;
+              return (
+                <motion.li
+                  key={c.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
+                  className="flex flex-wrap items-center gap-3 py-2"
+                >
+                  <Icon className="size-4 shrink-0 text-primary" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+                  <Badge variant="muted">{t(`kind.${c.kind as Kind}`)}</Badge>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={testingId === c.id && test.pending}
+                      onClick={async () => {
+                        setTestingId(c.id);
+                        await test.run({ id: c.id });
+                        setTestingId(null);
+                      }}
+                    >
+                      <Send className="size-3.5" aria-hidden /> {tc("test")}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={tc("delete")}
+                      className="text-danger"
+                      onClick={async () => {
+                        if (!(await confirm({ title: t("confirmDelete", { name: c.name }), tone: "danger", confirmText: tc("delete") }))) return;
+                        void remove.run({ id: c.id });
+                      }}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </Button>
+                  </div>
+                </motion.li>
+              );
+            })}
+          </AnimatePresence>
+        </ul>
+      )}
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent title={t("sheet.title")} description={t("sheet.description")}>
+          <form onSubmit={submit} className="space-y-4 text-sm">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t("fields.name")}>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={64} />
+              </Field>
+              <Field label={t("fields.kind")}>
+                <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
+                  <SelectTrigger aria-label={t("fields.kind")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KINDS.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {t(`kind.${k}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
             </div>
             {kind === "discord" && (
               <>
-                <Field label="Webhook URL" value={fields.webhookUrl} onChange={(v) => setF("webhookUrl", v)} required />
-                <Field label="Username (optional)" value={fields.username} onChange={(v) => setF("username", v)} />
+                {text("webhookUrl", { required: true, type: "url" })}
+                {text("username")}
               </>
             )}
             {kind === "slack" && (
               <>
-                <Field label="Webhook URL" value={fields.webhookUrl} onChange={(v) => setF("webhookUrl", v)} required />
-                <Field label="Channel (optional)" value={fields.channel} onChange={(v) => setF("channel", v)} />
+                {text("webhookUrl", { required: true, type: "url" })}
+                {text("channel")}
               </>
             )}
             {kind === "ntfy" && (
               <>
-                <Field label="Base URL" value={fields.baseUrl ?? "https://ntfy.sh"} onChange={(v) => setF("baseUrl", v)} />
-                <Field label="Topic" value={fields.topic} onChange={(v) => setF("topic", v)} required />
-                <Field label="Token (optional)" value={fields.token} onChange={(v) => setF("token", v)} type="password" />
+                {text("baseUrl", { type: "url", placeholder: "https://ntfy.sh" })}
+                {text("topic", { required: true })}
+                {text("token", { type: "password" })}
               </>
             )}
             {kind === "webhook" && (
               <>
-                <Field label="URL" value={fields.url} onChange={(v) => setF("url", v)} required />
-                <Field label="HMAC secret (optional)" value={fields.hmacSecret} onChange={(v) => setF("hmacSecret", v)} type="password" />
+                {text("url", { required: true, type: "url" })}
+                {text("hmacSecret", { type: "password" })}
               </>
             )}
             {kind === "smtp" && (
               <>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label="Host" value={fields.host} onChange={(v) => setF("host", v)} required />
-                  <Field label="Port" value={fields.port ?? "587"} onChange={(v) => setF("port", v)} required />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {text("host", { required: true })}
+                  {text("port", { required: true, type: "number", placeholder: "587" })}
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label="Username" value={fields.username} onChange={(v) => setF("username", v)} />
-                  <Field label="Password" value={fields.password} onChange={(v) => setF("password", v)} type="password" />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {text("username")}
+                  {text("password", { type: "password" })}
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label="From" value={fields.from} onChange={(v) => setF("from", v)} required />
-                  <Field label="To" value={fields.to} onChange={(v) => setF("to", v)} required />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {text("from", { required: true, type: "email" })}
+                  {text("to", { required: true, type: "email" })}
                 </div>
               </>
             )}
-            <Button type="submit" size="sm" disabled={pending}>
-              Save channel
-            </Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit" loading={create.pending}>
+                {tc("save")}
+              </Button>
+            </div>
           </form>
-        )}
-
-        {channels.length === 0 ? (
-          <div className="grid place-items-center rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] py-6 text-xs text-muted">
-            No channels yet. Add Discord, Slack, ntfy, SMTP, webhook, or browser-toast.
-          </div>
-        ) : (
-          <ul className="divide-y divide-[var(--color-border)]">
-            {channels.map((c) => {
-              const Icon = KIND_ICON[c.kind] ?? Bell;
-              return (
-                <li key={c.id} className="flex items-center gap-3 py-2 text-xs">
-                  <Icon className="h-3.5 w-3.5 text-[var(--color-primary)]" />
-                  <span className="font-medium">{c.name}</span>
-                  <span className="text-muted">[{c.kind}]</span>
-                  <div className="flex-1" />
-                  <Button size="sm" variant="ghost" onClick={() => test(c.id)} disabled={pending}>
-                    <Send className="mr-1 h-3 w-3" /> Test
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(c.id)} disabled={pending} className="text-red-600 hover:bg-red-500/10 dark:text-red-400">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  required,
-  type = "text",
-}: {
-  label: string;
-  value: string | undefined;
-  onChange: (v: string) => void;
-  required?: boolean;
-  type?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-0.5 block font-medium">{label}</span>
-      <input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className="w-full rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1"
-      />
-    </label>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

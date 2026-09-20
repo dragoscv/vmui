@@ -1,0 +1,1313 @@
+{
+  "logViewer": {
+    "lines": "{count, plural, =1 {# linie} few {# linii} other {# de linii}}",
+    "matches": "{count, plural, =0 {nicio potrivire} =1 {# potrivire} few {# potriviri} other {# de potriviri}}",
+    "search": "Caută în jurnal",
+    "wrap": "Încadrează liniile lungi",
+    "autoScroll": "Derulează automat la final",
+    "copy": "Copiază jurnalul",
+    "copied": "Copiat",
+    "waiting": "Se așteaptă rezultatul…",
+    "empty": "Niciun rezultat încă."
+  },
+  "containers": {
+    "title": "Containere",
+    "description": "Containerele de pe toate gazdele Linux/macOS accesibile. Runtime-ul (docker, podman, nerdctl) este detectat per gazdă; lista se reîmprospătează la fiecare 5 secunde.",
+    "openTerminal": "Deschide terminalul",
+    "connecting": "Conectare la gazdă…",
+    "noRuntime": "Nu a fost detectat niciun runtime de containere pe acest sistem.",
+    "liveStats": "CPU / memorie în timp real",
+    "hostSummary": "{running} din {total} în execuție",
+    "stats": {
+      "running": "În execuție",
+      "stopped": "Oprite",
+      "hosts": "Gazde",
+      "hostsHint": "{count, plural, =0 {niciun runtime detectat} =1 {# cu runtime} few {# cu runtime} other {# cu runtime}}"
+    },
+    "columns": {
+      "name": "Nume",
+      "image": "Imagine",
+      "status": "Stare",
+      "cpu": "CPU",
+      "memory": "Memorie",
+      "network": "I/O rețea",
+      "ports": "Porturi"
+    },
+    "actions": {
+      "start": "Pornește",
+      "stop": "Oprește",
+      "restart": "Repornește",
+      "pull": "Descarcă imaginea",
+      "logs": "Jurnale",
+      "exec": "Deschide shell",
+      "inspect": "Inspectează",
+      "remove": "Șterge"
+    },
+    "done": {
+      "start": "Container pornit",
+      "stop": "Container oprit",
+      "restart": "Container repornit",
+      "pull": "Imagine descărcată",
+      "remove": "Container șters"
+    },
+    "confirmStop": {
+      "title": "Oprești {name}?",
+      "description": "Containerul va fi oprit ordonat. Îl poți porni din nou din această listă."
+    },
+    "confirmRemove": {
+      "title": "Ștergi {name}?",
+      "description": "Containerul și stratul său de scriere sunt șterse. Volumele denumite sunt păstrate."
+    },
+    "logs": {
+      "title": "Jurnale · {name}",
+      "empty": "Se așteaptă ieșirea din jurnal…"
+    },
+    "inspect": {
+      "title": "Inspectare · {name}",
+      "failed": "Inspectarea a eșuat"
+    },
+    "empty": {
+      "title": "Niciun container pe această gazdă",
+      "description": "Runtime-ul funcționează, dar nu rulează nimic. Deschide un shell pentru a porni ceva sau aplică un stack compose.",
+      "action": "Deschide shell"
+    },
+    "noHosts": {
+      "title": "Nicio gazdă accesibilă",
+      "description": "Containerele au nevoie de o instanță Linux sau macOS pornită, cu adresă publică și o cheie de sondare pe contul ei.",
+      "newInstance": "Instanță nouă",
+      "settings": "Setări"
+    }
+  },
+  "compose": {
+    "title": "Stack-uri Compose",
+    "description": "Scrie și versionează YAML docker-compose, apoi aplică-l pe orice VM Linux accesibil. Fiecare salvare creează o versiune nouă.",
+    "stackCount": "{count, plural, =0 {niciun stack} =1 {# stack} few {# stack-uri} other {# de stack-uri}}",
+    "viewContainers": "Containere",
+    "newStack": "Stack nou",
+    "save": "Salvează versiunea",
+    "apply": "Aplică",
+    "saved": "Versiune salvată",
+    "deleted": "Stack șters",
+    "applied": "Stack aplicat",
+    "stacks": {
+      "title": "Stack-uri",
+      "description": "Selectează un stack pentru a-l încărca în editor.",
+      "empty": "Niciun stack încă",
+      "emptyHint": "Creează primul stack compose și aplică-l pe un VM.",
+      "editAction": "Editează"
+    },
+    "columns": {
+      "name": "Nume",
+      "buildLocation": "Build",
+      "updated": "Actualizat"
+    },
+    "location": {
+      "remote": "Pe VM",
+      "local": "Local"
+    },
+    "editor": {
+      "titleNew": "Stack nou",
+      "titleEdit": "Editare · {name}",
+      "description": "YAML-ul este scris în /opt/compose/<nume>/docker-compose.yml pe țintă și pornit cu docker compose up -d."
+    },
+    "fields": {
+      "name": "Nume",
+      "namePlaceholder": "stack-ul-meu",
+      "description": "Descriere",
+      "descriptionPlaceholder": "Ce rulează acest stack",
+      "buildLocation": "Construiește imaginile",
+      "note": "Notă de versiune",
+      "noteHint": "Opțional. Apare în istoricul versiunilor.",
+      "notePlaceholder": "ex. actualizare nginx la 1.27",
+      "yaml": "docker-compose.yml",
+      "applyTo": "Aplică pe",
+      "applyToPlaceholder": "Alege o instanță"
+    },
+    "confirmDelete": {
+      "title": "Ștergi stack-ul {name}?",
+      "description": "Toate versiunile sunt șterse. Containerele care rulează deja pe gazde nu sunt afectate.",
+      "confirm": "Șterge stack-ul"
+    },
+    "confirmApply": {
+      "title": "Aplici {name}?",
+      "description": "Rulează docker compose pull și up -d pe {target}. Serviciile din acest stack sunt recreate dacă definiția lor s-a schimbat."
+    },
+    "output": {
+      "title": "Rezultatul aplicării",
+      "empty": "Se așteaptă rezultatul…"
+    },
+    "history": {
+      "title": "Istoricul versiunilor",
+      "description": "Încarcă o versiune mai veche în editor, apoi salvează pentru a o face curentă.",
+      "count": "{count, plural, =1 {# versiune} few {# versiuni} other {# de versiuni}}",
+      "load": "Încarcă în editor"
+    }
+  },
+  "terminal": {
+    "title": "Terminal",
+    "description": "Deschide un shell pe orice VM accesibil sau într-un container în execuție, prin puntea SSH WebSocket.",
+    "hostCount": "{count, plural, =0 {nicio gazdă} =1 {# gazdă} few {# gazde} other {# de gazde}}",
+    "viewContainers": "Containere",
+    "target": "Țintă",
+    "modes": {
+      "host": "Gazdă",
+      "container": "Container"
+    },
+    "instance": "Instanță",
+    "container": "Container",
+    "shell": "Shell",
+    "loadingContainers": "Se încarcă containerele…",
+    "noRunningContainers": "Niciun container în execuție",
+    "open": "Deschide sesiunea",
+    "pickContainer": "Alege mai întâi un container.",
+    "sessions": "Sesiuni",
+    "closeSession": "Închide {label}",
+    "empty": {
+      "title": "Nicio sesiune deschisă",
+      "description": "Alege o gazdă sau un container de mai sus și deschide o sesiune. Mai multe sesiuni rămân deschise în file."
+    },
+    "noHosts": {
+      "title": "Nicio gazdă accesibilă",
+      "description": "Un terminal are nevoie de o instanță Linux sau macOS pornită, cu adresă publică și o cheie de sondare pe contul ei.",
+      "action": "Instanță nouă"
+    }
+  },
+  "builds": {
+    "title": "Build-uri și registre",
+    "description": "Configurează registre de containere, apoi construiește și publică imagini local pe gazda vmui sau la distanță pe orice VM accesibil.",
+    "viewContainers": "Containere",
+    "finished": "finalizat",
+    "timeline": "Progresul build-ului",
+    "showOutput": "Rezultat",
+    "hideOutput": "Ascunde rezultatul",
+    "noLogs": "Niciun rezultat încă.",
+    "stats": {
+      "registries": "Registre",
+      "active": "În desfășurare",
+      "succeeded": "Reușite",
+      "failed": "Eșuate"
+    },
+    "status": {
+      "pending": "În coadă",
+      "running": "Se construiește",
+      "success": "Publicat",
+      "failed": "Eșuat"
+    },
+    "steps": {
+      "queued": "În coadă",
+      "building": "Build",
+      "pushed": "Publicare"
+    },
+    "location": {
+      "local": "Local (gazda vmui)",
+      "remote": "La distanță (VM)",
+      "remoteOn": "La distanță · {name}"
+    },
+    "registries": {
+      "title": "Registre",
+      "description": "Credențialele sunt criptate la stocare și folosite doar la publicare.",
+      "add": "Adaugă registru",
+      "addTitle": "Registru nou",
+      "addHint": "Alege tipul registrului; sunt afișate doar câmpurile necesare.",
+      "save": "Salvează registrul",
+      "saved": "Registru salvat",
+      "deleted": "Registru șters",
+      "empty": "Niciun registru configurat",
+      "emptyHint": "Adaugă un registru înainte de a porni un build.",
+      "columns": {
+        "name": "Nume",
+        "type": "Tip",
+        "url": "URL",
+        "added": "Adăugat"
+      },
+      "types": {
+        "ghcr": "GitHub Container Registry",
+        "dockerhub": "Docker Hub",
+        "ecr": "AWS ECR",
+        "gcr": "GCP Artifact Registry",
+        "acr": "Azure ACR"
+      },
+      "fields": {
+        "name": "Nume",
+        "type": "Tip",
+        "url": "URL registru",
+        "username": "Utilizator",
+        "tokenPat": "Token (PAT)",
+        "passwordOrToken": "Parolă / token",
+        "accessKeyId": "ID cheie de acces",
+        "secretAccessKey": "Cheie secretă de acces",
+        "region": "Regiune",
+        "serviceAccountJson": "JSON cont de serviciu"
+      },
+      "confirmDelete": {
+        "title": "Ștergi registrul {name}?",
+        "description": "Build-urile publicate în el își păstrează istoricul; build-urile noi nu-l mai pot folosi."
+      }
+    },
+    "runs": {
+      "title": "Execuții build",
+      "description": "Ultimele 50 de build-uri. Starea se reîmprospătează la fiecare 5 secunde.",
+      "new": "Build nou",
+      "empty": "Niciun build încă",
+      "emptyHint": "Pornește un build dintr-un Dockerfile inline; rezultatul apare aici.",
+      "emptyNeedsRegistry": "Adaugă mai întâi un registru — fiecare build publică undeva."
+    },
+    "newBuild": {
+      "title": "Build nou",
+      "hint": "Dockerfile-ul este construit cu un context gol și publicat în registrul selectat.",
+      "start": "Pornește build-ul",
+      "started": "Build pornit",
+      "fillAll": "Registrul, referința imaginii și Dockerfile-ul sunt obligatorii.",
+      "fields": {
+        "registry": "Registru",
+        "imageRef": "Referință imagine",
+        "buildLocation": "Construiește pe",
+        "instance": "Instanță",
+        "dockerfile": "Dockerfile"
+      }
+    }
+  },
+  "gitops": {
+    "title": "GitOps",
+    "description": "Urmărește un depozit Git și aplică automat fiecare modificare compose pe o mașină virtuală țintă. Acceptă surse publice, cu token HTTPS și cu cheie SSH.",
+    "count": "{count, plural, =1 {# sursă} few {# surse} other {# de surse}}",
+    "addSource": "Adaugă sursă",
+    "enabled": "Activă",
+    "paused": "În pauză",
+    "sources": {
+      "title": "Surse Git",
+      "description": "Selectează un rând pentru a vedea pipeline-ul și jurnalul de sincronizare."
+    },
+    "columns": {
+      "name": "Nume",
+      "repo": "Depozit",
+      "status": "Stare",
+      "lastSync": "Ultima sincronizare",
+      "commit": "Commit"
+    },
+    "actions": {
+      "syncNow": "Sincronizează acum",
+      "pause": "Pune în pauză",
+      "resume": "Reia"
+    },
+    "empty": {
+      "title": "Nicio sursă Git încă",
+      "description": "Adaugă un depozit și vmui îl va interoga periodic și va aplica modificările compose pe VM-ul țintă."
+    },
+    "confirmDelete": {
+      "title": "Ștergi „{name}”?",
+      "description": "Sursa și cache-ul local al clonei sunt eliminate. Stack-urile deja instalate pe VM rămân neatinse."
+    },
+    "toast": {
+      "synced": "Sincronizare finalizată",
+      "deleted": "Sursă ștearsă"
+    },
+    "pipeline": {
+      "title": "Pipeline · {name}",
+      "description": "Starea în timp real a lanțului interogare → preluare → potrivire → aplicare, actualizată la fiecare 5 secunde."
+    },
+    "steps": {
+      "title": "Pipeline de sincronizare",
+      "poll": "Interogare",
+      "pollDetail": "La fiecare {seconds} s",
+      "fetch": "Preluare",
+      "match": "Potrivire fișiere compose",
+      "apply": "Aplicare pe țintă",
+      "never": "Niciodată",
+      "noApplies": "Nicio aplicare încă"
+    },
+    "stepState": {
+      "done": "Finalizat",
+      "running": "În curs",
+      "failed": "Eșuat",
+      "idle": "Inactiv"
+    },
+    "log": {
+      "title": "Jurnal de sincronizare",
+      "empty": "Nicio aplicare înregistrată pentru această sursă."
+    },
+    "form": {
+      "title": "Sursă Git nouă",
+      "hint": "Prima sincronizare rulează în cel mult 30 de secunde de la salvare.",
+      "name": "Nume",
+      "url": "URL depozit",
+      "branch": "Ramură",
+      "auth": "Autentificare",
+      "authNone": "Fără (public)",
+      "authToken": "Token HTTPS",
+      "authSsh": "Cheie SSH",
+      "username": "Utilizator (opțional)",
+      "token": "Token / PAT",
+      "sshKey": "Cheie SSH privată (format OpenSSH)",
+      "composeGlob": "Glob compose",
+      "target": "Instanță țintă",
+      "targetHint": "Lasă gol pentru a urmări doar depozitul.",
+      "targetNone": "Niciuna — doar urmărire",
+      "pollSeconds": "Interval de interogare (secunde)",
+      "submit": "Salvează sursa",
+      "saved": "Sursă adăugată — prima sincronizare rulează în 30 s"
+    }
+  },
+  "k8s": {
+    "title": "Kubernetes",
+    "description": "Instalare k3s / k0s cu un clic, kubectl din browser și instalări Helm — totul prin SSH, fără server API expus.",
+    "node": "Nod server",
+    "tabs": {
+      "workloads": "Workload-uri",
+      "install": "Instalare",
+      "kubectl": "kubectl",
+      "helm": "Helm"
+    },
+    "noInstances": {
+      "title": "Nicio mașină Linux accesibilă",
+      "description": "Pornește un VM Linux sau macOS cu adresă publică pentru a instala un cluster pe el.",
+      "cta": "Deschide instanțele"
+    },
+    "columns": {
+      "namespace": "Namespace",
+      "name": "Pod",
+      "status": "Stare",
+      "ready": "Gata",
+      "restarts": "Reporniri",
+      "age": "Vechime"
+    },
+    "workloads": {
+      "title": "Poduri",
+      "description": "Rulează `kubectl get pods -A` pe nodul selectat.",
+      "load": "Încarcă podurile",
+      "emptyTitle": "Nimic încărcat încă",
+      "emptyDescription": "Preia lista de poduri de pe nodul selectat.",
+      "noPods": "Niciun pod",
+      "noPodsHint": "Clusterul a răspuns, dar nu a raportat poduri sau ieșirea nu a putut fi interpretată.",
+      "describe": "Descrie podul",
+      "logs": "Jurnalele podului"
+    },
+    "output": {
+      "empty": "Comanda nu a produs nicio ieșire."
+    },
+    "install": {
+      "title": "Instalează un cluster",
+      "description": "Instalează k3s sau k0s prin SSH. Rolul de server returnează un kubeconfig și un token de alăturare.",
+      "flavor": "Variantă",
+      "role": "Rol",
+      "roleServer": "Server (singular / control plane)",
+      "roleAgent": "Agent (worker)",
+      "serverUrl": "URL server",
+      "serverUrlHint": "Doar pentru k3s",
+      "token": "Token de alăturare",
+      "submit": "Instalează",
+      "done": "Cluster instalat",
+      "joinToken": "Token de alăturare (pentru agenți)",
+      "kubeconfig": "kubeconfig",
+      "download": "Descarcă kubeconfig"
+    },
+    "kubectl": {
+      "title": "kubectl",
+      "description": "Rulează kubectl pe nodul server prin SSH.",
+      "args": "Argumente",
+      "argsHint": "Litere, cifre și - _ . , / = : @ spațiu",
+      "run": "Rulează"
+    },
+    "helm": {
+      "title": "Instalare Helm",
+      "description": "Adaugă depozitul dacă este specificat, apoi rulează `helm upgrade --install`.",
+      "release": "Nume release",
+      "chart": "Chart",
+      "namespace": "Namespace (opțional)",
+      "repoName": "Nume depozit (opțional)",
+      "repoUrl": "URL depozit (opțional)",
+      "values": "values.yaml (opțional)",
+      "submit": "Instalare Helm",
+      "done": "Release Helm aplicat"
+    }
+  },
+  "mesh": {
+    "title": "Rețea mesh",
+    "description": "Generează un mesh WireGuard complet între VM-urile selectate sau o comandă Tailscale de instalare + up cu etichete, rute și SSH.",
+    "reachable": "{count, plural, =1 {# VM accesibil} few {# VM-uri accesibile} other {# de VM-uri accesibile}}",
+    "openTerminal": "Deschide terminalul",
+    "tabs": {
+      "wireguard": "Mesh WireGuard",
+      "tailscale": "Tailscale"
+    },
+    "columns": {
+      "name": "Nume",
+      "publicIp": "IP public",
+      "privateIp": "IP privat",
+      "endpoint": "Endpoint"
+    },
+    "legend": {
+      "title": "Legendă",
+      "public": "Endpoint public",
+      "private": "Doar privat",
+      "excluded": "Neselectat",
+      "edges": "{count, plural, =1 {# tunel} few {# tunele} other {# de tunele}}"
+    },
+    "noInstances": {
+      "title": "Niciun VM accesibil",
+      "description": "Pornește cel puțin două VM-uri cu adresă IP pentru a construi un mesh.",
+      "cta": "Deschide instanțele"
+    },
+    "preview": {
+      "title": "Previzualizare mesh",
+      "description": "Fiecare peer selectat primește un tunel către fiecare dintre ceilalți.",
+      "aria": "Diagramă mesh cu {count} peer-uri selectate",
+      "listAria": "Peer-uri"
+    },
+    "wireguard": {
+      "peersTitle": "Peer-uri",
+      "peersDescription": "Alege cel puțin două VM-uri. IP-ul privat este preferat ca endpoint de tunel.",
+      "selectedCount": "{count, plural, =1 {# selectat} few {# selectate} other {# selectate}}",
+      "selectAll": "Selectează toate peer-urile",
+      "selectPeer": "Selectează {name}",
+      "subnet": "Subrețea VPN",
+      "generate": "Generează mesh",
+      "autoBuild": "Construiește automat din flotă",
+      "generated": "{count, plural, =1 {Generat # fișier wg0.conf} few {Generate # fișiere wg0.conf} other {Generate # de fișiere wg0.conf}}",
+      "autoBuilt": "{count, plural, =1 {Mesh construit automat pentru # VM} few {Mesh construit automat pentru # VM-uri} other {Mesh construit automat pentru # de VM-uri}}",
+      "configsTitle": "Configurații generate",
+      "configsDescription": "{count, plural, =1 {# fișier — copiază-l sau descarcă-l în /etc/wireguard/wg0.conf.} few {# fișiere — copiază sau descarcă fiecare în /etc/wireguard/wg0.conf pe peer-ul său.} other {# de fișiere — copiază sau descarcă fiecare în /etc/wireguard/wg0.conf pe peer-ul său.}}",
+      "download": "Descarcă"
+    },
+    "tailscale": {
+      "title": "Tailscale",
+      "description": "Produce scriptul de instalare și o comandă `tailscale up` cu cheia de autentificare inclusă.",
+      "authKey": "Cheie de autentificare",
+      "hostname": "Nume gazdă (opțional)",
+      "tags": "Etichete",
+      "routes": "Rute anunțate",
+      "commaHint": "Separate prin virgulă",
+      "ssh": "Activează Tailscale SSH",
+      "sshHint": "Adaugă --ssh ca să ajungi la nod fără chei.",
+      "generate": "Generează",
+      "outputTitle": "Comenzi",
+      "installComment": "Instalează Tailscale",
+      "connectComment": "Conectare",
+      "runHint": "{count, plural, =1 {Rulează aceste comenzi pe VM-ul accesibil din terminalul integrat.} few {Rulează aceste comenzi pe fiecare dintre cele # VM-uri accesibile din terminalul integrat.} other {Rulează aceste comenzi pe fiecare dintre cele # de VM-uri accesibile din terminalul integrat.}}"
+    }
+  },
+  "topology": {
+    "title": "Topologie",
+    "description": "Graf cu forțe direcționate al conturilor, instanțelor și resurselor.",
+    "counts": "{nodes} noduri · {edges} muchii",
+    "fit": "Încadrează pe ecran",
+    "saveLayout": "Salvează aranjarea",
+    "resetLayout": "Resetează aranjarea",
+    "openInstance": "Deschide instanța",
+    "openAccount": "Deschide contul",
+    "empty": {
+      "title": "Nicio resursă încă",
+      "description": "Sincronizează un cont cloud pentru a popula topologia.",
+      "cta": "Deschide conturile"
+    },
+    "filters": {
+      "title": "Filtre",
+      "description": "Restrânge graficul după cont, furnizor și tipul relației.",
+      "view": "Vizualizare",
+      "view3d": "3D",
+      "view2d": "2D",
+      "accounts": "Cont",
+      "providers": "Furnizori",
+      "edges": "Relații"
+    },
+    "graph": {
+      "title": "Graf",
+      "hint": "Trage pentru rotire · scroll pentru zoom · clic pe un nod pentru detalii."
+    },
+    "legend": {
+      "title": "Tipuri de noduri"
+    },
+    "list": {
+      "title": "Noduri",
+      "description": "Atinge un nod pentru detalii.",
+      "truncated": "{count, plural, =1 {încă # nod ascuns} few {încă # noduri ascunse} other {încă # de noduri ascunse}}"
+    },
+    "kinds": {
+      "account": "Cont",
+      "instance": "Instanță",
+      "volume": "Volum",
+      "snapshot": "Snapshot",
+      "security-group": "Grup de securitate",
+      "vpc": "VPC",
+      "subnet": "Subrețea",
+      "bucket": "Bucket",
+      "load-balancer": "Load balancer",
+      "database": "Bază de date",
+      "dns": "DNS"
+    },
+    "edges": {
+      "owned-by": "Deținut de",
+      "attaches": "Atașat la",
+      "in-group": "În grup",
+      "in-vpc": "În VPC",
+      "in-subnet": "În subrețea"
+    }
+  },
+  "ai": {
+    "title": "Agent AI",
+    "description": "Chat local, alimentat de Ollama. Setează <code>VMUI_OLLAMA_URL</code> și <code>VMUI_OLLAMA_MODEL</code> (implicit <code>http://127.0.0.1:11434</code> / <code>llama3.2</code>). Agentul poate lista instanțele, rezuma costurile, citi jurnalul de audit și afișa recomandările optimizatorului.",
+    "conversation": "Conversație",
+    "conversationHint": "Apelurile de unelte făcute de agent apar în linie; extinde unul pentru a citi rezultatul brut.",
+    "status": {
+      "online": "Ollama online",
+      "offline": "Ollama offline",
+      "recheck": "Reverifică",
+      "connected": "Conectat la {url} · model {model}",
+      "unreachable": "Nu se poate contacta Ollama la {url}"
+    },
+    "empty": {
+      "title": "Întreabă orice despre flota ta",
+      "description": "Încearcă una dintre sugestii pentru a începe."
+    },
+    "suggestions": {
+      "idle": "Ce este inactiv acum?",
+      "lastHour": "Ce am făcut în ultima oră?",
+      "cost": "Rezumă costurile mele",
+      "recommend": "Există recomandări de optimizare?"
+    },
+    "roles": {
+      "user": "Tu",
+      "assistant": "Agent"
+    },
+    "toolCall": "Unealtă · {tool}",
+    "toolLines": "{count, plural, =1 {# linie} few {# linii} other {# de linii}}",
+    "thinking": "Se gândește…",
+    "placeholder": "Întreabă vmui…",
+    "send": "Trimite",
+    "hint": "Enter trimite · Shift+Enter pentru rând nou",
+    "errorPrefix": "Eroare: {error}"
+  },
+  "dr": {
+    "title": "Exercițiu DR",
+    "description": "Verificare doar în citire că fiecare VM pornit are un backup recent, că acreditările furnizorilor încă funcționează și că sursele GitOps se sincronizează.",
+    "readOnly": "Doar citire",
+    "run": "Rulează exercițiul",
+    "runAgain": "Rulează din nou",
+    "progress": "Pasul {step} din {total}",
+    "confirm": {
+      "title": "Rulezi exercițiul DR?",
+      "description": "Exercițiul apelează API-ul de listare al fiecărui furnizor și citește tabelele locale. Nu creează, modifică sau șterge niciodată infrastructură.",
+      "cta": "Rulează exercițiul"
+    },
+    "steps": {
+      "scope": {
+        "title": "1 · Ce se verifică",
+        "description": "Trei familii de verificări rulează în secvență.",
+        "backups": {
+          "title": "Backup-uri",
+          "hint": "Fiecare VM pornit are o politică care a reușit în ultimele 7 zile."
+        },
+        "credentials": {
+          "title": "Acreditări",
+          "hint": "Fiecare furnizor răspunde la un apel de listare cu cheile stocate."
+        },
+        "gitops": {
+          "title": "GitOps",
+          "hint": "Sursele active s-au sincronizat recent, fără erori."
+        }
+      },
+      "run": {
+        "title": "2 · Rulare",
+        "description": "Rezultatele apar aici imediat ce exercițiul se încheie.",
+        "idle": "Nerulat",
+        "running": "În curs",
+        "done": "Finalizat",
+        "hint": "Folosește butonul din antet pentru a porni. Nimic din infrastructura ta nu este atins.",
+        "checking": "Se rulează verificările…"
+      },
+      "results": {
+        "title": "3 · Rezultate",
+        "description": "{count, plural, =1 {# verificare} few {# verificări} other {# de verificări}}"
+      }
+    },
+    "stats": {
+      "passed": "Trecute",
+      "warned": "Avertismente",
+      "failed": "Eșuate"
+    },
+    "checkStatus": {
+      "pass": "Trecut",
+      "warn": "Avertisment",
+      "fail": "Eșuat"
+    },
+    "log": {
+      "title": "Ieșirea exercițiului",
+      "started": "Exercițiu pornit la {at}"
+    }
+  },
+  "restore": {
+    "title": "Restaurare",
+    "description": "Lansează un VM nou dintr-un backup reușit. Inter-cloud: alege orice cont și regiune — vmui predă snapshot-ul furnizorului și apelează createInstance.",
+    "jobsCount": "{count, plural, =1 {# backup} few {# backup-uri} other {# de backup-uri}}",
+    "openBackups": "Deschide backup-urile",
+    "progress": "Pasul {step} din {total}",
+    "stepDone": "Finalizat",
+    "stepPending": "În așteptare",
+    "toast": {
+      "launching": "Se lansează {id}"
+    },
+    "confirm": {
+      "title": "Lansezi „{name}”?",
+      "description": "Un VM nou este creat în {account} / {region} și facturat de furnizor. Tastează numele VM-ului pentru a confirma.",
+      "cta": "Lansează VM-ul"
+    },
+    "steps": {
+      "backup": {
+        "title": "1 · Alege un backup",
+        "description": "Job-uri reușite, cele mai recente primele.",
+        "emptyTitle": "Niciun backup reușit",
+        "emptyDescription": "Rulează mai întâi o politică de backup; doar job-urile încheiate cu succes pot fi restaurate.",
+        "fileArchive": "arhivă de fișiere",
+        "archiveTitle": "Acest backup este de tip {kind}",
+        "archiveHint": "Furnizorul nu poate porni direct din el. Șablonul de rezervă de mai jos lansează un VM nou; restaurează arhiva prin SSH după aceea."
+      },
+      "target": {
+        "title": "2 · Țintă",
+        "description": "Unde este creat noul VM.",
+        "account": "Cont cloud",
+        "selectAccount": "Selectează un cont",
+        "region": "Regiune",
+        "regionHint": "Regiuni cunoscute: {regions}",
+        "name": "Numele noului VM",
+        "instanceType": "Tip instanță",
+        "template": "Șablon de rezervă",
+        "templateHint": "Folosit când furnizorul nu poate porni din snapshot."
+      },
+      "launch": {
+        "title": "3 · Lansare",
+        "description": "Verifică și lansează. Aceasta creează infrastructură facturabilă.",
+        "cta": "Restaurează",
+        "again": "Restaurează alt backup",
+        "launchedTitle": "Instanță lansată din snapshot",
+        "launchedHint": "Furnizorul pornește noul VM. Va apărea în lista de instanțe după următoarea sincronizare.",
+        "openInstances": "Deschide instanțele"
+      }
+    }
+  },
+  "backups": {
+    "title": "Backup-uri și recuperare în caz de dezastru",
+    "description": "Snapshot-uri din toate conturile cloud plus arhive locale AES-256-GCM. Replici, restaurezi, verifici.",
+    "restore": "Restaurează din backup",
+    "stats": {
+      "total": "Snapshot-uri",
+      "totalHint": "{accounts, plural, =1 {într-un cont} few {în # conturi} other {în # de conturi}}",
+      "last7d": "Ultimele 7 zile",
+      "last7dHint": "capturate în ultima săptămână",
+      "size": "Dimensiune totală",
+      "sizeValue": "{gb} GB",
+      "sizeHint": "spațiu aproximativ ocupat de snapshot-uri"
+    },
+    "calendar": {
+      "title": "Snapshot-uri în timp",
+      "summary": "{count, plural, =0 {Niciun snapshot} =1 {1 snapshot} few {# snapshot-uri} other {# de snapshot-uri}} în {accounts, plural, =1 {1 cont} few {# conturi} other {# de conturi}}",
+      "providerFilter": "Filtrează după furnizor",
+      "tabs": {
+        "heatmap": "Hartă termică",
+        "month": "Lună",
+        "timeline": "Cronologie"
+      }
+    },
+    "heatmap": {
+      "ariaLabel": "Activitatea snapshot-urilor în ultimele {weeks} săptămâni",
+      "cellTitle": "{date} — {count, plural, =1 {1 snapshot} few {# snapshot-uri} other {# de snapshot-uri}}",
+      "less": "Mai puțin",
+      "more": "Mai mult · max {max}/zi"
+    },
+    "month": {
+      "previousMonth": "Luna anterioară",
+      "nextMonth": "Luna următoare",
+      "today": "Azi",
+      "cellTitle": "{date} — {count, plural, =1 {1 snapshot} few {# snapshot-uri} other {# de snapshot-uri}}",
+      "more": "+{count} în plus"
+    },
+    "timeline": {
+      "empty": "Niciun snapshot capturat încă",
+      "emptyHint": "Declanșează unul dintr-o instanță ca să apară aici.",
+      "count": "{count, plural, =1 {1 snapshot} few {# snapshot-uri} other {# de snapshot-uri}}"
+    },
+    "snapshots": {
+      "title": "Inventar snapshot-uri",
+      "description": "Toate snapshot-urile din cache, din toate conturile. Restaurarea deschide asistentul; ștergerea le elimină la furnizor.",
+      "columns": {
+        "name": "Snapshot",
+        "provider": "Furnizor",
+        "region": "Regiune",
+        "size": "Dimensiune",
+        "status": "Stare",
+        "captured": "Capturat"
+      },
+      "empty": "Niciun snapshot încă",
+      "emptyHint": "Creează un snapshot din pagina unei instanțe sau adaugă o politică de backup mai jos.",
+      "goToInstances": "Mergi la instanțe",
+      "restore": "Restaurează",
+      "delete": "Șterge snapshot-ul",
+      "deleted": "Snapshot șters",
+      "confirmDelete": "Ștergi snapshot-ul „{name}”?",
+      "confirmDeleteHint": "Snapshot-ul este eliminat la furnizor. Acțiunea nu poate fi anulată."
+    },
+    "policies": {
+      "title": "Politici de backup",
+      "description": "Snapshot-uri cloud programate cron, dump-uri S3, copii locale sau snapshot-uri inter-regionale, cu ferestre de retenție.",
+      "add": "Adaugă politică",
+      "newTitle": "Politică de backup nouă",
+      "newDescription": "Rulează după programul cron (UTC) și curăță conform retenției.",
+      "jobs": "Arată job-urile",
+      "runNow": "Rulează acum",
+      "queued": "Backup pus în coadă",
+      "deleted": "Politică ștearsă",
+      "added": "Politică adăugată",
+      "enable": "Activează politica",
+      "disable": "Dezactivează politica",
+      "never": "niciodată",
+      "empty": "Nicio politică de backup încă",
+      "emptyHint": "Adaugă o politică pentru a face snapshot unei VM după program.",
+      "confirmDelete": "Ștergi politica „{name}”?",
+      "confirmDeleteHint": "Job-urile anterioare rămân în istoric; rulările viitoare se opresc imediat.",
+      "columns": {
+        "name": "Politică",
+        "target": "Țintă",
+        "cron": "Cron (UTC)",
+        "lastRun": "Ultima rulare",
+        "status": "Stare",
+        "enabled": "Activă"
+      },
+      "kinds": {
+        "cloud-snapshot": "Snapshot cloud (API furnizor)",
+        "s3-dump": "Dump S3 (tar prin SSH → s3 cp)",
+        "local-copy": "Copie locală (tar într-o cale de pe VM)",
+        "cross-region": "Snapshot inter-regional"
+      },
+      "status": {
+        "ok": "OK",
+        "error": "Eroare",
+        "running": "În execuție",
+        "queued": "În coadă"
+      },
+      "retention": "Retenție",
+      "retentionValue": "{d}z / {w}s / {m}l",
+      "enabledYes": "Activă",
+      "enabledNo": "În pauză",
+      "lastError": "Ultima eroare: {error}",
+      "noJobs": "Niciun job încă",
+      "verify": "Verifică",
+      "verified": "Verificat",
+      "verifyFailed": "Verificarea a eșuat",
+      "jobColumns": {
+        "started": "Pornit",
+        "status": "Stare",
+        "artifact": "Artefact",
+        "size": "Dimensiune",
+        "message": "Mesaj"
+      },
+      "form": {
+        "name": "Nume",
+        "namePlaceholder": "backup nocturn etc",
+        "kind": "Tip",
+        "target": "Instanță țintă",
+        "cron": "Cron (UTC)",
+        "retention": "Retenție",
+        "retentionHint": "Câte copii zilnice / săptămânale / lunare se păstrează.",
+        "keepDaily": "Păstrează zilnice",
+        "keepWeekly": "Păstrează săptămânale",
+        "keepMonthly": "Păstrează lunare",
+        "s3Uri": "URI S3",
+        "awsAccessKeyId": "AWS access key id",
+        "awsSecretAccessKey": "AWS secret access key",
+        "awsRegion": "Regiune AWS (opțional)",
+        "paths": "Căi de salvat",
+        "pathsHint": "Căi absolute de pe VM, separate prin spațiu.",
+        "localDir": "Director destinație pe VM",
+        "targetRegion": "Regiune țintă"
+      }
+    },
+    "local": {
+      "title": "Backup-uri locale criptate",
+      "description": "Arhive AES-256-GCM în flux, sub <code>~/.vmui/backups</code>, sigilate cu <code>VMUI_MASTER_KEY</code>.",
+      "createNow": "Creează backup acum",
+      "created": "Backup scris: {name}",
+      "createFailed": "Backup-ul a eșuat",
+      "verify": "Verifică",
+      "verified": "Verificat: {counts}",
+      "verifyFailed": "Verificarea a eșuat",
+      "deleted": "Backup șters",
+      "deleteFailed": "Ștergerea a eșuat",
+      "partial": "parțial",
+      "empty": "Niciun backup local încă",
+      "emptyHint": "Creează unul pentru a salva conturile, cheile, instanțele și programările într-un fișier criptat.",
+      "confirmDelete": "Ștergi {name}?",
+      "confirmDeleteHint": "Arhiva este eliminată de pe disc. Acțiunea nu poate fi anulată.",
+      "columns": {
+        "file": "Fișier",
+        "size": "Dimensiune",
+        "modified": "Modificat"
+      }
+    }
+  },
+  "schedules": {
+    "title": "Programări",
+    "description": "Pornire / oprire / repornire / snapshot după cron. Oprește VM-urile de dezvoltare peste noapte, repornește săptămânal sau trezește-le la timp.",
+    "unknown": "(necunoscut)",
+    "stats": {
+      "total": "Programări",
+      "enabled": "Active",
+      "paused": "În pauză"
+    },
+    "listTitle": "Toate programările",
+    "listDescription": "Comută pentru a pune în pauză sau relua; șterge pentru a elimina definitiv.",
+    "add": "Programare nouă",
+    "newTitle": "Programare nouă",
+    "newDescription": "Cron-ul rulează în ora locală a serverului.",
+    "deleted": "Programare ștearsă",
+    "paused": "în pauză",
+    "pause": "Pune programarea în pauză",
+    "resume": "Reia programarea",
+    "never": "niciodată",
+    "next": "următoarea {when}",
+    "empty": "Nicio programare încă",
+    "emptyHint": "Creează una pentru a opri automat peste noapte, a porni dimineața sau a reporni săptămânal.",
+    "confirmDelete": "Ștergi programarea „{name}”?",
+    "confirmDeleteHint": "Rulările viitoare se opresc imediat. Acțiunea nu poate fi anulată.",
+    "columns": {
+      "cron": "Cron",
+      "action": "Acțiune",
+      "instance": "VM țintă",
+      "account": "Cont",
+      "enabled": "Activă",
+      "lastRun": "Ultima rulare"
+    },
+    "form": {
+      "instance": "Instanță",
+      "pickInstance": "Alege o instanță",
+      "action": "Acțiune",
+      "actions": {
+        "start": "Pornire",
+        "stop": "Oprire",
+        "reboot": "Repornire",
+        "snapshot": "Snapshot"
+      },
+      "cron": "Expresie cron",
+      "invalidCron": "Expresie cron invalidă",
+      "presets": {
+        "weekdays19": "În zilele lucrătoare la 19:00",
+        "daily02": "Zilnic la 02:00",
+        "monday08": "Lunea la 08:00",
+        "every30m": "La fiecare 30 de minute"
+      },
+      "nextNever": "Următoarea rulare: niciodată (nicio potrivire în anul următor)",
+      "nextRuns": "{count, plural, =1 {Următoarea rulare:} other {Următoarele # rulări:}}",
+      "label": "Etichetă (opțional)",
+      "labelPlaceholder": "Oprește stația de dezvoltare peste noapte",
+      "submit": "Creează programarea",
+      "created": "Programare creată"
+    },
+    "card": {
+      "title": "Programări",
+      "description": "Acțiuni programate cron pentru această instanță.",
+      "presets": {
+        "stopWeekdays": "Oprire @ 19:00 zile lucrătoare",
+        "startWeekdays": "Pornire @ 08:00 zile lucrătoare",
+        "rebootSunday": "Repornire duminică 03:00"
+      }
+    }
+  },
+  "recipes": {
+    "title": "Acțiuni rapide",
+    "description": "Operații în masă, cu un clic, pe toate conturile conectate. Fiecare rețetă arată o previzualizare înainte de rulare.",
+    "preview": "Previzualizare",
+    "previewTitle": "Instanțe afectate",
+    "run": "Rulează",
+    "runOn": "{count, plural, =0 {Rulează} =1 {Rulează pe 1 VM} few {Rulează pe # VM-uri} other {Rulează pe # de VM-uri}}",
+    "affects": "{count, plural, =1 {1 VM} few {# VM-uri} other {# de VM-uri}}",
+    "noCandidates": "Nimic de făcut",
+    "noCandidatesHint": "Nicio instanță nu se potrivește acum acestei rețete.",
+    "confirmTitle": "Rulezi „{name}”?",
+    "confirmHint": "Afectează toate VM-urile potrivite din toate conturile conectate.",
+    "runDone": "{ok}/{total} reușite{failed, plural, =0 {} other {, # eșuate}}",
+    "runFailed": "{failed}/{total} eșuate",
+    "tones": {
+      "danger": "Distructivă",
+      "success": "Sigură",
+      "warning": "Perturbatoare"
+    },
+    "tags": {
+      "cost": "cost",
+      "fleet": "toată flota",
+      "maintenance": "mentenanță"
+    },
+    "items": {
+      "stop-all-running": {
+        "label": "Oprește tot ce rulează",
+        "description": "Oprește fiecare VM pornită din toate conturile conectate. Economisește bani rapid.",
+        "confirmWord": "OPRESTE"
+      },
+      "start-all-stopped": {
+        "label": "Pornește tot ce e oprit",
+        "description": "Trezește fiecare VM oprită. Util la reluarea unui mediu pus în pauză.",
+        "confirmWord": "PORNESTE"
+      },
+      "reboot-all-running": {
+        "label": "Repornește tot ce rulează",
+        "description": "Repornire soft pentru fiecare VM pornită. Util după actualizări de kernel.",
+        "confirmWord": "REPORNESTE"
+      }
+    },
+    "log": {
+      "title": "Rezultat",
+      "summary": "{ok}/{total} reușite, {failed} eșuate",
+      "failedLine": "✗ {id}: {error}"
+    }
+  },
+  "catalog": {
+    "title": "Catalog",
+    "description": "Șabloane cloud-init cu un clic pentru servicii self-hosted. Salvează unul ca script de boot și atașează-l la crearea unei VM — sistemul se configurează singur la prima pornire.",
+    "use": "Salvează ca script de boot",
+    "view": "Vezi cloud-init",
+    "copyYaml": "Copiază YAML",
+    "cloudInit": "cloud-init",
+    "port": "port {port}",
+    "homepage": "Deschide pagina {name}",
+    "saved": "„{name}” salvat ca script de boot",
+    "saveFailed": "Salvarea a eșuat",
+    "specs": {
+      "vcpu": "vCPU",
+      "ram": "RAM",
+      "disk": "Disc",
+      "gb": "{n} GB"
+    },
+    "categories": {
+      "automation": "automatizare",
+      "analytics": "analiză",
+      "docs": "documente",
+      "monitoring": "monitorizare",
+      "security": "securitate",
+      "dev": "dezvoltare"
+    }
+  },
+  "templates": {
+    "title": "Șabloane de lansare",
+    "description": "Configurații de VM salvate. Creează unul din orice instanță prin „Salvează ca șablon” din pagina ei.",
+    "count": "{count, plural, =1 {1 șablon} few {# șabloane} other {# de șabloane}}",
+    "launch": "Lansează",
+    "view": "Vezi configurația",
+    "config": "Configurația șablonului",
+    "instanceType": "Tip instanță",
+    "created": "Creat",
+    "deleted": "Șablon șters",
+    "empty": "Niciun șablon încă",
+    "emptyHint": "Deschide o instanță și folosește „Salvează ca șablon” pentru a-i captura configurația.",
+    "goToInstances": "Mergi la instanțe",
+    "confirmDelete": "Ștergi șablonul „{name}”?",
+    "confirmDeleteHint": "Instanțele lansate din el nu sunt afectate.",
+    "platforms": {
+      "linux": "Linux",
+      "windows": "Windows",
+      "macos": "macOS"
+    }
+  },
+  "runbooks": {
+    "title": "Runbook-uri",
+    "description": "Proceduri Markdown atașate instanțelor sau întregii flote. Urmărește cine rulează ce și când.",
+    "listTitle": "Runbook-uri salvate",
+    "count": "{count, plural, =0 {Niciun runbook} =1 {1 runbook} few {# runbook-uri} other {# de runbook-uri}}",
+    "view": "Deschide",
+    "body": "Pași",
+    "noBody": "(gol)",
+    "fleetWide": "toată flota",
+    "updated": "actualizat",
+    "deleted": "Runbook șters",
+    "empty": "Niciun runbook încă",
+    "emptyHint": "Scrie-l pe primul mai sus — o listă de verificare pe care o poți urma sub presiune.",
+    "confirmDelete": "Ștergi runbook-ul „{name}”?",
+    "confirmDeleteHint": "Acțiunea nu poate fi anulată.",
+    "form": {
+      "title": "Runbook nou",
+      "description": "Conținut Markdown; casetele de bifat și blocurile de cod se afișează ca atare.",
+      "name": "Titlu",
+      "namePlaceholder": "Rotește credențialele bazei de date",
+      "instance": "ID instanță la furnizor",
+      "instanceHint": "Lasă gol pentru un runbook valabil pe toată flota.",
+      "instancePlaceholder": "i-0123456789abcdef0",
+      "body": "Pași",
+      "bodyPlaceholder": "# Pași\n- [ ] Drenează traficul\n- [ ] `sudo systemctl stop app`\n- [ ] Verifică…",
+      "submit": "Salvează runbook-ul",
+      "saved": "Runbook salvat"
+    }
+  },
+  "keyRotation": {
+    "title": "Rotirea cheilor SSH",
+    "description": "Trimite o cheie publică nouă pe fiecare VM selectată și elimină cheile anterioare gestionate de vmui. Necesită o cheie de sondare pe cont.",
+    "manageKeys": "Gestionează cheile SSH",
+    "noKeys": "Nicio cheie SSH configurată",
+    "noKeysHint": "Adaugă una mai întâi în Setări → Chei SSH.",
+    "rotateOn": "{count, plural, =0 {Rotește} =1 {Rotește pe 1 VM} few {Rotește pe # VM-uri} other {Rotește pe # de VM-uri}}",
+    "rotated": "{ok, plural, =1 {1 VM rotită} few {# VM-uri rotite} other {# de VM-uri rotite}}{failed, plural, =0 {} other {, # eșuate}}",
+    "rotateFailed": "{failed, plural, =1 {1 VM a eșuat} few {# VM-uri au eșuat} other {# de VM-uri au eșuat}}",
+    "confirmTitle": "Rotești cheile SSH pe {count, plural, =1 {1 VM} few {# VM-uri} other {# de VM-uri}}?",
+    "confirmHint": "Cheia „{key}” se instalează pentru utilizatorul {user}; cheile anterioare gestionate de vmui sunt eliminate. Tastează cuvântul de mai jos pentru a continua.",
+    "confirmButton": "Rotește cheile",
+    "confirmWord": "ROTESTE",
+    "selectAll": "Selectează toate VM-urile accesibile",
+    "selectOne": "Selectează {name}",
+    "noPublicIp": "fără IP public",
+    "resultOk": "rotită",
+    "columns": {
+      "name": "Nume",
+      "account": "Cont",
+      "region": "Regiune",
+      "ip": "IP public",
+      "result": "Rezultat"
+    },
+    "setup": {
+      "title": "Cheie nouă",
+      "description": "Cheia de instalat și utilizatorul SSH cu care te autentifici.",
+      "key": "Cheie nouă",
+      "user": "Utilizator SSH",
+      "fingerprint": "Amprentă:"
+    },
+    "targets": {
+      "title": "VM-uri țintă",
+      "description": "{count} din {total} VM-uri pornite au IP public și pot fi accesate.",
+      "empty": "Nicio VM pornită",
+      "emptyHint": "Pornește o instanță cu IP public pentru a-i roti cheile."
+    },
+    "log": {
+      "title": "Rezultatul rotirii",
+      "summary": "{ok} rotite, {failed} eșuate",
+      "okLine": "✓ {name}",
+      "failedLine": "✗ {name}: {error}"
+    },
+    "notice": "Cheile existente cu comentariul <code># vmui-managed</code> sunt eliminate mai întâi; celelalte linii din authorized_keys se păstrează. Fișierul vechi este salvat în <code>~/.ssh/authorized_keys.vmui.bak.TIMESTAMP</code>."
+  },
+  "maintenance": {
+    "title": "Ferestre de mentenanță",
+    "description": "Blochează sau avertizează asupra acțiunilor pe instanțe într-un interval programat.",
+    "count": "{count, plural, =0 {Nicio fereastră} =1 {# fereastră} few {# ferestre} other {# de ferestre}}",
+    "activeBadge": "{count, plural, =1 {# activă} few {# active} other {# active}}",
+    "listTitle": "Ferestre",
+    "listDescription": "Ferestrele active se aplică acum; cele viitoare pornesc automat.",
+    "formTitle": "Creează o fereastră",
+    "formDescription": "Orele sunt interpretate în fusul orar al acestui browser.",
+    "columns": {
+      "name": "Nume",
+      "when": "Când",
+      "mode": "Mod",
+      "scope": "Domeniu",
+      "status": "Stare"
+    },
+    "modes": {
+      "warn": "Avertizare (doar jurnal)",
+      "block": "Blocare (refuză modificările)"
+    },
+    "status": {
+      "active": "Activă",
+      "upcoming": "Viitoare",
+      "past": "Încheiată"
+    },
+    "scopeGlobal": "Global (toate conturile)",
+    "fields": {
+      "name": "Nume",
+      "nameHint": "Apare în jurnalul de audit și pe acțiunile blocate.",
+      "namePlaceholder": "Noapte de patch-uri T4",
+      "startsAt": "Începe la",
+      "endsAt": "Se termină la",
+      "mode": "Mod",
+      "modeHint": "Blocarea refuză pornirea/oprirea/ștergerea; avertizarea doar le înregistrează.",
+      "scope": "Domeniu",
+      "scopeHint": "Limitează fereastra la un cont cloud sau aplică-o peste tot.",
+      "reason": "Motiv",
+      "reasonHint": "Note opționale afișate lângă fereastră.",
+      "reasonPlaceholder": "Actualizări de kernel pe toate gazdele din UE"
+    },
+    "create": "Creează fereastra",
+    "created": "Fereastra de mentenanță a fost creată",
+    "deleted": "Fereastra de mentenanță a fost ștearsă",
+    "deleteAria": "Șterge fereastra {name}",
+    "confirmDelete": "Ștergi „{name}”?",
+    "confirmDeleteHint": "Acțiunile nu vor mai fi blocate sau înregistrate în această fereastră.",
+    "empty": "Nicio fereastră de mentenanță",
+    "emptyHint": "Creează una pentru a bloca sau a avertiza asupra acțiunilor pe instanțe într-un interval programat."
+  },
+  "autoPark": {
+    "title": "Parcare automată VM inactive",
+    "description": "Oprește VM-urile fără activitate o perioadă. Opțional per VM; un VM parcat este lăsat în pace 24 h.",
+    "activeBadge": "{count, plural, =0 {Nicio politică activă} =1 {# politică activă} few {# politici active} other {# de politici active}}",
+    "listTitle": "Politici",
+    "listDescription": "Un VM este parcat când CPU și rețeaua rămân amândouă sub praguri pe toată durata ferestrei.",
+    "formTitle": "Activează pentru un VM",
+    "formDescription": "Alege un VM și setează pragurile de inactivitate. Reactivarea actualizează politica existentă.",
+    "columns": {
+      "vm": "VM",
+      "cpuMax": "CPU max",
+      "netMax": "Rețea max",
+      "window": "Fereastră",
+      "status": "Stare",
+      "lastParked": "Ultima parcare"
+    },
+    "values": {
+      "cpu": "{pct}%",
+      "net": "{kbps} kbps"
+    },
+    "status": {
+      "active": "Activă",
+      "off": "Oprită"
+    },
+    "never": "Niciodată",
+    "fields": {
+      "vm": "Mașină virtuală",
+      "vmHint": "Sunt listate doar instanțele sincronizate.",
+      "cpuPct": "Prag CPU (%)",
+      "cpuPctHint": "1–50. Sub această valoare VM-ul este considerat inactiv.",
+      "netKbps": "Prag rețea (kbps)",
+      "netKbpsHint": "1–10 000. Sub această valoare VM-ul este considerat inactiv.",
+      "windowMin": "Fereastră de inactivitate (minute)",
+      "windowMinHint": "5–720. Cât timp trebuie să rămână ambele sub prag înainte de parcare."
+    },
+    "pickVm": "Alege un VM…",
+    "enable": "Activează parcarea automată",
+    "enabled": "Parcarea automată a fost activată",
+    "updated": "Politica a fost actualizată",
+    "disable": "Dezactivează",
+    "disableAria": "Dezactivează parcarea automată pentru {name}",
+    "toggleAria": "Comută parcarea automată pentru {name}",
+    "confirmDisable": "Dezactivezi parcarea automată pentru {name}?",
+    "confirmDisableHint": "VM-ul va rămâne pornit când este inactiv până îl reactivezi.",
+    "empty": "Nicio politică de parcare automată",
+    "emptyHint": "Activează parcarea automată pe un VM ca să fie oprit singur când devine inactiv."
+  },
+  "configBackup": {
+    "title": "Backup și restaurare configurație",
+    "description": "Exportă toate tabelele de configurare (conturi, chei, programări, webhook-uri, rețete…) ca JSON și restaurează-le pe o gazdă nouă. Credențialele criptate au nevoie de același <code>VMUI_MASTER_KEY</code>.",
+    "progress": "Pasul {step} din {total}",
+    "stepBadge": "Pasul {n}",
+    "startOver": "Reia de la început",
+    "importFailed": "Importul a eșuat",
+    "dryRunDone": "Simularea s-a încheiat",
+    "restoreDone": "Restaurarea s-a încheiat",
+    "repickFile": "Alege fișierul din nou pentru a confirma",
+    "confirmTitle": "Golești toate tabelele de configurare și restaurezi din acest fișier?",
+    "confirmDescription": "Toate conturile, cheile, programările, webhook-urile și rețetele curente sunt înlocuite. Acțiunea nu poate fi anulată.",
+    "confirmButton": "Restaurează",
+    "confirmWord": "RESTAUREAZA",
+    "steps": {
+      "export": {
+        "title": "Exportă un instantaneu",
+        "description": "Descarcă configurația curentă înainte de a schimba ceva.",
+        "download": "Descarcă instantaneul",
+        "excluded": "Tabelele operaționale (jurnal de audit, istoric de sincronizare, instanțe, prețuri) sunt excluse."
+      },
+      "pick": {
+        "title": "Alege un fișier instantaneu",
+        "description": "Alege un fișier JSON produs de exportul de mai sus. Simularea pornește automat.",
+        "fileLabel": "Fișier instantaneu",
+        "fileHint": "Doar JSON. Nu se scrie nimic până nu confirmi la pasul 4.",
+        "size": "{kb} KB"
+      },
+      "dryRun": {
+        "title": "Simulare",
+        "description": "Validează fișierul și raportează câte rânduri ar primi fiecare tabel.",
+        "run": "Rulează simularea din nou",
+        "reportTitle": "Raport simulare",
+        "summaryTitle": "{total, plural, =1 {# rând} few {# rânduri} other {# de rânduri}} ar fi restaurate",
+        "summaryHint": "Verifică numărul de rânduri per tabel de mai sus înainte de a confirma."
+      },
+      "restore": {
+        "title": "Confirmă restaurarea",
+        "description": "Aplică instantaneul. Disponibil doar după o simulare reușită.",
+        "warningTitle": "Restaurarea golește întâi toate tabelele de configurare",
+        "warningHint": "Folosește doar pe o instalare nouă sau goală. Rândurile existente sunt înlocuite, nu combinate.",
+        "confirm": "Confirmă restaurarea",
+        "reportTitle": "Raport restaurare",
+        "doneTitle": "Configurația a fost restaurată",
+        "doneHint": "{total, plural, =1 {# rând scris} few {# rânduri scrise} other {# de rânduri scrise}}. Reîncarcă aplicația pentru a prelua conturile noi."
+      }
+    }
+  },
+  "bootScriptDiff": {
+    "title": "Diferențe între scripturi de boot",
+    "description": "Diferențe linie cu linie între două scripturi de boot. Util înainte de a reaplica unul.",
+    "pickTitle": "Alege scripturile",
+    "pickDescription": "A este baza, B este ținta. Liniile adăugate provin din B.",
+    "scriptA": "Script A (bază)",
+    "scriptB": "Script B (țintă)",
+    "selectPlaceholder": "— alege —",
+    "compare": "Compară",
+    "resultTitle": "Diferențe",
+    "resultDescription": "{a} → {b}",
+    "added": "Linii adăugate",
+    "removed": "Linii eliminate",
+    "empty": "Nimic de comparat încă",
+    "emptyHint": "Alege două scripturi mai sus și apasă Compară."
+  },
+  "webhooks": {
+    "title": "Webhook-uri pentru instanțe",
+    "description": "Trimite JSON prin POST către un URL la schimbările de stare ale instanțelor. Când este setat un secret se adaugă antetul HMAC <code>x-vmui-signature: sha256=…</code>.",
+    "count": "{count, plural, =0 {Niciun webhook} =1 {# webhook} few {# webhook-uri} other {# de webhook-uri}}",
+    "viewDeliveries": "Livrări",
+    "listTitle": "Webhook-uri",
+    "listDescription": "Fiecare hook se declanșează la orice schimbare de stare potrivită și este reîncercat cu backoff.",
+    "formTitle": "Adaugă un webhook",
+    "formDescription": "Lasă câmpurile de domeniu goale pentru a primi evenimente de la toate conturile și instanțele.",
+    "columns": {
+      "url": "URL",
+      "scope": "Domeniu",
+      "lastFire": "Ultima declanșare"
+    },
+    "signed": "Semnat",
+    "scopeAllAccounts": "Toate conturile",
+    "scopeAllInstances": "Toate instanțele",
+    "never": "Niciodată declanșat",
+    "fields": {
+      "url": "URL destinație",
+      "urlHint": "Trebuie să fie accesibil de pe această gazdă. HTTPS recomandat.",
+      "secret": "Secret HMAC",
+      "secretHint": "Opțional. Folosit pentru semnarea corpului; stocat ca atare.",
+      "account": "Cont",
+      "accountHint": "Restrânge la un singur cont cloud.",
+      "instance": "ID instanță la furnizor",
+      "instanceHint": "Opțional. Restrânge la o singură instanță (de ex. i-…, zonă/nume)."
+    },
+    "add": "Adaugă webhook",
+    "created": "Webhook-ul a fost adăugat",
+    "deleted": "Webhook-ul a fost șters",
+    "deleteAria": "Șterge webhook-ul",
+    "confirmDelete": "Ștergi acest webhook?",
+    "empty": "Niciun webhook",
+    "emptyHint": "Adaugă un URL pentru a fi notificat când o instanță își schimbă starea."
+  },
+  "deliveries": {
+    "title": "Livrări webhook",
+    "description": "Webhook-uri trimise cu backoff exponențial. Maxim 5 încercări; backoff 30 s × 2ⁿ până la 1 h.",
+    "manageWebhooks": "Gestionează webhook-urile",
+    "listTitle": "Livrări recente",
+    "listDescription": "{count, plural, =0 {Nicio livrare} =1 {Ultima livrare} few {Ultimele # livrări} other {Ultimele # de livrări}}",
+    "columns": {
+      "url": "URL",
+      "status": "Stare",
+      "attempts": "Încercări",
+      "when": "Când",
+      "lastError": "Ultima eroare"
+    },
+    "status": {
+      "queued": "În așteptare",
+      "delivering": "În livrare",
+      "ok": "Livrat",
+      "failed": "Eșuat"
+    },
+    "deliveredAt": "Livrat",
+    "nextAttemptAt": "Următoarea încercare",
+    "viewAria": "Vezi detaliile livrării",
+    "attemptsBadge": "{n}/{max} încercări",
+    "detail": {
+      "title": "Livrare",
+      "status": "Stare",
+      "url": "URL",
+      "created": "Creat",
+      "delivered": "Livrat",
+      "nextAttempt": "Următoarea încercare",
+      "lastError": "Ultima eroare",
+      "payload": "Conținut"
+    },
+    "empty": "Nicio livrare încă",
+    "emptyHint": "Livrările apar aici după ce un webhook se declanșează."
+  }
+}

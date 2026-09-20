@@ -1,10 +1,14 @@
-import { listInstances } from "@/server/queries";
 import { TerminalPicker } from "@/components/terminal/terminal-picker";
+import { Badge, Button, PageHeader, PageShell } from "@/components/ui";
+import { listInstances } from "@/server/queries";
+import { Boxes, TerminalSquare } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function TerminalPage() {
-  const all = await listInstances();
+  const [all, t] = await Promise.all([listInstances(), getTranslations("ops.terminal")]);
   const reachable = all
     .filter(
       (i) =>
@@ -22,16 +26,23 @@ export default async function TerminalPage() {
     }));
 
   return (
-    <main className="mx-auto flex h-screen w-full max-w-7xl flex-col gap-3 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Terminal</h1>
-        <p className="text-sm text-muted">
-          Open a shell on any reachable VM or inside any running container — all over the same SSH WS bridge.
-        </p>
-      </header>
-      <div className="flex-1 min-h-0">
+    <PageShell width="full">
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<TerminalSquare />}
+        badge={<Badge variant="muted">{t("hostCount", { count: reachable.length })}</Badge>}
+        actions={
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/containers">
+              <Boxes className="size-4" aria-hidden /> {t("viewContainers")}
+            </Link>
+          </Button>
+        }
+      />
+      <div className="h-[calc(100dvh-12rem)] min-h-[24rem]">
         <TerminalPicker instances={reachable} />
       </div>
-    </main>
+    </PageShell>
   );
 }

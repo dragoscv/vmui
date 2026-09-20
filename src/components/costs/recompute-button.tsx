@@ -1,34 +1,25 @@
 "use client";
 
-import { useTransition } from "react";
-import { RefreshCw, Sparkles } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { err, ok } from "@/lib/action-result";
 import { recomputeCostRecommendationsAction } from "@/server/actions/cost-recommendations";
+import { RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function RecomputeButton() {
-  const [pending, start] = useTransition();
+  const t = useTranslations("cloud.recommendations");
+  const { run, pending } = useAction(
+    async () => {
+      const r = await recomputeCostRecommendationsAction({});
+      return r.ok ? ok({ analysed: r.analysed, count: r.count }) : err(r.error);
+    },
+    { success: (d) => t("recomputed", { analysed: d.analysed, count: d.count }) },
+  );
   return (
-    <Button
-      size="sm"
-      variant="secondary"
-      disabled={pending}
-      onClick={() => {
-        start(async () => {
-          const r = await recomputeCostRecommendationsAction({});
-          if (!r.ok) {
-            toast.error(r.error);
-            return;
-          }
-          toast.success(
-            `Analysed ${r.analysed} VM${r.analysed === 1 ? "" : "s"} \u2014 ${r.count} recommendation${r.count === 1 ? "" : "s"}.`,
-            { icon: <Sparkles className="h-4 w-4" /> },
-          );
-        });
-      }}
-    >
-      <RefreshCw className={pending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-      {pending ? "Analysing..." : "Recompute"}
+    <Button size="sm" variant="secondary" loading={pending} onClick={() => void run()}>
+      <RefreshCw className="size-4" aria-hidden />
+      {t("recompute")}
     </Button>
   );
 }

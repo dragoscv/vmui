@@ -1,30 +1,24 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { toast } from "sonner";
-import {
-  Plus,
-  Trash2,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  RotateCw,
-  Send,
-  Download,
-  KeyRound,
-  Database,
-  Lock,
-  Sparkles,
-} from "lucide-react";
+import { Alert, Badge, Button, Checkbox, DataTable, EmptyState, Field, Input, PageSection, Progress, sortableHeader, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import {
   createSecretAction,
   deleteSecretAction,
-  revealSecretAction,
-  rotateSecretAction,
-  pushSecretToInstanceAction,
   exportSealedSecretAction,
   listSecretsAction,
+  pushSecretToInstanceAction,
+  revealSecretAction,
+  rotateSecretAction,
 } from "@/server/actions/secrets";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Copy, Database, Download, Eye, KeyRound, Lock, Plus, RotateCw, Send, Sparkles, Trash2 } from "lucide-react";
+import { useFormatter, useNow, useTranslations } from "next-intl";
+import * as React from "react";
 
 type Kind = "db" | "api-key" | "password" | "generic";
 
@@ -38,393 +32,423 @@ interface SecretRow {
   createdAt: Date;
 }
 
-interface InstanceLite {
+export interface InstanceLite {
   id: string;
   name: string | null;
   providerInstanceId: string;
   provider: string;
 }
 
-const KIND_ICON: Record<Kind, typeof KeyRound> = {
-  db: Database,
-  "api-key": KeyRound,
-  password: Lock,
-  generic: Sparkles,
-};
-
-const INPUT_CLS =
-  "rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1";
+const KIND_ICON: Record<Kind, typeof KeyRound> = { db: Database, "api-key": KeyRound, password: Lock, generic: Sparkles };
+const KINDS: readonly Kind[] = ["generic", "db", "api-key", "password"];
+const REVEAL_SECONDS = 30;
+const QUERY_KEY = ["secrets"] as const;
 
 export function SecretsWorkspace({ instances }: { instances: InstanceLite[] }) {
-  const [rows, setRows] = useState<SecretRow[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [revealed, setRevealed] = useState<Record<string, string | null>>({});
+  const t = useTranslations("govern.secrets");
+  const format = useFormatter();
+  const now = useNow({ updateInterval: 60_000 });
+  const confirm = useConfirm();
+  const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = React.useState(false);
+  const [pushFor, setPushFor] = React.useState<SecretRow | null>(null);
+  const [exportFor, setExportFor] = React.useState<SecretRow | null>(null);
+  const [revealed, setRevealed] = React.useState<{ id: string; name: string; value: string; at: number } | null>(null);
 
-  const refresh = async () => {
-    const r = (await listSecretsAction()) as SecretRow[];
-    setRows(r);
-  };
-  useEffect(() => {
-    void refresh();
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
-  }, []);
+  const { data: rows = [], isPending } = useQuery({
+    queryKey: QUERY_KEY,
+    queryFn: async () => (await listSecretsAction()) as SecretRow[],
+    refetchInterval: 15_000,
+  });
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+
+  const reveal = useAction(
+    async (row: SecretRow): Promise<ActionResult<string>> => {
+      const r = await revealSecretAction(row.id);
+      return r.ok ? ok(r.value) : { ok: false, error: r.error };
+    },
+    { refresh: false },
+  );
+  const rotate = useAction(
+    async (row: SecretRow): Promise<ActionResult<string>> => {
+      const r = await rotateSecretAction(row.id);
+      return r.ok ? ok(r.value) : { ok: false, error: r.error };
+    },
+    { success: t("toast.rotated"), invalidate: [QUERY_KEY] },
+  );
+  const remove = useAction(
+    async (row: SecretRow): Promise<ActionResult> => {
+      await deleteSecretAction(row.id);
+      return ok();
+    },
+    { success: t("toast.deleted"), invalidate: [QUERY_KEY] },
+  );
+
+  async function onReveal(row: SecretRow) {
+    const r = await reveal.run(row);
+    if (r.ok) setRevealed({ id: row.id, name: row.name, value: r.data, at: Date.now() });
+  }
+  async function onRotate(row: SecretRow) {
+    const yes = await confirm({ title: t("confirm.rotate.title", { name: row.name }), description: t("confirm.rotate.description"), tone: "warning", confirmText: t("confirm.rotate.confirm") });
+    if (!yes) return;
+    const r = await rotate.run(row);
+    if (r.ok) setRevealed({ id: row.id, name: row.name, value: r.data, at: Date.now() });
+  }
+  async function onDelete(row: SecretRow) {
+    const yes = await confirm({ title: t("confirm.delete.title", { name: row.name }), description: t("confirm.delete.description"), tone: "danger", confirmText: t("confirm.delete.confirm"), requireText: row.name });
+    if (yes) await remove.run(row);
+  }
+
+  const columns = React.useMemo<ColumnDef<SecretRow, unknown>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: sortableHeader(t("columns.name")),
+        cell: ({ row }) => {
+          const Icon = KIND_ICON[row.original.kind];
+          return (
+            <span className="flex min-w-0 items-center gap-2">
+              <Icon className="size-4 shrink-0 text-fg-muted" aria-hidden />
+              <code className="truncate font-mono text-xs font-medium">{row.original.name}</code>
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "kind",
+        header: sortableHeader(t("columns.scope")),
+        cell: ({ row }) => (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="muted">{t(`kinds.${row.original.kind}`)}</Badge>
+            {row.original.sealed && <Badge variant="info">{t("sealed")}</Badge>}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "rotationDays",
+        header: sortableHeader(t("columns.rotation")),
+        cell: ({ row }) => <span className="text-fg-muted">{row.original.rotationDays ? t("rotationDays", { n: row.original.rotationDays }) : t("noRotation")}</span>,
+      },
+      {
+        accessorKey: "lastRotatedAt",
+        header: sortableHeader(t("columns.lastRotated")),
+        cell: ({ row }) => {
+          const d = row.original.lastRotatedAt;
+          if (!d) return <span className="text-fg-muted">{t("never")}</span>;
+          const date = new Date(d);
+          return (
+            <time dateTime={date.toISOString()} title={format.dateTime(date, { dateStyle: "medium", timeStyle: "short" })} className="whitespace-nowrap text-fg-muted">
+              {format.relativeTime(date, now)}
+            </time>
+          );
+        },
+      },
+    ],
+    [t, format, now],
+  );
 
   return (
-    <div className="grid gap-6">
-      <section>
-        <header className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Secrets</h2>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs hover:bg-[var(--color-surface-muted)]"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-2 py-1 text-xs font-semibold text-[var(--color-primary-fg)]"
-          >
-            <Plus className="h-3 w-3" /> Add secret
-          </button>
-        </header>
-        {showAdd ? (
-          <AddSecretForm
-            onDone={() => {
-              setShowAdd(false);
-              void refresh();
-            }}
-          />
-        ) : null}
-        <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--color-surface-muted)] text-xs uppercase text-muted">
-              <tr>
-                <th className="px-2 py-2 text-left">Name</th>
-                <th className="px-2 py-2 text-left">Kind</th>
-                <th className="px-2 py-2 text-left">Value</th>
-                <th className="px-2 py-2 text-left">Rotation</th>
-                <th className="px-2 py-2 text-left">Last rotated</th>
-                <th className="w-44 px-2 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-xs text-muted">
-                    No secrets yet.
-                  </td>
-                </tr>
-              ) : null}
-              {rows.map((s) => (
-                <SecretRowView
-                  key={s.id}
-                  row={s}
-                  revealed={revealed[s.id] ?? null}
-                  instances={instances}
-                  onReveal={(v) => setRevealed((p) => ({ ...p, [s.id]: v }))}
-                  onAfter={refresh}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <div className="space-y-4">
+      {revealed && <RevealedAlert name={revealed.name} value={revealed.value} startedAt={revealed.at} onDismiss={() => setRevealed(null)} />}
+
+      <PageSection
+        title={t("title")}
+        action={
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="size-4" aria-hidden /> {t("add")}
+          </Button>
+        }
+      >
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={isPending}
+          searchable={rows.length > 5}
+          getRowId={(r) => r.id}
+          emptyState={
+            <EmptyState
+              compact
+              icon={<Lock />}
+              title={t("empty.title")}
+              description={t("empty.description")}
+              action={
+                <Button size="sm" onClick={() => setShowCreate(true)}>
+                  <Plus className="size-4" aria-hidden /> {t("add")}
+                </Button>
+              }
+            />
+          }
+          rowActions={(row) => (
+            <>
+              <Button size="icon" variant="ghost" aria-label={t("actions.reveal")} title={t("actions.reveal")} onClick={() => void onReveal(row)} disabled={reveal.pending}>
+                <Eye className="size-4" aria-hidden />
+              </Button>
+              <Button size="icon" variant="ghost" aria-label={t("actions.rotate")} title={t("actions.rotate")} onClick={() => void onRotate(row)} disabled={rotate.pending}>
+                <RotateCw className="size-4" aria-hidden />
+              </Button>
+              <Button size="icon" variant="ghost" aria-label={t("actions.push")} title={t("actions.push")} onClick={() => setPushFor(row)}>
+                <Send className="size-4" aria-hidden />
+              </Button>
+              <Button size="icon" variant="ghost" aria-label={t("actions.export")} title={t("actions.export")} onClick={() => setExportFor(row)}>
+                <Download className="size-4" aria-hidden />
+              </Button>
+              <Button size="icon" variant="ghost" aria-label={t("actions.delete")} title={t("actions.delete")} onClick={() => void onDelete(row)} disabled={remove.pending}>
+                <Trash2 className="size-4 text-danger" aria-hidden />
+              </Button>
+            </>
+          )}
+        />
+      </PageSection>
+
+      <CreateSecretDialog open={showCreate} onOpenChange={setShowCreate} onCreated={invalidate} />
+      <PushDialog row={pushFor} instances={instances} onOpenChange={(o) => !o && setPushFor(null)} />
+      <ExportDialog row={exportFor} onOpenChange={(o) => !o && setExportFor(null)} />
     </div>
   );
 }
 
-function SecretRowView({
-  row,
-  revealed,
-  instances,
-  onReveal,
-  onAfter,
-}: {
-  row: SecretRow;
-  revealed: string | null;
-  instances: InstanceLite[];
-  onReveal: (v: string | null) => void;
-  onAfter: () => Promise<void>;
-}) {
-  const Icon = KIND_ICON[row.kind];
-  const [pending, start] = useTransition();
-  const [pushing, setPushing] = useState(false);
+function RevealedAlert({ name, value, startedAt, onDismiss }: { name: string; value: string; startedAt: number; onDismiss: () => void }) {
+  const t = useTranslations("govern.secrets");
+  const [left, setLeft] = React.useState(REVEAL_SECONDS);
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    setLeft(REVEAL_SECONDS);
+    const id = setInterval(() => {
+      const remaining = Math.max(0, REVEAL_SECONDS - Math.floor((Date.now() - startedAt) / 1000));
+      setLeft(remaining);
+      if (remaining === 0) onDismiss();
+    }, 250);
+    return () => clearInterval(id);
+  }, [startedAt, onDismiss]);
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
-    <>
-      <tr className="border-t border-[var(--color-border)]">
-        <td className="px-2 py-2 font-medium">{row.name}</td>
-        <td className="px-2 py-2">
-          <span className="inline-flex items-center gap-1 text-xs">
-            <Icon className="h-3 w-3" /> {row.kind}
-          </span>
-        </td>
-        <td className="px-2 py-2 font-mono text-xs">
-          {revealed ? (
-            <span className="break-all">{revealed}</span>
-          ) : (
-            <span className="text-muted">••••••••</span>
-          )}
-        </td>
-        <td className="px-2 py-2 text-xs">{row.rotationDays ? `${row.rotationDays}d` : "—"}</td>
-        <td className="px-2 py-2 text-xs">
-          {row.lastRotatedAt ? new Date(row.lastRotatedAt).toLocaleString() : "—"}
-        </td>
-        <td className="px-2 py-2">
-          <div className="flex items-center justify-end gap-1">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  if (revealed) {
-                    onReveal(null);
-                    return;
-                  }
-                  const r = await revealSecretAction(row.id);
-                  if (r.ok) onReveal(r.value);
-                  else toast.error(r.error);
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)] hover:text-fg"
-              title={revealed ? "Hide" : "Reveal"}
-            >
-              {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  if (!confirm(`Rotate "${row.name}"? Existing value will be replaced.`)) return;
-                  const r = await rotateSecretAction(row.id);
-                  if (r.ok) {
-                    onReveal(r.value);
-                    toast.success("Rotated — new value revealed once");
-                  } else toast.error(r.error);
-                  await onAfter();
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)] hover:text-fg"
-              title="Rotate"
-            >
-              <RotateCw className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => setPushing((p) => !p)}
-              className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)] hover:text-fg"
-              title="Push to VM"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  const pass = prompt("Passphrase to seal export (≥ 8 chars):");
-                  if (!pass) return;
-                  const r = await exportSealedSecretAction(row.id, pass);
-                  if (!r.ok) {
-                    toast.error(r.error);
-                    return;
-                  }
-                  const blob = new Blob([r.body], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = r.filename;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  toast.success("Exported");
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)] hover:text-fg"
-              title="Export sealed"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  if (!confirm(`Delete "${row.name}"?`)) return;
-                  await deleteSecretAction(row.id);
-                  toast.success("Deleted");
-                  await onAfter();
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-red-500/20 hover:text-red-300"
-              title="Delete"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {pushing ? (
-        <PushRow
-          secretId={row.id}
-          instances={instances}
-          onClose={() => setPushing(false)}
-        />
-      ) : null}
-    </>
+    <Alert
+      tone="success"
+      title={t("revealed.title", { name })}
+      action={
+        <Button size="sm" variant="ghost" onClick={onDismiss}>
+          {t("revealed.dismiss")}
+        </Button>
+      }
+    >
+      <p>{t("revealed.hint")}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <code className="min-w-0 flex-1 break-all rounded-[var(--radius-sm)] bg-surface-2 px-2 py-1 font-mono text-xs text-fg">{value}</code>
+        <Button size="icon" variant="outline" onClick={() => void copy()} aria-label={t("revealed.copy")}>
+          {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+        </Button>
+      </div>
+      <Progress className="mt-3" size="sm" tone="success" value={left} max={REVEAL_SECONDS} label={t("revealed.countdown", { seconds: left })} />
+    </Alert>
   );
 }
 
-function PushRow({
-  secretId,
-  instances,
-  onClose,
-}: {
-  secretId: string;
-  instances: InstanceLite[];
-  onClose: () => void;
-}) {
-  const [pending, start] = useTransition();
-  const [instanceId, setInstanceId] = useState(instances[0]?.id ?? "");
-  const [envPath, setEnvPath] = useState("/etc/vmui/secrets.env");
-  return (
-    <tr className="bg-[var(--color-surface-muted)]/50">
-      <td colSpan={6} className="px-4 py-2 text-xs">
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="grid gap-0.5">
-            <span className="text-[10px] uppercase text-muted">Instance</span>
-            <select value={instanceId} onChange={(e) => setInstanceId(e.target.value)} className={INPUT_CLS}>
-              {instances.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name ?? i.providerInstanceId} ({i.provider})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-0.5">
-            <span className="text-[10px] uppercase text-muted">Env file path</span>
-            <input value={envPath} onChange={(e) => setEnvPath(e.target.value)} className={`${INPUT_CLS} font-mono`} />
-          </label>
-          <button
-            type="button"
-            disabled={pending || !instanceId}
-            onClick={() =>
-              start(async () => {
-                const r = await pushSecretToInstanceAction(secretId, instanceId, envPath);
-                if (r.ok) {
-                  toast.success("Pushed");
-                  onClose();
-                } else toast.error(r.error);
-              })
-            }
-            className="rounded-md bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold text-[var(--color-primary-fg)] disabled:opacity-50"
-          >
-            {pending ? "Pushing…" : "Push"}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-[var(--color-border)] px-2 py-1 text-xs"
-          >
-            Cancel
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function AddSecretForm({ onDone }: { onDone: () => void }) {
-  const [pending, start] = useTransition();
-  const [form, setForm] = useState({
-    name: "",
-    kind: "generic" as Kind,
-    value: "",
-    rotationDays: 90,
-    sealed: false,
-  });
+function CreateSecretDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated: () => void }) {
+  const t = useTranslations("govern.secrets");
+  const tc = useTranslations("common");
+  const [form, setForm] = React.useState({ name: "", kind: "generic" as Kind, value: "", rotationDays: 90, sealed: false });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
+  const create = useAction(
+    async (): Promise<ActionResult> => {
+      const r = await createSecretAction({ name: form.name.trim(), kind: form.kind, value: form.value, rotationDays: form.rotationDays || undefined, sealed: form.sealed });
+      return r.ok ? ok() : { ok: false, error: r.error };
+    },
+    {
+      success: t("toast.created"),
+      onSuccess: () => {
+        setForm({ name: "", kind: "generic", value: "", rotationDays: 90, sealed: false });
+        onOpenChange(false);
+        onCreated();
+      },
+    },
+  );
+
   return (
-    <div className="mb-3 grid gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Name (KEY-style)">
-          <input value={form.name} onChange={(e) => set("name", e.target.value)} className={`${INPUT_CLS} font-mono`} />
-        </Field>
-        <Field label="Kind">
-          <select value={form.kind} onChange={(e) => set("kind", e.target.value as Kind)} className={INPUT_CLS}>
-            <option value="generic">Generic</option>
-            <option value="db">Database password</option>
-            <option value="api-key">API key</option>
-            <option value="password">Password</option>
-          </select>
-        </Field>
-        <Field label="Rotation reminder (days)">
-          <input
-            type="number"
-            min={0}
-            value={form.rotationDays}
-            onChange={(e) => set("rotationDays", Number(e.target.value))}
-            className={INPUT_CLS}
-          />
-        </Field>
-        <Field label="Value">
-          <input
-            type="password"
-            value={form.value}
-            onChange={(e) => set("value", e.target.value)}
-            className={`${INPUT_CLS} font-mono`}
-          />
-        </Field>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={form.sealed} onChange={(e) => set("sealed", e.target.checked)} />
-          <span>Sealed (require re-auth to reveal)</span>
-        </label>
-      </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button
-          type="button"
-          onClick={onDone}
-          className="rounded-md border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-surface-muted)]"
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (form.name.trim() && form.value) void create.run();
+          }}
         >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={pending || !form.name || !form.value}
-          onClick={() =>
-            start(async () => {
-              const r = await createSecretAction({
-                name: form.name,
-                kind: form.kind,
-                value: form.value,
-                rotationDays: form.rotationDays || undefined,
-                sealed: form.sealed,
-              });
-              if (r.ok) {
-                toast.success("Secret stored");
-                onDone();
-              } else toast.error(r.error);
-            })
-          }
-          className="rounded-md bg-[var(--color-primary)] px-3 py-1 font-semibold text-[var(--color-primary-fg)] disabled:opacity-50"
-        >
-          {pending ? "Adding…" : "Add"}
-        </button>
-      </div>
-    </div>
+          <DialogHeader>
+            <DialogTitle>{t("create.title")}</DialogTitle>
+            <DialogDescription>{t("create.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={t("create.name")} hint={t("create.nameHint")}>
+              <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder={t("create.namePlaceholder")} className="font-mono" autoComplete="off" required />
+            </Field>
+            <Field label={t("create.kind")}>
+              <Select value={form.kind} onValueChange={(v) => set("kind", v as Kind)}>
+                <SelectTrigger aria-label={t("create.kind")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {t(`kinds.${k}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label={t("create.value")} className="sm:col-span-2">
+              <Input type="password" value={form.value} onChange={(e) => set("value", e.target.value)} className="font-mono" autoComplete="new-password" required />
+            </Field>
+            <Field label={t("create.rotation")} hint={t("create.rotationHint")}>
+              <Input type="number" min={0} max={3650} value={form.rotationDays} onChange={(e) => set("rotationDays", Number(e.target.value) || 0)} className="tabular-nums" />
+            </Field>
+            <Field label={t("create.sealed")} hint={t("create.sealedHint")} inline className="self-end">
+              <Checkbox checked={form.sealed} onCheckedChange={(v) => set("sealed", v)} />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button type="submit" loading={create.pending} disabled={!form.name.trim() || !form.value}>
+              {t("create.submit")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function PushDialog({ row, instances, onOpenChange }: { row: SecretRow | null; instances: InstanceLite[]; onOpenChange: (o: boolean) => void }) {
+  const t = useTranslations("govern.secrets");
+  const tc = useTranslations("common");
+  const [instanceId, setInstanceId] = React.useState(instances[0]?.id ?? "");
+  const [envPath, setEnvPath] = React.useState("/etc/vmui/secrets.env");
+
+  const push = useAction(
+    async (): Promise<ActionResult> => {
+      if (!row) return { ok: false, error: "common.error" };
+      const r = await pushSecretToInstanceAction(row.id, instanceId, envPath);
+      return r.ok ? ok() : { ok: false, error: r.error };
+    },
+    { success: t("toast.pushed"), refresh: false, onSuccess: () => onOpenChange(false) },
+  );
+
   return (
-    <label className="grid gap-1">
-      <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
-      {children}
-    </label>
+    <Dialog open={row !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (instanceId) void push.run();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("push.title", { name: row?.name ?? "" })}</DialogTitle>
+            <DialogDescription>{t("push.description")}</DialogDescription>
+          </DialogHeader>
+          {instances.length === 0 ? (
+            <Alert tone="warning">{t("push.none")}</Alert>
+          ) : (
+            <div className="grid gap-3">
+              <Field label={t("push.instance")}>
+                <Select value={instanceId} onValueChange={setInstanceId}>
+                  <SelectTrigger aria-label={t("push.instance")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instances.map((i) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.name ?? i.providerInstanceId} · {i.provider}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t("push.path")}>
+                <Input value={envPath} onChange={(e) => setEnvPath(e.target.value)} className="font-mono" />
+              </Field>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button type="submit" loading={push.pending} disabled={!instanceId || instances.length === 0}>
+              <Send className="size-4" aria-hidden /> {t("push.submit")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ExportDialog({ row, onOpenChange }: { row: SecretRow | null; onOpenChange: (o: boolean) => void }) {
+  const t = useTranslations("govern.secrets");
+  const tc = useTranslations("common");
+  const [pass, setPass] = React.useState("");
+
+  const exportSealed = useAction(
+    async (): Promise<ActionResult> => {
+      if (!row) return { ok: false, error: "common.error" };
+      const r = await exportSealedSecretAction(row.id, pass);
+      if (!r.ok) return { ok: false, error: r.error };
+      const blob = new Blob([r.body], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = r.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      return ok();
+    },
+    {
+      success: t("toast.exported"),
+      refresh: false,
+      onSuccess: () => {
+        setPass("");
+        onOpenChange(false);
+      },
+    },
+  );
+
+  return (
+    <Dialog open={row !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pass.length >= 8) void exportSealed.run();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("export.title", { name: row?.name ?? "" })}</DialogTitle>
+            <DialogDescription>{t("export.description")}</DialogDescription>
+          </DialogHeader>
+          <Field label={t("export.passphrase")} hint={t("export.passphraseHint")}>
+            <Input type="password" value={pass} onChange={(e) => setPass(e.target.value)} minLength={8} autoComplete="new-password" required />
+          </Field>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              {tc("cancel")}
+            </Button>
+            <Button type="submit" loading={exportSealed.pending} disabled={pass.length < 8}>
+              <Download className="size-4" aria-hidden /> {t("export.submit")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

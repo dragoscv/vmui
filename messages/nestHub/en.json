@@ -82,5 +82,10 @@
     "keepAlive": "Re-send the page when the Hub drops it",
     "keepAliveHint": "hub-cast on the Pi",
     "respectPlayback": "Do not interrupt YouTube / Spotify on the Hub"
+  },
+  "kiosk": {
+    "loading": "loading…",
+    "offline": "vmui offline",
+    "throttled": "throttled"
   }
 }

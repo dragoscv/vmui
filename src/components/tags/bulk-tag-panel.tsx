@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
-import Link from "next/link";
-import { toast } from "sonner";
-import { ArrowLeft, Loader2, Plus, Trash2, Tag } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Button, Checkbox, DataTable, EmptyState, Field, Input, PageSection, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { bulkApplyTags } from "@/server/actions/bulk-tags";
+import { Plus, Server, Tag, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import * as React from "react";
+import { toast } from "sonner";
+import { TagChip } from "./tag-chip";
 
 interface Row {
   id: string;
@@ -20,217 +21,155 @@ interface Row {
   instanceType: string | null;
 }
 
+const ALL = "__all__";
+
 export function BulkTagPanel({ rows }: { rows: Row[] }) {
-  const [filter, setFilter] = useState("");
-  const [providerFilter, setProviderFilter] = useState<string | "all">("all");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tags, setTags] = useState<{ key: string; value: string }[]>([{ key: "", value: "" }]);
-  const [pending, start] = useTransition();
+  const t = useTranslations("govern.tags.bulk");
+  const confirm = useConfirm();
+  const router = useRouter();
+  const [providerFilter, setProviderFilter] = React.useState<string>(ALL);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [tags, setTags] = React.useState<{ key: string; value: string }[]>([{ key: "", value: "" }]);
+  const [pending, start] = React.useTransition();
 
-  const providers = useMemo(() => Array.from(new Set(rows.map((r) => r.provider))).sort(), [rows]);
-
-  const filtered = useMemo(() => {
-    const q = filter.toLowerCase();
-    return rows.filter((r) => {
-      if (providerFilter !== "all" && r.provider !== providerFilter) return false;
-      if (!q) return true;
-      return (
-        (r.displayName ?? r.name ?? "").toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q) ||
-        r.region.toLowerCase().includes(q) ||
-        (r.instanceType ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [rows, filter, providerFilter]);
-
+  const providers = React.useMemo(() => Array.from(new Set(rows.map((r) => r.provider))).sort(), [rows]);
+  const filtered = React.useMemo(() => (providerFilter === ALL ? rows : rows.filter((r) => r.provider === providerFilter)), [rows, providerFilter]);
   const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id));
 
-  const toggleAll = () => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allChecked) filtered.forEach((r) => next.delete(r.id));
-      else filtered.forEach((r) => next.add(r.id));
-      return next;
-    });
-  };
-
-  const toggle = (id: string) => {
+  const toggle = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
 
-  const apply = () => {
+  const toggleAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const r of filtered) if (allChecked) next.delete(r.id);
+        else next.add(r.id);
+      return next;
+    });
+
+  const columns = React.useMemo<ColumnDef<Row, unknown>[]>(
+    () => [
+      {
+        id: "select",
+        enableSorting: false,
+        header: () => <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label={t("selectAll")} />,
+        cell: ({ row }) => (
+          <Checkbox
+            checked={selected.has(row.original.id)}
+            onCheckedChange={() => toggle(row.original.id)}
+            aria-label={t("select", { name: row.original.displayName ?? row.original.name ?? row.original.id })}
+          />
+        ),
+      },
+      {
+        id: "name",
+        accessorFn: (r) => r.displayName ?? r.name ?? r.id,
+        header: t("columns.name"),
+        cell: ({ row }) => <span className="block truncate font-medium">{row.original.displayName ?? row.original.name ?? row.original.id}</span>,
+      },
+      { accessorKey: "provider", header: t("columns.provider"), cell: ({ row }) => <Badge variant="muted">{row.original.provider}</Badge> },
+      { accessorKey: "region", header: t("columns.region"), cell: ({ row }) => <span className="text-fg-muted">{row.original.region}</span> },
+      { accessorKey: "instanceType", header: t("columns.type"), cell: ({ row }) => <code className="font-mono text-xs text-fg-muted">{row.original.instanceType ?? "—"}</code> },
+      { accessorKey: "state", header: t("columns.state"), cell: ({ row }) => <span className="text-fg-muted">{row.original.state}</span> },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toggle/toggleAll are stable enough; rerender is driven by `selected`
+    [t, selected, allChecked],
+  );
+
+  const apply = async () => {
     const tagMap: Record<string, string> = {};
-    for (const t of tags) {
-      const k = t.key.trim();
-      if (!k) continue;
-      tagMap[k] = t.value.trim();
+    for (const tag of tags) {
+      const k = tag.key.trim();
+      if (k) tagMap[k] = tag.value.trim();
     }
-    if (Object.keys(tagMap).length === 0) {
-      toast.error("Add at least one tag key");
-      return;
-    }
-    if (selected.size === 0) {
-      toast.error("Select at least one VM");
-      return;
-    }
-    if (!confirm(`Apply ${Object.keys(tagMap).length} tag(s) to ${selected.size} VM(s)?`)) return;
+    if (Object.keys(tagMap).length === 0) return toast.error(t("toast.noTags"));
+    if (selected.size === 0) return toast.error(t("toast.noTargets"));
+    const yes = await confirm({
+      title: t("confirm.title", { tags: Object.keys(tagMap).length, vms: selected.size }),
+      description: t("confirm.description"),
+      tone: "warning",
+      confirmText: t("confirm.confirm"),
+    });
+    if (!yes) return;
     start(async () => {
       const res = await bulkApplyTags({ instanceIds: Array.from(selected), tags: tagMap });
-      if (res.failed.length === 0) toast.success(`Tagged ${res.ok} VM(s)`);
-      else toast.error(`${res.ok} ok, ${res.failed.length} failed: ${res.failed[0]?.error ?? ""}`);
+      if (res.failed.length === 0) toast.success(t("toast.success", { count: res.ok }));
+      else toast.error(t("toast.partial", { ok: res.ok, failed: res.failed.length, error: res.failed[0]?.error ?? "" }));
+      router.refresh();
     });
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <Tag className="h-6 w-6 text-[var(--color-primary)]" />
-            Bulk tagging
-          </h1>
-          <p className="text-sm text-muted">
-            Apply the same tag set to many VMs at once. AWS, Azure, and GCP supported.
-          </p>
-        </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/">
-            <ArrowLeft className="h-4 w-4" /> Dashboard
-          </Link>
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">1 · Choose tags</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {tags.map((t, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <Input
-                placeholder="key (e.g. owner)"
-                value={t.key}
-                onChange={(e) => {
-                  const v = e.currentTarget.value;
-                  setTags((prev) => prev.map((p, i) => (i === idx ? { ...p, key: v } : p)));
-                }}
-                className="max-w-xs"
-              />
-              <Input
-                placeholder="value"
-                value={t.value}
-                onChange={(e) => {
-                  const v = e.currentTarget.value;
-                  setTags((prev) => prev.map((p, i) => (i === idx ? { ...p, value: v } : p)));
-                }}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTags((prev) => prev.filter((_, i) => i !== idx))}
-                disabled={tags.length === 1}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
+      <PageSection title={t("tagsTitle")} description={t("description")}>
+        <div className="space-y-2">
+          {tags.map((tag, idx) => (
+            <div key={idx} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+              <Field label={t("key")}>
+                <Input value={tag.key} placeholder={t("keyPlaceholder")} onChange={(e) => setTags((prev) => prev.map((p, i) => (i === idx ? { ...p, key: e.target.value } : p)))} className="font-mono" />
+              </Field>
+              <Field label={t("value")}>
+                <Input value={tag.value} placeholder={t("valuePlaceholder")} onChange={(e) => setTags((prev) => prev.map((p, i) => (i === idx ? { ...p, value: e.target.value } : p)))} className="font-mono" />
+              </Field>
+              <Button variant="ghost" size="icon" aria-label={t("removeTag")} disabled={tags.length === 1} onClick={() => setTags((prev) => prev.filter((_, i) => i !== idx))}>
+                <Trash2 className="size-4 text-danger" aria-hidden />
               </Button>
             </div>
           ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTags((prev) => [...prev, { key: "", value: "" }])}
-          >
-            <Plus className="h-3.5 w-3.5" /> Add tag
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">2 · Pick targets</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Filter by name, region, type…"
-              value={filter}
-              onChange={(e) => setFilter(e.currentTarget.value)}
-              className="max-w-sm"
-            />
-            <select
-              value={providerFilter}
-              onChange={(e) => setProviderFilter(e.currentTarget.value as string | "all")}
-              className="h-9 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-            >
-              <option value="all">All providers</option>
-              {providers.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            <Badge variant="info">{selected.size} selected</Badge>
+            <Button variant="outline" size="sm" onClick={() => setTags((prev) => [...prev, { key: "", value: "" }])}>
+              <Plus className="size-4" aria-hidden /> {t("addTag")}
+            </Button>
+            {tags.filter((tag) => tag.key.trim()).map((tag) => (
+              <TagChip key={tag.key} tagKey={tag.key.trim()} value={tag.value.trim()} />
+            ))}
           </div>
-          <div className="overflow-x-auto rounded border border-[var(--color-border)]">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--color-bg-muted)] text-xs uppercase tracking-wider text-muted">
-                <tr>
-                  <th className="w-10 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={allChecked}
-                      onChange={toggleAll}
-                      aria-label="Select all"
-                    />
-                  </th>
-                  <th className="px-3 py-2 text-left">Name</th>
-                  <th className="px-3 py-2 text-left">Provider</th>
-                  <th className="px-3 py-2 text-left">Region</th>
-                  <th className="px-3 py-2 text-left">Type</th>
-                  <th className="px-3 py-2 text-left">State</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-xs text-muted">
-                      No VMs match.
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((r) => (
-                    <tr
-                      key={r.id}
-                      className="cursor-pointer border-t border-[var(--color-border)] hover:bg-[var(--color-bg-muted)]/40"
-                      onClick={() => toggle(r.id)}
-                    >
-                      <td className="px-3 py-2">
-                        <input type="checkbox" checked={selected.has(r.id)} readOnly />
-                      </td>
-                      <td className="px-3 py-2 font-medium">{r.displayName ?? r.name ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs">{r.provider}</td>
-                      <td className="px-3 py-2 text-xs">{r.region}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{r.instanceType ?? "—"}</td>
-                      <td className="px-3 py-2 text-xs">{r.state}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </PageSection>
 
-      <div className="flex justify-end">
-        <Button onClick={apply} disabled={pending || selected.size === 0}>
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tag className="h-4 w-4" />}
-          Apply tags to {selected.size} VM{selected.size === 1 ? "" : "s"}
-        </Button>
-      </div>
+      <PageSection
+        title={t("targetsTitle")}
+        action={
+          <>
+            <Select value={providerFilter} onValueChange={setProviderFilter}>
+              <SelectTrigger aria-label={t("provider")} className="h-8 w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t("allProviders")}</SelectItem>
+                {providers.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Badge variant="info">{t("selected", { count: selected.size })}</Badge>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <DataTable
+            columns={columns}
+            data={filtered}
+            dense
+            searchable
+            getRowId={(r) => r.id}
+            onRowClick={(r) => toggle(r.id)}
+            emptyState={<EmptyState compact icon={<Server />} title={t("empty.title")} description={t("empty.description")} />}
+          />
+          <div className="flex justify-end">
+            <Button loading={pending} disabled={selected.size === 0} onClick={() => void apply()}>
+              <Tag className="size-4" aria-hidden /> {t("apply", { count: selected.size })}
+            </Button>
+          </div>
+        </div>
+      </PageSection>
     </div>
   );
 }

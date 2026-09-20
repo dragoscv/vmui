@@ -1,10 +1,14 @@
-import { listInstances } from "@/server/queries";
 import { BuildsWorkspace } from "@/components/builds/builds-workspace";
+import { Button, PageHeader, PageShell } from "@/components/ui";
+import { listInstances } from "@/server/queries";
+import { Boxes, Hammer } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function BuildsPage() {
-  const all = await listInstances();
+  const [all, t] = await Promise.all([listInstances(), getTranslations("ops.builds")]);
   const reachable = all
     .filter(
       (i) =>
@@ -21,14 +25,20 @@ export default async function BuildsPage() {
     }));
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Builds & Registries</h1>
-        <p className="text-sm text-muted">
-          Configure container registries, then build & push Docker images locally on the vmui host or remotely on any reachable VM.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<Hammer />}
+        actions={
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/containers">
+              <Boxes className="size-4" aria-hidden /> {t("viewContainers")}
+            </Link>
+          </Button>
+        }
+      />
       <BuildsWorkspace instances={reachable} />
-    </main>
+    </PageShell>
   );
 }

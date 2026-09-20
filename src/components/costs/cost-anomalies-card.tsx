@@ -1,49 +1,37 @@
 import "server-only";
-import { AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { detectCostAnomalies } from "@/server/queries/cost-anomalies";
+import { ProviderTile } from "@/components/cloud/provider-tile";
+import { Badge, PageSection } from "@/components/ui";
 import { formatUsdPerHour } from "@/lib/utils";
+import { detectCostAnomalies } from "@/server/queries/cost-anomalies";
+import { getTranslations } from "next-intl/server";
 
 export async function CostAnomaliesCard() {
   const rows = await detectCostAnomalies();
   if (rows.length === 0) return null;
+  const t = await getTranslations("cloud.costs.anomalies");
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <AlertTriangle className="h-4 w-4 text-[var(--color-warning)]" />
-          Cost anomalies
-        </CardTitle>
-        <p className="text-xs text-muted">
-          Days where hourly spend deviates from the 7-day trailing average.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-1.5">
+    <PageSection title={t("title")} description={t("description")}>
+      <ul className="space-y-2">
         {rows.map((a) => (
-          <div
+          <li
             key={`${a.accountId}:${a.day}`}
-            className="flex items-center justify-between gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-xs"
+            className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-bg-muted/40 px-3 py-2 text-xs"
           >
+            <ProviderTile provider={a.provider} size="sm" />
             <div className="min-w-0 flex-1">
-              <div className="font-mono text-[10px] text-muted">{a.day}</div>
               <div className="truncate font-medium">{a.accountName}</div>
-              <div className="text-[10px] text-muted uppercase">{a.provider}</div>
+              <div className="font-mono text-[11px] text-muted">{a.day}</div>
             </div>
-            <div className="text-right">
-              <div className="font-mono">{formatUsdPerHour(a.hourlyUsd)}</div>
-              <div className="text-[10px] text-muted">
-                vs avg {formatUsdPerHour(a.trailingAvgUsd)}
-              </div>
+            <div className="shrink-0 text-right">
+              <div className="font-mono tabular-nums">{formatUsdPerHour(a.hourlyUsd)}</div>
+              <div className="text-[11px] text-muted">{t("vsAverage", { amount: formatUsdPerHour(a.trailingAvgUsd) })}</div>
             </div>
-            <Badge
-              variant={a.severity === "alert" ? "danger" : a.severity === "warn" ? "warning" : "info"}
-            >
-              {a.ratio.toFixed(1)}x
+            <Badge variant={a.severity === "alert" ? "danger" : a.severity === "warn" ? "warning" : "info"}>
+              {t("ratio", { ratio: a.ratio.toFixed(1) })}
             </Badge>
-          </div>
+          </li>
         ))}
-      </CardContent>
-    </Card>
+      </ul>
+    </PageSection>
   );
 }

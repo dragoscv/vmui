@@ -1,6 +1,7 @@
 "use client";
 
 import type { DisplaySettings, DisplayViewId } from "@/lib/display/settings-meta";
+import { useTranslations } from "next-intl";
 import * as React from "react";
 
 /* ------------------------------------------------------------------ types */
@@ -57,6 +58,7 @@ function inNight(s: DisplaySettings, now: Date): boolean {
 
 /* ------------------------------------------------------------------ root */
 export function Kiosk({ token, deviceToken = "" }: { token: string; deviceToken?: string }) {
+  const t = useTranslations("nestHub.kiosk");
   const [st, setSt] = React.useState<State | null>(null);
   const [online, setOnline] = React.useState(true);
   const [mode, setMode] = React.useState<"idle" | "home">("idle");
@@ -190,7 +192,7 @@ export function Kiosk({ token, deviceToken = "" }: { token: string; deviceToken?
     return (
       <div className="dk" style={style}>
         <div className="dk-flat" />
-        <div className="chip off"><i />{online ? "se încarcă…" : "vmui offline"}</div>
+        <div className="chip off"><i />{online ? t("loading") : t("offline")}</div>
       </div>
     );
   }
@@ -200,7 +202,7 @@ export function Kiosk({ token, deviceToken = "" }: { token: string; deviceToken?
       <Idle st={st} tick={tick} api={api} active={mode === "idle"} />
       {mode === "home" && <Home st={st} tick={tick} api={api} onTouch={() => (lastTouch.current = Date.now())} />}
       <div className="dk-night" />
-      {!online && <div className="chip off"><i />vmui offline</div>}
+      {!online && <div className="chip off"><i />{t("offline")}</div>}
     </div>
   );
 }
@@ -344,6 +346,7 @@ function PhotoLayer({ photos, sec, on, onShow }: { photos: Photo[]; sec: number;
 
 /* ------------------------------------------------------------------ views */
 function View({ id, st, tick, api, media, art, photo }: { id: DisplayViewId; st: State; tick: number; api: (p: string, i?: RequestInit) => Promise<Response>; media: Media | null; art: string | null; photo?: Photo }) {
+  const t = useTranslations("nestHub.kiosk");
   const d = new Date(tick);
   switch (id) {
     case "clock": {
@@ -505,7 +508,7 @@ function View({ id, st, tick, api, media, art, photo }: { id: DisplayViewId; st:
       if (!p) return null;
       const thr = (p.throttled as { undervolt?: boolean; capped?: boolean; throttled?: boolean; softTemp?: boolean } | undefined) ?? {};
       const disk = p.disk as { pct?: number; freeGb?: number } | undefined;
-      const flags = [thr.undervolt && "sub-tensiune", thr.capped && "frecvență limitată", thr.throttled && "throttled", thr.softTemp && "limită termică"].filter(Boolean);
+      const flags = [thr.undervolt && "sub-tensiune", thr.capped && "frecvență limitată", thr.throttled && t("throttled"), thr.softTemp && "limită termică"].filter(Boolean);
       return (
         <div style={{ alignContent: "end" }}>
           <div className="plate" style={{ display: "grid", gridTemplateColumns: "auto auto auto 1fr", gap: 28, alignItems: "center", maxWidth: 900 }}>

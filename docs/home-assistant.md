@@ -17,7 +17,7 @@
 | HA data     | `/srv/homepi/ha` — restored from a full HAOS backup via `/config/.HA_RESTORE` (`scripts/ha-backup-pull.ps1` makes and downloads one). Same instance ID, same long-lived tokens, 283 entities came across. `hassio:` fails to set up in container mode — expected, harmless                                                                                                                                                                                                         |
 | vmui        | `/srv/homepi/vmui`, Node 22 + pnpm, `systemd` unit `vmui` binding `0.0.0.0:3737`. **Build on the PC, ship with `scripts/pi-deploy.ps1`** (55 s here vs 4+ min on the Pi). The script tars source + `.next` (minus `.next/node_modules`, which are Windows junctions) and recreates the `serverExternalPackages` links on the Pi from `next-links.txt`; `pnpm install` runs only when the lockfile hash changed                                                                     |
 | Turzx       | `systemd` unit `turzx`, panel on `/dev/turzx` (udev rule by VID/PID). Fonts come from `turzx/fonts/` (Microsoft fonts copied from this PC, **gitignored**, shipped privately by pi-deploy). The "pc" view gets this PC's metrics from the `vmui-turzx` task, now `turzx.py --publish --vmui http://192.168.100.232:3737` → `POST /api/turzx/pc`, 15 s TTL                                                                                                                          |
-| desk button | `systemd` unit `desk-button` (`pi/desk-button.py`): GPIO17 → GND, optional LED GPIO27. 1–5 clicks (400 ms window) or ≥1 s hold → `POST /api/esp/button?btn=desk&click=N                                                                                                                                                                                                                                                                                                            | long`. What each gesture does is the table on `/home?tab=devices`("Butonul de birou", row id 3 of`turzx_settings`); default 1 = +250 ml, 2 = +100 ml, 3 = Turzx next, 4 = Ambilight movie, 5 = intercom auto-open 45 min, long = undo water. lgpio needs a writable cwd (`WorkingDirectory=/srv/homepi/logs`) or it dies with `FileNotFoundError: .lgd-nfy-3` |
+| desk button | `systemd` unit `desk-button` (`pi/desk-button.py`): GPIO17 → GND, optional LED GPIO27. 1–5 clicks (400 ms window) or ≥1 s hold → `POST /api/esp/button?btn=desk&click=N                                                                                                                                                                                                                                                                                                            | long`. What each gesture does is the table on `/home?tab=settings&section=deskButton`("Butonul de birou", row id 3 of`turzx_settings`); default 1 = +250 ml, 2 = +100 ml, 3 = Turzx next, 4 = Ambilight movie, 5 = intercom auto-open 45 min, long = undo water. lgpio needs a writable cwd (`WorkingDirectory=/srv/homepi/logs`) or it dies with `FileNotFoundError: .lgd-nfy-3` |
 | logs        | `/srv/homepi/logs/vmui.log`; turzx writes its own `/srv/homepi/vmui/.copilot-tmp/service-logs/turzx.log` (the systemd one stays empty); `journalctl -u desk-button`. **Power**: `vcgencmd get_throttled` must be `0x0` — `0x50005` (seen 2026-09-18) means under-voltage NOW; symptoms were the Turzx screen not enumerating (`1a86:5722 not found`), `write failed: Input/output error`, eth0 `Link is Down` and a spontaneous reboot. Needs a real 5.1 V/3 A supply, short cable |
 | ESP32       | `scripts/esp32-display.ps1` now compiles in the Pi's `esphome` container (`-HostSsh dragos@192.168.100.232`, `-EsphomeDir /srv/homepi/esphome`) and bakes `http://192.168.100.232:3737` into the firmware (`-VmuiHost`/`-LanPort` to point elsewhere). First compile on the Pi is 10–20 min (toolchain download), later ones ~3 min                                                                                                                                                |
 
@@ -500,9 +500,10 @@ Verified 2026-09-17: 4 presses → 1000 ml, 2 holds → 500 ml, all within 1 s.
 Same ESP32 (`bluetooth-proxy-1`), powered from a USB charger — no PC needed.
 Ring at the street door → HA companion notification on the S25 Ultra with
 two actions (_Răspunde și deschide_ / _Ignoră_), the Turzx shows an orange
-"Suna la interfon" card while the line is live, and `/home?tab=devices` has
-the Interfon card with an "Aștept curier" auto-open arm (30/60 min, expires
-by itself). Every open lands in `audit_log` and `sensor.vmui_intercom_last_open`.
+"Suna la interfon" card while the line is live, and the **home** tab of
+`/home` has the Interfon card (owner + adult only — `requireDoorAccess`) with
+an "Aștept curier" auto-open arm (30/60 min, expires by itself). Every open
+lands in `audit_log` and `sensor.vmui_intercom_last_open`.
 
 Electra IA02 facts (Electra manual + arduino.cc thread; **measure before you
 trust them**): terminals top-down `+D1 · AVP · COMP · P · MP`. `MP` is
@@ -614,7 +615,7 @@ once a minute).
 
 Settings (`turzx_settings` row 1, schema v2 in `src/lib/turzx/settings.ts`,
 catalog of views/skins/sources in `src/lib/turzx/catalog.ts`) are edited from
-`/home?tab=displays` — the **view manager**: per view enable/order, its own
+`/home?tab=settings&section=turzx` — the **view manager**: per view enable/order, its own
 dwell (min 5 s), skin, optional own background and view-specific options
 (currencies, coins, calendars, countdown dates, ping host, pomodoro
 lengths…); global fps, transition, day/night brightness and window, accent,
@@ -663,7 +664,7 @@ HA after the first notification from an allowed app.
 
 **Seeing what the panel shows.** The renderer writes its last pushed frame
 to `.copilot-tmp/turzx/mirror.png` once a second; `/api/turzx/mirror`
-serves it (session or `?k=` token) and `/home?tab=displays` shows it live
+serves it (session or `?k=` token) and `/home?tab=settings&section=turzx` shows it live
 ("Oglindă live", 1:1 or 2×). **Layout audit**: `python turzx\turzx.py
 --once --all-skins --audit` renders every view × skin, records every text
 box drawn (`Skin.text`, `Marquee.draw` → `turzx/audit.py`), and flags
@@ -690,7 +691,7 @@ COM10 is the ESP32's CH340.
 ### Views, batch 3 (2026-09-15)
 
 23 views now (`src/lib/turzx/catalog.ts` ↔ `turzx/views*.py`); the four new
-ones ship **disabled** — turn them on in `/home?tab=displays`:
+ones ship **disabled** — turn them on in `/home?tab=settings&section=turzx`:
 
 | view            | source                                                                                                               | notes                                                                                                                     |
 | --------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -815,8 +816,8 @@ The bedroom Nest Hub (`media_player.bedroom_smart_display`, 192.168.100.45,
 Google photo frame. The page is `/display?k=<ESP_DISPLAY_TOKEN>`, served by the
 Pi and cast with DashCast via `catt` (pipx on homepi, `~/.local/bin/catt`).
 
-- **Two modes.** _Idle_ rotates the panels enabled in `/home → Displays → Nest
-Hub` (clock, casă, muzică, fotografie, nutriție, PC, Pi, calendar, BNR,
+- **Two modes.** _Idle_ rotates the panels enabled in
+  `/home?tab=settings&section=nestHub` (clock, casă, muzică, fotografie, nutriție, PC, Pi, calendar, BNR,
   crypto, vreme) over a Ken Burns slideshow (Met / Art Institute / APOD, the
   Turzx fetchers). A touch opens _home_: rooms as tabs, device tiles with inline
   control (lights, AC, TV, Hub, apă, ambilight, scene), back to idle after
@@ -854,6 +855,22 @@ brightness()` on the root and `backdrop-filter` on the plate were suspects
     Debug flags on the URL: `bare` (photo only), `nokb`, `nophoto`, `noveil`,
     `notext`, `static`, `home` (hold the home screen).
 
+  ## Family access (2026-09-20)
+
+  Everything under `/home` is gated by `src/lib/home/access.ts`, not by
+  `users.role` (that one only governs the VM control plane). `home_members`
+  rows carry a family role — `owner | adult | child | guest` — and per-room
+  grants `{ [roomId]: "view" | "control" }`; an infra `admin` with no row is
+  treated as owner. Server actions use `requireEntityControl(entity)` for
+  device actions, `requireOwner()` for settings, layout and family management,
+  `requireDoorAccess()` for the intercom (owner + adult), `requireHomeActor()`
+  otherwise; queries and the SSE stream filter through `visibleEntities(actor)`.
+  Identity-less shared-token callers (ESP32, Nest Hub, HA) resolve to the owner;
+  a paired phone acts as the member in `paired_devices.user_id`. Nutrition
+  (meals, hydration, `nutrition_profiles`) is per `user_id`. Members join via
+  `/invite/<token>` (`src/lib/home/family.ts`) or an account the owner creates;
+  the UI is `/home?tab=settings&section=family`.
+
 ## Phone app + device pairing (2026-09-19)
 
 `apps/desktop` also builds the Android app; details in
@@ -866,9 +883,12 @@ the Pi for it:
   (open, 10/min/IP) → pending row + 4-digit code; `/api/devices` (session,
   approved device, or shared token) lists / approves / rejects / revokes.
   Table `paired_devices`; audit actions `device.pair.*`, `device.revoke`.
-- Approvals show up in **/home → Displays → Dispozitive împerecheate**
-  (long-poll, sonner toast), in the desktop tray (toast + submenu) and on
-  paired phones.
+- Approvals show up in **/home → Notifications → Dispozitive împerecheate**
+  (`/home?tab=notifications`; long-poll, sonner toast), in the desktop tray
+  (toast + submenu) and on paired phones. The approver binds the device to a
+  family member (`paired_devices.user_id`, themselves by default); an
+  approval through the shared token leaves it unbound — rebind it from
+  the Family section (`/home?tab=settings&section=family`).
 - `sensor.vmui_pc_agent` (MQTT, `vmui_pc.yaml`) mirrors the PC tray agent;
   `/api/desktop/pc` publishes `vmui/pc/cmd` through `mqtt.publish`.
   Trap hit while wiring it: the broker's `homepi` password and HA's mqtt
@@ -900,7 +920,7 @@ by `lib/notify/actions.ts` — the only place that knows what `add250` or
 **Delivery**, in this order:
 
 1. `upsert` on the in-process bus → SSE `GET /api/notify/stream` → the web
-   /home Displays tab (`components/home/notify-card.tsx`), the desktop tray
+  /home Notifications tab (`components/home/notify-card.tsx`), the desktop tray
    (`apps/desktop/src-tauri/src/notify.rs` → Windows toast with up to 3
    buttons via `tauri-winrt-notification`, AUMID registered under
    `HKCU\Software\Classes\AppUserModelId\ro.dragoscatalin.vmui` at start —

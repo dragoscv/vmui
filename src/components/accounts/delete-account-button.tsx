@@ -1,46 +1,36 @@
 "use client";
 
-import { useTransition } from "react";
-import { Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { deleteAccount } from "@/server/actions/accounts";
+import { toResult } from "@/components/settings/adapt";
+import { Button } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
+import { deleteAccount } from "@/server/actions/accounts";
+import { Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function DeleteAccountButton({ id, name }: { id: string; name: string }) {
-  const [pending, start] = useTransition();
-  const router = useRouter();
+  const t = useTranslations("cloud.accountDetail");
   const confirm = useConfirm();
+  const remove = useAction(async () => toResult(await deleteAccount(id)), { success: t("disconnect.done", { name }) });
+
   return (
     <Button
       variant="ghost"
       size="icon"
-      disabled={pending}
+      loading={remove.pending}
+      aria-label={t("disconnect.label", { name })}
       onClick={async () => {
-        const ok = await confirm({
-          title: `Disconnect ${name}?`,
-          description: (
-            <>
-              Stored credentials for this account will be wiped and instances
-              will disappear from the dashboard. This <b>cannot</b> be undone.
-            </>
-          ),
+        const yes = await confirm({
+          title: t("disconnect.title", { name }),
+          description: t("disconnect.description"),
           tone: "danger",
-          confirmText: "Disconnect",
+          confirmText: t("disconnect.confirm"),
           requireText: name,
         });
-        if (!ok) return;
-        start(async () => {
-          const r = await deleteAccount(id);
-          if (r.ok) {
-            toast.success(`${name} disconnected`);
-            router.refresh();
-          } else toast.error(r.error ?? "Failed");
-        });
+        if (yes) await remove.run();
       }}
     >
-      <Trash2 className="h-4 w-4 text-[var(--color-danger)]" />
+      <Trash2 className="size-4 text-danger" aria-hidden />
     </Button>
   );
 }

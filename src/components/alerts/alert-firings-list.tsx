@@ -1,72 +1,100 @@
+"use client";
+
+import { Badge, DataTable, EmptyState, type ColumnDef } from "@/components/ui";
 import type { AlertFiringRow } from "@/lib/db/schema";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { BellOff } from "lucide-react";
+import { motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
+import * as React from "react";
 
-interface Props {
-  firings: AlertFiringRow[];
+interface Delivery {
+  channelName: string;
+  ok: boolean;
+  error?: string;
 }
 
-function relative(ms: number): string {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-export function AlertFiringsList({ firings }: Props) {
-  if (firings.length === 0) {
-    return (
-      <Card>
-        <CardContent className="grid place-items-center py-8 text-xs text-muted">
-          No firings yet. Rules become active after their first threshold breach.
-        </CardContent>
-      </Card>
-    );
+function parseDeliveries(json: string | null): Delivery[] {
+  try {
+    return JSON.parse(json ?? "[]") as Delivery[];
+  } catch {
+    return [];
   }
+}
+
+export function AlertFiringsList({ firings }: { firings: AlertFiringRow[] }) {
+  const t = useTranslations("observe.alerts.firings");
+  const format = useFormatter();
+
+  const columns: ColumnDef<AlertFiringRow>[] = React.useMemo(
+    () => [
+      {
+        id: "firedAt",
+        header: t("columns.when"),
+        cell: ({ row }) => (
+          <time dateTime={row.original.firedAt.toISOString()} className="whitespace-nowrap text-xs text-fg-muted">
+            {format.relativeTime(row.original.firedAt)}
+          </time>
+        ),
+      },
+      {
+        id: "status",
+        header: t("columns.status"),
+        cell: ({ row }) =>
+          row.original.status === "firing" ? (
+            <Badge variant="danger" dot>
+              {t("status.firing")}
+            </Badge>
+          ) : (
+            <Badge variant="success">{t("status.resolved")}</Badge>
+          ),
+      },
+      {
+        id: "metric",
+        header: t("columns.metric"),
+        cell: ({ row }) => (
+          <span className="font-mono text-xs">
+            {row.original.metric} = {format.number(row.original.value, { maximumFractionDigits: 1 })}{" "}
+            <span className="text-fg-muted">
+              ({row.original.status === "firing" ? t("exceeds") : t("backBelow")} {format.number(row.original.threshold, { maximumFractionDigits: 1 })})
+            </span>
+          </span>
+        ),
+      },
+      {
+        id: "instance",
+        header: t("columns.instance"),
+        cell: ({ row }) => <code className="block max-w-[12rem] truncate font-mono text-xs text-fg-muted">{row.original.instanceId ?? "—"}</code>,
+      },
+      {
+        id: "deliveries",
+        header: t("columns.deliveries"),
+        cell: ({ row }) => {
+          const ds = parseDeliveries(row.original.deliveryJson);
+          if (ds.length === 0) return <span className="text-xs text-fg-muted">—</span>;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {ds.map((d, i) => (
+                <Badge key={i} variant={d.ok ? "success" : "danger"} title={d.error ?? t("delivered")}>
+                  {d.channelName}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
+      },
+    ],
+    [t, format],
+  );
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <ul className="divide-y divide-[var(--color-border)]">
-          {firings.map((f) => {
-            const deliveries = (() => {
-              try {
-                return JSON.parse(f.deliveryJson ?? "[]") as { channelName: string; ok: boolean; error?: string }[];
-              } catch {
-                return [] as { channelName: string; ok: boolean; error?: string }[];
-              }
-            })();
-            const Icon = f.status === "resolved" ? CheckCircle2 : AlertTriangle;
-            const color = f.status === "resolved" ? "text-emerald-500" : "text-red-500";
-            return (
-              <li key={f.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
-                <Icon className={`h-3.5 w-3.5 ${color}`} />
-                <span className="font-mono">{f.metric}</span>
-                <span className="text-muted">
-                  {f.value} {f.status === "firing" ? "exceeds" : "is back below"} {f.threshold}
-                </span>
-                {f.instanceId && <span className="rounded bg-[var(--color-surface-muted)] px-1.5 py-0.5 font-mono text-[10px]">{f.instanceId}</span>}
-                <div className="flex-1" />
-                <div className="flex items-center gap-1">
-                  {deliveries.map((d, i) => (
-                    <span
-                      key={i}
-                      title={d.error ?? "delivered"}
-                      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${d.ok ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-red-500/15 text-red-700 dark:text-red-300"}`}
-                    >
-                      {d.channelName}
-                    </span>
-                  ))}
-                </div>
-                <span className="text-muted">{relative(f.firedAt.getTime())}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </CardContent>
-    </Card>
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+      <DataTable
+        columns={columns}
+        data={firings}
+        dense
+        getRowId={(r) => String(r.id)}
+        emptyState={<EmptyState compact icon={<BellOff />} title={t("empty.title")} description={t("empty.description")} />}
+      />
+    </motion.div>
   );
 }

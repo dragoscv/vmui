@@ -1,92 +1,83 @@
 import "server-only";
-import Link from "next/link";
-import { TrendingUp, ArrowLeft } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { computeProjections } from "@/server/queries/projections";
-import { formatUsd } from "@/lib/utils";
 import { ProjectionChart } from "@/components/costs/projection-chart";
+import { Badge, Button, EmptyState, PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
+import { formatUsd } from "@/lib/utils";
+import { computeProjections } from "@/server/queries/projections";
+import { ChevronRight, TrendingUp } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProjectionsPage() {
-  const p = await computeProjections(30);
+  const [t, p] = await Promise.all([getTranslations("cloud.projections"), computeProjections(30)]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <TrendingUp className="h-6 w-6 text-[var(--color-primary)]" />
-            Cost projections
-          </h1>
-          <p className="text-sm text-muted">
-            30 / 60 / 90 day projections from the last 30 days of sync history. Confidence widens with horizon.
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/costs">
-            <ArrowLeft className="h-4 w-4" /> Back to costs
-          </Link>
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        icon={<TrendingUp />}
+        title={t("title")}
+        description={t("description")}
+        breadcrumbs={
+          <nav aria-label={t("breadcrumbLabel")} className="flex items-center gap-1">
+            <Link href="/costs" className="hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              {t("breadcrumb")}
+            </Link>
+            <ChevronRight className="size-3" aria-hidden />
+            <span aria-current="page">{t("title")}</span>
+          </nav>
+        }
+      />
 
       {!p ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted">
-            Not enough sync history to project yet. Run a few syncs over the next few hours.
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<TrendingUp />}
+          title={t("empty.title")}
+          description={t("empty.description")}
+          action={
+            <Button asChild variant="outline">
+              <Link href="/costs">{t("empty.action")}</Link>
+            </Button>
+          }
+        />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <StatGrid cols={3}>
             {p.bands.map((b) => (
-              <Card key={b.daysAhead} className="surface">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">
-                    In <span className="text-[var(--color-primary)]">{b.daysAhead}</span> days
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-semibold tracking-tight">{formatUsd(b.monthlyUsd)}/mo</div>
-                  <div className="mt-1 text-xs text-muted">
-                    {formatUsd(b.monthlyLo)} – {formatUsd(b.monthlyHi)} <span className="opacity-60">(95% CI)</span>
-                  </div>
-                  <div className="mt-2 font-mono text-[11px] text-muted">
-                    {formatUsd(b.hourlyUsd)}/hr
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <Card className="surface">
-            <CardHeader>
-              <CardTitle className="text-base">Hourly burn trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ProjectionChart
-                history={p.history}
-                bands={p.bands}
-                sigma={p.sigma}
-                slopeUsdPerDay={p.slopeUsdPerDay}
-                currentHourlyUsd={p.currentHourlyUsd}
+              <Stat
+                key={b.daysAhead}
+                label={t("band.label", { days: b.daysAhead })}
+                value={t("perMonth", { amount: formatUsd(b.monthlyUsd) })}
+                hint={
+                  <>
+                    {t("band.ci", { lo: formatUsd(b.monthlyLo), hi: formatUsd(b.monthlyHi) })} · {t("band.hourly", { amount: formatUsd(b.hourlyUsd) })}
+                  </>
+                }
               />
-              <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
-                <span>
-                  Slope: <strong className="text-fg">{formatUsd(p.slopeUsdPerDay)}</strong>/day
-                </span>
-                <span>
-                  Points used: <strong className="text-fg">{p.pointsUsed}</strong>
-                </span>
-                <span>
-                  Residual \u03c3: <strong className="text-fg">{formatUsd(p.sigma)}</strong>/hr
-                </span>
+            ))}
+          </StatGrid>
+
+          <PageSection
+            title={t("chart.title")}
+            description={t("chart.description")}
+            action={
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="muted">
+                  {t("facts.slope")}: <span className="tabular-nums text-fg">{t("facts.slopeValue", { amount: formatUsd(p.slopeUsdPerDay) })}</span>
+                </Badge>
+                <Badge variant="muted">
+                  {t("facts.points")}: <span className="tabular-nums text-fg">{p.pointsUsed}</span>
+                </Badge>
+                <Badge variant="muted">
+                  {t("facts.sigma")}: <span className="tabular-nums text-fg">{t("facts.sigmaValue", { amount: formatUsd(p.sigma) })}</span>
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
+            }
+          >
+            <ProjectionChart history={p.history} bands={p.bands} sigma={p.sigma} slopeUsdPerDay={p.slopeUsdPerDay} currentHourlyUsd={p.currentHourlyUsd} />
+          </PageSection>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -1,11 +1,26 @@
 import "server-only";
+import { DiffView, type DiffOp } from "@/components/ops/diff-view";
+import { Button, EmptyState, Field, PageHeader, PageSection, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
 import { bootScripts } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
+import { ArrowRight, ChevronDown, GitCompare } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import type * as React from "react";
 
 export const dynamic = "force-dynamic";
 
-interface DiffOp { type: "ctx" | "add" | "del"; line: string; }
+const SELECT_CLASS =
+  "flex h-9 w-full appearance-none items-center truncate rounded-[var(--radius-md)] border border-border bg-surface px-3 pr-9 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50";
+
+function NativeSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <span className="relative block">
+      <select {...props} className={SELECT_CLASS} />
+      <ChevronDown className="pointer-events-none absolute inset-y-0 right-3 my-auto size-4 opacity-60" aria-hidden />
+    </span>
+  );
+}
 
 /** Tiny LCS-based line diff. O(n*m) – fine for boot scripts. */
 function diffLines(a: string, b: string): DiffOp[] {
@@ -32,52 +47,51 @@ function diffLines(a: string, b: string): DiffOp[] {
 }
 
 export default async function BootScriptDiffPage(props: { searchParams?: Promise<{ a?: string; b?: string }> }) {
+  const t = await getTranslations("ops.bootScriptDiff");
   const sp = (await props.searchParams) ?? {};
   const scripts = await db.select().from(bootScripts).orderBy(asc(bootScripts.name));
   const a = scripts.find((s) => s.id === sp.a);
   const b = scripts.find((s) => s.id === sp.b);
   const ops = a && b ? diffLines(a.body, b.body) : null;
 
-  let added = 0, removed = 0;
-  if (ops) for (const o of ops) { if (o.type === "add") added++; else if (o.type === "del") removed++; }
+  const options = scripts.map((s) => (
+    <option key={s.id} value={s.id}>
+      {s.name} ({s.kind})
+    </option>
+  ));
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Boot-script diff</h1>
-        <p className="text-sm text-zinc-400">Unified diff between two boot scripts. Useful before re-applying.</p>
-      </header>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<GitCompare />} />
 
-      <form method="GET" className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs">
-        <span className="text-zinc-400">A</span>
-        <select name="a" defaultValue={sp.a ?? ""} className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1">
-          <option value="">— select —</option>
-          {scripts.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.kind})</option>)}
-        </select>
-        <span className="text-zinc-400">→ B</span>
-        <select name="b" defaultValue={sp.b ?? ""} className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1">
-          <option value="">— select —</option>
-          {scripts.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.kind})</option>)}
-        </select>
-        <button type="submit" className="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1">Diff</button>
-        {ops && <span className="ml-2 text-emerald-400">+{added}</span>}
-        {ops && <span className="text-rose-400">-{removed}</span>}
-      </form>
+      <PageSection title={t("pickTitle")} description={t("pickDescription")}>
+        <form method="GET" className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]">
+          <Field label={t("scriptA")}>
+            <NativeSelect name="a" defaultValue={sp.a ?? ""} required>
+              <option value="">{t("selectPlaceholder")}</option>
+              {options}
+            </NativeSelect>
+          </Field>
+          <ArrowRight className="hidden size-4 self-center text-fg-muted sm:mb-2.5 sm:block" aria-hidden />
+          <Field label={t("scriptB")}>
+            <NativeSelect name="b" defaultValue={sp.b ?? ""} required>
+              <option value="">{t("selectPlaceholder")}</option>
+              {options}
+            </NativeSelect>
+          </Field>
+          <Button type="submit" className="w-full sm:w-auto">
+            <GitCompare className="size-4" aria-hidden /> {t("compare")}
+          </Button>
+        </form>
+      </PageSection>
 
-      {!ops && <div className="text-sm text-zinc-500">Pick two scripts to compare.</div>}
-      {ops && (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-x-auto">
-          <pre className="text-xs font-mono p-3 leading-relaxed">
-            {ops.map((o, idx) => {
-              const cls = o.type === "add" ? "text-emerald-300 bg-emerald-950/40"
-                : o.type === "del" ? "text-rose-300 bg-rose-950/40"
-                : "text-zinc-400";
-              const sign = o.type === "add" ? "+ " : o.type === "del" ? "- " : "  ";
-              return <div key={idx} className={cls}>{sign}{o.line}</div>;
-            })}
-          </pre>
-        </div>
-      )}
-    </div>
+      <PageSection title={t("resultTitle")} description={a && b ? t("resultDescription", { a: a.name, b: b.name }) : undefined}>
+        {ops ? (
+          <DiffView ops={ops} addedLabel={t("added")} removedLabel={t("removed")} />
+        ) : (
+          <EmptyState compact icon={<GitCompare />} title={t("empty")} description={t("emptyHint")} />
+        )}
+      </PageSection>
+    </PageShell>
   );
 }

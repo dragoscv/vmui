@@ -1,31 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { toast } from "sonner";
-import {
-  Plus,
-  Trash2,
-  RefreshCw,
-  Play,
-  Pause,
-  ChevronDown,
-  ChevronRight,
-  Archive,
-  CloudUpload,
-  HardDrive,
-  Globe,
-} from "lucide-react";
+import { RelativeTime } from "@/components/settings/relative-time";
+import { Badge, Button, DataTable, EmptyState, Field, Input, Switch, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
+import { verifyBackupJobAction } from "@/server/actions/backup-verify";
 import {
   createBackupPolicyAction,
   deleteBackupPolicyAction,
-  toggleBackupPolicyAction,
-  runBackupNowAction,
-  listBackupPoliciesAction,
   listBackupJobsAction,
+  listBackupPoliciesAction,
+  runBackupNowAction,
+  toggleBackupPolicyAction,
 } from "@/server/actions/backups";
-import { verifyBackupJobAction } from "@/server/actions/backup-verify";
+import { Archive, CloudUpload, Globe, HardDrive, ListTree, Play, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatBytes } from "./bytes";
 
 type BackupKind = "cloud-snapshot" | "s3-dump" | "local-copy" | "cross-region";
+const KINDS: BackupKind[] = ["cloud-snapshot", "s3-dump", "local-copy", "cross-region"];
 
 interface PolicyLite {
   id: string;
@@ -66,64 +63,202 @@ const KIND_ICON: Record<BackupKind, typeof Archive> = {
   "cross-region": Globe,
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  ok: "bg-emerald-500/20 text-emerald-200",
-  error: "bg-red-500/20 text-red-200",
-  running: "bg-sky-500/20 text-sky-200",
-  queued: "bg-slate-500/20 text-slate-200",
+const STATUS_VARIANT: Record<string, "success" | "danger" | "info" | "muted"> = {
+  ok: "success",
+  error: "danger",
+  running: "info",
+  queued: "muted",
 };
 
-export function BackupsWorkspace({ instances }: { instances: InstanceLite[] }) {
-  const [policies, setPolicies] = useState<PolicyLite[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [jobsFor, setJobsFor] = useState<Record<string, JobLite[]>>({});
+function parseRetention(json: string): { keepDaily: number; keepWeekly: number; keepMonthly: number } {
+  try {
+    return JSON.parse(json) as { keepDaily: number; keepWeekly: number; keepMonthly: number };
+  } catch {
+    return { keepDaily: 0, keepWeekly: 0, keepMonthly: 0 };
+  }
+}
 
-  const refresh = async () => {
+export function BackupsWorkspace({ instances }: { instances: InstanceLite[] }) {
+  const t = useTranslations("ops.backups.policies");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
+  const [policies, setPolicies] = useState<PolicyLite[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [detail, setDetail] = useState<PolicyLite | null>(null);
+
+  const refresh = useCallback(async () => {
     const rows = (await listBackupPoliciesAction()) as PolicyLite[];
     setPolicies(rows);
-  };
+    setLoaded(true);
+  }, []);
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
-  }, []);
+    const timer = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(timer);
+  }, [refresh]);
 
-  const toggleExpand = async (id: string) => {
-    setExpanded(expanded === id ? null : id);
-    if (expanded !== id) {
-      const jobs = (await listBackupJobsAction(id)) as JobLite[];
-      setJobsFor((prev) => ({ ...prev, [id]: jobs }));
-    }
-  };
+  const instanceName = useCallback(
+    (iid: string) => {
+      const i = instances.find((x) => x.id === iid);
+      return i ? `${i.name ?? i.providerInstanceId} (${i.provider})` : iid;
+    },
+    [instances],
+  );
 
-  const instanceName = (iid: string) => {
-    const i = instances.find((x) => x.id === iid);
-    return i ? `${i.name ?? i.providerInstanceId} (${i.provider})` : iid;
-  };
+  const runNow = useAction(
+    async (id: string): Promise<ActionResult> => {
+      const r = await runBackupNowAction(id);
+      await refresh();
+      return r.ok ? ok() : { ok: false, error: r.error };
+    },
+    { success: t("queued"), refresh: false },
+  );
+  const toggle = useAction(
+    async (id: string, enabled: boolean): Promise<ActionResult> => {
+      await toggleBackupPolicyAction(id, enabled);
+      await refresh();
+      return ok();
+    },
+    { refresh: false },
+  );
+  const remove = useAction(
+    async (id: string): Promise<ActionResult> => {
+      await deleteBackupPolicyAction(id);
+      await refresh();
+      return ok();
+    },
+    { success: t("deleted"), refresh: false },
+  );
+
+  async function onRemove(p: PolicyLite) {
+    const yes = await confirm({
+      title: t("confirmDelete", { name: p.name }),
+      description: t("confirmDeleteHint"),
+      tone: "danger",
+      confirmText: tc("delete"),
+    });
+    if (yes) await remove.run(p.id);
+  }
+
+  const columns = useMemo<ColumnDef<PolicyLite, unknown>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: t("columns.name"),
+        cell: ({ row }) => {
+          const Icon = KIND_ICON[row.original.kind];
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <Icon className="size-4 shrink-0 text-fg-muted" aria-hidden />
+              <div className="min-w-0">
+                <span className="block truncate font-medium">{row.original.name}</span>
+                <span className="block truncate text-xs text-fg-muted">{t(`kinds.${row.original.kind}`)}</span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "target",
+        accessorFn: (p) => instanceName(p.instanceId),
+        header: t("columns.target"),
+        cell: ({ row }) => <span className="block max-w-[16rem] truncate text-xs">{instanceName(row.original.instanceId)}</span>,
+      },
+      {
+        accessorKey: "cronExpr",
+        header: t("columns.cron"),
+        cell: ({ row }) => <code className="whitespace-nowrap font-mono text-xs">{row.original.cronExpr}</code>,
+      },
+      {
+        accessorKey: "lastRunAt",
+        header: t("columns.lastRun"),
+        cell: ({ row }) =>
+          row.original.lastRunAt ? (
+            <RelativeTime date={row.original.lastRunAt} className="whitespace-nowrap text-fg-muted" />
+          ) : (
+            <span className="text-xs text-fg-muted">{t("never")}</span>
+          ),
+      },
+      {
+        accessorKey: "lastStatus",
+        header: t("columns.status"),
+        cell: ({ row }) =>
+          row.original.lastStatus ? (
+            <Badge variant={STATUS_VARIANT[row.original.lastStatus] ?? "muted"} dot={row.original.lastStatus === "running"}>
+              {t(`status.${row.original.lastStatus}`)}
+            </Badge>
+          ) : (
+            <span className="text-xs text-fg-muted">—</span>
+          ),
+      },
+      {
+        accessorKey: "enabled",
+        header: t("columns.enabled"),
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Switch
+            checked={row.original.enabled}
+            disabled={toggle.pending}
+            onCheckedChange={(v) => void toggle.run(row.original.id, v)}
+            aria-label={row.original.enabled ? t("disable") : t("enable")}
+          />
+        ),
+      },
+    ],
+    [t, instanceName, toggle.run, toggle.pending],
+  );
 
   return (
-    <div className="grid gap-6">
-      <section>
-        <header className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Backup policies</h2>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-xs hover:bg-[var(--color-surface-muted)]"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd((s) => !s)}
-            className="inline-flex items-center gap-1 rounded-md bg-[var(--color-primary)] px-2 py-1 text-xs font-semibold text-[var(--color-primary-fg)]"
-          >
-            <Plus className="h-3 w-3" /> Add policy
-          </button>
-        </header>
-        {showAdd ? (
+    <div className="space-y-3">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={() => void refresh()}>
+          <RefreshCw className="size-4" aria-hidden /> {tc("refresh")}
+        </Button>
+        <Button size="sm" onClick={() => setShowAdd(true)}>
+          <Plus className="size-4" aria-hidden /> {t("add")}
+        </Button>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={policies}
+        loading={!loaded}
+        dense
+        searchable={policies.length > 5}
+        getRowId={(p) => p.id}
+        onRowClick={(p) => setDetail(p)}
+        emptyState={
+          <EmptyState
+            compact
+            icon={<Archive />}
+            title={t("empty")}
+            description={t("emptyHint")}
+            action={
+              <Button size="sm" onClick={() => setShowAdd(true)}>
+                <Plus className="size-4" aria-hidden /> {t("add")}
+              </Button>
+            }
+          />
+        }
+        rowActions={(p) => (
+          <>
+            <Button size="icon" variant="ghost" onClick={() => setDetail(p)} aria-label={t("jobs")}>
+              <ListTree className="size-4" aria-hidden />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => void runNow.run(p.id)} disabled={runNow.pending} aria-label={t("runNow")}>
+              <Play className="size-4" aria-hidden />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => void onRemove(p)} disabled={remove.pending} aria-label={tc("delete")}>
+              <Trash2 className="size-4 text-danger" aria-hidden />
+            </Button>
+          </>
+        )}
+      />
+
+      <Sheet open={showAdd} onOpenChange={setShowAdd}>
+        <SheetContent title={t("newTitle")} description={t("newDescription")} className="md:w-[560px]">
           <AddPolicyForm
             instances={instances}
             onDone={() => {
@@ -131,227 +266,139 @@ export function BackupsWorkspace({ instances }: { instances: InstanceLite[] }) {
               void refresh();
             }}
           />
-        ) : null}
-        <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--color-surface-muted)] text-xs uppercase text-muted">
-              <tr>
-                <th className="w-8 px-2 py-2"></th>
-                <th className="px-2 py-2 text-left">Name</th>
-                <th className="px-2 py-2 text-left">Kind</th>
-                <th className="px-2 py-2 text-left">Target</th>
-                <th className="px-2 py-2 text-left">Cron</th>
-                <th className="px-2 py-2 text-left">Last run</th>
-                <th className="px-2 py-2 text-left">Status</th>
-                <th className="w-32 px-2 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {policies.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-3 py-4 text-center text-xs text-muted">
-                    No backup policies yet.
-                  </td>
-                </tr>
-              ) : null}
-              {policies.map((p) => {
-                const Icon = KIND_ICON[p.kind];
-                const open = expanded === p.id;
-                return (
-                  <PolicyRow
-                    key={p.id}
-                    policy={p}
-                    open={open}
-                    icon={Icon}
-                    instanceName={instanceName(p.instanceId)}
-                    jobs={jobsFor[p.id] ?? []}
-                    onToggleExpand={() => void toggleExpand(p.id)}
-                    onAfter={refresh}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={detail !== null} onOpenChange={(o) => !o && setDetail(null)}>
+        {detail && (
+          <SheetContent title={detail.name} description={instanceName(detail.instanceId)} className="md:w-[640px]">
+            <PolicyDetail policy={detail} />
+          </SheetContent>
+        )}
+      </Sheet>
     </div>
   );
 }
 
-function PolicyRow({
-  policy,
-  open,
-  icon: Icon,
-  instanceName,
-  jobs,
-  onToggleExpand,
-  onAfter,
-}: {
-  policy: PolicyLite;
-  open: boolean;
-  icon: typeof Archive;
-  instanceName: string;
-  jobs: JobLite[];
-  onToggleExpand: () => void;
-  onAfter: () => Promise<void>;
-}) {
-  const [pending, start] = useTransition();
-  const retention = useMemo(() => {
-    try {
-      return JSON.parse(policy.retentionJson) as { keepDaily: number; keepWeekly: number; keepMonthly: number };
-    } catch {
-      return { keepDaily: 0, keepWeekly: 0, keepMonthly: 0 };
-    }
-  }, [policy.retentionJson]);
+function PolicyDetail({ policy }: { policy: PolicyLite }) {
+  const t = useTranslations("ops.backups.policies");
+  const [jobs, setJobs] = useState<JobLite[] | null>(null);
+  const retention = useMemo(() => parseRetention(policy.retentionJson), [policy.retentionJson]);
+
+  const load = useCallback(async () => {
+    setJobs((await listBackupJobsAction(policy.id)) as JobLite[]);
+  }, [policy.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const verify = useAction(
+    async (jobId: string): Promise<ActionResult<string>> => {
+      const r = await verifyBackupJobAction({ jobId });
+      if (r.ok) return ok(("message" in r && r.message) || t("verified"));
+      return { ok: false, error: ("error" in r && r.error) || t("verifyFailed") };
+    },
+    { success: (m) => m, refresh: false },
+  );
+
+  const columns = useMemo<ColumnDef<JobLite, unknown>[]>(
+    () => [
+      {
+        accessorKey: "startedAt",
+        header: t("jobColumns.started"),
+        cell: ({ row }) => <RelativeTime date={row.original.startedAt} className="whitespace-nowrap text-fg-muted" />,
+      },
+      {
+        accessorKey: "status",
+        header: t("jobColumns.status"),
+        cell: ({ row }) => (
+          <Badge variant={STATUS_VARIANT[row.original.status] ?? "muted"} dot={row.original.status === "running"}>
+            {t(`status.${row.original.status}`)}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "artifactRef",
+        header: t("jobColumns.artifact"),
+        enableSorting: false,
+        cell: ({ row }) => (
+          <code className="block max-w-[14rem] truncate font-mono text-xs" title={row.original.artifactRef ?? undefined}>
+            {row.original.artifactRef ?? "—"}
+          </code>
+        ),
+      },
+      {
+        accessorKey: "sizeBytes",
+        header: t("jobColumns.size"),
+        cell: ({ row }) => <span className="whitespace-nowrap tabular-nums text-xs">{formatBytes(row.original.sizeBytes)}</span>,
+      },
+      {
+        accessorKey: "message",
+        header: t("jobColumns.message"),
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="block max-w-[16rem] truncate text-xs text-fg-muted" title={row.original.message ?? undefined}>
+            {row.original.message ?? ""}
+          </span>
+        ),
+      },
+    ],
+    [t],
+  );
 
   return (
-    <>
-      <tr className="border-t border-[var(--color-border)]">
-        <td className="px-2 py-2">
-          <button type="button" onClick={onToggleExpand} className="text-muted hover:text-fg">
-            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </button>
-        </td>
-        <td className="px-2 py-2 font-medium">{policy.name}</td>
-        <td className="px-2 py-2">
-          <span className="inline-flex items-center gap-1 text-xs">
-            <Icon className="h-3 w-3" /> {policy.kind}
-          </span>
-        </td>
-        <td className="px-2 py-2 text-xs">{instanceName}</td>
-        <td className="px-2 py-2 font-mono text-xs">{policy.cronExpr}</td>
-        <td className="px-2 py-2 text-xs">
-          {policy.lastRunAt ? new Date(policy.lastRunAt).toLocaleString() : "—"}
-        </td>
-        <td className="px-2 py-2">
-          {policy.lastStatus ? (
-            <span
-              className={`inline-block rounded px-1.5 py-0.5 text-[10px] uppercase ${STATUS_COLOR[policy.lastStatus] ?? ""}`}
-            >
-              {policy.lastStatus}
-            </span>
-          ) : (
-            <span className="text-xs text-muted">never</span>
-          )}
-        </td>
-        <td className="px-2 py-2">
-          <div className="flex items-center justify-end gap-1">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  const r = await runBackupNowAction(policy.id);
-                  if (r.ok) toast.success("Backup queued");
-                  else toast.error(r.error);
-                  await onAfter();
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)] hover:text-fg"
-              title="Run now"
-            >
-              <Play className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  await toggleBackupPolicyAction(policy.id, !policy.enabled);
-                  await onAfter();
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)] hover:text-fg"
-              title={policy.enabled ? "Disable" : "Enable"}
-            >
-              {policy.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  if (!confirm(`Delete policy "${policy.name}"?`)) return;
-                  await deleteBackupPolicyAction(policy.id);
-                  toast.success("Deleted");
-                  await onAfter();
-                })
-              }
-              className="rounded p-1 text-muted hover:bg-red-500/20 hover:text-red-300"
-              title="Delete"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </td>
-      </tr>
-      {open ? (
-        <tr className="bg-[var(--color-surface-muted)]/50">
-          <td colSpan={8} className="px-4 py-3 text-xs">
-            <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-muted">
-              <span>retention: <span className="font-mono text-fg">{retention.keepDaily}d / {retention.keepWeekly}w / {retention.keepMonthly}m</span></span>
-              <span>enabled: <span className="font-mono text-fg">{policy.enabled ? "yes" : "no"}</span></span>
-              {policy.lastError ? <span className="text-red-300">last error: {policy.lastError}</span> : null}
-            </div>
-            <div className="max-h-72 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-surface)]">
-              <table className="w-full text-xs">
-                <thead className="bg-[var(--color-surface-muted)] text-[10px] uppercase text-muted">
-                  <tr>
-                    <th className="px-2 py-1 text-left">Started</th>
-                    <th className="px-2 py-1 text-left">Status</th>
-                    <th className="px-2 py-1 text-left">Artifact</th>
-                    <th className="px-2 py-1 text-left">Size</th>
-                    <th className="px-2 py-1 text-left">Message</th>
-                    <th className="px-2 py-1 text-left">Verify</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.length === 0 ? (
-                    <tr><td colSpan={6} className="px-2 py-2 text-center text-muted">No jobs yet</td></tr>
-                  ) : null}
-                  {jobs.map((j) => (
-                    <tr key={j.id} className="border-t border-[var(--color-border)]">
-                      <td className="px-2 py-1 font-mono">{new Date(j.startedAt).toLocaleString()}</td>
-                      <td className="px-2 py-1">
-                        <span className={`rounded px-1 py-0.5 text-[10px] ${STATUS_COLOR[j.status] ?? ""}`}>{j.status}</span>
-                      </td>
-                      <td className="px-2 py-1 font-mono">{j.artifactRef ?? "—"}</td>
-                      <td className="px-2 py-1 font-mono">{j.sizeBytes ? formatBytes(j.sizeBytes) : "—"}</td>
-                      <td className="px-2 py-1 text-muted">{j.message?.slice(0, 120) ?? ""}</td>
-                      <td className="px-2 py-1">
-                        <button
-                          disabled={j.status !== "ok"}
-                          onClick={async () => {
-                            const r = await verifyBackupJobAction({ jobId: j.id });
-                            if (r.ok) toast.success((("message" in r && r.message) || "Verified"));
-                            else toast.error(r.error ?? "Verify failed");
-                          }}
-                          className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] hover:bg-[var(--color-surface-muted)] disabled:opacity-30"
-                        >
-                          Verify
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </td>
-        </tr>
-      ) : null}
-    </>
+    <div className="space-y-4">
+      <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-fg-muted">{t("columns.cron")}</dt>
+          <dd className="font-mono text-xs">{policy.cronExpr}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-fg-muted">{t("retention")}</dt>
+          <dd className="font-mono text-xs">
+            {t("retentionValue", { d: retention.keepDaily, w: retention.keepWeekly, m: retention.keepMonthly })}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-fg-muted">{t("columns.enabled")}</dt>
+          <dd>
+            <Badge variant={policy.enabled ? "success" : "muted"}>{policy.enabled ? t("enabledYes") : t("enabledNo")}</Badge>
+          </dd>
+        </div>
+      </dl>
+      {policy.lastError && (
+        <p className="rounded-[var(--radius-md)] bg-[color-mix(in_oklch,var(--color-danger)_12%,transparent)] px-3 py-2 text-xs text-danger">
+          {t("lastError", { error: policy.lastError })}
+        </p>
+      )}
+      <DataTable
+        columns={columns}
+        data={jobs ?? []}
+        loading={jobs === null}
+        dense
+        pageSize={10}
+        getRowId={(j) => j.id}
+        emptyState={<EmptyState compact icon={<ListTree />} title={t("noJobs")} />}
+        rowActions={(j) => (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={j.status !== "ok" || verify.pending}
+            onClick={() => void verify.run(j.id)}
+            aria-label={t("verify")}
+          >
+            <ShieldCheck className="size-3.5" aria-hidden /> {t("verify")}
+          </Button>
+        )}
+      />
+    </div>
   );
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
 function AddPolicyForm({ instances, onDone }: { instances: InstanceLite[]; onDone: () => void }) {
-  const [pending, start] = useTransition();
+  const t = useTranslations("ops.backups.policies");
+  const tc = useTranslations("common");
   const [kind, setKind] = useState<BackupKind>("cloud-snapshot");
   const [form, setForm] = useState({
     name: "",
@@ -371,19 +418,15 @@ function AddPolicyForm({ instances, onDone }: { instances: InstanceLite[]; onDon
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const submit = () => {
-    start(async () => {
+  const create = useAction(
+    async (): Promise<ActionResult> => {
       const pathsArr = form.paths.split(/\s+/).filter(Boolean);
       const r = await createBackupPolicyAction({
         name: form.name,
         kind,
         instanceId: form.instanceId,
         cronExpr: form.cronExpr,
-        retention: {
-          keepDaily: form.keepDaily,
-          keepWeekly: form.keepWeekly,
-          keepMonthly: form.keepMonthly,
-        },
+        retention: { keepDaily: form.keepDaily, keepWeekly: form.keepWeekly, keepMonthly: form.keepMonthly },
         s3:
           kind === "s3-dump"
             ? {
@@ -397,152 +440,108 @@ function AddPolicyForm({ instances, onDone }: { instances: InstanceLite[]; onDon
         local: kind === "local-copy" ? { dir: form.localDir, paths: pathsArr } : undefined,
         crossRegion: kind === "cross-region" ? { targetRegion: form.targetRegion } : undefined,
       });
-      if (r.ok) {
-        toast.success("Policy added");
-        onDone();
-      } else {
-        toast.error(r.error);
-      }
-    });
-  };
+      return r.ok ? ok() : { ok: false, error: r.error };
+    },
+    { success: t("added"), refresh: false, onSuccess: onDone },
+  );
 
   return (
-    <div className="mb-3 grid gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-xs">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Name">
-          <input
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            placeholder="nightly etc backup"
-            className={INPUT_CLS}
-          />
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void create.run();
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("form.name")}>
+          <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder={t("form.namePlaceholder")} required />
         </Field>
-        <Field label="Kind">
-          <select value={kind} onChange={(e) => setKind(e.target.value as BackupKind)} className={INPUT_CLS}>
-            <option value="cloud-snapshot">Cloud snapshot (provider API)</option>
-            <option value="s3-dump">S3 dump (tar over SSH → s3 cp)</option>
-            <option value="local-copy">Local copy (tar to VM path)</option>
-            <option value="cross-region">Cross-region snapshot</option>
-          </select>
+        <Field label={t("form.kind")}>
+          <Select value={kind} onValueChange={(v) => setKind(v as BackupKind)}>
+            <SelectTrigger aria-label={t("form.kind")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KINDS.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {t(`kinds.${k}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
-        <Field label="Target instance">
-          <select value={form.instanceId} onChange={(e) => set("instanceId", e.target.value)} className={INPUT_CLS}>
-            {instances.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.name ?? i.providerInstanceId} ({i.provider})
-              </option>
-            ))}
-          </select>
+        <Field label={t("form.target")}>
+          <Select value={form.instanceId} onValueChange={(v) => set("instanceId", v)}>
+            <SelectTrigger aria-label={t("form.target")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {instances.map((i) => (
+                <SelectItem key={i.id} value={i.id}>
+                  {i.name ?? i.providerInstanceId} ({i.provider})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
-        <Field label="Cron (UTC)">
-          <input value={form.cronExpr} onChange={(e) => set("cronExpr", e.target.value)} className={`${INPUT_CLS} font-mono`} />
+        <Field label={t("form.cron")}>
+          <Input value={form.cronExpr} onChange={(e) => set("cronExpr", e.target.value)} className="font-mono" required />
         </Field>
-        <Field label="Retention daily/weekly/monthly">
-          <div className="flex gap-1">
-            <input
-              type="number"
-              min={0}
-              value={form.keepDaily}
-              onChange={(e) => set("keepDaily", Number(e.target.value))}
-              className={`${INPUT_CLS} w-16`}
-            />
-            <input
-              type="number"
-              min={0}
-              value={form.keepWeekly}
-              onChange={(e) => set("keepWeekly", Number(e.target.value))}
-              className={`${INPUT_CLS} w-16`}
-            />
-            <input
-              type="number"
-              min={0}
-              value={form.keepMonthly}
-              onChange={(e) => set("keepMonthly", Number(e.target.value))}
-              className={`${INPUT_CLS} w-16`}
-            />
+        <Field label={t("form.retention")} hint={t("form.retentionHint")} className="sm:col-span-2">
+          <div className="grid grid-cols-3 gap-2">
+            <Input type="number" min={0} value={form.keepDaily} onChange={(e) => set("keepDaily", Number(e.target.value))} aria-label={t("form.keepDaily")} />
+            <Input type="number" min={0} value={form.keepWeekly} onChange={(e) => set("keepWeekly", Number(e.target.value))} aria-label={t("form.keepWeekly")} />
+            <Input type="number" min={0} value={form.keepMonthly} onChange={(e) => set("keepMonthly", Number(e.target.value))} aria-label={t("form.keepMonthly")} />
           </div>
         </Field>
       </div>
-      {kind === "s3-dump" ? (
-        <div className="grid grid-cols-1 gap-2 border-t border-[var(--color-border)] pt-2 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="S3 URI">
-            <input
-              value={form.s3Uri}
-              onChange={(e) => set("s3Uri", e.target.value)}
-              placeholder="s3://my-backups/prod/"
-              className={INPUT_CLS}
-            />
+
+      {kind === "s3-dump" && (
+        <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          <Field label={t("form.s3Uri")} className="sm:col-span-2">
+            <Input value={form.s3Uri} onChange={(e) => set("s3Uri", e.target.value)} placeholder="s3://my-backups/prod/" className="font-mono" />
           </Field>
-          <Field label="AWS access key id">
-            <input value={form.awsAccessKeyId} onChange={(e) => set("awsAccessKeyId", e.target.value)} className={INPUT_CLS} />
+          <Field label={t("form.awsAccessKeyId")}>
+            <Input value={form.awsAccessKeyId} onChange={(e) => set("awsAccessKeyId", e.target.value)} autoComplete="off" />
           </Field>
-          <Field label="AWS secret access key">
-            <input
-              type="password"
-              value={form.awsSecretAccessKey}
-              onChange={(e) => set("awsSecretAccessKey", e.target.value)}
-              className={INPUT_CLS}
-            />
+          <Field label={t("form.awsSecretAccessKey")}>
+            <Input type="password" value={form.awsSecretAccessKey} onChange={(e) => set("awsSecretAccessKey", e.target.value)} autoComplete="off" />
           </Field>
-          <Field label="AWS region (optional)">
-            <input value={form.awsRegion} onChange={(e) => set("awsRegion", e.target.value)} className={INPUT_CLS} />
+          <Field label={t("form.awsRegion")}>
+            <Input value={form.awsRegion} onChange={(e) => set("awsRegion", e.target.value)} />
           </Field>
-          <Field label="Paths to back up (space-separated)">
-            <input value={form.paths} onChange={(e) => set("paths", e.target.value)} className={`${INPUT_CLS} font-mono`} />
+          <Field label={t("form.paths")} hint={t("form.pathsHint")}>
+            <Input value={form.paths} onChange={(e) => set("paths", e.target.value)} className="font-mono" />
           </Field>
         </div>
-      ) : null}
-      {kind === "local-copy" ? (
-        <div className="grid grid-cols-1 gap-2 border-t border-[var(--color-border)] pt-2 sm:grid-cols-2">
-          <Field label="Destination dir on VM">
-            <input value={form.localDir} onChange={(e) => set("localDir", e.target.value)} className={`${INPUT_CLS} font-mono`} />
+      )}
+      {kind === "local-copy" && (
+        <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+          <Field label={t("form.localDir")}>
+            <Input value={form.localDir} onChange={(e) => set("localDir", e.target.value)} className="font-mono" />
           </Field>
-          <Field label="Paths to back up (space-separated)">
-            <input value={form.paths} onChange={(e) => set("paths", e.target.value)} className={`${INPUT_CLS} font-mono`} />
-          </Field>
-        </div>
-      ) : null}
-      {kind === "cross-region" ? (
-        <div className="grid grid-cols-1 gap-2 border-t border-[var(--color-border)] pt-2 sm:grid-cols-2">
-          <Field label="Target region">
-            <input
-              value={form.targetRegion}
-              onChange={(e) => set("targetRegion", e.target.value)}
-              placeholder="us-west-2"
-              className={INPUT_CLS}
-            />
+          <Field label={t("form.paths")} hint={t("form.pathsHint")}>
+            <Input value={form.paths} onChange={(e) => set("paths", e.target.value)} className="font-mono" />
           </Field>
         </div>
-      ) : null}
+      )}
+      {kind === "cross-region" && (
+        <div className="grid gap-3 border-t border-border pt-4">
+          <Field label={t("form.targetRegion")}>
+            <Input value={form.targetRegion} onChange={(e) => set("targetRegion", e.target.value)} placeholder="us-west-2" />
+          </Field>
+        </div>
+      )}
+
       <div className="flex justify-end gap-2 pt-2">
-        <button
-          type="button"
-          onClick={onDone}
-          className="rounded-md border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-surface-muted)]"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={pending || !form.name || !form.instanceId}
-          onClick={submit}
-          className="rounded-md bg-[var(--color-primary)] px-3 py-1 font-semibold text-[var(--color-primary-fg)] disabled:opacity-50"
-        >
-          {pending ? "Adding…" : "Add policy"}
-        </button>
+        <Button type="button" variant="ghost" onClick={onDone}>
+          {tc("cancel")}
+        </Button>
+        <Button type="submit" loading={create.pending} disabled={!form.name || !form.instanceId}>
+          {t("add")}
+        </Button>
       </div>
-    </div>
+    </form>
   );
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="grid gap-1">
-      <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const INPUT_CLS =
-  "rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-2 py-1";

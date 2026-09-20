@@ -19,15 +19,5 @@ export default async function GitopsPage() {
       provider: i.provider,
     }));
 
-  return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">GitOps</h1>
-        <p className="text-sm text-muted">
-          Watch a Git repository and auto-apply every compose change to a target VM. Supports public, HTTPS-token, and SSH-key sources.
-        </p>
-      </header>
-      <GitopsWorkspace instances={reachable} />
-    </main>
-  );
+  return <GitopsWorkspace instances={reachable} />;
 }

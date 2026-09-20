@@ -1,40 +1,60 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Play, Square, RotateCcw, Trash2, Download, FileText, Search, Loader2, TerminalSquare } from "lucide-react";
-import {
-  containerActionAction,
-  inspectContainerAction,
-} from "@/server/actions/containers";
+import { LogViewer } from "@/components/ops/log-viewer";
+import { Alert, Badge, Button, DataTable, EmptyState, Switch, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useAction } from "@/hooks/use-action";
+import { err, ok, type ActionResult } from "@/lib/action-result";
 import type { ContainerListResult, ContainerRow } from "@/lib/containers";
+import { containerActionAction, inspectContainerAction } from "@/server/actions/containers";
+import { Boxes, Download, FileText, Play, RotateCcw, Search, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
-const STATE_COLOR: Record<string, string> = {
-  running: "bg-emerald-500/15 text-emerald-300",
-  exited: "bg-slate-500/15 text-slate-300",
-  created: "bg-sky-500/15 text-sky-300",
-  paused: "bg-amber-500/15 text-amber-300",
-  dead: "bg-red-500/15 text-red-300",
-  restarting: "bg-violet-500/15 text-violet-300",
+export interface HostSummary {
+  runtime: string | null;
+  total: number;
+  running: number;
+  stopped: number;
+}
+
+type ContainerVerb = "start" | "stop" | "restart" | "remove" | "pull";
+
+const STATE_VARIANT: Record<string, "success" | "muted" | "info" | "warning" | "danger"> = {
+  running: "success",
+  exited: "muted",
+  created: "info",
+  paused: "warning",
+  dead: "danger",
+  restarting: "info",
 };
 
-export function ContainerPanel({ instanceId }: { instanceId: string }) {
+export function ContainerPanel({
+  instanceId,
+  onSummary,
+}: {
+  instanceId: string;
+  onSummary?: (instanceId: string, summary: HostSummary) => void;
+}) {
+  const t = useTranslations("ops.containers");
+  const confirm = useConfirm();
+  const statsId = useId();
   const [data, setData] = useState<ContainerListResult | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [logsFor, setLogsFor] = useState<ContainerRow | null>(null);
   const [inspectFor, setInspectFor] = useState<{ row: ContainerRow; data: unknown } | null>(null);
-  const [filter, setFilter] = useState("");
   const [showStats, setShowStats] = useState(false);
-  const evtRef = useRef<EventSource | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     const qs = showStats ? "interval=10&stats=1" : "interval=5";
     const ev = new EventSource(`/api/instances/${encodeURIComponent(instanceId)}/containers/stream?${qs}`);
-    evtRef.current = ev;
     ev.addEventListener("snapshot", (e) => {
       try {
         setData(JSON.parse((e as MessageEvent).data) as ContainerListResult);
-        setErr(null);
+        setStreamError(null);
       } catch {
         /* ignore */
       }
@@ -42,7 +62,7 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
     ev.addEventListener("error", (e) => {
       try {
         const m = JSON.parse((e as MessageEvent).data) as { message?: string };
-        if (m?.message) setErr(m.message);
+        if (m?.message) setStreamError(m.message);
       } catch {
         /* ignore */
       }
@@ -52,235 +72,290 @@ export function ContainerPanel({ instanceId }: { instanceId: string }) {
     };
   }, [instanceId, showStats]);
 
-  if (err && !data) {
-    return (
-      <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-        {err}
-      </div>
-    );
+  const summaryRef = useRef(onSummary);
+  summaryRef.current = onSummary;
+  useEffect(() => {
+    if (!data) return;
+    const running = data.rows.filter((r) => r.state === "running").length;
+    summaryRef.current?.(instanceId, {
+      runtime: data.runtime,
+      total: data.rows.length,
+      running,
+      stopped: data.rows.length - running,
+    });
+  }, [data, instanceId]);
+
+  const verb = useAction(
+    async (row: ContainerRow, action: ContainerVerb, label: string): Promise<ActionResult<string>> => {
+      setBusy(`${row.id || row.name}:${action}`);
+      const res = await containerActionAction({ instanceId, containerId: row.id || row.name, action });
+      setBusy(null);
+      if (res.ok) return ok(label);
+      return err(res.error ?? (res.output ? res.output.slice(0, 200) : "common.error"));
+    },
+    { success: (message) => message, refresh: false },
+  );
+
+  const runVerb = useCallback(
+    async (row: ContainerRow, action: ContainerVerb) => {
+      const name = row.name || row.id;
+      if (action === "remove" || action === "stop") {
+        const confirmed = await confirm({
+          title: action === "remove" ? t("confirmRemove.title", { name }) : t("confirmStop.title", { name }),
+          description: action === "remove" ? t("confirmRemove.description") : t("confirmStop.description"),
+          tone: action === "remove" ? "danger" : "warning",
+          confirmText: action === "remove" ? t("actions.remove") : t("actions.stop"),
+        });
+        if (!confirmed) return;
+      }
+      await verb.run(row, action, t(`done.${action}`));
+    },
+    [confirm, t, verb],
+  );
+
+  const inspect = useCallback(
+    async (row: ContainerRow) => {
+      const res = await inspectContainerAction({ instanceId, containerId: row.id || row.name });
+      if (!res.ok) {
+        toast.error(res.error ?? t("inspect.failed"));
+        return;
+      }
+      setInspectFor({ row, data: res.data });
+    },
+    [instanceId, t],
+  );
+
+  const columns = useMemo<ColumnDef<ContainerRow, unknown>[]>(() => {
+    const base: ColumnDef<ContainerRow, unknown>[] = [
+      {
+        accessorKey: "name",
+        header: t("columns.name"),
+        cell: ({ row }) => (
+          <span className="block max-w-[16rem] truncate font-medium" title={row.original.name || row.original.id}>
+            {row.original.name || row.original.id}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "image",
+        header: t("columns.image"),
+        cell: ({ row }) => (
+          <code className="block max-w-[18rem] truncate font-mono text-xs text-fg-muted" title={row.original.image}>
+            {row.original.image}
+          </code>
+        ),
+      },
+      {
+        accessorKey: "state",
+        header: t("columns.status"),
+        cell: ({ row }) => (
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <Badge variant={STATE_VARIANT[row.original.state] ?? "muted"} dot={row.original.state === "running"}>
+              {row.original.state || "—"}
+            </Badge>
+            <span className="truncate text-xs text-fg-muted">{row.original.status}</span>
+          </span>
+        ),
+      },
+    ];
+    if (showStats) {
+      base.push(
+        {
+          accessorKey: "cpuPct",
+          header: t("columns.cpu"),
+          cell: ({ row }) => (
+            <span className="tabular-nums text-xs">{row.original.cpuPct != null ? `${row.original.cpuPct.toFixed(1)}%` : "—"}</span>
+          ),
+        },
+        {
+          accessorKey: "memPct",
+          header: t("columns.memory"),
+          cell: ({ row }) => (
+            <span className="tabular-nums text-xs" title={row.original.memUsage}>
+              {row.original.memPct != null ? `${row.original.memPct.toFixed(1)}%` : "—"}
+            </span>
+          ),
+        },
+        {
+          accessorKey: "netIo",
+          header: t("columns.network"),
+          enableSorting: false,
+          cell: ({ row }) => <span className="font-mono text-xs text-fg-muted">{row.original.netIo || "—"}</span>,
+        },
+      );
+    }
+    base.push({
+      accessorKey: "ports",
+      header: t("columns.ports"),
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="block max-w-[14rem] truncate font-mono text-xs text-fg-muted" title={row.original.ports}>
+          {row.original.ports || "—"}
+        </span>
+      ),
+    });
+    return base;
+  }, [showStats, t]);
+
+  if (streamError && !data) {
+    return <Alert tone="danger">{streamError}</Alert>;
   }
   if (!data) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted">
-        <Loader2 className="h-4 w-4 animate-spin" /> Connecting…
+      <div className="flex items-center gap-2 text-sm text-muted" role="status" aria-live="polite">
+        <span className="pulse-dot inline-block size-1.5 rounded-full bg-warning" aria-hidden />
+        {t("connecting")}
       </div>
     );
   }
   if (data.runtime === null) {
-    return (
-      <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-muted">
-        {data.warning ?? "No container runtime detected on this guest."}
-      </div>
-    );
+    return <Alert tone="warning">{data.warning ?? t("noRuntime")}</Alert>;
   }
 
-  const filtered = filter
-    ? data.rows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(filter.toLowerCase()) ||
-          r.image.toLowerCase().includes(filter.toLowerCase()) ||
-          r.id.includes(filter),
-      )
-    : data.rows;
+  const logsRow = logsFor;
+  const inspectRow = inspectFor;
 
   return (
-    <div className="grid gap-3">
-      <header className="flex flex-wrap items-center gap-2">
-        <span className="rounded bg-[var(--color-surface-muted)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
-          {data.runtime}
-        </span>
-        <span className="text-xs text-muted">{data.rows.length} container{data.rows.length === 1 ? "" : "s"}</span>
-        <button
-          type="button"
-          onClick={() => setShowStats((s) => !s)}
-          className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${showStats ? "border-[var(--color-primary)] bg-[var(--color-primary)]/15 text-[var(--color-primary)]" : "border-[var(--color-border)] text-muted"}`}
-          title="Toggle live CPU/memory stats"
-        >
-          {showStats ? "stats on" : "stats off"}
-        </button>
-        <div className="relative ml-auto">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-          <input
-            type="search"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="filter…"
-            className="rounded border border-[var(--color-border)] bg-[var(--color-surface)] py-1 pl-7 pr-2 text-xs"
+    <div className="space-y-3">
+      {streamError && <Alert tone="warning">{streamError}</Alert>}
+      <DataTable
+        columns={columns}
+        data={data.rows}
+        dense
+        searchable={data.rows.length > 5}
+        getRowId={(r) => r.id || r.name}
+        toolbar={
+          <label htmlFor={statsId} className="flex items-center gap-2 text-xs text-muted">
+            <Switch id={statsId} checked={showStats} onCheckedChange={setShowStats} />
+            {t("liveStats")}
+          </label>
+        }
+        emptyState={
+          <EmptyState
+            compact
+            icon={<Boxes />}
+            title={t("empty.title")}
+            description={t("empty.description")}
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => window.open(`/terminal?instance=${encodeURIComponent(instanceId)}`, "_blank", "noopener")}
+              >
+                <TerminalSquare className="size-4" aria-hidden /> {t("empty.action")}
+              </Button>
+            }
           />
-        </div>
-      </header>
-
-      <div className="overflow-hidden rounded-md border border-[var(--color-border)] bg-[var(--color-surface)]">
-        <table className="w-full text-xs">
-          <thead className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[10px] uppercase tracking-wide text-muted">
-            <tr>
-              <th className="px-3 py-1.5 text-left font-semibold">Name</th>
-              <th className="px-3 py-1.5 text-left font-semibold">Image</th>
-              <th className="px-3 py-1.5 text-left font-semibold">Status</th>
-              {showStats && <th className="px-3 py-1.5 text-right font-semibold">CPU</th>}
-              {showStats && <th className="px-3 py-1.5 text-right font-semibold">Mem</th>}
-              {showStats && <th className="px-3 py-1.5 text-left font-semibold">Net I/O</th>}
-              <th className="px-3 py-1.5 text-left font-semibold">Ports</th>
-              <th className="px-3 py-1.5 text-right font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={showStats ? 8 : 5} className="px-3 py-6 text-center text-muted">
-                  No containers match.
-                </td>
-              </tr>
-            )}
-            {filtered.map((r) => (
-              <ContainerRowView
-                key={r.id || r.name}
-                row={r}
-                instanceId={instanceId}
-                showStats={showStats}
-                onLogs={() => setLogsFor(r)}
-                onInspect={async () => {
-                  const res = await inspectContainerAction({ instanceId, containerId: r.id || r.name });
-                  if (!res.ok) {
-                    toast.error(res.error ?? "Inspect failed");
-                    return;
+        }
+        rowActions={(row) => {
+          const key = row.id || row.name;
+          const isRunning = row.state === "running";
+          return (
+            <>
+              {!isRunning && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("actions.start")}
+                  title={t("actions.start")}
+                  loading={verb.pending && busy === `${key}:start`}
+                  onClick={() => void runVerb(row, "start")}
+                >
+                  <Play className="size-4" aria-hidden />
+                </Button>
+              )}
+              {isRunning && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("actions.stop")}
+                  title={t("actions.stop")}
+                  loading={verb.pending && busy === `${key}:stop`}
+                  onClick={() => void runVerb(row, "stop")}
+                >
+                  <Square className="size-4" aria-hidden />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("actions.restart")}
+                title={t("actions.restart")}
+                loading={verb.pending && busy === `${key}:restart`}
+                onClick={() => void runVerb(row, "restart")}
+              >
+                <RotateCcw className="size-4" aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("actions.pull")}
+                title={t("actions.pull")}
+                loading={verb.pending && busy === `${key}:pull`}
+                onClick={() => void runVerb(row, "pull")}
+              >
+                <Download className="size-4" aria-hidden />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={t("actions.logs")} title={t("actions.logs")} onClick={() => setLogsFor(row)}>
+                <FileText className="size-4" aria-hidden />
+              </Button>
+              {isRunning && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("actions.exec")}
+                  title={t("actions.exec")}
+                  onClick={() =>
+                    window.open(
+                      `/terminal?instance=${encodeURIComponent(instanceId)}&container=${encodeURIComponent(row.id || row.name)}`,
+                      "_blank",
+                      "noopener",
+                    )
                   }
-                  setInspectFor({ row: r, data: res.data });
-                }}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+                >
+                  <TerminalSquare className="size-4" aria-hidden />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" aria-label={t("actions.inspect")} title={t("actions.inspect")} onClick={() => void inspect(row)}>
+                <Search className="size-4" aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("actions.remove")}
+                title={t("actions.remove")}
+                loading={verb.pending && busy === `${key}:remove`}
+                onClick={() => void runVerb(row, "remove")}
+              >
+                <Trash2 className="size-4 text-danger" aria-hidden />
+              </Button>
+            </>
+          );
+        }}
+      />
 
-      {logsFor && (
-        <ContainerLogsModal
-          instanceId={instanceId}
-          row={logsFor}
-          onClose={() => setLogsFor(null)}
-        />
-      )}
-      {inspectFor && (
-        <InspectModal row={inspectFor.row} data={inspectFor.data} onClose={() => setInspectFor(null)} />
-      )}
+      <Sheet open={logsRow !== null} onOpenChange={(open) => !open && setLogsFor(null)}>
+        {logsRow && (
+          <SheetContent title={t("logs.title", { name: logsRow.name || logsRow.id })} className="md:w-[min(56rem,92vw)]">
+            <ContainerLogs instanceId={instanceId} row={logsRow} />
+          </SheetContent>
+        )}
+      </Sheet>
+
+      <Sheet open={inspectRow !== null} onOpenChange={(open) => !open && setInspectFor(null)}>
+        {inspectRow && (
+          <SheetContent title={t("inspect.title", { name: inspectRow.row.name || inspectRow.row.id })} className="md:w-[min(56rem,92vw)]">
+            <LogViewer text={JSON.stringify(inspectRow.data, null, 2)} height="h-[70dvh]" autoScroll={false} wrap />
+          </SheetContent>
+        )}
+      </Sheet>
     </div>
   );
 }
 
-function ContainerRowView({
-  row,
-  instanceId,
-  showStats,
-  onLogs,
-  onInspect,
-}: {
-  row: ContainerRow;
-  instanceId: string;
-  showStats: boolean;
-  onLogs: () => void;
-  onInspect: () => void;
-}) {
-  const [pending, start] = useTransition();
-  const isRunning = row.state === "running";
-
-  const act = (action: "start" | "stop" | "restart" | "remove" | "pull") =>
-    start(async () => {
-      const res = await containerActionAction({ instanceId, containerId: row.id || row.name, action });
-      if (res.ok) toast.success(`${action} ok`);
-      else toast.error(res.error ?? res.output?.slice(0, 200) ?? `${action} failed`);
-    });
-
-  return (
-    <tr className="border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-muted)]/40">
-      <td className="px-3 py-1.5 font-mono">{row.name || row.id}</td>
-      <td className="px-3 py-1.5 font-mono text-muted">{row.image}</td>
-      <td className="px-3 py-1.5">
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${STATE_COLOR[row.state] ?? "bg-slate-500/15 text-slate-300"}`}>
-          {row.state || "—"}
-        </span>
-        <span className="ml-1 text-[10px] text-muted">{row.status}</span>
-      </td>
-      {showStats && (
-        <td className="px-3 py-1.5 text-right font-mono text-[11px] tabular-nums">
-          {row.cpuPct != null ? `${row.cpuPct.toFixed(1)}%` : "—"}
-        </td>
-      )}
-      {showStats && (
-        <td className="px-3 py-1.5 text-right font-mono text-[11px] tabular-nums" title={row.memUsage}>
-          {row.memPct != null ? `${row.memPct.toFixed(1)}%` : "—"}
-        </td>
-      )}
-      {showStats && (
-        <td className="px-3 py-1.5 font-mono text-[10px] text-muted">{row.netIo || "—"}</td>
-      )}
-      <td className="px-3 py-1.5 font-mono text-[10px] text-muted">{row.ports || "—"}</td>
-      <td className="px-3 py-1.5 text-right">
-        <div className="inline-flex items-center gap-0.5">
-          {!isRunning && <IconBtn title="Start" onClick={() => act("start")} disabled={pending} icon={<Play className="h-3 w-3" />} />}
-          {isRunning && <IconBtn title="Stop" onClick={() => act("stop")} disabled={pending} icon={<Square className="h-3 w-3" />} />}
-          <IconBtn title="Restart" onClick={() => act("restart")} disabled={pending} icon={<RotateCcw className="h-3 w-3" />} />
-          <IconBtn title="Pull image" onClick={() => act("pull")} disabled={pending} icon={<Download className="h-3 w-3" />} />
-          <IconBtn title="Logs" onClick={onLogs} icon={<FileText className="h-3 w-3" />} />
-          {isRunning && (
-            <IconBtn
-              title="Exec shell"
-              onClick={() => {
-                const url = `/terminal?instance=${encodeURIComponent(instanceId)}&container=${encodeURIComponent(row.id || row.name)}`;
-                window.open(url, "_blank", "noopener");
-              }}
-              icon={<TerminalSquare className="h-3 w-3" />}
-            />
-          )}
-          <IconBtn title="Inspect" onClick={onInspect} icon={<Search className="h-3 w-3" />} />
-          <IconBtn
-            title="Remove"
-            onClick={() => {
-              if (window.confirm(`Remove container ${row.name || row.id}?`)) act("remove");
-            }}
-            disabled={pending}
-            icon={<Trash2 className="h-3 w-3 text-red-400" />}
-          />
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-function IconBtn({
-  title,
-  onClick,
-  icon,
-  disabled,
-}: {
-  title: string;
-  onClick: () => void;
-  icon: React.ReactNode;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded p-1 hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
-    >
-      {icon}
-    </button>
-  );
-}
-
-function ContainerLogsModal({
-  instanceId,
-  row,
-  onClose,
-}: {
-  instanceId: string;
-  row: ContainerRow;
-  onClose: () => void;
-}) {
+function ContainerLogs({ instanceId, row }: { instanceId: string; row: ContainerRow }) {
+  const t = useTranslations("ops.containers");
   const [lines, setLines] = useState<string[]>([]);
-  const preRef = useRef<HTMLPreElement | null>(null);
 
   useEffect(() => {
     const url = `/api/instances/${encodeURIComponent(instanceId)}/containers/${encodeURIComponent(row.id || row.name)}/logs?rt=${row.runtime}`;
@@ -289,9 +364,6 @@ function ContainerLogsModal({
       try {
         const { line } = JSON.parse((e as MessageEvent).data) as { line: string };
         setLines((prev) => (prev.length > 1000 ? [...prev.slice(-800), line] : [...prev, line]));
-        requestAnimationFrame(() => {
-          if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight;
-        });
       } catch {
         /* ignore */
       }
@@ -299,43 +371,5 @@ function ContainerLogsModal({
     return () => ev.close();
   }, [instanceId, row]);
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
-      >
-        <header className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-2">
-          <div className="text-sm font-semibold">logs · {row.name || row.id}</div>
-          <button onClick={onClose} className="text-xs text-muted hover:underline">
-            close
-          </button>
-        </header>
-        <pre ref={preRef} className="flex-1 overflow-auto bg-[#0b0f17] p-3 font-mono text-[11px] text-slate-200">
-          {lines.join("\n")}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-function InspectModal({ row, data, onClose }: { row: ContainerRow; data: unknown; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="flex h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
-      >
-        <header className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-2">
-          <div className="text-sm font-semibold">inspect · {row.name || row.id}</div>
-          <button onClick={onClose} className="text-xs text-muted hover:underline">
-            close
-          </button>
-        </header>
-        <pre className="flex-1 overflow-auto bg-[#0b0f17] p-3 font-mono text-[11px] text-slate-200">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      </div>
-    </div>
-  );
+  return <LogViewer lines={lines} height="h-[70dvh]" loading={lines.length === 0} emptyLabel={t("logs.empty")} />;
 }

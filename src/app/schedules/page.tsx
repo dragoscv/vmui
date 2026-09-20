@@ -1,17 +1,20 @@
 import "server-only";
-import { Clock } from "lucide-react";
-import { listSchedules } from "@/server/queries/schedules";
-import { db } from "@/lib/db";
-import { instances, cloudAccounts } from "@/lib/db/schema";
 import { SchedulesManager } from "@/components/schedules/schedules-manager";
+import { PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
+import { db } from "@/lib/db";
+import { cloudAccounts, instances } from "@/lib/db/schema";
+import { listSchedules } from "@/server/queries/schedules";
+import { CalendarClock, Clock, PauseCircle, PlayCircle } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function SchedulesPage() {
-  const [rows, instanceList, accountList] = await Promise.all([
+  const [rows, instanceList, accountList, t] = await Promise.all([
     listSchedules(),
     db.select().from(instances),
     db.select().from(cloudAccounts),
+    getTranslations("ops.schedules"),
   ]);
   const instanceMap = new Map(instanceList.map((i) => [i.id, i] as const));
   const accountMap = new Map(accountList.map((a) => [a.id, a] as const));
@@ -27,8 +30,8 @@ export default async function SchedulesPage() {
       label: s.label,
       lastRunAt: s.lastRunAt,
       lastRunStatus: s.lastRunStatus,
-      instanceName: inst?.displayName ?? inst?.name ?? inst?.providerInstanceId ?? "(unknown)",
-      accountName: acc?.name ?? "(unknown)",
+      instanceName: inst?.displayName ?? inst?.name ?? inst?.providerInstanceId ?? t("unknown"),
+      accountName: acc?.name ?? t("unknown"),
     };
   });
 
@@ -42,20 +45,19 @@ export default async function SchedulesPage() {
     })
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Clock className="h-6 w-6 text-[var(--color-primary)]" />
-          Schedules
-        </h1>
-        <p className="text-sm text-muted">
-          Cron-driven start / stop / reboot. Use to auto-shutdown dev VMs overnight, weekly reboots, or
-          scheduled wake-ups.
-        </p>
-      </div>
+  const enabled = summaries.filter((s) => s.enabled).length;
 
-      <SchedulesManager initialSchedules={summaries} instances={pickList} />
-    </div>
+  return (
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<Clock />} />
+      <StatGrid cols={3}>
+        <Stat label={t("stats.total")} value={summaries.length} icon={<CalendarClock />} />
+        <Stat label={t("stats.enabled")} value={enabled} icon={<PlayCircle />} tone={enabled > 0 ? "success" : "default"} />
+        <Stat label={t("stats.paused")} value={summaries.length - enabled} icon={<PauseCircle />} />
+      </StatGrid>
+      <PageSection title={t("listTitle")} description={t("listDescription")}>
+        <SchedulesManager initialSchedules={summaries} instances={pickList} />
+      </PageSection>
+    </PageShell>
   );
 }

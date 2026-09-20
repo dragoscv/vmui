@@ -1,0 +1,658 @@
+{
+	"compliance": {
+		"title": "Compliance",
+		"description": "Static controls evaluated over cached cloud resources. No provider calls beyond a normal sync.",
+		"scan": "Run scan",
+		"scanned": "Scan complete — {count, plural, =0 {no findings} one {# finding} other {# findings}}",
+		"stats": {
+			"score": "Score",
+			"scoreHint": "{passing} of {total} controls passing",
+			"findings": "Open findings",
+			"critical": "Critical",
+			"criticalHint": "{high} high, {medium} medium, {low} low",
+			"failing": "Failing controls"
+		},
+		"donut": {
+			"title": "Control status",
+			"ariaLabel": "Passing versus failing controls",
+			"passing": "Passing",
+			"failing": "Failing",
+			"total": "controls"
+		},
+		"filter": {
+			"label": "Filter controls",
+			"all": "All",
+			"failing": "Failing",
+			"passing": "Passing"
+		},
+		"columns": {
+			"control": "Control",
+			"severity": "Severity",
+			"status": "Status",
+			"resources": "Resources"
+		},
+		"status": {
+			"failing": "Failing",
+			"passing": "Passing"
+		},
+		"severity": {
+			"critical": "Critical",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low"
+		},
+		"empty": {
+			"title": "Nothing to show",
+			"description": "No control matches this filter."
+		},
+		"sheet": {
+			"affected": "Affected resources",
+			"affectedCount": "{count, plural, =0 {No resources} one {# resource} other {# resources}}",
+			"remediation": "How to fix",
+			"clean": "This control is passing — no affected resources.",
+			"openDetail": "Open control details"
+		},
+		"fix": {
+			"revoke": "Revoke",
+			"revokeLabel": "Revoke open-world rule on {id}",
+			"delete": "Delete",
+			"deleteLabel": "Delete orphan resource {id}"
+		},
+		"controls": {
+			"ssh-open-world": {
+				"title": "SSH not open to the world",
+				"steps": {
+					"1": "Open the security group and find the 0.0.0.0/0 rule on port 22.",
+					"2": "Replace it with your office or VPN CIDR, or move to a bastion host.",
+					"3": "Re-run the scan to confirm the finding is gone."
+				}
+			},
+			"rdp-open-world": {
+				"title": "RDP not open to the world",
+				"steps": {
+					"1": "Open the security group and find the 0.0.0.0/0 rule on port 3389.",
+					"2": "Restrict it to a known CIDR or publish the desktop through a gateway.",
+					"3": "Re-run the scan to confirm the finding is gone."
+				}
+			},
+			"any-open-world": {
+				"title": "No all-ports ingress from the world",
+				"steps": {
+					"1": "Locate the rule with protocol -1 and source 0.0.0.0/0.",
+					"2": "Split it into explicit per-port rules with narrow sources.",
+					"3": "Re-run the scan to confirm the finding is gone."
+				}
+			},
+			"public-bucket": {
+				"title": "Buckets are not publicly readable",
+				"steps": {
+					"1": "Remove AllUsers and AuthenticatedUsers grants from the bucket ACL.",
+					"2": "Set public-access prevention to enforced and serve files through signed URLs.",
+					"3": "Sync the account and re-run the scan."
+				}
+			},
+			"unencrypted-volume": {
+				"title": "Volumes encrypted at rest",
+				"steps": {
+					"1": "Snapshot the volume, then copy the snapshot with encryption enabled.",
+					"2": "Create a new volume from the encrypted snapshot and swap the attachment.",
+					"3": "Delete the unencrypted volume and its snapshot."
+				}
+			},
+			"stopped-but-billable": {
+				"title": "No stopped VMs paying for storage",
+				"steps": {
+					"1": "Decide whether the VM is still needed.",
+					"2": "If not, snapshot it and terminate it so the volumes are released.",
+					"3": "If it is, move the data to cheaper storage or accept the cost."
+				}
+			},
+			"long-stopped": {
+				"title": "No long-stopped VMs",
+				"steps": {
+					"1": "Check with the owner tag whether the VM is still wanted.",
+					"2": "Take a final snapshot for safety.",
+					"3": "Terminate the VM to stop storage billing."
+				}
+			},
+			"missing-required-tags": {
+				"title": "Required tags present everywhere",
+				"steps": {
+					"1": "Open the account and read its required-tag list.",
+					"2": "Apply the missing keys in bulk from the Tags page.",
+					"3": "Add an auto-tag rule so new VMs get them at sync time."
+				}
+			},
+			"orphan-snapshot": {
+				"title": "No orphan snapshots",
+				"steps": {
+					"1": "Confirm the source volume no longer exists.",
+					"2": "Export the snapshot if you still need the data.",
+					"3": "Delete the snapshot to stop storage billing."
+				}
+			},
+			"orphan-volume": {
+				"title": "No unattached volumes",
+				"steps": {
+					"1": "Confirm no VM needs the volume any more.",
+					"2": "Snapshot it if the data still matters.",
+					"3": "Delete the volume to stop storage billing."
+				}
+			},
+			"orphan-elastic-ip": {
+				"title": "No unattached elastic IPs",
+				"steps": {
+					"1": "Check whether a DNS record still points at the address.",
+					"2": "Re-attach it to a VM or update DNS first.",
+					"3": "Release the address to stop the hourly charge."
+				}
+			}
+		}
+	},
+	"cis": {
+		"title": "CIS Linux benchmark",
+		"description": "A subset of CIS Linux Benchmark v3 evaluated over SSH with the probe key. Pass = exit 0.",
+		"instance": "Linux instance",
+		"instancePlaceholder": "Pick an instance",
+		"run": "Run scan",
+		"scanned": "Scan finished",
+		"pickFirst": {
+			"title": "Pick an instance",
+			"description": "Choose a Linux VM above to see its latest benchmark results."
+		},
+		"noInstances": {
+			"title": "No Linux instances",
+			"description": "Sync an account with a Linux VM to run the benchmark."
+		},
+		"stats": {
+			"score": "Score",
+			"scoreHint": "{pass} of {total} checks pass",
+			"pass": "Pass",
+			"fail": "Fail",
+			"error": "Error",
+			"skip": "Skipped"
+		},
+		"donut": {
+			"title": "Check results",
+			"ariaLabel": "Passing versus failing benchmark checks",
+			"total": "checks"
+		},
+		"filter": {
+			"label": "Filter checks",
+			"all": "All",
+			"failing": "Failing",
+			"passing": "Passing"
+		},
+		"columns": {
+			"check": "Check",
+			"name": "Title",
+			"result": "Result",
+			"evidence": "Evidence"
+		},
+		"result": {
+			"pass": "Pass",
+			"fail": "Fail",
+			"error": "Error",
+			"skip": "Skipped"
+		},
+		"empty": {
+			"title": "No results yet",
+			"description": "Run a scan to collect benchmark results for this instance."
+		},
+		"sheet": {
+			"evidence": "Evidence",
+			"noEvidence": "The check returned no output.",
+			"remediation": "How to fix",
+			"steps": {
+				"1": "Connect to the VM and reproduce the check command by hand.",
+				"2": "Apply the CIS-recommended setting and persist it (sysctl.d, sshd_config, systemd unit).",
+				"3": "Re-run the scan so the result is recorded."
+			},
+			"ranAt": "Last run",
+			"openDetail": "Open check details"
+		}
+	},
+	"secrets": {
+		"title": "Secrets",
+		"description": "AES-256-GCM encrypted secrets with rotation reminders, reveal auditing, push-to-VM and sealed export.",
+		"add": "Add secret",
+		"columns": {
+			"name": "Name",
+			"scope": "Scope",
+			"rotation": "Rotation",
+			"lastRotated": "Last rotated"
+		},
+		"kinds": {
+			"db": "Database",
+			"api-key": "API key",
+			"password": "Password",
+			"generic": "Generic"
+		},
+		"sealed": "Sealed",
+		"rotationDays": "{n, plural, one {# day} other {# days}}",
+		"noRotation": "No reminder",
+		"never": "Never",
+		"actions": {
+			"reveal": "Reveal once",
+			"rotate": "Rotate",
+			"push": "Push to VM",
+			"export": "Sealed export",
+			"delete": "Delete"
+		},
+		"empty": {
+			"title": "No secrets stored",
+			"description": "Add one and it is encrypted with the master key before it touches disk."
+		},
+		"create": {
+			"title": "New secret",
+			"description": "The value is encrypted immediately and never shown again unless you reveal it.",
+			"name": "Name",
+			"namePlaceholder": "DATABASE_URL",
+			"nameHint": "Letters, digits, underscore or dash.",
+			"kind": "Kind",
+			"value": "Value",
+			"rotation": "Rotation reminder (days)",
+			"rotationHint": "0 disables the reminder.",
+			"sealed": "Sealed",
+			"sealedHint": "Require re-authentication before revealing.",
+			"submit": "Store secret"
+		},
+		"revealed": {
+			"title": "{name} — shown once",
+			"hint": "Copy it now. It disappears automatically and is not shown again.",
+			"copy": "Copy value",
+			"copied": "Copied",
+			"dismiss": "Hide now",
+			"countdown": "Auto-hide in {seconds}s"
+		},
+		"push": {
+			"title": "Push {name} to a VM",
+			"description": "Writes the secret into an env file on a reachable running VM over SSH.",
+			"instance": "Instance",
+			"path": "Env file path",
+			"submit": "Push",
+			"none": "No running VM with a reachable address."
+		},
+		"export": {
+			"title": "Sealed export of {name}",
+			"description": "Downloads a scrypt-encrypted JSON file you can restore elsewhere.",
+			"passphrase": "Passphrase",
+			"passphraseHint": "At least 8 characters. You will need it to open the file.",
+			"submit": "Download"
+		},
+		"confirm": {
+			"rotate": {
+				"title": "Rotate {name}?",
+				"description": "A new value replaces the current one. Anything still using the old value breaks.",
+				"confirm": "Rotate"
+			},
+			"delete": {
+				"title": "Delete {name}?",
+				"description": "The encrypted value is removed for good. This cannot be undone.",
+				"confirm": "Delete"
+			}
+		},
+		"toast": {
+			"created": "Secret stored",
+			"rotated": "Rotated — new value shown once",
+			"deleted": "Secret deleted",
+			"pushed": "Pushed to the VM",
+			"exported": "Sealed file downloaded"
+		}
+	},
+	"teams": {
+		"title": "Teams",
+		"description": "Group users, invite collaborators and scope cloud accounts. Invitations are one-time tokens valid for 7 days.",
+		"create": {
+			"title": "New team",
+			"name": "Name",
+			"namePlaceholder": "Platform",
+			"slug": "Slug",
+			"slugPlaceholder": "platform",
+			"submit": "Create team"
+		},
+		"members": {
+			"title": "Members",
+			"count": "{count, plural, one {# member} other {# members}}",
+			"columns": {
+				"member": "Member",
+				"role": "Role",
+				"joined": "Joined"
+			},
+			"roleLabel": "Role of {name}",
+			"remove": "Remove {name}",
+			"empty": {
+				"title": "No members",
+				"description": "Invite someone to get started."
+			}
+		},
+		"roles": {
+			"owner": "Owner",
+			"admin": "Admin",
+			"operator": "Operator",
+			"viewer": "Viewer",
+			"member": "Member"
+		},
+		"invitations": {
+			"title": "Pending invitations",
+			"empty": "No pending invitations.",
+			"expires": "Expires {date}"
+		},
+		"invite": {
+			"open": "Invite",
+			"title": "Invite to {team}",
+			"description": "Creates a one-time link. Nothing is emailed — share it yourself.",
+			"email": "Email",
+			"emailPlaceholder": "person@example.com",
+			"role": "Role",
+			"submit": "Create invitation",
+			"linkTitle": "Invitation link",
+			"linkHint": "Shown once. Share it with the invitee.",
+			"copy": "Copy link",
+			"copied": "Copied"
+		},
+		"confirmRemove": {
+			"title": "Remove {name}?",
+			"description": "They lose access to this team immediately. You can invite them again later.",
+			"confirm": "Remove"
+		},
+		"empty": {
+			"title": "No teams yet",
+			"description": "Create one to group users and share cloud accounts."
+		},
+		"toast": {
+			"created": "Team created",
+			"invited": "Invitation created",
+			"removed": "Member removed",
+			"roleChanged": "Role updated"
+		}
+	},
+	"accept": {
+		"title": "Team invitation",
+		"success": {
+			"title": "You joined the team",
+			"description": "The invitation was accepted and your membership is active.",
+			"cta": "Go to teams"
+		},
+		"failure": {
+			"title": "Invitation not accepted",
+			"cta": "Back to teams"
+		},
+		"errors": {
+			"missing": "This link has no invitation token.",
+			"notFound": "This invitation does not exist. Ask for a fresh link.",
+			"accepted": "This invitation was already used.",
+			"expired": "This invitation expired. Ask for a fresh link.",
+			"generic": "The invitation could not be accepted."
+		}
+	},
+	"tags": {
+		"title": "Tags",
+		"description": "Govern, audit and bulk-apply tags across the fleet.",
+		"stats": {
+			"instances": "Instances",
+			"tagged": "Tagged",
+			"taggedHint": "{pct}% of the fleet",
+			"untagged": "Untagged"
+		},
+		"keys": {
+			"title": "Top tag keys",
+			"description": "Most used keys across every provider.",
+			"empty": "No tags applied yet.",
+			"usage": "{instances, plural, one {# instance} other {# instances}} · {values, plural, one {# value} other {# values}}"
+		},
+		"coverage": {
+			"title": "Required-tag coverage",
+			"description": "Per account, how many instances carry every required key.",
+			"empty": "No cloud accounts yet.",
+			"noRequired": "No required tags configured.",
+			"compliant": "{compliant} of {total} fully tagged",
+			"requires": "Requires"
+		},
+		"bulk": {
+			"title": "Bulk tagging",
+			"description": "Apply the same tag set to many VMs at once. AWS, Azure and GCP supported.",
+			"tagsTitle": "1 · Choose tags",
+			"targetsTitle": "2 · Pick targets",
+			"key": "Key",
+			"keyPlaceholder": "owner",
+			"value": "Value",
+			"valuePlaceholder": "platform-team",
+			"addTag": "Add tag",
+			"removeTag": "Remove tag row",
+			"filterPlaceholder": "Filter by name, region or type…",
+			"provider": "Provider",
+			"allProviders": "All providers",
+			"selected": "{count, plural, =0 {none selected} one {# selected} other {# selected}}",
+			"selectAll": "Select all visible",
+			"select": "Select {name}",
+			"columns": {
+				"name": "Name",
+				"provider": "Provider",
+				"region": "Region",
+				"type": "Type",
+				"state": "State"
+			},
+			"empty": {
+				"title": "No VMs match",
+				"description": "Loosen the filter or sync another account."
+			},
+			"apply": "Apply to {count, plural, one {# VM} other {# VMs}}",
+			"confirm": {
+				"title": "Apply {tags, plural, one {# tag} other {# tags}} to {vms, plural, one {# VM} other {# VMs}}?",
+				"description": "Existing values for the same keys are overwritten at the provider.",
+				"confirm": "Apply"
+			},
+			"toast": {
+				"noTags": "Add at least one tag key",
+				"noTargets": "Select at least one VM",
+				"success": "{count, plural, one {# VM tagged} other {# VMs tagged}}",
+				"partial": "{ok} succeeded, {failed} failed: {error}"
+			}
+		}
+	},
+	"tagPolicies": {
+		"title": "Tag policies",
+		"description": "A policy selects instances with a condition and requires a set of tag keys on them.",
+		"dslTitle": "Condition syntax",
+		"dslHint": "Operators = != ~ !~ joined with AND / OR. Fields: provider, region, state, tag.<key>.",
+		"dslExample": "provider=aws AND region~^eu AND tag.team!=\"\"",
+		"stats": {
+			"policies": "Policies",
+			"enabled": "Enabled",
+			"violations": "Violations"
+		},
+		"create": {
+			"title": "New policy",
+			"name": "Name",
+			"namePlaceholder": "EU production must be owned",
+			"condition": "Condition",
+			"requiredKeys": "Required tag keys",
+			"requiredKeysPlaceholder": "owner, env",
+			"requiredKeysHint": "Comma-separated.",
+			"enabled": "Enabled",
+			"enabledHint": "Disabled policies are kept but not evaluated.",
+			"submit": "Add policy"
+		},
+		"columns": {
+			"name": "Name",
+			"condition": "Condition",
+			"required": "Required keys",
+			"enabled": "Enabled"
+		},
+		"toggleLabel": "Enable {name}",
+		"delete": "Delete policy {name}",
+		"confirmDelete": {
+			"title": "Delete {name}?",
+			"description": "The policy and its violations disappear from the report.",
+			"confirm": "Delete"
+		},
+		"empty": {
+			"title": "No policies",
+			"description": "Add one above to start enforcing tag keys."
+		},
+		"violations": {
+			"title": "Current violations",
+			"description": "Instances selected by a policy that are missing at least one required key.",
+			"none": {
+				"title": "Every instance is compliant",
+				"description": "No policy is currently violated."
+			},
+			"columns": {
+				"instance": "Instance",
+				"policy": "Policy",
+				"missing": "Missing keys"
+			}
+		},
+		"toast": {
+			"created": "Policy saved",
+			"deleted": "Policy deleted",
+			"toggled": "Policy updated"
+		}
+	},
+	"tagDrift": {
+		"title": "Tag drift",
+		"description": "VMs whose vmui-local tags no longer match the provider's native tags or labels.",
+		"stats": {
+			"drifting": "Drifting VMs",
+			"conflicts": "Conflicting keys",
+			"onlyLocal": "Keys only local",
+			"onlyProvider": "Keys only at provider"
+		},
+		"none": {
+			"title": "No drift detected",
+			"description": "Every VM's local tags match its provider tags."
+		},
+		"columns": {
+			"instance": "Instance",
+			"provider": "Provider",
+			"onlyProvider": "Only at provider",
+			"onlyLocal": "Only local",
+			"conflicting": "Conflicting"
+		},
+		"push": "Push local tags",
+		"pushLabel": "Push local tags for {name}",
+		"confirmPush": {
+			"title": "Push local tags to {name}?",
+			"description": "The provider's tags for these keys are overwritten with the vmui-local values.",
+			"confirm": "Push"
+		},
+		"sheet": {
+			"onlyProvider": "Only at the provider",
+			"onlyLocal": "Only in vmui",
+			"conflicting": "Conflicting values",
+			"none": "Nothing in this group.",
+			"empty": "empty",
+			"providerValue": "Provider",
+			"localValue": "Local",
+			"openDetail": "Show drift detail for {name}"
+		},
+		"toast": {
+			"pushed": "Local tags pushed to the provider"
+		}
+	},
+	"autoTag": {
+		"title": "Auto-tag rules",
+		"description": "VMs whose name matches the pattern get the tag applied at sync time. Highest priority wins.",
+		"create": {
+			"title": "New rule",
+			"pattern": "Name pattern",
+			"patternPlaceholder": "^prod-",
+			"patternHint": "JavaScript regular expression.",
+			"key": "Tag key",
+			"keyPlaceholder": "env",
+			"value": "Tag value",
+			"valuePlaceholder": "prod",
+			"priority": "Priority",
+			"priorityHint": "Higher runs first.",
+			"enabled": "Enabled",
+			"enabledHint": "Disabled rules are kept but skipped at sync.",
+			"submit": "Add rule"
+		},
+		"columns": {
+			"pattern": "Pattern",
+			"tag": "Tag",
+			"priority": "Priority",
+			"enabled": "Enabled"
+		},
+		"toggleLabel": "Enable rule {pattern}",
+		"delete": "Delete rule {pattern}",
+		"confirmDelete": {
+			"title": "Delete this rule?",
+			"description": "Tags it already applied stay on the VMs; nothing new is tagged.",
+			"confirm": "Delete"
+		},
+		"empty": {
+			"title": "No rules yet",
+			"description": "Add one to tag VMs automatically as they are discovered."
+		},
+		"toast": {
+			"created": "Rule saved",
+			"deleted": "Rule deleted",
+			"toggled": "Rule updated"
+		}
+	},
+	"achievements": {
+		"title": "Achievements",
+		"description": "Operator XP, computed from your audit log.",
+		"stats": {
+			"unlocked": "Unlocked",
+			"unlockedHint": "of {total}",
+			"streak": "Current streak",
+			"streakHint": "longest {days, plural, one {# day} other {# days}}",
+			"actions": "Audited actions"
+		},
+		"next": {
+			"title": "Closest to unlocking",
+			"description": "The badge you are nearest to earning."
+		},
+		"progress": "{progress} / {goal}",
+		"unlocked": "Unlocked",
+		"locked": "Locked",
+		"items": {
+			"first-vm": { "title": "First light", "description": "Provision your first VM" },
+			"fleet-builder": { "title": "Fleet builder", "description": "Run 10 VMs" },
+			"snap-happy": { "title": "Snap happy", "description": "Take 25 snapshots" },
+			"backup-believer": { "title": "Backup believer", "description": "Complete 5 successful backup jobs" },
+			"restore-hero": { "title": "Restore hero", "description": "Restore a VM from a snapshot" },
+			"polyglot": { "title": "Polyglot", "description": "Run VMs on 3 different clouds" },
+			"ai-curious": { "title": "AI curious", "description": "Have a chat with the AI agent" },
+			"centurion": { "title": "Centurion", "description": "Reach 100 audited actions" },
+			"streak-7": { "title": "On a roll", "description": "Keep a 7-day activity streak" },
+			"streak-30": { "title": "Daily driver", "description": "Keep a 30-day activity streak" }
+		}
+	},
+	"auditChain": {
+		"title": "Audit signing chain",
+		"description": "Every five minutes the scheduler folds new audit rows into a SHA-256 hash chain, then HMACs each segment with the master key. Tampering breaks verification.",
+		"verify": "Verify chain",
+		"verified": {
+			"title": "Chain verified",
+			"description": "All segment hashes and HMACs match across {count, plural, =0 {no segments} one {# segment} other {# segments}}."
+		},
+		"invalid": {
+			"title": "Chain is broken",
+			"description": "Verification failed at segment {segment}: {reason}"
+		},
+		"stats": {
+			"segments": "Segments",
+			"covered": "Audit rows covered",
+			"latest": "Last segment"
+		},
+		"columns": {
+			"segment": "Segment",
+			"range": "Audit rows",
+			"hash": "Hash",
+			"hmac": "HMAC",
+			"when": "Computed"
+		},
+		"empty": {
+			"title": "No segments yet",
+			"description": "The scheduler appends the first segment on its next tick."
+		},
+		"toast": {
+			"verified": "Chain verified",
+			"invalid": "Chain verification failed"
+		}
+	}
+}

@@ -26,11 +26,15 @@ cd apps\desktop; pnpm exec tauri android dev        # live reload on the connect
   `_vmui._tcp` (avahi advert on the Pi, `pi/avahi-vmui.service`) and probes
   `homepi` / `homepi.local` / the LAN IP, then `POST /api/devices/pair` →
   `{id, token, code}`. The 4-digit code shows on the phone; approve it from
-  **vmui web → Home → Displays**, the **desktop tray/window** (Windows toast +
+  **vmui web → Home → Notifications**, the **desktop tray/window** (Windows toast +
   "Dispozitive noi" submenu + banner) or **another paired phone** (banner). Or
   sign in with the vmui account on the phone → approved at once. Tokens are
   `vmd_…`, stored hashed in `paired_devices`, revocable from any of those
   places; `espAuthorized()` accepts them as `Authorization: Bearer` / `?d=`.
+  Approving from the web binds the device to a family member
+  (`paired_devices.user_id`, the approver by default); approving through the
+  shared token (tray, another phone) leaves it **unbound** — it then acts as
+  the owner until it is rebound from Home → Settings → Family.
 - From outside the house it is the same URL over Tailscale (the Pi is a subnet
   router for 192.168.100.0/24).
 - **PC from the phone**: `POST /api/desktop/pc` on the Pi publishes to MQTT

@@ -1,0 +1,1244 @@
+{
+  "shared": {
+    "provider": {
+      "aws": "AWS",
+      "azure": "Azure",
+      "gcp": "Google Cloud",
+      "scaleway": "Scaleway",
+      "digitalocean": "DigitalOcean",
+      "hetzner": "Hetzner",
+      "local-kvm": "Local",
+      "unknown": "Necunoscut"
+    }
+  },
+  "accounts": {
+    "title": "Conturi cloud",
+    "description": "Conectează furnizori și administrează instanțele, resursele și cheltuielile lor dintr-un singur loc.",
+    "count": "{count, plural, =0 {Niciun cont} one {# cont} few {# conturi} other {# de conturi}}",
+    "add": "Adaugă cont",
+    "viewLabel": "Așezarea conturilor",
+    "view": {
+      "grid": "Grilă",
+      "list": "Listă"
+    },
+    "empty": {
+      "title": "Niciun cont conectat încă",
+      "description": "Conectează AWS, Azure, Google Cloud, DigitalOcean, Hetzner, Scaleway sau un host KVM local pentru a începe să administrezi VM-uri.",
+      "action": "Conectează primul cont"
+    },
+    "health": {
+      "ok": "Sănătos",
+      "warn": "Necesită atenție",
+      "bad": "Cu probleme"
+    },
+    "moreRegions": "+{count}",
+    "free": "Gratuit",
+    "perMonth": "{amount}/lună",
+    "lastSync": "Ultima sincronizare",
+    "monthlySpend": "Cheltuială lunară",
+    "never": "Niciodată",
+    "trend": "VM-uri active în ultimele 7 zile",
+    "trendAria": "VM-uri active în ultimele 7 zile pentru {name}",
+    "columns": {
+      "provider": "Furnizor",
+      "name": "Nume",
+      "regions": "Regiuni",
+      "health": "Stare",
+      "lastSync": "Ultima sincronizare",
+      "monthlySpend": "Cheltuială lunară"
+    },
+    "openDetail": "Deschide {name}"
+  },
+  "accountNew": {
+    "title": "Conectează un cont cloud",
+    "description": "Alege un furnizor, apoi modul de autentificare. Credențialele sunt criptate AES-256-GCM cu cheia ta master locală și nu părăsesc niciodată această mașină.",
+    "breadcrumb": "Navigare",
+    "back": "Conturi",
+    "pickerLabel": "Furnizor cloud",
+    "providers": {
+      "aws": "Instanțe EC2, hosturi dedicate Mac, graf complet de resurse.",
+      "azure": "Mașini virtuale printr-un service principal, rețea creată automat.",
+      "gcp": "Compute Engine printr-o cheie de service account.",
+      "digitalocean": "Droplets, volume și snapshot-uri cu un personal access token.",
+      "hetzner": "Cele mai ieftine VM-uri cloud din Europa, un token API per proiect.",
+      "scaleway": "Mac mini Apple Silicon bare-metal la Paris.",
+      "local-kvm": "QEMU/KVM sub WSL2 sau Hyper-V pe această mașină."
+    }
+  },
+  "accountDetail": {
+    "breadcrumb": "Navigare",
+    "allAccounts": "Conturi",
+    "connected": "conectat",
+    "stats": {
+      "instances": "Instanțe",
+      "running": "Active",
+      "resources": "Resurse",
+      "burn": "Cost / lună"
+    },
+    "trend": {
+      "title": "Tendință pe 7 zile",
+      "description": "Instanțe active și cost orar, înregistrate la fiecare sincronizare.",
+      "running": "Active",
+      "hourly": "$ / oră"
+    },
+    "regions": {
+      "title": "Regiuni",
+      "description": "Regiunile sincronizate pentru acest cont și ce rulează în fiecare.",
+      "selected": "{count, plural, one {# regiune} few {# regiuni} other {# de regiuni}}",
+      "more": "+{count}",
+      "saved": "Regiuni salvate",
+      "breakdown": "{running}/{total} active",
+      "perMonth": "{amount}/lună",
+      "free": "gratuit"
+    },
+    "probe": {
+      "title": "Credențiale și chei",
+      "description": "O singură cheie privată folosită de vmui pentru a colecta metrici cockpit și a transmite jurnalele cloud-init pentru fiecare instanță din acest cont. Stocată criptat cu cheia ta master.",
+      "configured": "Cheie probe configurată",
+      "configuredHint": "pregătită pentru metrici live",
+      "replace": "Înlocuiește",
+      "upload": "Încarcă cheia probe",
+      "privateKey": "Cheie privată (PEM)",
+      "passphrase": "Parolă cheie (opțional)",
+      "defaultUser": "Utilizator implicit (opțional)",
+      "save": "Salvează cheia",
+      "uploaded": "Cheie probe încărcată",
+      "removed": "Cheie probe eliminată",
+      "removeTitle": "Elimini cheia probe?",
+      "removeDescription": "Metricile cockpit și transmiterea cloud-init se opresc până încarci una nouă."
+    },
+    "policies": {
+      "title": "Politici",
+      "description": "Limite aplicate fiecărei instanțe create sau terminate prin vmui pentru acest cont."
+    },
+    "defaultTags": {
+      "title": "Etichete implicite",
+      "hint": "Aplicate fiecărei instanțe noi create pentru acest cont. Instanțele existente nu sunt modificate.",
+      "empty": "Nicio etichetă implicită. Adaugă una pentru a începe.",
+      "keyLabel": "Cheia etichetei",
+      "keyPlaceholder": "cheie",
+      "valueLabel": "Valoarea etichetei",
+      "valuePlaceholder": "valoare",
+      "removeRow": "Elimină eticheta",
+      "add": "Adaugă etichetă",
+      "backfill": "Aplică pe cele existente",
+      "backfillHint": "Aplică etichetele implicite curente pe fiecare instanță existentă din acest cont",
+      "saved": "Etichete implicite salvate",
+      "backfilled": "{count, plural, one {Aplicat pe # instanță} few {Aplicat pe # instanțe} other {Aplicat pe # de instanțe}}"
+    },
+    "requiredTags": {
+      "title": "Etichete obligatorii",
+      "sectionHint": "Scanarea de conformitate marchează instanțele cărora le lipsește oricare dintre aceste chei.",
+      "label": "Cheia etichetei",
+      "hint": "Apasă Enter pentru a adăuga.",
+      "placeholder": "centru-de-cost",
+      "empty": "Nicio etichetă obligatorie.",
+      "remove": "Elimină {key}",
+      "cleared": "Etichete obligatorii șterse",
+      "saved": "{count, plural, one {Salvată # etichetă obligatorie} few {Salvate # etichete obligatorii} other {Salvate # de etichete obligatorii}}"
+    },
+    "budget": {
+      "title": "Plafon bugetar lunar",
+      "sectionHint": "Limită strictă. Instanțele noi sunt refuzate când costul estimat ar depăși această valoare.",
+      "label": "USD / lună",
+      "hint": "Lasă gol pentru a dezactiva.",
+      "invalid": "Introdu o sumă pozitivă în USD sau lasă gol pentru a dezactiva.",
+      "cleared": "Plafon bugetar șters",
+      "saved": "Plafon: ${amount}/lună"
+    },
+    "vcpu": {
+      "title": "Cotă vCPU",
+      "sectionHint": "Limită strictă pentru suma vCPU-urilor instanțelor active din acest cont.",
+      "label": "vCPU-uri",
+      "hint": "Lasă gol pentru a dezactiva.",
+      "invalid": "Introdu un număr întreg pozitiv sau lasă gol pentru a dezactiva.",
+      "cleared": "Cotă vCPU ștearsă",
+      "saved": "Plafon: {count} vCPU"
+    },
+    "retention": {
+      "title": "Retenție snapshot-uri",
+      "sectionHint": "Păstrează doar cele mai recente N snapshot-uri per instanță; restul se șterg.",
+      "label": "Păstrează ultimele",
+      "hint": "0 sau gol dezactivează retenția.",
+      "invalid": "Introdu un număr întreg nenegativ, cel mult 1000.",
+      "disabled": "Retenție dezactivată",
+      "saved": "Retenție: păstrează ultimele {count}",
+      "deleted": "{count, plural, one {Șters # snapshot vechi} few {Șterse # snapshot-uri vechi} other {Șterse # de snapshot-uri vechi}}",
+      "runNow": "Rulează acum"
+    },
+    "safeTerminate": {
+      "title": "Terminare sigură",
+      "label": "Snapshot automat înainte de terminare",
+      "hint": "Creează mai întâi un snapshot proaspăt dacă nu există unul mai nou de 7 zile. Sărit în tăcere când furnizorul nu suportă snapshot-uri.",
+      "enabled": "Terminare sigură activată",
+      "disabled": "Terminare sigură dezactivată"
+    },
+    "instances": {
+      "title": "Instanțe",
+      "count": "{count, plural, =0 {Nicio instanță sincronizată încă} one {# instanță} few {# instanțe} other {# de instanțe}}",
+      "empty": "Nicio instanță sincronizată încă."
+    },
+    "activity": {
+      "title": "Activitate recentă",
+      "empty": "Nicio activitate înregistrată încă."
+    },
+    "disconnect": {
+      "label": "Deconectează {name}",
+      "title": "Deconectezi {name}?",
+      "description": "Credențialele stocate pentru acest cont vor fi șterse, iar instanțele lui dispar din panou. Acțiunea nu poate fi anulată.",
+      "confirm": "Deconectează",
+      "done": "{name} a fost deconectat"
+    },
+    "sync": {
+      "label": "Sincronizează",
+      "done": "{count, plural, one {Sincronizată # instanță} few {Sincronizate # instanțe} other {Sincronizate # de instanțe}}"
+    }
+  },
+  "connect": {
+    "common": {
+      "verifying": "Se verifică cu {provider}…",
+      "verifyConnect": "Verifică și conectează",
+      "encrypted": "Stocat criptat AES-256-GCM",
+      "copied": "Copiat în clipboard",
+      "copy": "Copiază",
+      "copyValue": "Copiază {value}"
+    },
+    "azure": {
+      "tabs": {
+        "sp": "Service principal",
+        "help": "Ghid de configurare"
+      },
+      "connected": "Abonament Azure conectat",
+      "sp": {
+        "title": "Conectare cu un service principal",
+        "description": "Creează o înregistrare de aplicație cu un client secret și acordă-i rolul Reader (sau Contributor pentru acțiuni) pe abonament. Credențialele sunt criptate AES-256-GCM local.",
+        "name": "Nume afișat",
+        "namePlaceholder": "Abonamentul meu Azure",
+        "tenantId": "Tenant ID (Directory)",
+        "subscriptionId": "Subscription ID",
+        "clientId": "Client (App) ID",
+        "clientSecret": "Client secret",
+        "defaultLocation": "Locație implicită"
+      },
+      "guide": {
+        "title": "Creează un service principal Azure",
+        "description": "Credențiale fără interacțiune pentru vmui — nu e nevoie de login interactiv.",
+        "intro": "Rulează în Azure Cloud Shell sau cu Azure CLI instalat local:",
+        "outro": "CLI-ul afișează <code>appId</code> (= client ID), <code>password</code> (= client secret) și <code>tenant</code>. Folosește Reader în loc de Contributor dacă vrei doar listare read-only.",
+        "docs": "Documentația Microsoft"
+      }
+    },
+    "gcp": {
+      "tabs": {
+        "sa": "JSON service account",
+        "help": "Ghid de configurare"
+      },
+      "connected": "Proiect GCP conectat",
+      "sa": {
+        "title": "Conectare cu o cheie de service account",
+        "description": "Creează un service account în IAM cu rolul Compute Viewer (sau Compute Admin pentru acțiuni), apoi descarcă o cheie JSON. Criptată local AES-256-GCM.",
+        "name": "Nume afișat",
+        "namePlaceholder": "Proiectul meu GCP",
+        "keyJson": "Cheia JSON a service account-ului",
+        "keyJsonHint": "Lipește întregul fișier JSON. Câmpul <code>project_id</code> stabilește la ce proiect GCP ne conectăm.",
+        "defaultZone": "Zonă implicită"
+      },
+      "guide": {
+        "title": "Creează un service account GCP",
+        "description": "Un fișier cu cheia JSON este tot ce are nevoie vmui.",
+        "outro": "Folosește <code>roles/compute.instanceAdmin.v1</code> în loc de <code>compute.viewer</code> dacă vrei ca vmui să pornească, oprească sau repornească VM-uri.",
+        "docs": "Documentația Google Cloud"
+      }
+    },
+    "digitalocean": {
+      "tabs": {
+        "token": "Personal Access Token",
+        "help": "Ghid de configurare"
+      },
+      "connected": "Cont DigitalOcean conectat",
+      "token": {
+        "title": "Conectare cu un Personal Access Token",
+        "description": "Creează un token în consola DigitalOcean cu drepturi de <strong>citire și scriere</strong>. Tokenul este criptat AES-256-GCM și stocat local.",
+        "name": "Nume afișat",
+        "namePlaceholder": "Echipa mea DigitalOcean",
+        "nameHint": "Afișat în vmui. Nu trebuie să coincidă cu numele echipei din DO.",
+        "token": "Personal Access Token",
+        "tokenHint": "Din Console → API → Tokens/Keys → Generate New Token. Recomandat Read+Write.",
+        "defaultRegion": "Regiune implicită"
+      },
+      "guide": {
+        "title": "Obține un PAT DigitalOcean",
+        "description": "Droplets, volume, snapshot-uri, firewall-uri, IP-uri flotante, VPC-uri, load balancere, baze de date gestionate, Spaces și DOKS apar toate în vmui.",
+        "step1": {
+          "title": "Deschide consola DigitalOcean"
+        },
+        "step2": {
+          "title": "Creează un Personal Access Token nou",
+          "body": "Navighează la <strong>API → Tokens/Keys → Generate New Token</strong>. Dă-i un nume (de ex. <code>vmui</code>), setează o expirare (90 de zile e un implicit rezonabil) și bifează atât <strong>Read</strong> cât și <strong>Write</strong> pentru ciclul complet de viață.",
+          "link": "API → Tokens/Keys",
+          "note": "Dacă vrei ca vmui doar să observe (fără pornire/oprire, fără creare), debifează Write."
+        },
+        "step3": {
+          "title": "Copiază tokenul (afișat o singură dată)",
+          "body": "DigitalOcean afișează tokenul <em>o singură dată</em>. Copiază-l înainte de a închide dialogul. Dacă îl pierzi, generează unul nou — cele vechi se pot revoca din aceeași pagină."
+        },
+        "step4": {
+          "title": "Alege o regiune implicită",
+          "body": "Alege regiunea pe care o folosești cel mai des. Poți adăuga alte regiuni mai târziu din pagina contului — vmui le sincronizează pe toate în paralel."
+        },
+        "step5": {
+          "title": "Lipește tokenul",
+          "body": "Revino la tabul <strong>Personal Access Token</strong> și lipește valoarea. vmui îl verifică și stochează o copie criptată local."
+        }
+      }
+    },
+    "hetzner": {
+      "tabs": {
+        "token": "Token API",
+        "help": "Ghid de configurare"
+      },
+      "connected": "Cont Hetzner Cloud conectat",
+      "token": {
+        "title": "Conectare cu un token API",
+        "description": "Generează un token în Hetzner Cloud Console → Security → API tokens. Folosește drepturi de <strong>citire și scriere</strong> pentru ciclul complet de viață. Tokenul este criptat AES-256-GCM.",
+        "name": "Nume afișat",
+        "namePlaceholder": "Proiectul meu Hetzner",
+        "nameHint": "Hetzner nu returnează un nume prietenos de proiect prin API; alege ce vrei.",
+        "token": "Token API",
+        "tokenPlaceholder": "Șir alfanumeric de 64 de caractere",
+        "tokenHint": "Console → Security → API Tokens → Generate API Token. Recomandat Read+Write.",
+        "defaultLocation": "Locație implicită"
+      },
+      "guide": {
+        "title": "Obține un token API Hetzner Cloud",
+        "description": "Hetzner are cele mai ieftine VM-uri cloud din Europa. Serverele ARM cax-* pornesc de la 3,79 €/lună.",
+        "step1": {
+          "title": "Deschide Hetzner Cloud Console"
+        },
+        "step2": {
+          "title": "Creează sau alege un proiect",
+          "body": "Tokenurile sunt <strong>per proiect</strong>. Alege un proiect existent sau creează unul nou (de ex. <code>vmui</code>)."
+        },
+        "step3": {
+          "title": "Generează un token API",
+          "body": "În proiect: <strong>Security → API Tokens → Generate API Token</strong>. Alege <strong>Read & Write</strong> pentru ciclul complet de viață. Copiază tokenul de 64 de caractere — afișat o singură dată.",
+          "note": "Tokenurile nu expiră niciodată automat. Rotește-le ștergându-l pe cel vechi și creând unul nou."
+        },
+        "step4": {
+          "title": "Alege o locație implicită",
+          "body": "<strong>nbg1</strong> (Nürnberg) și <strong>fsn1</strong> (Falkenstein) sunt cele mai ieftine. <strong>ash</strong>/<strong>hil</strong> pentru America de Nord, <strong>sin</strong> pentru Asia."
+        },
+        "step5": {
+          "title": "Lipește-l",
+          "body": "Treci la tabul <strong>Token API</strong>. vmui verifică tokenul apelând <code>/servers</code> și stochează o copie criptată local."
+        }
+      }
+    },
+    "scaleway": {
+      "tabs": {
+        "keys": "Cheie API",
+        "help": "Ghid de configurare"
+      },
+      "connected": "Cont Scaleway conectat",
+      "keys": {
+        "title": "Conectare cu o cheie secretă API",
+        "description": "Generează o cheie API IAM în consola Scaleway. Credențialele sunt criptate AES-256-GCM și stocate local.",
+        "name": "Nume afișat",
+        "namePlaceholder": "Proiectul meu Scaleway",
+        "nameHint": "Afișat în vmui — nu trebuie să coincidă cu numele proiectului Scaleway.",
+        "secretKey": "Cheie secretă",
+        "secretKeyHint": "Secret în format UUID din Console → IAM → API Keys → Create API key.",
+        "projectId": "ID proiect",
+        "projectIdHint": "Din Console → panoul proiectului → butonul Project ID din dreapta sus.",
+        "defaultZone": "Zonă implicită",
+        "defaultZoneHint": "Apple Silicon este disponibil doar la Paris. Alege fr-par-1 dacă nu vrei anume un Mac mini M1.",
+        "zones": {
+          "fr-par-1": "Paris 1 — M2 / M2 Pro / M4",
+          "fr-par-3": "Paris 3 — doar M1"
+        }
+      },
+      "guide": {
+        "title": "Obține o cheie API Scaleway pentru Apple Silicon",
+        "description": "Scaleway rulează Mac mini reale (M1 / M2 / M2 Pro / M4) la Paris, cu facturare orară după minimul Apple de 24 h.",
+        "step1": {
+          "title": "Creează sau autentifică-te într-un cont Scaleway",
+          "body": "Deschide consola și înregistrează-te sau autentifică-te."
+        },
+        "step2": {
+          "title": "Găsește ID-ul proiectului",
+          "body": "Pe pagina principală a consolei este afișat proiectul <code>Default</code>. Apasă pe el (sau pe oricare alt proiect) — în dreapta sus apare un buton <strong>Project ID</strong>. Apasă pentru a copia.",
+          "link": "Setările proiectului"
+        },
+        "step3": {
+          "title": "Creează o cheie API",
+          "body": "Mergi la <strong>IAM → API Keys → Create API key</strong>. Bearer: <strong>utilizatorul tău IAM (tu)</strong>. Bifează <strong>Use this API key for the default project</strong>. Copiază <strong>Secret key</strong>, afișat <em>o singură dată</em>.",
+          "link": "IAM → API Keys",
+          "note": "Secretul se vede o singură dată — salvează-l într-un manager de parole. Dacă îl pierzi, generează altă cheie."
+        },
+        "step4": {
+          "title": "Permisiunile de care are nevoie vmui",
+          "body": "Pentru funcționalitate completă acordă utilizatorului IAM setul de permisiuni <strong>AppleSiliconFullAccess</strong>. Pentru sincronizare read-only e suficient <strong>AppleSiliconReadOnly</strong>."
+        },
+        "step5": {
+          "title": "Lipește-le în tabul Cheie API",
+          "body": "Revino la tabul <strong>Cheie API</strong> și lipește Secret key și ID-ul proiectului. vmui le verifică și stochează o copie criptată local."
+        }
+      }
+    },
+    "aws": {
+      "tabs": {
+        "cli": "Profil AWS CLI",
+        "keys": "Chei de acces",
+        "help": "Ghid de configurare"
+      },
+      "cli": {
+        "title": "Importă din AWS CLI",
+        "description": "Detectate automat din <code>~/.aws/credentials</code> și <code>~/.aws/config</code>.",
+        "refresh": "Reîncarcă profilurile",
+        "defaultProfileName": "AWS (implicit)",
+        "imported": "„{name}” importat cu succes",
+        "staticKeys": "chei statice",
+        "import": "Importă",
+        "displayName": "Nume afișat",
+        "defaultRegion": "Regiune implicită",
+        "ssoLoginFirst": "Asigură-te că ești autentificat — rulează <cmd>aws sso login</cmd> în terminal.",
+        "verifying": "Se verifică cu {provider}…",
+        "verifyImport": "Verifică și importă",
+        "noCli": {
+          "title": "AWS CLI nu a fost găsit în PATH",
+          "body": "Instalează AWS CLI v2 pentru a importa profilurile automat sau folosește tabul <strong>Chei de acces</strong>.",
+          "winget": "Windows (winget)",
+          "brew": "macOS (Homebrew)",
+          "after": "După instalare rulează <configure>aws configure</configure> (pentru chei statice) sau <sso>aws configure sso</sso> (pentru AWS SSO / IAM Identity Center), apoi reîncarcă."
+        },
+        "noProfiles": {
+          "title": "Niciun profil AWS CLI găsit încă",
+          "body": "Configurează unul cu oricare dintre comenzile de mai jos, apoi reîncarcă.",
+          "staticLabel": "Chei statice de utilizator IAM",
+          "ssoLabel": "AWS SSO / IAM Identity Center"
+        }
+      },
+      "keys": {
+        "connected": "Cont AWS conectat",
+        "title": "Conectare cu chei de acces",
+        "name": "Nume prietenos",
+        "namePlaceholder": "AWS personal",
+        "nameHint": "Doar o etichetă afișată în vmui.",
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdHint": "Începe cu AKIA (pe termen lung) sau ASIA (temporar). Din IAM → Users → Security credentials → Create access key.",
+        "secretAccessKey": "Secret Access Key",
+        "secretAccessKeyHint": "Afișat o singură dată la creare. Dacă îl pierzi, creează o pereche nouă de chei.",
+        "sessionToken": "Token de sesiune",
+        "sessionTokenHint": "Necesar doar pentru credențiale temporare (AWS SSO / STS / asumare de rol).",
+        "defaultRegion": "Regiune implicită",
+        "defaultRegionHint": "Regiunea interogată implicit de vmui. Hosturile dedicate macOS au disponibilitate regională limitată — <code>us-east-1</code> și <code>us-west-2</code> sunt cele mai sigure."
+      },
+      "guide": {
+        "pick": {
+          "title": "Alege calea",
+          "description": "Două moduri curate de a conecta AWS. Folosește SSO dacă firma ta folosește Identity Center; altfel un utilizator IAM este cel mai rapid.",
+          "a": {
+            "title": "A · Utilizator IAM (personal)",
+            "subtitle": "Chei de acces statice, pe termen lung",
+            "s1": "Ideal pentru conturi personale sau sandbox.",
+            "s2": "vmui folosește cheia de acces direct.",
+            "s3": "Aproximativ 5 minute."
+          },
+          "b": {
+            "title": "B · AWS SSO / Identity Center",
+            "subtitle": "Credențiale temporare prin login în browser",
+            "s1": "Ideal pentru conturi de firmă.",
+            "s2": "Te autentifici în browser; vmui importă credențialele temporare.",
+            "s3": "Aproximativ 3 minute dacă SSO e deja configurat."
+          }
+        },
+        "a": {
+          "title": "Calea A — Creează un utilizator IAM",
+          "step1": {
+            "title": "Autentifică-te în consola AWS",
+            "body": "Deschide <link>IAM → Users</link> (sau rulează comenzile CLI de mai jos dacă ai deja chei de admin)."
+          },
+          "step2": {
+            "title": "Creează un utilizator numit vmui-controller",
+            "body": "Ultima comandă afișează <code>AccessKeyId</code> și <code>SecretAccessKey</code>. Copiază-le pe ambele."
+          },
+          "step3": {
+            "title": "Alege cum le dai lui vmui",
+            "cliLabel": "Recomandat: configurează CLI-ul",
+            "cliBody": "Apoi mergi la tabul <strong>Profil AWS CLI</strong> și apasă <strong>Importă</strong>.",
+            "pasteLabel": "Sau: lipește direct",
+            "pasteBody": "Treci la tabul <strong>Chei de acces</strong> și lipește-le acolo."
+          },
+          "note": "Pentru securitate mai strictă, înlocuiește <code>AmazonEC2FullAccess</code> cu o politică personalizată care acordă doar acțiunile de care are nevoie vmui (RunInstances, StartInstances, StopInstances, DescribeInstances etc.)."
+        },
+        "b": {
+          "title": "Calea B — AWS SSO / IAM Identity Center",
+          "step1": {
+            "title": "Configurează profilul SSO (o singură dată)",
+            "body": "CLI-ul cere URL-ul de start (de ex. <code>https://my-org.awsapps.com/start</code>), regiunea, contul și rolul. Deschide un browser pentru autentificare."
+          },
+          "step2": {
+            "title": "Autentifică-te (la fiecare sesiune)",
+            "body": "Tokenurile durează implicit cam 8 h. Rulează din nou când vmui spune că credențialele au expirat."
+          },
+          "step3": {
+            "title": "Importă în vmui",
+            "body": "Deschide tabul <strong>Profil AWS CLI</strong> — profilul <code>vmui-sso</code> apare cu insigna <badge>SSO</badge>. Apasă <strong>Importă</strong>."
+          },
+          "note": "Dacă nu ai IAM Identity Center configurat, administratorul AWS trebuie să îl activeze în contul de management. Folosește Calea A până atunci."
+        },
+        "perms": {
+          "title": "Permisiunile de care are nevoie vmui",
+          "full": "Pentru funcționalitate completă (listare, pornire, oprire, repornire, terminare, creare, alocare de hosturi dedicate Mac), cea mai simplă politică este:",
+          "least": "Pentru privilegii minime, acțiunile necesare sunt:"
+        }
+      }
+    },
+    "localKvm": {
+      "title": "Host KVM local",
+      "description": "Conectează o distribuție WSL2 cu QEMU/KVM sau un guest Hyper-V nativ. Alege tipul de guest — vmui controlează ciclul de viață prin QMP sau Hyper-V.",
+      "connected": "Host KVM local conectat",
+      "guestKind": "Tip de guest",
+      "namePlaceholder": "{kind} local",
+      "kinds": {
+        "mac": {
+          "label": "macOS",
+          "sub": "OSX-KVM + OpenCore",
+          "hostLabel": "Mac local (KVM)",
+          "setupHint": "Clonează OSX-KVM și instalează QEMU + libvirt."
+        },
+        "win": {
+          "label": "Windows 11 (KVM)",
+          "sub": "WSL2 + QEMU + swtpm",
+          "hostLabel": "Windows 11 local (KVM)",
+          "setupHint": "Construiește ISO-ul autounattend cu credențialele guest-ului, copiază OVMF și inițializează swtpm."
+        },
+        "ubuntu": {
+          "label": "Ubuntu LTS",
+          "sub": "Desktop cu autoinstall",
+          "hostLabel": "Ubuntu local (KVM)",
+          "setupHint": "Descarcă imaginea cloud Ubuntu LTS și construiește seed-ul cloud-init cu credențialele guest-ului."
+        },
+        "hyperv-win": {
+          "label": "Windows 11 (Hyper-V)",
+          "sub": "Gen2 nativ + vTPM",
+          "hostLabel": "Windows 11 local (Hyper-V)",
+          "setupHint": "Construiește ISO-ul autounattend cu oscdimg și creează un VM Hyper-V Gen2 (vTPM, Secure Boot, virtualizare imbricată)."
+        },
+        "hyperv-haos": {
+          "label": "Home Assistant",
+          "sub": "Appliance HAOS, UI web :80",
+          "hostLabel": "Home Assistant (Hyper-V)",
+          "setupHint": "Descarcă Home Assistant OS, îi verifică SHA-256 și creează un VM Gen2 cu Secure Boot oprit pe un switch extern."
+        }
+      },
+      "fields": {
+        "name": "Nume afișat",
+        "hostLabel": "Etichetă host",
+        "hostLabelHint": "Afișată în lista de instanțe drept host pentru acest VM.",
+        "distro": "Numele distribuției WSL",
+        "distroHint": "Numele afișat de wsl --list (sensibil la majuscule).",
+        "vmDir": "Directorul VM",
+        "vmDirHint": "Cale Linux absolută. Trebuie să conțină {script} (sincronizat din repo la pornire).",
+        "vncPort": "Port VNC",
+        "qmpPort": "Port QMP",
+        "sshPort": "Redirecționare SSH",
+        "wsPort": "Port WS",
+        "cores": "Nuclee / socket",
+        "threads": "Fire vCPU",
+        "ramMb": "RAM (MiB)",
+        "osUsername": "Utilizator guest",
+        "osUsernameHint": "Inclus în instalarea nesupravegheată. Litere mici, cifre, _ și - (max. 32). Lasă gol pentru implicit.",
+        "osPassword": "Parolă guest",
+        "osPasswordPlaceholder": "parola-guest-ului",
+        "osPasswordHint": "Stocată criptat; scrisă în vm-creds.env în distribuția WSL."
+      },
+      "generated": {
+        "toast": "Cont creat. Credențiale guest generate: {username} / {password}",
+        "title": "Salvează acum aceste credențiale guest",
+        "body": "Au fost generate automat și nu pot fi recuperate mai târziu. Rulează din nou scriptul de configurare dacă le pierzi — reinstalează VM-ul.",
+        "copy": "Copiază utilizator:parolă",
+        "copied": "Copiat în clipboard"
+      },
+      "checklist": {
+        "title": "Listă de configurare · {kind}",
+        "description": "Rulează-le o singură dată în distribuția WSL aleasă, înainte de conectare.",
+        "kvm": {
+          "title": "WSL2 cu /dev/kvm",
+          "body": "Ar trebui să afișeze <code>crw-rw---- 1 root kvm</code>. Dacă lipsește, virtualizarea CPU este oprită în BIOS sau Hyper-V e defect."
+        },
+        "qemu": {
+          "title": "QEMU instalat",
+          "body": "Rulează <script>setup</script> dacă lipsește."
+        },
+        "setup": {
+          "title": "Rulează {script}",
+          "body": "Configurare unică: creează {dir}, descarcă ISO-urile, copiază OVMF și construiește seed-ul de instalare nesupravegheată."
+        },
+        "mac": {
+          "title": "macOS instalat (sau în curs de instalare)",
+          "body": "Conectează un client VNC la <code>127.0.0.1:5900</code> după pornirea VM-ului. La prima pornire trebuie să formatezi discul virtual în Disk Utility și să alegi Reinstall macOS."
+        },
+        "win": {
+          "title": "Pune ISO-ul Windows 11 la $VMDIR/Win11.iso",
+          "body": "Descarcă ISO-ul oficial de la <code>microsoft.com/software-download/windows11</code> (x64 English). Credențialele administratorului local sunt incluse în autounattend.xml din valorile de mai sus (sau generate automat când sunt goale)."
+        },
+        "ubuntu": {
+          "title": "Prima pornire rulează cloud-init",
+          "body": "Scriptul de configurare descarcă imaginea cloud Ubuntu LTS și seed-uiește cloud-init cu credențialele guest de mai sus (sau generate automat când sunt goale) plus sudo fără parolă. SSH e disponibil în circa 60 s; <code>ubuntu-desktop-minimal</code> se termină în 5–8 min."
+        },
+        "msrs": {
+          "title": "ignore_msrs (necesar doar pentru macOS)"
+        }
+      }
+    }
+  },
+  "resources": {
+    "title": "Resurse",
+    "description": "Volume, instantanee, grupuri de securitate, perechi de chei și rețele din toate conturile conectate.",
+    "count": "{count, plural, =0 {Nicio resursă} one {# resursă} few {# resurse} other {# de resurse}}",
+    "driftLink": "Istoric derivă",
+    "cleanupLink": "Curățare",
+    "sync": "Sincronizează resursele",
+    "synced": "{count, plural, =0 {Nicio resursă sincronizată} one {O resursă sincronizată} few {# resurse sincronizate} other {# de resurse sincronizate}}",
+    "syncFailed": "Sincronizarea resurselor a eșuat",
+    "empty": {
+      "title": "Nicio resursă în cache încă",
+      "description": "Sincronizează resursele pentru a prelua volume, instantanee, grupuri de securitate și rețele din toate conturile conectate."
+    },
+    "filter": {
+      "kindLabel": "Tip resursă",
+      "all": "Toate",
+      "providerLabel": "Furnizor",
+      "allProviders": "Toți furnizorii"
+    },
+    "columns": {
+      "kind": "Tip",
+      "name": "Nume",
+      "id": "ID",
+      "provider": "Furnizor",
+      "region": "Regiune",
+      "status": "Stare",
+      "size": "Dimensiune",
+      "linked": "Instanță asociată",
+      "monthly": "Cost lunar"
+    },
+    "kinds": {
+      "volume": "Volum",
+      "snapshot": "Instantaneu",
+      "security-group": "Grup de securitate",
+      "keypair": "Pereche de chei",
+      "vpc": "VPC",
+      "subnet": "Subrețea",
+      "bucket": "Bucket",
+      "database": "Bază de date",
+      "load-balancer": "Load balancer",
+      "dns-zone": "Zonă DNS",
+      "disk": "Disc",
+      "network": "Rețea",
+      "firewall": "Firewall",
+      "image": "Imagine",
+      "nsg": "Grup de securitate de rețea",
+      "vnet": "Rețea virtuală"
+    },
+    "detail": {
+      "provider": "Furnizor",
+      "region": "Regiune",
+      "status": "Stare",
+      "cost": "Cost / lună",
+      "copyId": "Copiază ID-ul",
+      "copied": "Copiat",
+      "openConsole": "Deschide în consola {provider}",
+      "raw": "Conținut brut",
+      "showHistory": "Arată istoricul derivei ({count})",
+      "hideHistory": "Ascunde istoricul derivei ({count})",
+      "noLineChanges": "Nicio modificare la nivel de linie; doar spații sau ordine."
+    }
+  },
+  "cleanup": {
+    "title": "Curățare resurse",
+    "description": "Șterge definitiv resursele AWS neatașate niciunei instanțe. Volumele montate încă pe o mașină virtuală sunt excluse automat.",
+    "breadcrumb": "Resurse",
+    "summary": "{count, plural, one {# candidat la curățare} few {# candidați la curățare} other {# de candidați la curățare}} · aproximativ {savings}/lună dacă se șterge tot",
+    "empty": {
+      "title": "Nu s-au găsit resurse neatașate",
+      "description": "Rulează mai întâi o sincronizare a resurselor; candidații sunt volumele neatașate, instantaneele și perechile de chei."
+    },
+    "columns": {
+      "resource": "Resursă",
+      "region": "Regiune",
+      "status": "Stare",
+      "size": "Dimensiune",
+      "cost": "Cost"
+    },
+    "selectAll": "Selectează tot",
+    "selectRow": "Selectează {name}",
+    "selected": "{count, plural, one {# selectată} few {# selectate} other {# de selectate}} · ~{savings}/lună",
+    "deleteSelected": "Șterge selecția",
+    "confirm": {
+      "title": "{count, plural, one {Ștergi # resursă?} few {Ștergi # resurse?} other {Ștergi # de resurse?}}",
+      "description": "Definitiv. Doar volume, instantanee și perechi de chei AWS. Volumele atașate sunt sărite.",
+      "action": "Șterge"
+    },
+    "deleted": "{count, plural, one {O resursă ștearsă} few {# resurse șterse} other {# de resurse șterse}}",
+    "partial": "{deleted} șterse, {failed} eșuate"
+  },
+  "drift": {
+    "title": "Istoric derivă",
+    "description": "Jurnal doar-adăugare al fiecărei modificări detectate la sincronizare în resursele din cache.",
+    "breadcrumb": "Resurse",
+    "about": "Deriva este capturată la următoarea sincronizare după o modificare a conținutului brut al resursei la furnizor.",
+    "totals": "{count, plural, one {# intrare} few {# intrări} other {# de intrări}} · +{added} / −{removed} linii",
+    "empty": {
+      "title": "Nicio derivă înregistrată încă",
+      "description": "Modificările apar aici după ce următoarea sincronizare detectează o diferență față de conținutul din cache."
+    },
+    "columns": {
+      "kind": "Tip",
+      "id": "ID",
+      "region": "Regiune",
+      "account": "Cont",
+      "delta": "Diferență",
+      "when": "Când"
+    },
+    "unknownAccount": "Cont necunoscut"
+  },
+  "trash": {
+    "title": "Coș de gunoi",
+    "description": "Metadatele instanțelor terminate, păstrate pentru investigații. Golirea elimină definitiv înregistrarea.",
+    "count": "{count, plural, =0 {Gol} one {# element} few {# elemente} other {# de elemente}}",
+    "empty": {
+      "title": "Coșul de gunoi este gol",
+      "description": "Instanțele terminate apar aici cu ultimele metadate cunoscute."
+    },
+    "columns": {
+      "name": "Nume",
+      "provider": "Furnizor",
+      "region": "Regiune",
+      "type": "Tip",
+      "terminated": "Terminată"
+    },
+    "purge": "Elimină",
+    "purgeAria": "Elimină {name}",
+    "confirm": {
+      "title": "Elimini această înregistrare?",
+      "description": "Metadatele stocate pentru {name} vor fi șterse definitiv.",
+      "action": "Elimină"
+    },
+    "purged": "Înregistrare eliminată"
+  },
+  "providerStatus": {
+    "title": "Starea furnizorilor",
+    "description": "Accesibilitatea paginii publice de stare a fiecărui furnizor. Se reîmprospătează la fiecare minut.",
+    "state": {
+      "ok": "Accesibil",
+      "incident": "Incident",
+      "unknown": "Necunoscut"
+    },
+    "latency": "{ms, number} ms",
+    "openPage": "Deschide pagina de stare {label}",
+    "note": "O pagină accesibilă nu înseamnă că nu există incidente — verifică pagina asociată pentru detalii complete."
+  },
+  "regionMap": {
+    "title": "Hartă termică pe regiuni",
+    "description": "Numărul de mașini virtuale pe grup geografic. Etichetele grupurilor sunt o aproximare care reunește regiunile native ale furnizorilor.",
+    "mapAria": "Hartă a lumii cu {count, plural, one {# mașină virtuală} few {# mașini virtuale} other {# de mașini virtuale}} distribuite în {buckets, plural, one {# grup de regiuni} few {# grupuri de regiuni} other {# de grupuri de regiuni}}",
+    "other": "Altele",
+    "empty": {
+      "title": "Nicio mașină virtuală de afișat",
+      "description": "Sincronizează cel puțin un cont cu instanțe pornite sau oprite pentru a popula harta."
+    }
+  },
+  "fleetDiff": {
+    "title": "Diferențe flotă",
+    "description": "Compară flota actuală cu un instantaneu anterior.",
+    "capture": "Capturează un instantaneu acum",
+    "compare": {
+      "before": "Înainte",
+      "after": "După",
+      "diff": "Compară",
+      "snapshot": "{date} ({count, plural, one {# mașină virtuală} few {# mașini virtuale} other {# de mașini virtuale}})"
+    },
+    "range": "Se compară {before} → {after}",
+    "nothing": "nimic",
+    "empty": {
+      "title": "Niciun instantaneu încă",
+      "description": "Capturează unul pentru a începe urmărirea modificărilor flotei de la o zi la alta."
+    },
+    "notFound": {
+      "title": "Instantaneu negăsit",
+      "description": "Unul dintre instantaneele selectate nu mai există. Alege altă pereche."
+    },
+    "stats": {
+      "added": "Adăugate",
+      "removed": "Eliminate",
+      "changed": "Modificate"
+    },
+    "changed": {
+      "title": "Mașini virtuale modificate",
+      "columns": {
+        "vm": "Mașină virtuală",
+        "field": "Câmp",
+        "before": "Înainte",
+        "after": "După"
+      },
+      "empty": "Nicio modificare de câmp"
+    },
+    "added": {
+      "title": "Mașini virtuale adăugate",
+      "empty": "Nicio mașină virtuală nouă"
+    },
+    "removed": {
+      "title": "Mașini virtuale eliminate",
+      "empty": "Nicio mașină virtuală eliminată"
+    }
+  },
+  "costs": {
+    "title": "Privire de ansamblu asupra costurilor",
+    "description": "{count, plural, one {Vedere live a VM-urilor pornite dintr-un singur cont.} few {Vedere live a VM-urilor pornite din # conturi.} other {Vedere live a VM-urilor pornite din # de conturi.}} Prețurile combină API-ul Azure Retail Prices cu un tabel curatoriat pentru AWS, GCP și Scaleway.",
+    "actions": {
+      "recommendations": "Recomandări",
+      "projections": "Proiecții"
+    },
+    "stats": {
+      "hourlyBurn": "Consum orar",
+      "projectedMonth": "Lună proiectată",
+      "projectedMonthHint": "la {hours} h/lună",
+      "runningVms": "VM-uri pornite",
+      "runningVmsHint": "{total, plural, one {din # VM în total} few {din # VM-uri în total} other {din # de VM-uri în total}}",
+      "unpriced": "Fără preț",
+      "unpricedHint": "{count, plural, =0 {toate VM-urile pornite au preț} one {# tip lipsește din tabelele de prețuri} few {# tipuri lipsesc din tabelele de prețuri} other {# de tipuri lipsesc din tabelele de prețuri}}"
+    },
+    "perMonth": "{amount}/lună",
+    "perHour": "{amount}/oră",
+    "perDay": "{amount}/zi",
+    "free": "gratuit",
+    "empty": {
+      "title": "Nicio instanță încă",
+      "description": "Conectează un cont cloud și rulează o sincronizare pentru a vedea unde se duc banii.",
+      "action": "Conectează un cont"
+    },
+    "byProvider": {
+      "title": "Pe furnizor",
+      "description": "Consumul VM-urilor pornite per cloud și ponderea din totalul orar.",
+      "columns": {
+        "provider": "Furnizor",
+        "running": "Pornite / total",
+        "hourly": "Orar",
+        "monthly": "Lunar",
+        "share": "Pondere"
+      }
+    },
+    "topSpenders": {
+      "title": "Cele mai costisitoare",
+      "description": "VM-urile pornite cu cel mai mare tarif orar.",
+      "columns": {
+        "instance": "Instanță",
+        "type": "Tip",
+        "region": "Regiune",
+        "hourly": "Orar",
+        "monthly": "Lunar",
+        "source": "Sursă"
+      },
+      "source": {
+        "static": "Preț static curatoriat — poate să nu reflecte tarifele regionale live",
+        "stale": "În cache de {hours} h — se reîmprospătează la următoarea sincronizare",
+        "staleLabel": "{source} · vechi de {hours} h"
+      }
+    },
+    "savings": {
+      "title": "Candidați la economii",
+      "description": "VM-uri mari pornite care merită o verificare pentru oprire sau redimensionare, plus sarcini care ar putea trece pe spot/preemptible. Verifică mai întâi în fila de metrici a instanței.",
+      "upTo": "până la {amount}/lună",
+      "idleTitle": "Redimensionare sau oprire",
+      "idleEmpty": "Niciun VM mare pornit de semnalat.",
+      "spotTitle": "Spot / preemptible",
+      "spotEmpty": "Nicio sarcină eligibilă spot cu economii semnificative.",
+      "spotDiscount": "~{pct}% sub on-demand",
+      "saveMonthly": "-{amount}/lună"
+    },
+    "trend": {
+      "title": "Tendința consumului pe {days} zile",
+      "description": "Consum orar agregat din istoricul sincronizărilor, în intervale de o oră.",
+      "notEnough": "Sunt necesare cel puțin două instantanee de istoric pentru a desena tendința. Sincronizarea rulează în fundal la fiecare 30 de secunde.",
+      "delta": "{delta} ({pct}%) față de acum {days} zile",
+      "chartLabel": "Consumul orar din ultimele {days} zile",
+      "currentLabel": "Acum",
+      "startLabel": "acum {days} zile"
+    },
+    "forecast": {
+      "title": "Prognoză de cost la 7 zile",
+      "description": "Regresie liniară pe ultimele {days} zile · {count, plural, one {# eșantion} few {# eșantioane} other {# de eșantioane}}",
+      "notEnough": "Istoric insuficient. Prognoza apare după aproximativ patru instantanee de sincronizare.",
+      "hourly": "Consum orar în 7 zile",
+      "monthly": "Ritm lunar",
+      "slope": "Tendință"
+    },
+    "anomalies": {
+      "title": "Anomalii de cost",
+      "description": "Zile în care cheltuiala orară deviază de la media ultimelor 7 zile.",
+      "vsAverage": "față de media {amount}",
+      "ratio": "{ratio}x"
+    },
+    "byTag": {
+      "title": "Cost pe etichetă",
+      "description": "Consumul VM-urilor pornite grupat pe cheie=valoare. Un VM cu mai multe etichete apare în fiecare grup, așa că feliile se supra-numără intenționat.",
+      "untagged": "(fără etichetă)",
+      "vmCount": "{count, plural, one {# VM} few {# VM-uri} other {# de VM-uri}}"
+    },
+    "budgets": {
+      "title": "Bugete pe etichetă",
+      "description": "Plafoane lunare în USD per etichetă, evaluate față de consumul actual al flotei × {hours} h.",
+      "add": "Adaugă buget",
+      "empty": "Niciun buget încă. Adaugă unul pentru a urmări o etichetă.",
+      "anyValue": "(orice valoare)",
+      "observed": "{observed}/lună observat · plafon {cap}",
+      "daysToCap": "≈ {days} zile până la plafon",
+      "overBudget": "Peste buget",
+      "delete": "Șterge bugetul {tag}",
+      "evaluating": "Se evaluează…",
+      "form": {
+        "tagKey": "Cheie etichetă",
+        "tagKeyPlaceholder": "echipa",
+        "tagValue": "Valoare",
+        "tagValuePlaceholder": "gol = oricare",
+        "monthlyUsd": "Plafon (USD/lună)",
+        "monthlyUsdPlaceholder": "500"
+      },
+      "toast": {
+        "invalidAmount": "Introdu o sumă lunară pozitivă.",
+        "saved": "Buget salvat",
+        "deleted": "Buget șters"
+      }
+    },
+    "idle": {
+      "title": "Cu adevărat inactive",
+      "description": "Doar AWS: instanțe pornite cu CPU mediu sub 5% în ultimele 7 zile (CloudWatch). Verifică în fila de metrici înainte de a le opri.",
+      "flagged": "{count, plural, one {# semnalată} few {# semnalate} other {# semnalate}}",
+      "avgCpu": "CPU mediu {pct}%",
+      "scan": "Scanează AWS",
+      "rescan": "Rescanează",
+      "scanning": "Se scanează…",
+      "intro": "Interoghează CloudWatch și semnalează instanțele EC2 pornite cu CPU mediu sub 5% în ultimele 7 zile. Doar citire — nimic nu se modifică automat.",
+      "noneFound": "Toate VM-urile AWS pornite par active. Nimic de semnalat.",
+      "scanFailed": "Scanarea inactivității a eșuat",
+      "badge": "Inactiv",
+      "window": "7 zile"
+    }
+  },
+  "projections": {
+    "title": "Proiecții de cost",
+    "description": "Proiecții la 30 / 60 / 90 de zile din istoricul ultimelor 30 de zile de sincronizare. Intervalul de încredere se lărgește cu orizontul.",
+    "breadcrumb": "Costuri",
+    "breadcrumbLabel": "Cale de navigare",
+    "empty": {
+      "title": "Istoric insuficient pentru proiecție",
+      "description": "Rulează câteva sincronizări în orele următoare și benzile la 30 / 60 / 90 de zile vor apărea aici.",
+      "action": "Înapoi la costuri"
+    },
+    "band": {
+      "label": "În {days} de zile",
+      "ci": "{lo} – {hi} · IC 95%",
+      "hourly": "{amount}/oră"
+    },
+    "chart": {
+      "title": "Tendința consumului orar",
+      "description": "Istoric (linie continuă) și regresia liniară (punctată) cu banda sa de încredere.",
+      "ariaLabel": "Grafic de proiecție a costurilor",
+      "noHistory": "Niciun istoric încă.",
+      "horizon": "{days} z"
+    },
+    "facts": {
+      "slope": "Pantă",
+      "slopeValue": "{amount}/zi",
+      "points": "Puncte folosite",
+      "sigma": "σ reziduală",
+      "sigmaValue": "{amount}/oră"
+    },
+    "perMonth": "{amount}/lună"
+  },
+  "recommendations": {
+    "title": "Recomandări de cost",
+    "description": "AWS CloudWatch pe ultimele 14 zile. Inactiv = CPU p95 < 3%; Redimensionare = p95 < 20% cu un tip mai mic din aceeași familie.",
+    "recompute": "Recalculează",
+    "recomputing": "Se analizează…",
+    "recomputed": "{analysed, plural, one {S-a analizat # VM} few {S-au analizat # VM-uri} other {S-au analizat # de VM-uri}} — {count, plural, one {# recomandare} few {# recomandări} other {# de recomandări}}.",
+    "stats": {
+      "open": "Recomandări deschise",
+      "savings": "Economii proiectate / lună",
+      "idle": "Candidați inactivi"
+    },
+    "empty": {
+      "title": "Nicio recomandare încă",
+      "description": "Recalculează după ce instanțele au rulat cel puțin o zi."
+    },
+    "kind": {
+      "rightsize": "Redimensionare",
+      "idle": "Inactiv",
+      "stop-after-hours": "Oprire după program",
+      "spot-eligible": "Eligibil spot"
+    },
+    "confidence": {
+      "low": "Încredere scăzută",
+      "medium": "Încredere medie",
+      "high": "Încredere ridicată"
+    },
+    "card": {
+      "saving": "Economie estimată",
+      "perMonth": "{amount}/lună",
+      "cpuHint": "CPU p95 {pct}% în {days} zile",
+      "suggested": "Sugerat: {type}",
+      "open": "Deschide instanța"
+    }
+  },
+  "optimizer": {
+    "title": "Optimizator de costuri",
+    "description": "Detectarea inactivității, redimensionare și estimări pentru instanțe rezervate din istoricul de metrici pe 7 zile și cache-ul de prețuri.",
+    "stats": {
+      "count": "Recomandări",
+      "monthly": "Economii lunare (afișate)",
+      "annual": "Economii anuale (afișate)"
+    },
+    "filterLabel": "Filtrează după tip",
+    "kind": {
+      "all": "Toate",
+      "idle": "Inactiv",
+      "rightsize-down": "Redimensionare în jos",
+      "stop-and-snapshot": "Oprire și instantaneu",
+      "reserved-instance": "Instanță rezervată"
+    },
+    "columns": {
+      "kind": "Tip",
+      "instance": "Instanță",
+      "type": "Tip instanță",
+      "reason": "Motiv",
+      "suggestion": "Sugestie",
+      "monthly": "Economie lunară"
+    },
+    "empty": {
+      "title": "Nicio recomandare încă",
+      "description": "Adună mai mult istoric de metrici (eșantioane de sondă) pentru a permite analiza."
+    },
+    "noneForKind": "Nicio recomandare de acest tip."
+  },
+  "recos": {
+    "title": "Sugestii de reducere",
+    "description": "Sugestii euristice de reducere a VM-urilor inactive, din ultimele 7 zile de date de sondă (CPU < 10%, rețea < 100 kbps).",
+    "stats": {
+      "total": "Economii lunare estimate",
+      "totalHint": "{count, plural, one {pentru # VM} few {pentru # VM-uri} other {pentru # de VM-uri}}",
+      "count": "VM-uri inactive"
+    },
+    "empty": {
+      "title": "Niciun VM inactiv detectat",
+      "description": "Fie flota rulează strâns, fie nu există încă suficiente date de sondă."
+    },
+    "columns": {
+      "vm": "VM",
+      "region": "Regiune",
+      "current": "Actual",
+      "suggested": "Sugerat",
+      "savings": "Economii / lună",
+      "reason": "Motiv"
+    },
+    "perHour": "{amount}/oră",
+    "noSuggestion": "—"
+  },
+  "budgets": {
+    "title": "Bugete pe etichete",
+    "description": "Setează un plafon lunar pe etichetă și primește notificare înainte să îl atingi.",
+    "newBudget": "Buget nou",
+    "newBudgetDescription": "Instanțele care poartă această etichetă sunt însumate față de plafon la fiecare sincronizare.",
+    "form": {
+      "tagKey": "Cheie etichetă",
+      "tagKeyPlaceholder": "env",
+      "tagValue": "Valoare etichetă",
+      "tagValuePlaceholder": "prod",
+      "monthlyUsd": "Plafon (USD/lună)",
+      "monthlyUsdPlaceholder": "500",
+      "saved": "Buget salvat"
+    },
+    "section": "Bugete",
+    "empty": {
+      "title": "Niciun buget încă",
+      "description": "Creează unul mai sus pentru a urmări cheltuielile pe etichetă."
+    },
+    "columns": {
+      "tag": "Etichetă",
+      "cap": "Plafon",
+      "observed": "Observat",
+      "utilisation": "Utilizare",
+      "status": "Stare"
+    },
+    "status": {
+      "exceeded": "Depășit",
+      "ok": "OK"
+    },
+    "perMonth": "{amount}/lună",
+    "delete": {
+      "label": "Șterge bugetul {tag}",
+      "title": "Ștergi bugetul {tag}?",
+      "description": "Cheltuielile pentru această etichetă nu vor mai fi urmărite și nu vor mai genera alerte.",
+      "confirm": "Șterge",
+      "done": "Buget șters"
+    }
+  },
+  "accountBudgets": {
+    "title": "Bugete per cont",
+    "description": "Alertele se declanșează când cheltuiala lunară proiectată atinge 80% din plafon.",
+    "columns": {
+      "account": "Cont",
+      "projected": "Proiectat / lună",
+      "cap": "Plafon (USD/lună)",
+      "utilisation": "Utilizare",
+      "status": "Stare"
+    },
+    "capLabel": "Plafon lunar pentru {name}",
+    "status": {
+      "over": "Depășit",
+      "warning": "Aproape de plafon",
+      "ok": "OK",
+      "none": "Fără plafon"
+    },
+    "alerted": "Alertat",
+    "saved": "Plafon salvat",
+    "clearLabel": "Elimină plafonul pentru {name}",
+    "cleared": "Plafon eliminat",
+    "perMonth": "{amount}/lună",
+    "empty": {
+      "title": "Niciun cont cloud",
+      "description": "Conectează un cont pentru a-i seta un plafon lunar de cheltuieli.",
+      "action": "Adaugă cont"
+    }
+  },
+  "forecast": {
+    "title": "Prognoză de costuri",
+    "description": "Regresie liniară pe ultimele 30 de zile de consum orar al flotei, proiectată 30 de zile înainte.",
+    "stats": {
+      "slope": "Pantă",
+      "slopeHint": "USD pe zi",
+      "r2": "R²",
+      "day30Daily": "Zilnic la ziua 30",
+      "day30Monthly": "Lunar la ziua 30"
+    },
+    "chart": {
+      "title": "Cheltuială zilnică",
+      "description": "Linia continuă este cheltuiala zilnică observată; linia întreruptă este proiecția.",
+      "aria": "Grafic liniar cu cheltuiala zilnică reală și proiectată pe {count} de zile",
+      "actual": "Real",
+      "projected": "Proiectat"
+    },
+    "empty": {
+      "title": "Niciun istoric încă",
+      "description": "Sincronizează conturile pentru a înregistra instantanee de cost."
+    },
+    "perDay": "{amount}/zi"
+  },
+  "burnRate": {
+    "title": "Gardă rată de consum",
+    "description": "Alertă când cheltuiala zilnică proiectată depășește un prag.",
+    "exceeded": {
+      "title": "Rata zilnică de consum este peste pragul tău",
+      "description": "Proiectat {daily}/zi față de un prag de {threshold}/zi."
+    },
+    "stats": {
+      "projectedDaily": "Proiectat zilnic",
+      "projectedMonthly": "Proiectat lunar",
+      "threshold": "Prag (zilnic)"
+    },
+    "threshold": {
+      "title": "Prag",
+      "description": "Cheltuiala zilnică proiectată peste această valoare ridică o alertă.",
+      "label": "Prag (USD/zi)",
+      "hint": "Setează 0 pentru a dezactiva."
+    },
+    "chart": {
+      "title": "Ultimele 30 de zile",
+      "description": "Consum zilnic proiectat din rata orară maximă a fiecărui cont.",
+      "aria": "Grafic liniar al consumului zilnic proiectat pe {count} de zile",
+      "legendBurn": "Consum zilnic",
+      "legendThreshold": "Prag"
+    },
+    "empty": {
+      "title": "Istoric insuficient",
+      "description": "Punctele zilnice apar după câteva sincronizări."
+    }
+  },
+  "billExplainer": {
+    "title": "Explicarea facturii",
+    "description": "Delta euristică pe 7 zile a cheltuielilor per cont. Principalele variații, ordonate după impactul lunar absolut.",
+    "movers": {
+      "title": "Principalele variații de cost (7 zile)",
+      "description": "Schimbarea ratei orare între primul și ultimul instantaneu al săptămânii.",
+      "perMonth": "{amount}/lună",
+      "pct": "{value}%",
+      "range": "{start}/h ({startVms, plural, one {# VM} few {# VM-uri} other {# de VM-uri}}) → {end}/h ({endVms, plural, one {# VM} few {# VM-uri} other {# de VM-uri}})",
+      "vmChange": "{sign}{count, plural, one {# VM} few {# VM-uri} other {# de VM-uri}}",
+      "empty": {
+        "title": "Istoric de instantanee insuficient",
+        "description": "Sunt necesare cel puțin două instantanee per cont pentru a calcula o delta."
+      }
+    },
+    "types": {
+      "title": "Cele mai folosite tipuri de instanțe",
+      "description": "Tipurile de instanțe cele mai frecvente din flotă.",
+      "columns": {
+        "provider": "Furnizor",
+        "type": "Tip",
+        "count": "Număr"
+      },
+      "unknown": "necunoscut"
+    },
+    "links": {
+      "accountForecast": "Prognoză per cont",
+      "costRecos": "Candidați la redimensionare"
+    }
+  },
+  "spendHeatmap": {
+    "title": "Hartă termică a cheltuielilor",
+    "description": "Cheltuială orară medie pe oră din zi × zi din săptămână (UTC, ultimele 30 de zile).",
+    "aria": "Hartă termică a cheltuielii orare medii pe zi din săptămână și oră din zi",
+    "cell": "{day} {hour}:00 UTC · {amount}/h · {count, plural, one {# eșantion} few {# eșantioane} other {# de eșantioane}}",
+    "legend": "Mai închis = medie USD/oră mai mare. Vârf {amount}/h.",
+    "empty": {
+      "title": "Niciun eșantion încă",
+      "description": "Instantaneele de cost din ultimele 30 de zile alimentează această grilă."
+    }
+  },
+  "heatmap": {
+    "title": "Hartă termică a erorilor",
+    "description": "Erori din jurnalul de audit în ultimele {days} de zile.",
+    "aria": "Hartă termică tip calendar a erorilor din jurnalul de audit pe zi",
+    "cell": "{date}: {count, plural, one {# eroare} few {# erori} other {# de erori}}",
+    "legend": {
+      "fewer": "mai puține",
+      "more": "mai multe"
+    },
+    "recent": {
+      "title": "Erori recente",
+      "description": "Cele mai recente zece acțiuni eșuate.",
+      "columns": {
+        "when": "Când",
+        "action": "Acțiune",
+        "target": "Țintă",
+        "message": "Mesaj"
+      },
+      "empty": {
+        "title": "Nicio eroare înregistrată"
+      }
+    }
+  },
+  "accountForecast": {
+    "title": "Prognoză de cheltuieli per cont",
+    "description": "Proiecție pe 30 de zile per cont prin regresie liniară a cheltuielii zilnice maxime.",
+    "projected": "Proiectat pentru următoarele 30 de zile",
+    "ofBudget": "din plafonul lunar",
+    "slope": "Pantă {amount}/zi",
+    "cap": "Plafon {amount}/lună",
+    "sparklineAria": "Tendința cheltuielii zilnice pentru {name}",
+    "empty": {
+      "title": "Istoric insuficient",
+      "description": "Sincronizează conturile de câteva ori pentru a construi o tendință per cont."
+    }
+  }
+}

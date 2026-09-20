@@ -3,7 +3,7 @@
 import { getCurrentUser, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
-import { acceptInvitation, createTeam, inviteToTeam, listTeamsForUser, removeMember } from "@/lib/teams";
+import { acceptInvitation, createTeam, inviteToTeam, listTeamsForUser, removeMember, setMemberRole } from "@/lib/teams";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -73,6 +73,18 @@ export async function removeMemberAction(input: z.infer<typeof removeSchema>) {
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "invalid" };
   removeMember(parsed.data.teamId, parsed.data.userId);
   db.insert(auditLog).values({ action: "team.remove_member", target: parsed.data.teamId, status: "ok", message: parsed.data.userId }).run();
+  revalidatePath("/teams");
+  return { ok: true as const };
+}
+
+const roleSchema = z.object({ teamId: z.string().min(1), userId: z.string().min(1), role: z.enum(["admin", "operator", "viewer", "member"]) });
+
+export async function setMemberRoleAction(input: z.infer<typeof roleSchema>) {
+  await requireRole("admin");
+  const parsed = roleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "invalid" };
+  setMemberRole(parsed.data.teamId, parsed.data.userId, parsed.data.role);
+  db.insert(auditLog).values({ action: "team.set_role", target: parsed.data.teamId, status: "ok", message: `${parsed.data.userId}:${parsed.data.role}` }).run();
   revalidatePath("/teams");
   return { ok: true as const };
 }

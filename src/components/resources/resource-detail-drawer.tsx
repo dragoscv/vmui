@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { X, ExternalLink, Copy, Check, Cloud, MapPin, Tag, Database, History } from "lucide-react";
+import { ProviderName, ProviderTile } from "@/components/cloud/provider-tile";
+import { Button } from "@/components/ui";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { CachedResourceRow } from "@/lib/db/schema";
 import { formatUsd } from "@/lib/utils";
 import { listResourceHistoryAction } from "@/server/actions/resource-history";
+import { Check, Copy, ExternalLink, History } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useEffect, useMemo, useState } from "react";
+import { useKindLabel } from "./resource-format";
 
 interface DrawerProps {
   resource: CachedResourceRow | null;
@@ -12,170 +17,23 @@ interface DrawerProps {
 }
 
 function providerDeepLink(r: CachedResourceRow): string | null {
-  // Best-effort console URLs; not all resources are addressable directly.
   if (r.provider === "aws") {
     if (r.kind === "volume") return `https://console.aws.amazon.com/ec2/home?region=${r.region}#Volumes:`;
     if (r.kind === "snapshot") return `https://console.aws.amazon.com/ec2/home?region=${r.region}#Snapshots:`;
     if (r.kind === "vpc") return `https://console.aws.amazon.com/vpc/home?region=${r.region}#vpcs:`;
     if (r.kind === "subnet") return `https://console.aws.amazon.com/vpc/home?region=${r.region}#subnets:`;
-    if (r.kind === "security-group")
-      return `https://console.aws.amazon.com/ec2/home?region=${r.region}#SecurityGroups:`;
+    if (r.kind === "security-group") return `https://console.aws.amazon.com/ec2/home?region=${r.region}#SecurityGroups:`;
     if (r.kind === "bucket") return `https://s3.console.aws.amazon.com/s3/buckets/${r.name ?? ""}`;
-    if (r.kind === "database")
-      return `https://console.aws.amazon.com/rds/home?region=${r.region}#databases:`;
-    if (r.kind === "load-balancer")
-      return `https://console.aws.amazon.com/ec2/home?region=${r.region}#LoadBalancers:`;
+    if (r.kind === "database") return `https://console.aws.amazon.com/rds/home?region=${r.region}#databases:`;
+    if (r.kind === "load-balancer") return `https://console.aws.amazon.com/ec2/home?region=${r.region}#LoadBalancers:`;
     if (r.kind === "dns-zone") return `https://console.aws.amazon.com/route53/v2/hostedzones`;
   }
-  if (r.provider === "azure") {
-    return `https://portal.azure.com/#@/resource${r.externalId}`;
-  }
+  if (r.provider === "azure") return `https://portal.azure.com/#@/resource${r.externalId}`;
   if (r.provider === "gcp") {
     if (r.kind === "bucket") return `https://console.cloud.google.com/storage/browser/${r.name ?? ""}`;
     if (r.kind === "database") return `https://console.cloud.google.com/sql/instances`;
   }
   return null;
-}
-
-export function ResourceDetailDrawer({ resource, onClose }: DrawerProps) {
-  const [copied, setCopied] = useState(false);
-  const [history, setHistory] = useState<Awaited<ReturnType<typeof listResourceHistoryAction>>>([]);
-  const [showHistory, setShowHistory] = useState(false);
-
-  useEffect(() => {
-    if (!resource) return;
-    setHistory([]);
-    setShowHistory(false);
-    void listResourceHistoryAction({
-      accountId: resource.accountId,
-      kind: resource.kind,
-      externalId: resource.externalId,
-    }).then(setHistory);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [resource, onClose]);
-
-  if (!resource) return null;
-
-  const link = providerDeepLink(resource);
-  const rawPretty = resource.rawJson
-    ? (() => {
-        try {
-          return JSON.stringify(JSON.parse(resource.rawJson), null, 2);
-        } catch {
-          return resource.rawJson;
-        }
-      })()
-    : null;
-
-  const copyId = async () => {
-    await navigator.clipboard.writeText(resource.externalId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4">
-          <div className="min-w-0">
-            <div className="text-xs uppercase tracking-wider text-muted">{resource.kind}</div>
-            <h2 className="truncate text-lg font-semibold">{resource.name ?? "—"}</h2>
-            <button
-              onClick={copyId}
-              className="mt-1 inline-flex items-center gap-1 rounded text-xs text-muted hover:text-fg"
-            >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-              <code className="font-mono">{resource.externalId}</code>
-            </button>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-[var(--radius-md)] p-1 text-muted hover:bg-[var(--color-bg-muted)] hover:text-fg"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-sm">
-          <dl className="grid gap-2 sm:grid-cols-2">
-            <Field icon={Cloud} k="Provider" v={resource.provider.toUpperCase()} />
-            <Field icon={MapPin} k="Region" v={resource.region} />
-            <Field icon={Tag} k="Status" v={resource.status ?? "—"} />
-            <Field
-              icon={Database}
-              k="Cost / mo"
-              v={resource.monthlyUsd ? formatUsd(resource.monthlyUsd) : "—"}
-            />
-          </dl>
-
-          {link && (
-            <a
-              href={link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-xs hover:bg-[var(--color-bg-muted)]"
-            >
-              <ExternalLink className="h-3.5 w-3.5" /> Open in {resource.provider} console
-            </a>
-          )}
-
-          {rawPretty && (
-            <div>
-              <div className="mb-1 text-xs uppercase tracking-wider text-muted">Raw payload</div>
-              <pre className="max-h-96 overflow-auto rounded border border-[var(--color-border)] bg-[var(--color-bg)]/60 p-3 font-mono text-[10px] leading-relaxed">
-                {rawPretty}
-              </pre>
-            </div>
-          )}
-
-          {history.length > 0 && (
-            <div>
-              <button
-                onClick={() => setShowHistory((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-xs hover:bg-[var(--color-bg-muted)]"
-              >
-                <History className="h-3.5 w-3.5" />
-                {showHistory ? "Hide" : "Show"} drift history ({history.length})
-              </button>
-              {showHistory && (
-                <ol className="mt-2 space-y-3">
-                  {history.map((h) => (
-                    <HistoryDiff key={h.id} entry={h} />
-                  ))}
-                </ol>
-              )}
-            </div>
-          )}
-        </div>
-      </aside>
-    </>
-  );
-}
-
-function Field({ icon: Icon, k, v }: { icon: typeof Cloud; k: string; v: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2">
-      <Icon className="h-3.5 w-3.5 text-muted" />
-      <div>
-        <div className="text-[10px] uppercase tracking-wider text-muted">{k}</div>
-        <div className="text-sm">{v}</div>
-      </div>
-    </div>
-  );
 }
 
 function tryPretty(s: string | null): string {
@@ -187,11 +45,122 @@ function tryPretty(s: string | null): string {
   }
 }
 
-function HistoryDiff({
-  entry,
-}: {
-  entry: { id: string; capturedAt: Date; prevJson: string | null; nextJson: string };
-}) {
+type HistoryEntry = Awaited<ReturnType<typeof listResourceHistoryAction>>[number];
+
+function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="surface min-w-0 p-3">
+      <dt className="text-[11px] uppercase tracking-wider text-muted">{label}</dt>
+      <dd className="truncate">{children}</dd>
+    </div>
+  );
+}
+
+export function ResourceDetailDrawer({ resource, onClose }: DrawerProps) {
+  const t = useTranslations("cloud.resources.detail");
+  const kindLabel = useKindLabel();
+  const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    if (!resource) return;
+    setHistory([]);
+    setShowHistory(false);
+    setCopied(false);
+    void listResourceHistoryAction({
+      accountId: resource.accountId,
+      kind: resource.kind,
+      externalId: resource.externalId,
+    }).then(setHistory);
+  }, [resource]);
+
+  const link = resource ? providerDeepLink(resource) : null;
+  const rawPretty = resource?.rawJson ? tryPretty(resource.rawJson) : null;
+
+  const copyId = async () => {
+    if (!resource) return;
+    await navigator.clipboard.writeText(resource.externalId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
+  return (
+    <Sheet open={resource !== null} onOpenChange={(open) => !open && onClose()}>
+      {resource && (
+        <SheetContent title={resource.name ?? resource.externalId} description={kindLabel(resource.kind)} className="md:w-[520px]">
+          <div className="space-y-4 text-sm">
+            <button
+              type="button"
+              onClick={copyId}
+              aria-label={t("copyId")}
+              className="inline-flex min-h-10 max-w-full items-center gap-1.5 rounded-[var(--radius-md)] px-2 text-xs text-muted transition-colors hover:bg-bg-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {copied ? <Check className="size-3.5 text-success" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+              <code className="truncate font-mono">{resource.externalId}</code>
+              <span className="sr-only" aria-live="polite">
+                {copied ? t("copied") : ""}
+              </span>
+            </button>
+
+            <dl className="grid gap-2 sm:grid-cols-2">
+              <div className="surface flex min-w-0 items-center gap-3 p-3">
+                <ProviderTile provider={resource.provider} size="sm" />
+                <div className="min-w-0">
+                  <dt className="text-[11px] uppercase tracking-wider text-muted">{t("provider")}</dt>
+                  <dd className="truncate">
+                    <ProviderName provider={resource.provider} />
+                  </dd>
+                </div>
+              </div>
+              <DetailField label={t("region")}>{resource.region}</DetailField>
+              <DetailField label={t("status")}>{resource.status ?? "—"}</DetailField>
+              <DetailField label={t("cost")}>
+                <span className="tabular-nums">{resource.monthlyUsd ? formatUsd(resource.monthlyUsd) : "—"}</span>
+              </DetailField>
+            </dl>
+
+            {link && (
+              <Button asChild variant="outline" size="sm">
+                <a href={link} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-3.5" aria-hidden />
+                  {t("openConsole", { provider: resource.provider.toUpperCase() })}
+                </a>
+              </Button>
+            )}
+
+            {rawPretty && (
+              <div className="space-y-1">
+                <p className="text-[11px] uppercase tracking-wider text-muted">{t("raw")}</p>
+                <pre className="surface max-h-96 overflow-x-auto p-3 font-mono text-xs leading-relaxed">{rawPretty}</pre>
+              </div>
+            )}
+
+            {history.length > 0 && (
+              <div className="space-y-2">
+                <Button variant="outline" size="sm" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
+                  <History className="size-3.5" aria-hidden />
+                  {showHistory ? t("hideHistory", { count: history.length }) : t("showHistory", { count: history.length })}
+                </Button>
+                {showHistory && (
+                  <ol className="space-y-3">
+                    {history.map((h) => (
+                      <HistoryDiff key={h.id} entry={h} />
+                    ))}
+                  </ol>
+                )}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      )}
+    </Sheet>
+  );
+}
+
+function HistoryDiff({ entry }: { entry: HistoryEntry }) {
+  const t = useTranslations("cloud.resources.detail");
+  const format = useFormatter();
   const diff = useMemo(() => {
     const prev = tryPretty(entry.prevJson).split("\n");
     const next = tryPretty(entry.nextJson).split("\n");
@@ -203,23 +172,24 @@ function HistoryDiff({
     };
   }, [entry.prevJson, entry.nextJson]);
 
+  const at = new Date(entry.capturedAt);
   return (
-    <li className="rounded border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-3">
-      <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted">
-        {entry.capturedAt instanceof Date
-          ? entry.capturedAt.toLocaleString()
-          : new Date(entry.capturedAt).toLocaleString()}
-      </div>
-      <pre className="max-h-48 overflow-auto rounded bg-[var(--color-bg)]/80 p-2 font-mono text-[10px] leading-relaxed">
+    <li className="surface space-y-1.5 p-3">
+      <time dateTime={at.toISOString()} className="block text-[11px] uppercase tracking-wider text-muted">
+        {format.dateTime(at, { dateStyle: "medium", timeStyle: "short" })}
+      </time>
+      <pre className="max-h-48 overflow-x-auto rounded-[var(--radius-md)] bg-bg-muted p-2 font-mono text-xs leading-relaxed">
         {diff.removed.map((l, i) => (
-          <div key={`r${i}`} className="text-[oklch(0.58_0.16_25)]">- {l}</div>
+          <div key={`r${i}`} className="text-danger">
+            - {l}
+          </div>
         ))}
         {diff.added.map((l, i) => (
-          <div key={`a${i}`} className="text-[oklch(0.62_0.14_145)]">+ {l}</div>
+          <div key={`a${i}`} className="text-success">
+            + {l}
+          </div>
         ))}
-        {diff.removed.length === 0 && diff.added.length === 0 && (
-          <div className="text-muted">(no line-level changes; whitespace or ordering only)</div>
-        )}
+        {diff.removed.length === 0 && diff.added.length === 0 && <div className="text-muted">{t("noLineChanges")}</div>}
       </pre>
     </li>
   );

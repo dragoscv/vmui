@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2, Save, Plus, X, Tag } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { toResult } from "@/components/settings/adapt";
+import { Badge, Button, Field, Input } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
 import { updateRequiredTagsAction } from "@/server/actions/account-policy";
+import { Plus, Save, X } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
 
 interface Props {
   accountId: string;
@@ -25,9 +25,14 @@ function parseInitial(raw: string | null): string[] {
 }
 
 export function RequiredTagsEditor({ accountId, initial }: Props) {
+  const t = useTranslations("cloud.accountDetail");
+  const tc = useTranslations("common");
   const [keys, setKeys] = useState<string[]>(parseInitial(initial));
   const [draft, setDraft] = useState("");
-  const [pending, start] = useTransition();
+
+  const save = useAction(async (next: string[]) => toResult(await updateRequiredTagsAction({ accountId, keys: next })), {
+    success: () => (keys.length === 0 ? t("requiredTags.cleared") : t("requiredTags.saved", { count: keys.length })),
+  });
 
   function addKey() {
     const k = draft.trim();
@@ -36,55 +41,44 @@ export function RequiredTagsEditor({ accountId, initial }: Props) {
     setDraft("");
   }
 
-  function save() {
-    start(async () => {
-      const r = await updateRequiredTagsAction({ accountId, keys });
-      if (r.ok) toast.success(keys.length === 0 ? "Required tags cleared" : `Saved ${keys.length} required tag${keys.length === 1 ? "" : "s"}`);
-      else toast.error("Save failed", { description: r.error });
-    });
-  }
-
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Tag className="h-3.5 w-3.5" />
-        Compliance flags any instance missing these keys.
-      </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {keys.map((k) => (
-          <Badge key={k} variant="info" className="gap-1">
-            {k}
+          <Badge key={k} variant="muted" className="gap-1">
+            <span className="min-w-0 truncate">{k}</span>
             <button
               type="button"
               onClick={() => setKeys((p) => p.filter((x) => x !== k))}
-              aria-label={`Remove ${k}`}
-              className="rounded p-0.5 hover:bg-white/10"
+              aria-label={t("requiredTags.remove", { key: k })}
+              className="rounded-full p-0.5 hover:bg-[color-mix(in_oklch,var(--color-fg)_12%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <X className="h-3 w-3" />
+              <X className="size-3" aria-hidden />
             </button>
           </Badge>
         ))}
-        {keys.length === 0 && <span className="text-xs text-muted">No required tags.</span>}
+        {keys.length === 0 && <span className="text-xs text-muted">{t("requiredTags.empty")}</span>}
       </div>
-      <div className="flex items-center gap-2">
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="cost-center"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addKey();
-            }
-          }}
-          className="max-w-48 text-xs"
-        />
-        <Button size="sm" variant="ghost" onClick={addKey}>
-          <Plus className="h-3.5 w-3.5" /> Add
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label={t("requiredTags.label")} hint={t("requiredTags.hint")} className="min-w-0 flex-1 basis-48">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={t("requiredTags.placeholder")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addKey();
+              }
+            }}
+          />
+        </Field>
+        <Button size="sm" variant="ghost" className="h-9" onClick={addKey}>
+          <Plus className="size-3.5" aria-hidden /> {tc("add")}
         </Button>
-        <Button size="sm" onClick={save} disabled={pending}>
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          Save
+        <Button size="sm" className="h-9" loading={save.pending} onClick={() => void save.run(keys)}>
+          <Save className="size-3.5" aria-hidden />
+          {tc("save")}
         </Button>
       </div>
     </div>

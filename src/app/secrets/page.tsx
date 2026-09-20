@@ -1,10 +1,13 @@
-import { listInstances } from "@/server/queries";
 import { SecretsWorkspace } from "@/components/secrets/secrets-workspace";
+import { PageHeader, PageShell } from "@/components/ui";
+import { listInstances } from "@/server/queries";
+import { Lock } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function SecretsPage() {
-  const all = await listInstances();
+  const [all, t] = await Promise.all([listInstances(), getTranslations("govern.secrets")]);
   const reachable = all
     .filter((i) => i.state === "running" && (i.publicIp || i.publicDns))
     .map((i) => ({
@@ -15,14 +18,9 @@ export default async function SecretsPage() {
     }));
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Secrets</h1>
-        <p className="text-sm text-muted">
-          AES-256-GCM-encrypted secrets with rotation reminders, audit log, push-to-VM as .env, and sealed scrypt-encrypted export.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<Lock />} />
       <SecretsWorkspace instances={reachable} />
-    </main>
+    </PageShell>
   );
 }

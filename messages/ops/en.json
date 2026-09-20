@@ -1,0 +1,1313 @@
+{
+  "logViewer": {
+    "lines": "{count, plural, =1 {# line} other {# lines}}",
+    "matches": "{count, plural, =0 {no matches} =1 {# match} other {# matches}}",
+    "search": "Search log",
+    "wrap": "Wrap long lines",
+    "autoScroll": "Auto-scroll to bottom",
+    "copy": "Copy log",
+    "copied": "Copied",
+    "waiting": "Waiting for output…",
+    "empty": "No output yet."
+  },
+  "containers": {
+    "title": "Containers",
+    "description": "Containers across every reachable Linux/macOS host. Runtime (docker, podman, nerdctl) is detected per host; the list refreshes every 5 seconds.",
+    "openTerminal": "Open terminal",
+    "connecting": "Connecting to host…",
+    "noRuntime": "No container runtime detected on this guest.",
+    "liveStats": "Live CPU / memory",
+    "hostSummary": "{running} of {total} running",
+    "stats": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "hosts": "Hosts",
+      "hostsHint": "{count, plural, =0 {no runtime detected} =1 {# with a runtime} other {# with a runtime}}"
+    },
+    "columns": {
+      "name": "Name",
+      "image": "Image",
+      "status": "Status",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "network": "Net I/O",
+      "ports": "Ports"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "pull": "Pull image",
+      "logs": "Logs",
+      "exec": "Open shell",
+      "inspect": "Inspect",
+      "remove": "Remove"
+    },
+    "done": {
+      "start": "Container started",
+      "stop": "Container stopped",
+      "restart": "Container restarted",
+      "pull": "Image pulled",
+      "remove": "Container removed"
+    },
+    "confirmStop": {
+      "title": "Stop {name}?",
+      "description": "The container will be stopped gracefully. You can start it again from this list."
+    },
+    "confirmRemove": {
+      "title": "Remove {name}?",
+      "description": "The container and its writable layer are deleted. Named volumes are kept."
+    },
+    "logs": {
+      "title": "Logs · {name}",
+      "empty": "Waiting for log output…"
+    },
+    "inspect": {
+      "title": "Inspect · {name}",
+      "failed": "Inspect failed"
+    },
+    "empty": {
+      "title": "No containers on this host",
+      "description": "The runtime is up but nothing is running. Open a shell to start something, or apply a compose stack.",
+      "action": "Open shell"
+    },
+    "noHosts": {
+      "title": "No reachable hosts",
+      "description": "Containers need a running Linux or macOS instance with a public address and a probe key on its account.",
+      "newInstance": "New instance",
+      "settings": "Settings"
+    }
+  },
+  "compose": {
+    "title": "Compose stacks",
+    "description": "Author and version docker-compose YAML, then apply it to any reachable Linux VM. Every save creates a new version.",
+    "stackCount": "{count, plural, =0 {no stacks} =1 {# stack} other {# stacks}}",
+    "viewContainers": "Containers",
+    "newStack": "New stack",
+    "save": "Save version",
+    "apply": "Apply",
+    "saved": "Version saved",
+    "deleted": "Stack deleted",
+    "applied": "Stack applied",
+    "stacks": {
+      "title": "Stacks",
+      "description": "Select a stack to load it into the editor.",
+      "empty": "No stacks yet",
+      "emptyHint": "Create your first compose stack and apply it to a VM.",
+      "editAction": "Edit"
+    },
+    "columns": {
+      "name": "Name",
+      "buildLocation": "Build",
+      "updated": "Updated"
+    },
+    "location": {
+      "remote": "On the VM",
+      "local": "Locally"
+    },
+    "editor": {
+      "titleNew": "New stack",
+      "titleEdit": "Edit · {name}",
+      "description": "YAML is written to /opt/compose/<name>/docker-compose.yml on the target and started with docker compose up -d."
+    },
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "my-stack",
+      "description": "Description",
+      "descriptionPlaceholder": "What this stack runs",
+      "buildLocation": "Build images",
+      "note": "Version note",
+      "noteHint": "Optional. Shown in the version history.",
+      "notePlaceholder": "e.g. bump nginx to 1.27",
+      "yaml": "docker-compose.yml",
+      "applyTo": "Apply to",
+      "applyToPlaceholder": "Pick an instance"
+    },
+    "confirmDelete": {
+      "title": "Delete stack {name}?",
+      "description": "All versions are deleted. Containers already running on hosts are not touched.",
+      "confirm": "Delete stack"
+    },
+    "confirmApply": {
+      "title": "Apply {name}?",
+      "description": "Runs docker compose pull and up -d on {target}. Running services in this stack are recreated if their definition changed."
+    },
+    "output": {
+      "title": "Apply output",
+      "empty": "Waiting for output…"
+    },
+    "history": {
+      "title": "Version history",
+      "description": "Load an older version into the editor, then save to make it current.",
+      "count": "{count, plural, =1 {# version} other {# versions}}",
+      "load": "Load into editor"
+    }
+  },
+  "terminal": {
+    "title": "Terminal",
+    "description": "Open a shell on any reachable VM or inside a running container, over the SSH WebSocket bridge.",
+    "hostCount": "{count, plural, =0 {no hosts} =1 {# host} other {# hosts}}",
+    "viewContainers": "Containers",
+    "target": "Target",
+    "modes": {
+      "host": "Host",
+      "container": "Container"
+    },
+    "instance": "Instance",
+    "container": "Container",
+    "shell": "Shell",
+    "loadingContainers": "Loading containers…",
+    "noRunningContainers": "No running containers",
+    "open": "Open session",
+    "pickContainer": "Pick a container first.",
+    "sessions": "Sessions",
+    "closeSession": "Close {label}",
+    "empty": {
+      "title": "No open sessions",
+      "description": "Pick a host or container above and open a session. Multiple sessions stay open in tabs."
+    },
+    "noHosts": {
+      "title": "No reachable hosts",
+      "description": "A terminal needs a running Linux or macOS instance with a public address and a probe key on its account.",
+      "action": "New instance"
+    }
+  },
+  "builds": {
+    "title": "Builds & registries",
+    "description": "Configure container registries, then build and push images locally on the vmui host or remotely on any reachable VM.",
+    "viewContainers": "Containers",
+    "finished": "finished",
+    "timeline": "Build progress",
+    "showOutput": "Output",
+    "hideOutput": "Hide output",
+    "noLogs": "No output yet.",
+    "stats": {
+      "registries": "Registries",
+      "active": "In progress",
+      "succeeded": "Succeeded",
+      "failed": "Failed"
+    },
+    "status": {
+      "pending": "Queued",
+      "running": "Building",
+      "success": "Pushed",
+      "failed": "Failed"
+    },
+    "steps": {
+      "queued": "Queued",
+      "building": "Build",
+      "pushed": "Push"
+    },
+    "location": {
+      "local": "Local (vmui host)",
+      "remote": "Remote (VM)",
+      "remoteOn": "Remote · {name}"
+    },
+    "registries": {
+      "title": "Registries",
+      "description": "Credentials are encrypted at rest and only used at push time.",
+      "add": "Add registry",
+      "addTitle": "New registry",
+      "addHint": "Pick the registry type; only the fields it needs are shown.",
+      "save": "Save registry",
+      "saved": "Registry saved",
+      "deleted": "Registry deleted",
+      "empty": "No registries configured",
+      "emptyHint": "Add a registry before starting a build.",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "url": "URL",
+        "added": "Added"
+      },
+      "types": {
+        "ghcr": "GitHub Container Registry",
+        "dockerhub": "Docker Hub",
+        "ecr": "AWS ECR",
+        "gcr": "GCP Artifact Registry",
+        "acr": "Azure ACR"
+      },
+      "fields": {
+        "name": "Name",
+        "type": "Type",
+        "url": "Registry URL",
+        "username": "Username",
+        "tokenPat": "Token (PAT)",
+        "passwordOrToken": "Password / token",
+        "accessKeyId": "Access key ID",
+        "secretAccessKey": "Secret access key",
+        "region": "Region",
+        "serviceAccountJson": "Service account JSON"
+      },
+      "confirmDelete": {
+        "title": "Delete registry {name}?",
+        "description": "Builds that pushed to it keep their history; new builds can no longer target it."
+      }
+    },
+    "runs": {
+      "title": "Build runs",
+      "description": "The last 50 builds. Status refreshes every 5 seconds.",
+      "new": "New build",
+      "empty": "No builds yet",
+      "emptyHint": "Start a build from an inline Dockerfile; output streams here.",
+      "emptyNeedsRegistry": "Add a registry first — every build pushes somewhere."
+    },
+    "newBuild": {
+      "title": "New build",
+      "hint": "The Dockerfile is built with an empty context and pushed to the selected registry.",
+      "start": "Start build",
+      "started": "Build started",
+      "fillAll": "Registry, image reference and Dockerfile are required.",
+      "fields": {
+        "registry": "Registry",
+        "imageRef": "Image reference",
+        "buildLocation": "Build on",
+        "instance": "Instance",
+        "dockerfile": "Dockerfile"
+      }
+    }
+  },
+  "gitops": {
+    "title": "GitOps",
+    "description": "Watch a Git repository and auto-apply every compose change to a target VM. Supports public, HTTPS-token and SSH-key sources.",
+    "count": "{count, plural, =1 {# source} other {# sources}}",
+    "addSource": "Add source",
+    "enabled": "Enabled",
+    "paused": "Paused",
+    "sources": {
+      "title": "Git sources",
+      "description": "Select a row to inspect its pipeline and sync log."
+    },
+    "columns": {
+      "name": "Name",
+      "repo": "Repository",
+      "status": "Status",
+      "lastSync": "Last sync",
+      "commit": "Commit"
+    },
+    "actions": {
+      "syncNow": "Sync now",
+      "pause": "Pause",
+      "resume": "Resume"
+    },
+    "empty": {
+      "title": "No Git sources yet",
+      "description": "Add a repository and vmui will poll it and apply compose changes to the target VM."
+    },
+    "confirmDelete": {
+      "title": "Delete “{name}”?",
+      "description": "The source and its local clone cache are removed. Deployed stacks on the VM are left untouched."
+    },
+    "toast": {
+      "synced": "Sync finished",
+      "deleted": "Source deleted"
+    },
+    "pipeline": {
+      "title": "Pipeline · {name}",
+      "description": "Live status of the poll → fetch → match → apply chain, refreshed every 5 seconds."
+    },
+    "steps": {
+      "title": "Sync pipeline",
+      "poll": "Poll",
+      "pollDetail": "Every {seconds} s",
+      "fetch": "Fetch",
+      "match": "Match compose files",
+      "apply": "Apply to target",
+      "never": "Never",
+      "noApplies": "No applies yet"
+    },
+    "stepState": {
+      "done": "Done",
+      "running": "Running",
+      "failed": "Failed",
+      "idle": "Idle"
+    },
+    "log": {
+      "title": "Sync log",
+      "empty": "No applies recorded for this source yet."
+    },
+    "form": {
+      "title": "New Git source",
+      "hint": "The first sync runs within 30 seconds of saving.",
+      "name": "Name",
+      "url": "Repository URL",
+      "branch": "Branch",
+      "auth": "Authentication",
+      "authNone": "None (public)",
+      "authToken": "HTTPS token",
+      "authSsh": "SSH key",
+      "username": "Username (optional)",
+      "token": "Token / PAT",
+      "sshKey": "Private SSH key (OpenSSH format)",
+      "composeGlob": "Compose glob",
+      "target": "Target instance",
+      "targetHint": "Leave empty to only track the repository.",
+      "targetNone": "None — just track",
+      "pollSeconds": "Poll interval (seconds)",
+      "submit": "Save source",
+      "saved": "Source added — first sync runs within 30 s"
+    }
+  },
+  "k8s": {
+    "title": "Kubernetes",
+    "description": "One-click k3s / k0s install, web-based kubectl and Helm deploys — all over SSH, no exposed API server.",
+    "node": "Server node",
+    "tabs": {
+      "workloads": "Workloads",
+      "install": "Install",
+      "kubectl": "kubectl",
+      "helm": "Helm"
+    },
+    "noInstances": {
+      "title": "No reachable Linux VMs",
+      "description": "Start a Linux or macOS VM with a public address to install a cluster on it.",
+      "cta": "Open instances"
+    },
+    "columns": {
+      "namespace": "Namespace",
+      "name": "Pod",
+      "status": "Status",
+      "ready": "Ready",
+      "restarts": "Restarts",
+      "age": "Age"
+    },
+    "workloads": {
+      "title": "Pods",
+      "description": "Runs `kubectl get pods -A` on the selected node.",
+      "load": "Load pods",
+      "emptyTitle": "Nothing loaded yet",
+      "emptyDescription": "Fetch the pod list from the selected node.",
+      "noPods": "No pods",
+      "noPodsHint": "The cluster answered but reported no pods, or the output could not be parsed.",
+      "describe": "Describe pod",
+      "logs": "Pod logs"
+    },
+    "output": {
+      "empty": "Command produced no output."
+    },
+    "install": {
+      "title": "Install a cluster",
+      "description": "Installs k3s or k0s over SSH. Server role returns a kubeconfig and a join token.",
+      "flavor": "Flavour",
+      "role": "Role",
+      "roleServer": "Server (single / control plane)",
+      "roleAgent": "Agent (worker)",
+      "serverUrl": "Server URL",
+      "serverUrlHint": "k3s only",
+      "token": "Join token",
+      "submit": "Install",
+      "done": "Cluster installed",
+      "joinToken": "Join token (for agents)",
+      "kubeconfig": "kubeconfig",
+      "download": "Download kubeconfig"
+    },
+    "kubectl": {
+      "title": "kubectl",
+      "description": "Runs kubectl on the server node over SSH.",
+      "args": "Arguments",
+      "argsHint": "Alphanumerics and - _ . , / = : @ space",
+      "run": "Run"
+    },
+    "helm": {
+      "title": "Helm install",
+      "description": "Adds the repository if given, then runs `helm upgrade --install`.",
+      "release": "Release name",
+      "chart": "Chart",
+      "namespace": "Namespace (optional)",
+      "repoName": "Repo name (optional)",
+      "repoUrl": "Repo URL (optional)",
+      "values": "values.yaml (optional)",
+      "submit": "Helm install",
+      "done": "Helm release applied"
+    }
+  },
+  "mesh": {
+    "title": "Mesh networking",
+    "description": "Generate a WireGuard full mesh across selected VMs, or a Tailscale install + up command with tags, routes and SSH.",
+    "reachable": "{count, plural, =1 {# reachable VM} other {# reachable VMs}}",
+    "openTerminal": "Open terminal",
+    "tabs": {
+      "wireguard": "WireGuard mesh",
+      "tailscale": "Tailscale"
+    },
+    "columns": {
+      "name": "Name",
+      "publicIp": "Public IP",
+      "privateIp": "Private IP",
+      "endpoint": "Endpoint"
+    },
+    "legend": {
+      "title": "Legend",
+      "public": "Public endpoint",
+      "private": "Private only",
+      "excluded": "Not selected",
+      "edges": "{count, plural, =1 {# tunnel} other {# tunnels}}"
+    },
+    "noInstances": {
+      "title": "No reachable VMs",
+      "description": "Start at least two running VMs with an IP address to build a mesh.",
+      "cta": "Open instances"
+    },
+    "preview": {
+      "title": "Mesh preview",
+      "description": "Every selected peer gets a tunnel to every other one.",
+      "aria": "Mesh diagram with {count} selected peers",
+      "listAria": "Peers"
+    },
+    "wireguard": {
+      "peersTitle": "Peers",
+      "peersDescription": "Pick at least two VMs. The private IP is preferred as the tunnel endpoint.",
+      "selectedCount": "{count, plural, =1 {# selected} other {# selected}}",
+      "selectAll": "Select all peers",
+      "selectPeer": "Select {name}",
+      "subnet": "VPN subnet",
+      "generate": "Generate mesh",
+      "autoBuild": "Auto-build from fleet",
+      "generated": "{count, plural, =1 {Generated # wg0.conf} other {Generated # wg0.conf files}}",
+      "autoBuilt": "{count, plural, =1 {Auto-built mesh for # VM} other {Auto-built mesh for # VMs}}",
+      "configsTitle": "Generated configs",
+      "configsDescription": "{count, plural, =1 {# file — copy or download it to /etc/wireguard/wg0.conf.} other {# files — copy or download each one to /etc/wireguard/wg0.conf on its peer.}}",
+      "download": "Download"
+    },
+    "tailscale": {
+      "title": "Tailscale",
+      "description": "Produces the install script and a `tailscale up` command with your auth key baked in.",
+      "authKey": "Auth key",
+      "hostname": "Hostname (optional)",
+      "tags": "Tags",
+      "routes": "Advertise routes",
+      "commaHint": "Comma-separated",
+      "ssh": "Enable Tailscale SSH",
+      "sshHint": "Adds --ssh so you can reach the node without keys.",
+      "generate": "Generate",
+      "outputTitle": "Commands",
+      "installComment": "Install Tailscale",
+      "connectComment": "Connect",
+      "runHint": "{count, plural, =1 {Run these commands on the reachable VM via the built-in terminal.} other {Run these commands on each of the # reachable VMs via the built-in terminal.}}"
+    }
+  },
+  "topology": {
+    "title": "Topology",
+    "description": "Force-directed graph of accounts, instances and resources.",
+    "counts": "{nodes} nodes · {edges} edges",
+    "fit": "Fit to screen",
+    "saveLayout": "Save layout",
+    "resetLayout": "Reset layout",
+    "openInstance": "Open instance",
+    "openAccount": "Open account",
+    "empty": {
+      "title": "No resources yet",
+      "description": "Sync a cloud account to populate the topology.",
+      "cta": "Open accounts"
+    },
+    "filters": {
+      "title": "Filters",
+      "description": "Narrow the graph by account, provider and relationship type.",
+      "view": "View",
+      "view3d": "3D",
+      "view2d": "2D",
+      "accounts": "Account",
+      "providers": "Providers",
+      "edges": "Relationships"
+    },
+    "graph": {
+      "title": "Graph",
+      "hint": "Drag to rotate · scroll to zoom · click a node for details."
+    },
+    "legend": {
+      "title": "Node kinds"
+    },
+    "list": {
+      "title": "Nodes",
+      "description": "Tap a node for details.",
+      "truncated": "{count, plural, =1 {# more node hidden} other {# more nodes hidden}}"
+    },
+    "kinds": {
+      "account": "Account",
+      "instance": "Instance",
+      "volume": "Volume",
+      "snapshot": "Snapshot",
+      "security-group": "Security group",
+      "vpc": "VPC",
+      "subnet": "Subnet",
+      "bucket": "Bucket",
+      "load-balancer": "Load balancer",
+      "database": "Database",
+      "dns": "DNS"
+    },
+    "edges": {
+      "owned-by": "Owned by",
+      "attaches": "Attaches",
+      "in-group": "In group",
+      "in-vpc": "In VPC",
+      "in-subnet": "In subnet"
+    }
+  },
+  "ai": {
+    "title": "AI agent",
+    "description": "Local-first chat powered by Ollama. Set <code>VMUI_OLLAMA_URL</code> and <code>VMUI_OLLAMA_MODEL</code> (defaults <code>http://127.0.0.1:11434</code> / <code>llama3.2</code>). The agent can list instances, summarise cost, read the audit log and surface optimiser recommendations.",
+    "conversation": "Conversation",
+    "conversationHint": "Tool calls the agent makes are shown inline; expand one to read the raw result.",
+    "status": {
+      "online": "Ollama online",
+      "offline": "Ollama offline",
+      "recheck": "Re-check",
+      "connected": "Connected to {url} · model {model}",
+      "unreachable": "Cannot reach Ollama at {url}"
+    },
+    "empty": {
+      "title": "Ask anything about your fleet",
+      "description": "Try one of these to get started."
+    },
+    "suggestions": {
+      "idle": "What is idle right now?",
+      "lastHour": "What did I do in the last hour?",
+      "cost": "Summarise my cost",
+      "recommend": "Any optimiser recommendations?"
+    },
+    "roles": {
+      "user": "You",
+      "assistant": "Agent"
+    },
+    "toolCall": "Tool · {tool}",
+    "toolLines": "{count, plural, =1 {# line} other {# lines}}",
+    "thinking": "Thinking…",
+    "placeholder": "Ask vmui…",
+    "send": "Send",
+    "hint": "Enter sends · Shift+Enter for a new line",
+    "errorPrefix": "Error: {error}"
+  },
+  "dr": {
+    "title": "DR drill",
+    "description": "Read-only verification that every running VM has a fresh backup, that provider credentials still work and that GitOps sources are syncing.",
+    "readOnly": "Read-only",
+    "run": "Run drill",
+    "runAgain": "Run again",
+    "progress": "Step {step} of {total}",
+    "confirm": {
+      "title": "Run the DR drill?",
+      "description": "The drill calls every provider's list API and reads local tables. It never creates, modifies or deletes infrastructure.",
+      "cta": "Run drill"
+    },
+    "steps": {
+      "scope": {
+        "title": "1 · What is checked",
+        "description": "Three families of checks run in sequence.",
+        "backups": {
+          "title": "Backups",
+          "hint": "Every running VM has a policy that succeeded in the last 7 days."
+        },
+        "credentials": {
+          "title": "Credentials",
+          "hint": "Each provider answers a list call with the stored keys."
+        },
+        "gitops": {
+          "title": "GitOps",
+          "hint": "Enabled sources synced recently without errors."
+        }
+      },
+      "run": {
+        "title": "2 · Run",
+        "description": "Results appear here as soon as the drill completes.",
+        "idle": "Not run",
+        "running": "Running",
+        "done": "Complete",
+        "hint": "Use the button in the header to start. Nothing on your infrastructure is touched.",
+        "checking": "Running checks…"
+      },
+      "results": {
+        "title": "3 · Results",
+        "description": "{count, plural, =1 {# check} other {# checks}}"
+      }
+    },
+    "stats": {
+      "passed": "Passed",
+      "warned": "Warnings",
+      "failed": "Failures"
+    },
+    "checkStatus": {
+      "pass": "Pass",
+      "warn": "Warning",
+      "fail": "Fail"
+    },
+    "log": {
+      "title": "Drill output",
+      "started": "Drill started {at}"
+    }
+  },
+  "restore": {
+    "title": "Restore",
+    "description": "Launch a new VM from a successful backup. Cross-cloud: pick any account and region — vmui hands the snapshot to the provider and calls createInstance.",
+    "jobsCount": "{count, plural, =1 {# backup} other {# backups}}",
+    "openBackups": "Open backups",
+    "progress": "Step {step} of {total}",
+    "stepDone": "Done",
+    "stepPending": "Pending",
+    "toast": {
+      "launching": "Launching {id}"
+    },
+    "confirm": {
+      "title": "Launch “{name}”?",
+      "description": "A new VM is created in {account} / {region} and billed by the provider. Type the VM name to confirm.",
+      "cta": "Launch VM"
+    },
+    "steps": {
+      "backup": {
+        "title": "1 · Choose a backup",
+        "description": "Successful jobs, most recent first.",
+        "emptyTitle": "No successful backups",
+        "emptyDescription": "Run a backup policy first; only jobs that finished OK can be restored.",
+        "fileArchive": "file archive",
+        "archiveTitle": "This backup is a {kind}",
+        "archiveHint": "The provider cannot boot directly from it. The fallback template below launches a fresh VM; restore the tarball over SSH afterwards."
+      },
+      "target": {
+        "title": "2 · Target",
+        "description": "Where the new VM is created.",
+        "account": "Cloud account",
+        "selectAccount": "Select an account",
+        "region": "Region",
+        "regionHint": "Known regions: {regions}",
+        "name": "New VM name",
+        "instanceType": "Instance type",
+        "template": "Fallback template",
+        "templateHint": "Used when the provider cannot boot from the snapshot."
+      },
+      "launch": {
+        "title": "3 · Launch",
+        "description": "Review and launch. This creates billable infrastructure.",
+        "cta": "Restore",
+        "again": "Restore another",
+        "launchedTitle": "Instance launched from snapshot",
+        "launchedHint": "The provider is booting the new VM. It appears in the instances list after the next sync.",
+        "openInstances": "Open instances"
+      }
+    }
+  },
+  "backups": {
+    "title": "Backups & disaster recovery",
+    "description": "Snapshots across every cloud account plus local AES-256-GCM archives. Replicate, restore, verify.",
+    "restore": "Restore from backup",
+    "stats": {
+      "total": "Snapshots",
+      "totalHint": "{accounts, plural, =1 {across 1 account} other {across # accounts}}",
+      "last7d": "Last 7 days",
+      "last7dHint": "captured in the last week",
+      "size": "Total size",
+      "sizeValue": "{gb} GB",
+      "sizeHint": "approximate snapshot storage"
+    },
+    "calendar": {
+      "title": "Snapshots over time",
+      "summary": "{count, plural, =0 {No snapshots} =1 {1 snapshot} other {# snapshots}} across {accounts, plural, =1 {1 account} other {# accounts}}",
+      "providerFilter": "Filter by provider",
+      "tabs": {
+        "heatmap": "Heatmap",
+        "month": "Month",
+        "timeline": "Timeline"
+      }
+    },
+    "heatmap": {
+      "ariaLabel": "Snapshot activity over the last {weeks} weeks",
+      "cellTitle": "{date} — {count, plural, =1 {1 snapshot} other {# snapshots}}",
+      "less": "Less",
+      "more": "More · max {max}/day"
+    },
+    "month": {
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "today": "Today",
+      "cellTitle": "{date} — {count, plural, =1 {1 snapshot} other {# snapshots}}",
+      "more": "+{count} more"
+    },
+    "timeline": {
+      "empty": "No snapshots captured yet",
+      "emptyHint": "Trigger one from an instance to see it here.",
+      "count": "{count, plural, =1 {1 snapshot} other {# snapshots}}"
+    },
+    "snapshots": {
+      "title": "Snapshot inventory",
+      "description": "Every cached snapshot across your accounts. Restore launches the wizard; delete removes it at the provider.",
+      "columns": {
+        "name": "Snapshot",
+        "provider": "Provider",
+        "region": "Region",
+        "size": "Size",
+        "status": "Status",
+        "captured": "Captured"
+      },
+      "empty": "No snapshots yet",
+      "emptyHint": "Create a snapshot from an instance's detail page, or add a backup policy below.",
+      "goToInstances": "Go to instances",
+      "restore": "Restore",
+      "delete": "Delete snapshot",
+      "deleted": "Snapshot deleted",
+      "confirmDelete": "Delete snapshot “{name}”?",
+      "confirmDeleteHint": "The snapshot is removed at the provider. This cannot be undone."
+    },
+    "policies": {
+      "title": "Backup policies",
+      "description": "Cron-driven cloud snapshots, S3 dumps, local copies or cross-region snapshots with retention windows.",
+      "add": "Add policy",
+      "newTitle": "New backup policy",
+      "newDescription": "Runs on the cron schedule (UTC) and prunes by retention.",
+      "jobs": "Show jobs",
+      "runNow": "Run now",
+      "queued": "Backup queued",
+      "deleted": "Policy deleted",
+      "added": "Policy added",
+      "enable": "Enable policy",
+      "disable": "Disable policy",
+      "never": "never",
+      "empty": "No backup policies yet",
+      "emptyHint": "Add a policy to snapshot a VM on a schedule.",
+      "confirmDelete": "Delete policy “{name}”?",
+      "confirmDeleteHint": "Past jobs stay in the history; future runs stop immediately.",
+      "columns": {
+        "name": "Policy",
+        "target": "Target",
+        "cron": "Cron (UTC)",
+        "lastRun": "Last run",
+        "status": "Status",
+        "enabled": "Enabled"
+      },
+      "kinds": {
+        "cloud-snapshot": "Cloud snapshot (provider API)",
+        "s3-dump": "S3 dump (tar over SSH → s3 cp)",
+        "local-copy": "Local copy (tar to VM path)",
+        "cross-region": "Cross-region snapshot"
+      },
+      "status": {
+        "ok": "OK",
+        "error": "Error",
+        "running": "Running",
+        "queued": "Queued"
+      },
+      "retention": "Retention",
+      "retentionValue": "{d}d / {w}w / {m}m",
+      "enabledYes": "Enabled",
+      "enabledNo": "Paused",
+      "lastError": "Last error: {error}",
+      "noJobs": "No jobs yet",
+      "verify": "Verify",
+      "verified": "Verified",
+      "verifyFailed": "Verification failed",
+      "jobColumns": {
+        "started": "Started",
+        "status": "Status",
+        "artifact": "Artifact",
+        "size": "Size",
+        "message": "Message"
+      },
+      "form": {
+        "name": "Name",
+        "namePlaceholder": "nightly etc backup",
+        "kind": "Kind",
+        "target": "Target instance",
+        "cron": "Cron (UTC)",
+        "retention": "Retention",
+        "retentionHint": "How many daily / weekly / monthly copies to keep.",
+        "keepDaily": "Keep daily",
+        "keepWeekly": "Keep weekly",
+        "keepMonthly": "Keep monthly",
+        "s3Uri": "S3 URI",
+        "awsAccessKeyId": "AWS access key id",
+        "awsSecretAccessKey": "AWS secret access key",
+        "awsRegion": "AWS region (optional)",
+        "paths": "Paths to back up",
+        "pathsHint": "Space-separated absolute paths on the VM.",
+        "localDir": "Destination dir on VM",
+        "targetRegion": "Target region"
+      }
+    },
+    "local": {
+      "title": "Local encrypted backups",
+      "description": "AES-256-GCM streaming archives under <code>~/.vmui/backups</code>, sealed with your <code>VMUI_MASTER_KEY</code>.",
+      "createNow": "Create backup now",
+      "created": "Backup written: {name}",
+      "createFailed": "Backup failed",
+      "verify": "Verify",
+      "verified": "Verified: {counts}",
+      "verifyFailed": "Verification failed",
+      "deleted": "Backup deleted",
+      "deleteFailed": "Delete failed",
+      "partial": "partial",
+      "empty": "No local backups yet",
+      "emptyHint": "Create one to snapshot accounts, keys, instances and schedules into an encrypted file.",
+      "confirmDelete": "Delete {name}?",
+      "confirmDeleteHint": "The archive is removed from disk. This cannot be undone.",
+      "columns": {
+        "file": "File",
+        "size": "Size",
+        "modified": "Modified"
+      }
+    }
+  },
+  "schedules": {
+    "title": "Schedules",
+    "description": "Cron-driven start / stop / reboot / snapshot. Auto-shutdown dev VMs overnight, reboot weekly, or wake up on time.",
+    "unknown": "(unknown)",
+    "stats": {
+      "total": "Schedules",
+      "enabled": "Enabled",
+      "paused": "Paused"
+    },
+    "listTitle": "All schedules",
+    "listDescription": "Toggle to pause or resume; delete to remove permanently.",
+    "add": "New schedule",
+    "newTitle": "New schedule",
+    "newDescription": "Cron runs in the server's local time.",
+    "deleted": "Schedule deleted",
+    "paused": "paused",
+    "pause": "Pause schedule",
+    "resume": "Resume schedule",
+    "never": "never",
+    "next": "next {when}",
+    "empty": "No schedules yet",
+    "emptyHint": "Create one to auto-stop overnight, restart in the morning or reboot weekly.",
+    "confirmDelete": "Delete schedule “{name}”?",
+    "confirmDeleteHint": "Future runs stop immediately. This cannot be undone.",
+    "columns": {
+      "cron": "Cron",
+      "action": "Action",
+      "instance": "Target VM",
+      "account": "Account",
+      "enabled": "Enabled",
+      "lastRun": "Last run"
+    },
+    "form": {
+      "instance": "Instance",
+      "pickInstance": "Pick an instance",
+      "action": "Action",
+      "actions": {
+        "start": "Start",
+        "stop": "Stop",
+        "reboot": "Reboot",
+        "snapshot": "Snapshot"
+      },
+      "cron": "Cron expression",
+      "invalidCron": "Invalid cron expression",
+      "presets": {
+        "weekdays19": "Weekdays at 19:00",
+        "daily02": "Every day at 02:00",
+        "monday08": "Mondays at 08:00",
+        "every30m": "Every 30 minutes"
+      },
+      "nextNever": "Next run: never (no match in the next year)",
+      "nextRuns": "{count, plural, =1 {Next run:} other {Next # runs:}}",
+      "label": "Label (optional)",
+      "labelPlaceholder": "Stop dev workstation overnight",
+      "submit": "Create schedule",
+      "created": "Schedule created"
+    },
+    "card": {
+      "title": "Schedules",
+      "description": "Cron-driven actions for this instance.",
+      "presets": {
+        "stopWeekdays": "Stop @ 19:00 weekdays",
+        "startWeekdays": "Start @ 08:00 weekdays",
+        "rebootSunday": "Reboot Sunday 03:00"
+      }
+    }
+  },
+  "recipes": {
+    "title": "Quick actions",
+    "description": "One-click bulk operations across every connected account. Each recipe shows a preview before you run it.",
+    "preview": "Preview",
+    "previewTitle": "Affected instances",
+    "run": "Run",
+    "runOn": "{count, plural, =0 {Run} =1 {Run on 1 VM} other {Run on # VMs}}",
+    "affects": "{count, plural, =1 {1 VM} other {# VMs}}",
+    "noCandidates": "Nothing to do",
+    "noCandidatesHint": "No instance currently matches this recipe.",
+    "confirmTitle": "Run “{name}”?",
+    "confirmHint": "This affects every matching VM across all connected accounts.",
+    "runDone": "{ok}/{total} succeeded{failed, plural, =0 {} other {, # failed}}",
+    "runFailed": "{failed}/{total} failed",
+    "tones": {
+      "danger": "Destructive",
+      "success": "Safe",
+      "warning": "Disruptive"
+    },
+    "tags": {
+      "cost": "cost",
+      "fleet": "fleet-wide",
+      "maintenance": "maintenance"
+    },
+    "items": {
+      "stop-all-running": {
+        "label": "Stop all running",
+        "description": "Halt every running VM across every connected account. Saves money fast.",
+        "confirmWord": "STOP"
+      },
+      "start-all-stopped": {
+        "label": "Start all stopped",
+        "description": "Wake every stopped VM. Useful for resuming a paused environment.",
+        "confirmWord": "START"
+      },
+      "reboot-all-running": {
+        "label": "Reboot all running",
+        "description": "Soft-reboot every running VM. Useful after kernel updates.",
+        "confirmWord": "REBOOT"
+      }
+    },
+    "log": {
+      "title": "Result",
+      "summary": "{ok}/{total} succeeded, {failed} failed",
+      "failedLine": "✗ {id}: {error}"
+    }
+  },
+  "catalog": {
+    "title": "Catalog",
+    "description": "One-click cloud-init templates for self-hosted services. Save one as a boot script, then attach it when you create a VM — the guest provisions itself on first boot.",
+    "use": "Save as boot script",
+    "view": "View cloud-init",
+    "copyYaml": "Copy YAML",
+    "cloudInit": "cloud-init",
+    "port": "port {port}",
+    "homepage": "Open {name} homepage",
+    "saved": "Saved “{name}” as a boot script",
+    "saveFailed": "Save failed",
+    "specs": {
+      "vcpu": "vCPU",
+      "ram": "RAM",
+      "disk": "Disk",
+      "gb": "{n} GB"
+    },
+    "categories": {
+      "automation": "automation",
+      "analytics": "analytics",
+      "docs": "docs",
+      "monitoring": "monitoring",
+      "security": "security",
+      "dev": "dev"
+    }
+  },
+  "templates": {
+    "title": "Launch templates",
+    "description": "Saved VM configurations. Create one from any instance via “Save as template” on its detail page.",
+    "count": "{count, plural, =1 {1 template} other {# templates}}",
+    "launch": "Launch",
+    "view": "View config",
+    "config": "Template config",
+    "instanceType": "Instance type",
+    "created": "Created",
+    "deleted": "Template deleted",
+    "empty": "No templates yet",
+    "emptyHint": "Open an instance and use “Save as template” to capture its configuration.",
+    "goToInstances": "Go to instances",
+    "confirmDelete": "Delete template “{name}”?",
+    "confirmDeleteHint": "Instances launched from it are not affected.",
+    "platforms": {
+      "linux": "Linux",
+      "windows": "Windows",
+      "macos": "macOS"
+    }
+  },
+  "runbooks": {
+    "title": "Runbooks",
+    "description": "Markdown procedures attached to instances or the whole fleet. Track who runs what, when.",
+    "listTitle": "Saved runbooks",
+    "count": "{count, plural, =0 {No runbooks} =1 {1 runbook} other {# runbooks}}",
+    "view": "Open",
+    "body": "Steps",
+    "noBody": "(empty)",
+    "fleetWide": "fleet-wide",
+    "updated": "updated",
+    "deleted": "Runbook deleted",
+    "empty": "No runbooks yet",
+    "emptyHint": "Write the first one above — a checklist you can follow under pressure.",
+    "confirmDelete": "Delete runbook “{name}”?",
+    "confirmDeleteHint": "This cannot be undone.",
+    "form": {
+      "title": "New runbook",
+      "description": "Markdown body; checkboxes and code fences render as-is.",
+      "name": "Title",
+      "namePlaceholder": "Rotate the app database credentials",
+      "instance": "Provider instance ID",
+      "instanceHint": "Leave empty for a fleet-wide runbook.",
+      "instancePlaceholder": "i-0123456789abcdef0",
+      "body": "Steps",
+      "bodyPlaceholder": "# Steps\n- [ ] Drain traffic\n- [ ] `sudo systemctl stop app`\n- [ ] Verify…",
+      "submit": "Save runbook",
+      "saved": "Runbook saved"
+    }
+  },
+  "keyRotation": {
+    "title": "SSH key rotation",
+    "description": "Push a new public key to every selected VM and drop the previous vmui-managed keys. Requires a probe key on the account.",
+    "manageKeys": "Manage SSH keys",
+    "noKeys": "No SSH keys configured",
+    "noKeysHint": "Add one under Settings → SSH keys first.",
+    "rotateOn": "{count, plural, =0 {Rotate} =1 {Rotate on 1 VM} other {Rotate on # VMs}}",
+    "rotated": "Rotated {ok} {ok, plural, =1 {VM} other {VMs}}{failed, plural, =0 {} other {, # failed}}",
+    "rotateFailed": "{failed, plural, =1 {1 VM failed} other {# VMs failed}}",
+    "confirmTitle": "Rotate SSH keys on {count, plural, =1 {1 VM} other {# VMs}}?",
+    "confirmHint": "Key “{key}” is installed for user {user}; previous vmui-managed keys are removed. Type the word below to continue.",
+    "confirmButton": "Rotate keys",
+    "confirmWord": "ROTATE",
+    "selectAll": "Select all reachable VMs",
+    "selectOne": "Select {name}",
+    "noPublicIp": "no public IP",
+    "resultOk": "rotated",
+    "columns": {
+      "name": "Name",
+      "account": "Account",
+      "region": "Region",
+      "ip": "Public IP",
+      "result": "Result"
+    },
+    "setup": {
+      "title": "New key",
+      "description": "The key to install and the SSH user to log in as.",
+      "key": "New key",
+      "user": "SSH user",
+      "fingerprint": "Fingerprint:"
+    },
+    "targets": {
+      "title": "Target VMs",
+      "description": "{count} of {total} running VMs have a public IP and can be reached.",
+      "empty": "No running VMs",
+      "emptyHint": "Start an instance with a public IP to rotate its keys."
+    },
+    "log": {
+      "title": "Rotation result",
+      "summary": "{ok} rotated, {failed} failed",
+      "okLine": "✓ {name}",
+      "failedLine": "✗ {name}: {error}"
+    },
+    "notice": "Existing keys with comment <code># vmui-managed</code> are removed first; other authorized_keys lines are preserved. The old file is backed up to <code>~/.ssh/authorized_keys.vmui.bak.TIMESTAMP</code>."
+  },
+  "maintenance": {
+    "title": "Maintenance windows",
+    "description": "Block or warn about instance actions during a scheduled window.",
+    "count": "{count, plural, =0 {No windows} =1 {# window} other {# windows}}",
+    "activeBadge": "{count, plural, =1 {# active} other {# active}}",
+    "listTitle": "Windows",
+    "listDescription": "Active windows apply now; upcoming ones start automatically.",
+    "formTitle": "Create a window",
+    "formDescription": "Times are interpreted in this browser's time zone.",
+    "columns": {
+      "name": "Name",
+      "when": "When",
+      "mode": "Mode",
+      "scope": "Scope",
+      "status": "Status"
+    },
+    "modes": {
+      "warn": "Warn (log only)",
+      "block": "Block (refuse mutations)"
+    },
+    "status": {
+      "active": "Active",
+      "upcoming": "Upcoming",
+      "past": "Past"
+    },
+    "scopeGlobal": "Global (all accounts)",
+    "fields": {
+      "name": "Name",
+      "nameHint": "Shown in audit entries and on blocked actions.",
+      "namePlaceholder": "Q4 patch night",
+      "startsAt": "Starts at",
+      "endsAt": "Ends at",
+      "mode": "Mode",
+      "modeHint": "Block refuses start/stop/terminate; warn only records them.",
+      "scope": "Scope",
+      "scopeHint": "Limit the window to one cloud account or apply it everywhere.",
+      "reason": "Reason",
+      "reasonHint": "Optional notes shown next to the window.",
+      "reasonPlaceholder": "Kernel updates on all EU hosts"
+    },
+    "create": "Create window",
+    "created": "Maintenance window created",
+    "deleted": "Maintenance window deleted",
+    "deleteAria": "Delete window {name}",
+    "confirmDelete": "Delete “{name}”?",
+    "confirmDeleteHint": "Actions will no longer be blocked or logged during this window.",
+    "empty": "No maintenance windows",
+    "emptyHint": "Create one to block or warn about instance actions during a scheduled period."
+  },
+  "autoPark": {
+    "title": "Idle VM auto-park",
+    "description": "Stop VMs that show no activity for a while. Opt-in per VM; a parked VM is left alone for 24 h.",
+    "activeBadge": "{count, plural, =0 {No active policies} =1 {# active policy} other {# active policies}}",
+    "listTitle": "Policies",
+    "listDescription": "A VM is parked when CPU and network both stay under the thresholds for the whole window.",
+    "formTitle": "Enable for a VM",
+    "formDescription": "Pick a VM and set the idle thresholds. Enabling again updates the existing policy.",
+    "columns": {
+      "vm": "VM",
+      "cpuMax": "CPU max",
+      "netMax": "Network max",
+      "window": "Window",
+      "status": "Status",
+      "lastParked": "Last parked"
+    },
+    "values": {
+      "cpu": "{pct}%",
+      "net": "{kbps} kbps"
+    },
+    "status": {
+      "active": "Active",
+      "off": "Off"
+    },
+    "never": "Never",
+    "fields": {
+      "vm": "Virtual machine",
+      "vmHint": "Only synced instances are listed.",
+      "cpuPct": "CPU threshold (%)",
+      "cpuPctHint": "1–50. Below this the VM counts as idle.",
+      "netKbps": "Network threshold (kbps)",
+      "netKbpsHint": "1–10 000. Below this the VM counts as idle.",
+      "windowMin": "Idle window (minutes)",
+      "windowMinHint": "5–720. How long both must stay low before parking."
+    },
+    "pickVm": "Pick a VM…",
+    "enable": "Enable auto-park",
+    "enabled": "Auto-park enabled",
+    "updated": "Policy updated",
+    "disable": "Disable",
+    "disableAria": "Disable auto-park for {name}",
+    "toggleAria": "Toggle auto-park for {name}",
+    "confirmDisable": "Disable auto-park for {name}?",
+    "confirmDisableHint": "The VM will keep running when idle until you enable it again.",
+    "empty": "No auto-park policies",
+    "emptyHint": "Enable auto-park on a VM to stop it automatically when it goes idle."
+  },
+  "configBackup": {
+    "title": "Config backup & restore",
+    "description": "Export every config table (accounts, keys, schedules, webhooks, recipes…) as JSON and restore it on a fresh host. Encrypted credentials need the same <code>VMUI_MASTER_KEY</code>.",
+    "progress": "Step {step} of {total}",
+    "stepBadge": "Step {n}",
+    "startOver": "Start over",
+    "importFailed": "Import failed",
+    "dryRunDone": "Dry-run complete",
+    "restoreDone": "Restore complete",
+    "repickFile": "Pick the file again to confirm",
+    "confirmTitle": "Truncate every config table and restore from this file?",
+    "confirmDescription": "All current accounts, keys, schedules, webhooks and recipes are replaced. This cannot be undone.",
+    "confirmButton": "Restore",
+    "confirmWord": "RESTORE",
+    "steps": {
+      "export": {
+        "title": "Export a snapshot",
+        "description": "Download the current configuration before changing anything.",
+        "download": "Download snapshot",
+        "excluded": "Operational tables (audit log, sync history, instances, pricing) are excluded."
+      },
+      "pick": {
+        "title": "Pick a snapshot file",
+        "description": "Choose a JSON snapshot produced by the export above. A dry-run starts automatically.",
+        "fileLabel": "Snapshot file",
+        "fileHint": "JSON only. Nothing is written until you confirm in step 4.",
+        "size": "{kb} KB"
+      },
+      "dryRun": {
+        "title": "Dry-run",
+        "description": "Validates the file and reports how many rows each table would receive.",
+        "run": "Run dry-run again",
+        "reportTitle": "Dry-run report",
+        "summaryTitle": "{total, plural, =1 {# row} other {# rows}} would be restored",
+        "summaryHint": "Review the per-table counts above before confirming."
+      },
+      "restore": {
+        "title": "Confirm restore",
+        "description": "Applies the snapshot. Available only after a successful dry-run.",
+        "warningTitle": "Restore truncates every config table first",
+        "warningHint": "Use only on a fresh or empty install. Existing rows are replaced, not merged.",
+        "confirm": "Confirm restore",
+        "reportTitle": "Restore report",
+        "doneTitle": "Configuration restored",
+        "doneHint": "{total, plural, =1 {# row} other {# rows}} written. Reload the app to pick up the new accounts."
+      }
+    }
+  },
+  "bootScriptDiff": {
+    "title": "Boot-script diff",
+    "description": "Line diff between two boot scripts. Useful before re-applying one.",
+    "pickTitle": "Choose scripts",
+    "pickDescription": "A is the base, B is the target. Added lines come from B.",
+    "scriptA": "Script A (base)",
+    "scriptB": "Script B (target)",
+    "selectPlaceholder": "— select —",
+    "compare": "Compare",
+    "resultTitle": "Diff",
+    "resultDescription": "{a} → {b}",
+    "added": "Added lines",
+    "removed": "Removed lines",
+    "empty": "Nothing to compare yet",
+    "emptyHint": "Pick two scripts above and press Compare."
+  },
+  "webhooks": {
+    "title": "Instance webhooks",
+    "description": "POST JSON to a URL on instance state transitions. When a secret is set an <code>x-vmui-signature: sha256=…</code> HMAC header is added.",
+    "count": "{count, plural, =0 {No webhooks} =1 {# webhook} other {# webhooks}}",
+    "viewDeliveries": "Deliveries",
+    "listTitle": "Webhooks",
+    "listDescription": "Each hook fires for every matching instance state change and is retried with backoff.",
+    "formTitle": "Add a webhook",
+    "formDescription": "Leave scope fields empty to receive events from every account and instance.",
+    "columns": {
+      "url": "URL",
+      "scope": "Scope",
+      "lastFire": "Last fire"
+    },
+    "signed": "Signed",
+    "scopeAllAccounts": "All accounts",
+    "scopeAllInstances": "All instances",
+    "never": "Never fired",
+    "fields": {
+      "url": "Endpoint URL",
+      "urlHint": "Must be reachable from this host. HTTPS recommended.",
+      "secret": "HMAC secret",
+      "secretHint": "Optional. Used to sign the body; stored as-is.",
+      "account": "Account",
+      "accountHint": "Restrict to one cloud account.",
+      "instance": "Provider instance id",
+      "instanceHint": "Optional. Restrict to a single instance (e.g. i-…, zone/name)."
+    },
+    "add": "Add webhook",
+    "created": "Webhook added",
+    "deleted": "Webhook deleted",
+    "deleteAria": "Delete webhook",
+    "confirmDelete": "Delete this webhook?",
+    "empty": "No webhooks",
+    "emptyHint": "Add a URL to be notified when an instance changes state."
+  },
+  "deliveries": {
+    "title": "Webhook deliveries",
+    "description": "Outbound webhooks with exponential backoff. Max 5 attempts; backoff 30 s × 2ⁿ up to 1 h.",
+    "manageWebhooks": "Manage webhooks",
+    "listTitle": "Recent deliveries",
+    "listDescription": "{count, plural, =0 {No deliveries} =1 {Last # delivery} other {Last # deliveries}}",
+    "columns": {
+      "url": "URL",
+      "status": "Status",
+      "attempts": "Attempts",
+      "when": "When",
+      "lastError": "Last error"
+    },
+    "status": {
+      "queued": "Queued",
+      "delivering": "Delivering",
+      "ok": "Delivered",
+      "failed": "Failed"
+    },
+    "deliveredAt": "Delivered",
+    "nextAttemptAt": "Next attempt",
+    "viewAria": "View delivery details",
+    "attemptsBadge": "{n}/{max} attempts",
+    "detail": {
+      "title": "Delivery",
+      "status": "Status",
+      "url": "URL",
+      "created": "Created",
+      "delivered": "Delivered",
+      "nextAttempt": "Next attempt",
+      "lastError": "Last error",
+      "payload": "Payload"
+    },
+    "empty": "No deliveries yet",
+    "emptyHint": "Deliveries appear here once a webhook fires."
+  }
+}

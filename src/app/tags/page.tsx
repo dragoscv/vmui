@@ -1,18 +1,18 @@
-import { listInstances } from "@/server/queries";
-import { getTagGovernance } from "@/server/queries/tag-governance";
 import { BulkTagPanel } from "@/components/tags/bulk-tag-panel";
 import { TagGovernancePanel } from "@/components/tags/tag-governance-panel";
+import { PageHeader, PageShell } from "@/components/ui";
+import { listInstances } from "@/server/queries";
+import { getTagGovernance } from "@/server/queries/tag-governance";
+import { Tag } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function TagsPage() {
-  const [instances, governance] = await Promise.all([listInstances(), getTagGovernance()]);
+  const [instances, governance, t] = await Promise.all([listInstances(), getTagGovernance(), getTranslations("govern.tags")]);
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tags</h1>
-        <p className="text-sm text-muted">Govern, audit, and bulk-apply tags across your fleet.</p>
-      </div>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<Tag />} />
       <TagGovernancePanel data={governance} />
       <BulkTagPanel
         rows={instances.map((i) => ({
@@ -25,6 +25,6 @@ export default async function TagsPage() {
           instanceType: i.instanceType,
         }))}
       />
-    </div>
+    </PageShell>
   );
 }

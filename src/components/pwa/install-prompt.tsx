@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 import { haptic } from "@/lib/haptics";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -14,6 +16,7 @@ const STORAGE_KEY = "vmui:install:dismissed";
 const SHOWN_KEY = "vmui:install:shown";
 
 export function InstallPrompt() {
+  const t = useTranslations("misc.install");
   const [event, setEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -56,41 +59,34 @@ export function InstallPrompt() {
 
   return (
     <div
-      className="fixed inset-x-3 z-50 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg backdrop-blur-md md:inset-x-auto md:right-4 md:max-w-sm"
+      role="dialog"
+      aria-label={t("title")}
+      className="fixed inset-x-3 z-50 rounded-[var(--radius-xl)] border border-border bg-surface p-3 shadow-lg backdrop-blur-md md:inset-x-auto md:right-4 md:max-w-sm"
       style={{ bottom: "calc(env(safe-area-inset-bottom) + 4.5rem)" }}
     >
       <div className="flex items-start gap-3">
-        <div className="rounded-lg bg-[var(--color-primary)]/15 p-2 text-[var(--color-primary)]">
-          <Download className="h-4 w-4" />
+        <div className="rounded-[var(--radius-lg)] bg-[color-mix(in_oklch,var(--color-primary)_15%,transparent)] p-2 text-primary">
+          <Download className="h-4 w-4" aria-hidden />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold">Install vmui</p>
-          <p className="text-xs text-muted">
-            Add to home screen for full-screen access, offline cache, and push notifications.
-          </p>
+          <p className="text-sm font-semibold">{t("title")}</p>
+          <p className="text-xs text-fg-muted">{t("description")}</p>
           <div className="mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={install}
-              className="rounded-md bg-[var(--color-primary)] px-2.5 py-1 text-xs font-semibold text-[var(--color-primary-fg)]"
-            >
-              Install
-            </button>
-            <button
-              type="button"
-              onClick={dismiss}
-              className="rounded-md border border-[var(--color-border)] px-2.5 py-1 text-xs text-muted hover:bg-[var(--color-surface-muted)]"
-            >
-              Not now
-            </button>
+            <Button type="button" size="sm" onClick={install}>
+              {t("install")}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={dismiss}>
+              {t("notNow")}
+            </Button>
           </div>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          className="rounded p-1 text-muted hover:bg-[var(--color-surface-muted)]"
+          aria-label={t("dismiss")}
+          className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] text-fg-muted hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <X className="h-3 w-3" />
+          <X className="h-3 w-3" aria-hidden />
         </button>
       </div>
     </div>
@@ -99,6 +95,7 @@ export function InstallPrompt() {
 
 /** Button variant for use on the Settings page; triggers the same flow on demand if a prompt event was captured. */
 export function InstallButton() {
+  const t = useTranslations("misc.install");
   const [event, setEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -122,13 +119,8 @@ export function InstallButton() {
   };
 
   return (
-    <button
-      type="button"
-      onClick={install}
-      disabled={!event}
-      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-1.5 text-xs font-semibold hover:bg-[var(--color-surface)] disabled:opacity-50"
-    >
-      <Download className="h-3 w-3" /> {event ? "Install vmui" : "Already installed or unavailable"}
-    </button>
+    <Button type="button" variant="secondary" size="sm" onClick={install} disabled={!event}>
+      <Download className="h-3 w-3" aria-hidden /> {event ? t("title") : t("unavailable")}
+    </Button>
   );
 }

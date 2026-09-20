@@ -1,25 +1,29 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Trash2, Pause, Play, Clock } from "lucide-react";
-import { toast } from "sonner";
-import {
-  createScheduleAction,
-  setScheduleEnabledAction,
-  deleteScheduleAction,
-} from "@/server/actions/schedules";
+import { Badge, Button, Field, Input, PageSection } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import { isValidCron } from "@/lib/cron";
+import { createScheduleAction, deleteScheduleAction, setScheduleEnabledAction } from "@/server/actions/schedules";
+import { Clock, Pause, Play, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { SCHEDULE_ACTIONS, type ScheduleAction } from "./schedule-form";
 
-const PRESETS = [
-  { label: "Stop @ 19:00 weekdays", cron: "0 19 * * 1-5", action: "stop" as const },
-  { label: "Start @ 08:00 weekdays", cron: "0 8 * * 1-5", action: "start" as const },
-  { label: "Reboot Sunday 03:00", cron: "0 3 * * 0", action: "reboot" as const },
+const PRESETS: { key: "stopWeekdays" | "startWeekdays" | "rebootSunday"; cron: string; action: ScheduleAction }[] = [
+  { key: "stopWeekdays", cron: "0 19 * * 1-5", action: "stop" },
+  { key: "startWeekdays", cron: "0 8 * * 1-5", action: "start" },
+  { key: "rebootSunday", cron: "0 3 * * 0", action: "reboot" },
 ];
+
+const ACTION_VARIANT: Record<ScheduleAction, "warning" | "success" | "info"> = {
+  stop: "warning",
+  start: "success",
+  reboot: "info",
+  snapshot: "info",
+};
 
 interface ScheduleSummary {
   id: string;
@@ -38,107 +42,118 @@ export function InstanceSchedulesCard({
   instanceId: string;
   schedules: ScheduleSummary[];
 }) {
-  const [pending, startTransition] = useTransition();
+  const t = useTranslations("ops.schedules");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
   const [cron, setCron] = useState("0 19 * * 1-5");
-  const [action, setAction] = useState<"start" | "stop" | "reboot" | "snapshot">("stop");
+  const [action, setAction] = useState<ScheduleAction>("stop");
   const cronOk = isValidCron(cron);
 
+  const create = useAction(
+    async (): Promise<ActionResult> => {
+      const r = await createScheduleAction({ instanceId, cron, action });
+      return r.ok ? ok() : { ok: false, error: r.error };
+    },
+    { success: t("form.created") },
+  );
+  const toggle = useAction(async (id: string, enabled: boolean): Promise<ActionResult> => {
+    const r = await setScheduleEnabledAction(id, enabled);
+    return r.ok ? ok() : { ok: false, error: tc("error") };
+  });
+  const remove = useAction(
+    async (id: string): Promise<ActionResult> => {
+      const r = await deleteScheduleAction(id);
+      return r.ok ? ok() : { ok: false, error: tc("error") };
+    },
+    { success: t("deleted") },
+  );
+
+  async function onRemove(s: ScheduleSummary) {
+    const yes = await confirm({
+      title: t("confirmDelete", { name: `${t(`form.actions.${s.action}`)} · ${s.cron}` }),
+      description: t("confirmDeleteHint"),
+      tone: "danger",
+      confirmText: tc("delete"),
+    });
+    if (yes) await remove.run(s.id);
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Clock className="h-4 w-4" /> Schedules
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <PageSection title={t("card.title")} description={t("card.description")}>
+      <div className="space-y-3">
         {schedules.length > 0 && (
-          <div className="grid gap-2">
+          <ul className="grid gap-2">
             {schedules.map((s) => (
-              <div
-                key={s.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded border border-[var(--color-border)] px-3 py-1.5 text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <Badge variant={s.action === "stop" ? "warning" : s.action === "start" ? "success" : "info"}>
-                    {s.action.toUpperCase()}
-                  </Badge>
-                  <span className="font-mono">{s.cron}</span>
-                  {!s.enabled && <Badge variant="muted">paused</Badge>}
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-border px-3 py-1.5 text-xs">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge variant={ACTION_VARIANT[s.action]}>{t(`form.actions.${s.action}`)}</Badge>
+                  <code className="font-mono">{s.cron}</code>
+                  {!s.enabled && <Badge variant="muted">{t("paused")}</Badge>}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      startTransition(async () => {
-                        await setScheduleEnabledAction(s.id, !s.enabled);
-                      })
-                    }
+                    size="icon"
+                    className="size-8 sm:size-8"
+                    disabled={toggle.pending}
+                    onClick={() => void toggle.run(s.id, !s.enabled)}
+                    aria-label={s.enabled ? t("pause") : t("resume")}
                   >
-                    {s.enabled ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                    {s.enabled ? <Pause className="size-3.5" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => startTransition(async () => void deleteScheduleAction(s.id))}
-                  >
-                    <Trash2 className="h-3 w-3 text-[var(--color-danger)]" />
+                  <Button variant="ghost" size="icon" className="size-8 sm:size-8" disabled={remove.pending} onClick={() => void onRemove(s)} aria-label={tc("delete")}>
+                    <Trash2 className="size-3.5 text-danger" aria-hidden />
                   </Button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-        <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
-          <div>
-            <Label className="text-[11px]">Cron</Label>
-            <Input value={cron} onChange={(e) => setCron(e.target.value)} placeholder="m h dom mon dow" />
-          </div>
-          <div>
-            <Label className="text-[11px]">Action</Label>
-            <select
-              value={action}
-              onChange={(e) => setAction(e.target.value as typeof action)}
-              className="h-9 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] px-2 text-sm"
-            >
-              <option value="stop">Stop</option>
-              <option value="start">Start</option>
-              <option value="reboot">Reboot</option>
-              <option value="snapshot">Snapshot</option>
-            </select>
-          </div>
-          <div className="self-end">
-            <Button
-              size="sm"
-              disabled={pending || !cronOk}
-              onClick={() =>
-                startTransition(async () => {
-                  const r = await createScheduleAction({ instanceId, cron, action });
-                  if (!r.ok) toast.error(r.error);
-                  else toast.success("Schedule created.");
-                })
-              }
-            >
-              Add
-            </Button>
-          </div>
-        </div>
+        <form
+          className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (cronOk) void create.run();
+          }}
+        >
+          <Field label={t("form.cron")}>
+            <Input value={cron} onChange={(e) => setCron(e.target.value)} placeholder="m h dom mon dow" className="font-mono" aria-invalid={!cronOk && cron.length > 0} />
+          </Field>
+          <Field label={t("form.action")}>
+            <Select value={action} onValueChange={(v) => setAction(v as ScheduleAction)}>
+              <SelectTrigger aria-label={t("form.action")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SCHEDULE_ACTIONS.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {t(`form.actions.${a}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Button type="submit" size="md" loading={create.pending} disabled={!cronOk}>
+            <Clock className="size-4" aria-hidden /> {tc("add")}
+          </Button>
+        </form>
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => (
-            <button
-              key={p.cron + p.action}
+            <Button
+              key={p.key}
               type="button"
+              size="sm"
+              variant="outline"
               onClick={() => {
                 setCron(p.cron);
                 setAction(p.action);
               }}
-              className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] text-muted hover:border-[var(--color-primary)]/40"
             >
-              {p.label}
-            </button>
+              {t(`card.presets.${p.key}`)}
+            </Button>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </PageSection>
   );
 }

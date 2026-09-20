@@ -1,6 +1,10 @@
 import "server-only";
+import { REGION_MAP_HEIGHT, REGION_MAP_WIDTH, RegionMap } from "@/components/cloud/region-map";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
 import { instances } from "@/lib/db/schema";
+import { Globe } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +30,7 @@ function bucketFor(region: string): string {
 }
 
 export default async function RegionMapPage() {
+  const t = await getTranslations("cloud.regionMap");
   const all = await db.select().from(instances);
   const counts = new Map<string, number>();
   for (const i of all) {
@@ -34,52 +39,28 @@ export default async function RegionMapPage() {
   }
   const max = Math.max(1, ...[...counts.values()]);
 
-  const W = 900, H = 460;
   const proj = (lat: number, lng: number) => ({
-    x: (lng + 180) * (W / 360),
-    y: (90 - lat) * (H / 180),
+    x: (lng + 180) * (REGION_MAP_WIDTH / 360),
+    y: (90 - lat) * (REGION_MAP_HEIGHT / 180),
   });
+  const points = GEO_BUCKETS.map((b) => ({ label: b.label, ...proj(b.lat, b.lng), n: counts.get(b.label) ?? 0 }));
+  const sortedCounts = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, n]) => ({ label: label === "other" ? t("other") : label, n }));
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Region heatmap</h1>
-        <p className="text-sm text-zinc-400">
-          VM count per geographic bucket. Bucket labels are an approximation grouping the providers&rsquo; native regions.
-        </p>
-      </header>
-
-      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 overflow-x-auto">
-        <svg width={W} height={H} className="block mx-auto" viewBox={`0 0 ${W} ${H}`}>
-          <rect width={W} height={H} fill="rgb(9 9 11)" />
-          <g stroke="rgb(63 63 70)" strokeWidth="0.5" fill="none">
-            {Array.from({ length: 7 }, (_, i) => (
-              <line key={`h${i}`} x1={0} y1={(H / 6) * i} x2={W} y2={(H / 6) * i} />
-            ))}
-            {Array.from({ length: 13 }, (_, i) => (
-              <line key={`v${i}`} x1={(W / 12) * i} y1={0} x2={(W / 12) * i} y2={H} />
-            ))}
-          </g>
-          {GEO_BUCKETS.map((b) => {
-            const n = counts.get(b.label) ?? 0;
-            const r = 8 + Math.sqrt(n / max) * 36;
-            const { x, y } = proj(b.lat, b.lng);
-            return (
-              <g key={b.label}>
-                <circle cx={x} cy={y} r={r} fill="rgb(52 211 153 / 0.25)" stroke="rgb(52 211 153)" strokeWidth={1.5} />
-                <text x={x} y={y + 4} textAnchor="middle" fontSize={11} fill="rgb(244 244 245)" fontWeight={600}>{n}</text>
-                <text x={x} y={y + r + 12} textAnchor="middle" fontSize={9} fill="rgb(161 161 170)">{b.label}</text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-        {[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-          <div key={k} className="flex justify-between rounded border border-zinc-800 bg-zinc-950 p-2"><span>{k}</span><span className="font-mono">{v}</span></div>
-        ))}
-      </div>
-    </div>
+    <PageShell>
+      <PageHeader icon={<Globe />} title={t("title")} description={t("description")} />
+      {all.length === 0 ? (
+        <EmptyState icon={<Globe />} title={t("empty.title")} description={t("empty.description")} />
+      ) : (
+        <RegionMap
+          points={points}
+          max={max}
+          counts={sortedCounts}
+          ariaLabel={t("mapAria", { count: all.length, buckets: counts.size })}
+        />
+      )}
+    </PageShell>
   );
 }

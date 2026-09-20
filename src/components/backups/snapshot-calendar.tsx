@@ -1,15 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { PageSection } from "@/components/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SnapshotEvent } from "@/server/queries/snapshots";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Calendar, CalendarDays, LineChart } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useMemo, useState } from "react";
 import { SnapshotHeatmap } from "./snapshot-heatmap";
 import { SnapshotMonth } from "./snapshot-month";
 import { SnapshotTimeline } from "./snapshot-timeline";
 
 export function SnapshotCalendar({ events }: { events: SnapshotEvent[] }) {
+  const t = useTranslations("ops.backups.calendar");
+  const tc = useTranslations("common");
   const sorted = useMemo(() => [...events].sort((a, b) => b.capturedAt - a.capturedAt), [events]);
   const [providerFilter, setProviderFilter] = useState<string>("all");
   const filtered = useMemo(
@@ -17,55 +21,50 @@ export function SnapshotCalendar({ events }: { events: SnapshotEvent[] }) {
     [sorted, providerFilter],
   );
   const providers = useMemo(() => Array.from(new Set(events.map((e) => e.provider))), [events]);
+  const accounts = useMemo(() => new Set(filtered.map((e) => e.accountId)).size, [filtered]);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold">Snapshots over time</h2>
-          <p className="text-xs text-muted">
-            {filtered.length} snapshots across {new Set(filtered.map((e) => e.accountId)).size} accounts.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={providerFilter}
-            onChange={(e) => setProviderFilter(e.target.value)}
-            className="h-8 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 text-xs"
-          >
-            <option value="all">All providers</option>
+    <PageSection
+      title={t("title")}
+      description={t("summary", { count: filtered.length, accounts })}
+      action={
+        <Select value={providerFilter} onValueChange={setProviderFilter}>
+          <SelectTrigger className="h-8 w-40 text-xs" aria-label={t("providerFilter")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{tc("all")}</SelectItem>
             {providers.map((p) => (
-              <option key={p} value={p}>
+              <SelectItem key={p} value={p}>
                 {p}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="heatmap" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
-            <TabsTrigger value="heatmap">
-              <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Heatmap
-            </TabsTrigger>
-            <TabsTrigger value="month">
-              <Calendar className="mr-1.5 h-3.5 w-3.5" /> Month
-            </TabsTrigger>
-            <TabsTrigger value="timeline">
-              <LineChart className="mr-1.5 h-3.5 w-3.5" /> Timeline
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="heatmap" className="pt-4">
-            <SnapshotHeatmap events={filtered} />
-          </TabsContent>
-          <TabsContent value="month" className="pt-4">
-            <SnapshotMonth events={filtered} />
-          </TabsContent>
-          <TabsContent value="timeline" className="pt-4">
-            <SnapshotTimeline events={filtered} />
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+          </SelectContent>
+        </Select>
+      }
+    >
+      <Tabs defaultValue="heatmap" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="heatmap">
+            <CalendarDays className="mr-1.5 size-3.5" aria-hidden /> {t("tabs.heatmap")}
+          </TabsTrigger>
+          <TabsTrigger value="month">
+            <Calendar className="mr-1.5 size-3.5" aria-hidden /> {t("tabs.month")}
+          </TabsTrigger>
+          <TabsTrigger value="timeline">
+            <LineChart className="mr-1.5 size-3.5" aria-hidden /> {t("tabs.timeline")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="heatmap" className="pt-4">
+          <SnapshotHeatmap events={filtered} />
+        </TabsContent>
+        <TabsContent value="month" className="pt-4">
+          <SnapshotMonth events={filtered} />
+        </TabsContent>
+        <TabsContent value="timeline" className="pt-4">
+          <SnapshotTimeline events={filtered} />
+        </TabsContent>
+      </Tabs>
+    </PageSection>
   );
 }

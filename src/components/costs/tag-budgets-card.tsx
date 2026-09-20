@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { AlertTriangle, Loader2, Plus, Save, Target, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { toResult } from "@/components/settings/adapt";
+import { Button, Input, Label, PageSection, Progress } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { HOURS_PER_MONTH } from "@/lib/utils";
 import {
   deleteTagBudgetAction,
   evaluateTagBudgetsAction,
@@ -13,6 +11,12 @@ import {
   upsertTagBudgetAction,
   type TagBudgetEvalResult,
 } from "@/server/actions/tag-budgets";
+import { AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useEffect, useId, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { useMoney } from "./use-money";
 
 interface BudgetRow {
   id: string;
@@ -30,15 +34,14 @@ interface DraftRow {
   monthlyUsd: string;
 }
 
-function formatUsd(v: number): string {
-  return `$${v.toFixed(v < 100 ? 2 : 0)}`;
-}
-
 export function TagBudgetsCard() {
+  const t = useTranslations("cloud.costs.budgets");
+  const tCommon = useTranslations("common");
+  const { usd } = useMoney();
+  const formId = useId();
   const [rows, setRows] = useState<BudgetRow[]>([]);
   const [evalResults, setEvalResults] = useState<Map<string, TagBudgetEvalResult>>(new Map());
   const [draft, setDraft] = useState<DraftRow | null>(null);
-  const [pending, start] = useTransition();
   const [evaluating, startEval] = useTransition();
 
   async function refresh() {
@@ -56,164 +59,165 @@ export function TagBudgetsCard() {
     });
   }, [rows.length]);
 
-  function save() {
+  const save = useAction(
+    async (d: DraftRow, amount: number) =>
+      toResult(
+        await upsertTagBudgetAction({
+          id: d.id,
+          tagKey: d.tagKey.trim(),
+          tagValue: d.tagValue.trim() || null,
+          monthlyUsd: amount,
+        }),
+      ),
+    {
+      success: t("toast.saved"),
+      onSuccess: () => {
+        setDraft(null);
+        void refresh();
+      },
+    },
+  );
+
+  const remove = useAction(async (id: string) => toResult(await deleteTagBudgetAction(id)), {
+    success: t("toast.deleted"),
+    onSuccess: () => void refresh(),
+  });
+
+  function submit() {
     if (!draft) return;
     const amount = Number.parseFloat(draft.monthlyUsd);
     if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Enter a positive monthly amount.");
+      toast.error(t("toast.invalidAmount"));
       return;
     }
-    start(async () => {
-      const r = await upsertTagBudgetAction({
-        id: draft.id,
-        tagKey: draft.tagKey.trim(),
-        tagValue: draft.tagValue.trim() || null,
-        monthlyUsd: amount,
-      });
-      if (r.ok) {
-        toast.success("Budget saved");
-        setDraft(null);
-        await refresh();
-      } else {
-        toast.error("Save failed", { description: r.error });
-      }
-    });
-  }
-
-  async function remove(id: string) {
-    await deleteTagBudgetAction(id);
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    void save.run(draft, amount);
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Target className="h-4 w-4" /> Per-tag budgets
-            </CardTitle>
-            <CardDescription>
-              Set monthly USD caps per tag. Evaluated against current fleet hourly burn × 730.
-            </CardDescription>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              setDraft({ tagKey: "", tagValue: "", monthlyUsd: "" })
-            }
-            disabled={pending}
-          >
-            <Plus className="h-3.5 w-3.5" /> Add
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.length === 0 && !draft && (
-          <p className="text-xs text-muted">No budgets yet. Click Add to set one.</p>
-        )}
-        {rows.map((b) => {
-          const ev = evalResults.get(b.id);
-          const observed = ev?.observedUsd ?? b.lastObservedUsd ?? 0;
-          const exceeded = ev?.exceeded ?? b.exceeded === 1;
-          const pct = b.monthlyUsd > 0 ? Math.min(150, (observed / b.monthlyUsd) * 100) : 0;
-          return (
-            <div
-              key={b.id}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-3 text-xs"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-mono text-[12px]">
-                    {b.tagKey}
-                    {b.tagValue ? `=${b.tagValue}` : <span className="text-muted"> (any value)</span>}
+    <PageSection
+      title={t("title")}
+      description={t("description", { hours: HOURS_PER_MONTH })}
+      action={
+        <Button variant="outline" size="sm" onClick={() => setDraft({ tagKey: "", tagValue: "", monthlyUsd: "" })} disabled={save.pending || draft !== null}>
+          <Plus className="size-3.5" aria-hidden /> {t("add")}
+        </Button>
+      }
+    >
+      <div className="space-y-3">
+        {rows.length === 0 && !draft && <p className="text-xs text-muted">{t("empty")}</p>}
+
+        <AnimatePresence initial={false}>
+          {rows.map((b) => {
+            const ev = evalResults.get(b.id);
+            const observed = ev?.observedUsd ?? b.lastObservedUsd ?? 0;
+            const exceeded = ev?.exceeded ?? b.exceeded === 1;
+            const pct = b.monthlyUsd > 0 ? (observed / b.monthlyUsd) * 100 : 0;
+            const tone = exceeded ? "danger" : pct > 80 ? "warning" : "success";
+            const tagLabel = b.tagValue ? `${b.tagKey}=${b.tagValue}` : b.tagKey;
+            return (
+              <motion.div
+                key={b.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="rounded-[var(--radius-md)] border border-border bg-bg-muted/40 p-3 text-xs"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-mono text-sm">
+                      {b.tagKey}
+                      {b.tagValue ? `=${b.tagValue}` : <span className="text-muted"> {t("anyValue")}</span>}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-2 text-[11px] text-muted">
+                      <span>{t("observed", { observed: usd(observed), cap: usd(b.monthlyUsd) })}</span>
+                      {ev?.daysToExceed != null && ev.daysToExceed > 0 && !exceeded && (
+                        <span className="text-warning">{t("daysToCap", { days: ev.daysToExceed })}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-[11px] text-muted">
-                    {formatUsd(observed)}/mo observed · cap {formatUsd(b.monthlyUsd)}
-                    {ev?.daysToExceed != null && ev.daysToExceed > 0 && !exceeded && (
-                      <span className="ml-2 text-[var(--color-warning)]">
-                        · ≈ {ev.daysToExceed}d to cap
-                      </span>
-                    )}
-                  </div>
+                  {exceeded && (
+                    <span className="flex shrink-0 items-center gap-1 text-danger">
+                      <AlertTriangle className="size-3.5" aria-hidden /> {t("overBudget")}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted hover:text-danger"
+                    aria-label={t("delete", { tag: tagLabel })}
+                    loading={remove.pending}
+                    onClick={() => void remove.run(b.id)}
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
+                  </Button>
                 </div>
-                {exceeded && (
-                  <span className="flex items-center gap-1 text-[var(--color-danger)]">
-                    <AlertTriangle className="h-3.5 w-3.5" /> over budget
-                  </span>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted hover:text-[var(--color-danger)]"
-                  onClick={() => remove(b.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <Progress value={Math.min(100, pct)} size="sm" tone={tone} className="mt-2" />
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {draft && (
+          <form
+            className="space-y-3 rounded-[var(--radius-md)] border border-dashed border-border p-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor={`${formId}-key`}>{t("form.tagKey")}</Label>
+                <Input
+                  id={`${formId}-key`}
+                  placeholder={t("form.tagKeyPlaceholder")}
+                  value={draft.tagKey}
+                  onChange={(e) => setDraft({ ...draft, tagKey: e.target.value })}
+                  className="font-mono"
+                  maxLength={64}
+                  required
+                />
               </div>
-              <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--color-border)]">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${Math.min(100, pct)}%`,
-                    background: exceeded
-                      ? "var(--color-danger)"
-                      : pct > 80
-                        ? "var(--color-warning)"
-                        : "var(--color-success)",
-                  }}
+              <div className="space-y-1">
+                <Label htmlFor={`${formId}-value`}>{t("form.tagValue")}</Label>
+                <Input
+                  id={`${formId}-value`}
+                  placeholder={t("form.tagValuePlaceholder")}
+                  value={draft.tagValue}
+                  onChange={(e) => setDraft({ ...draft, tagValue: e.target.value })}
+                  className="font-mono"
+                  maxLength={256}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${formId}-amount`}>{t("form.monthlyUsd")}</Label>
+                <Input
+                  id={`${formId}-amount`}
+                  placeholder={t("form.monthlyUsdPlaceholder")}
+                  value={draft.monthlyUsd}
+                  onChange={(e) => setDraft({ ...draft, monthlyUsd: e.target.value })}
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  required
                 />
               </div>
             </div>
-          );
-        })}
-
-        {draft && (
-          <div className="space-y-2 rounded-md border border-dashed border-[var(--color-border)] p-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Input
-                placeholder="tag key (e.g. team)"
-                value={draft.tagKey}
-                onChange={(e) => setDraft({ ...draft, tagKey: e.target.value })}
-                className="font-mono text-xs"
-                maxLength={64}
-              />
-              <Input
-                placeholder="value (blank = any)"
-                value={draft.tagValue}
-                onChange={(e) => setDraft({ ...draft, tagValue: e.target.value })}
-                className="font-mono text-xs"
-                maxLength={256}
-              />
-              <Input
-                placeholder="500"
-                value={draft.monthlyUsd}
-                onChange={(e) => setDraft({ ...draft, monthlyUsd: e.target.value })}
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min="0"
-                className="text-xs"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={save} disabled={pending || !draft.tagKey.trim()}>
-                {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Save
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" size="sm" loading={save.pending} disabled={!draft.tagKey.trim()}>
+                {tCommon("save")}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={pending}>
-                Cancel
+              <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={save.pending}>
+                {tCommon("cancel")}
               </Button>
-              {evaluating && (
-                <span className="ml-auto flex items-center gap-1 text-[11px] text-muted">
-                  <Loader2 className="h-3 w-3 animate-spin" /> evaluating…
-                </span>
-              )}
+              {evaluating && <span className="ml-auto text-[11px] text-muted">{t("evaluating")}</span>}
             </div>
-          </div>
+          </form>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </PageSection>
   );
 }

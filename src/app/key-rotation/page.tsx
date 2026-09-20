@@ -1,15 +1,21 @@
-import { db } from "@/lib/db";
-import { sshKeys, instances, cloudAccounts } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { KeyRotationView } from "@/components/key-rotation/key-rotation-view";
+import { Button, EmptyState, PageHeader, PageShell } from "@/components/ui";
+import { db } from "@/lib/db";
+import { cloudAccounts, instances, sshKeys } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { KeyRound } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function KeyRotationPage() {
-  const keys = await db.select().from(sshKeys);
-  const insts = await db.select().from(instances).where(eq(instances.state, "running"));
-  const accs = await db.select().from(cloudAccounts);
+  const [keys, insts, accs, t] = await Promise.all([
+    db.select().from(sshKeys),
+    db.select().from(instances).where(eq(instances.state, "running")),
+    db.select().from(cloudAccounts),
+    getTranslations("ops.keyRotation"),
+  ]);
   const accLabel = new Map(accs.map((a) => [a.id, a.name]));
 
   const vmList = insts.map((i) => ({
@@ -22,19 +28,31 @@ export default async function KeyRotationPage() {
   const keyList = keys.map((k) => ({ id: k.id, name: k.name, algo: k.algo, fingerprint: k.fingerprint }));
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header className="flex items-center gap-3">
-        <KeyRound className="h-6 w-6 text-[var(--color-primary)]" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">SSH key rotation</h1>
-          <p className="text-sm text-muted">Push a new public key to every selected VM. Requires probe key configured on the account.</p>
-        </div>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<KeyRound />}
+        actions={
+          <Button asChild variant="secondary">
+            <Link href="/settings/ssh-keys">{t("manageKeys")}</Link>
+          </Button>
+        }
+      />
       {keys.length === 0 ? (
-        <p className="text-sm text-muted">No SSH keys configured. Add one in Settings → SSH keys first.</p>
+        <EmptyState
+          icon={<KeyRound />}
+          title={t("noKeys")}
+          description={t("noKeysHint")}
+          action={
+            <Button asChild size="sm">
+              <Link href="/settings/ssh-keys">{t("manageKeys")}</Link>
+            </Button>
+          }
+        />
       ) : (
         <KeyRotationView keys={keyList} instances={vmList} />
       )}
-    </main>
+    </PageShell>
   );
 }

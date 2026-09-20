@@ -1,26 +1,13 @@
 import "server-only";
+import { TagDriftTable, type DriftRow } from "@/components/tags/tag-drift-table";
+import { PageHeader, PageShell } from "@/components/ui";
 import { db } from "@/lib/db";
 import { instances, instanceTags } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import Link from "next/link";
-import { pushLocalTagsToProviderAction } from "@/server/actions/drift-remediate";
+import { GitCompareArrows } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
-
-async function remediate(formData: FormData) {
-  "use server";
-  await pushLocalTagsToProviderAction({ instanceId: String(formData.get("instanceId") ?? "") });
-}
-
-interface DriftRow {
-  id: string;
-  name: string;
-  provider: string;
-  region: string;
-  onlyProvider: { key: string; value: string }[];
-  onlyLocal: { key: string; value: string }[];
-  conflicting: { key: string; provider: string; local: string }[];
-}
 
 function extractProviderTags(rawJson: string | null): Record<string, string> {
   if (!rawJson) return {};
@@ -56,7 +43,7 @@ function extractProviderTags(rawJson: string | null): Record<string, string> {
 }
 
 export default async function TagDriftPage() {
-  const all = await db.select().from(instances);
+  const [all, t] = await Promise.all([db.select().from(instances), getTranslations("govern.tagDrift")]);
   const drifts: DriftRow[] = [];
 
   for (const i of all) {
@@ -90,66 +77,9 @@ export default async function TagDriftPage() {
   drifts.sort((a, b) => (b.onlyProvider.length + b.onlyLocal.length + b.conflicting.length) - (a.onlyProvider.length + a.onlyLocal.length + a.conflicting.length));
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Tag drift report</h1>
-        <p className="text-sm text-zinc-400">VMs whose vmui-local tags don&rsquo;t match the provider&rsquo;s native tags / labels.</p>
-      </header>
-
-      {drifts.length === 0 && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-5 text-emerald-300 text-sm">
-          ✓ No drift detected.
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {drifts.map((d) => (
-          <div key={d.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-            <div className="flex items-center justify-between">
-              <Link href={`/instances/${encodeURIComponent(d.id)}`} className="text-emerald-300 hover:text-emerald-200 font-medium">{d.name}</Link>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-zinc-500">{d.provider} · {d.region}</span>
-                <form action={remediate}>
-                  <input type="hidden" name="instanceId" value={d.id} />
-                  <button type="submit" className="rounded-md bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 text-xs">Push local tags →</button>
-                </form>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <Box title="Only in provider" tone="amber" items={d.onlyProvider} />
-              <Box title="Only in vmui-local" tone="sky" items={d.onlyLocal} />
-              <ConflictBox items={d.conflicting} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Box({ title, tone, items }: { title: string; tone: "amber" | "sky"; items: { key: string; value: string }[] }) {
-  const color = tone === "amber" ? "text-amber-400" : "text-sky-400";
-  return (
-    <div className="rounded border border-zinc-800 bg-zinc-900 p-2">
-      <div className={`text-[10px] uppercase ${color} font-medium`}>{title} ({items.length})</div>
-      {items.length === 0 ? <div className="mt-1 text-zinc-600">—</div> : (
-        <ul className="mt-1 space-y-0.5">
-          {items.map((i) => <li key={i.key} className="font-mono">{i.key}={i.value || <em className="text-zinc-600">empty</em>}</li>)}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function ConflictBox({ items }: { items: { key: string; provider: string; local: string }[] }) {
-  return (
-    <div className="rounded border border-rose-500/30 bg-rose-950/30 p-2">
-      <div className="text-[10px] uppercase text-rose-400 font-medium">Conflicting ({items.length})</div>
-      {items.length === 0 ? <div className="mt-1 text-zinc-600">—</div> : (
-        <ul className="mt-1 space-y-0.5 font-mono">
-          {items.map((i) => <li key={i.key}><strong>{i.key}</strong>: <span className="text-amber-300">{i.provider}</span> ≠ <span className="text-sky-300">{i.local}</span></li>)}
-        </ul>
-      )}
-    </div>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<GitCompareArrows />} />
+      <TagDriftTable drifts={drifts} />
+    </PageShell>
   );
 }

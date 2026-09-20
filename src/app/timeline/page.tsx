@@ -1,15 +1,16 @@
 import { TimeMachine } from "@/components/timeline/time-machine";
+import { PageHeader, PageShell } from "@/components/ui";
+import { History } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
-export default function TimelinePage() {
+export default async function TimelinePage() {
+  const t = await getTranslations("observe.timeline");
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Time machine</h1>
-        <p className="text-sm text-muted">Scrub through probe samples + audit log together. Drag the slider to inspect any moment.</p>
-      </header>
+    <PageShell>
+      <PageHeader title={t("title")} description={t("description")} icon={<History />} />
       <TimeMachine />
-    </main>
+    </PageShell>
   );
 }

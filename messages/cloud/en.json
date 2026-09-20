@@ -1,0 +1,1244 @@
+{
+  "shared": {
+    "provider": {
+      "aws": "AWS",
+      "azure": "Azure",
+      "gcp": "Google Cloud",
+      "scaleway": "Scaleway",
+      "digitalocean": "DigitalOcean",
+      "hetzner": "Hetzner",
+      "local-kvm": "Local",
+      "unknown": "Unknown"
+    }
+  },
+  "accounts": {
+    "title": "Cloud accounts",
+    "description": "Connect providers and manage their instances, resources and spend from one place.",
+    "count": "{count, plural, =0 {No accounts} one {# account} other {# accounts}}",
+    "add": "Add account",
+    "viewLabel": "Accounts layout",
+    "view": {
+      "grid": "Grid",
+      "list": "List"
+    },
+    "empty": {
+      "title": "No accounts connected yet",
+      "description": "Connect AWS, Azure, Google Cloud, DigitalOcean, Hetzner, Scaleway or a local KVM host to start managing VMs.",
+      "action": "Connect your first account"
+    },
+    "health": {
+      "ok": "Healthy",
+      "warn": "Needs attention",
+      "bad": "Unhealthy"
+    },
+    "moreRegions": "+{count}",
+    "free": "Free",
+    "perMonth": "{amount}/mo",
+    "lastSync": "Last sync",
+    "monthlySpend": "Monthly spend",
+    "never": "Never",
+    "trend": "7-day running VMs",
+    "trendAria": "Running VMs over the last 7 days for {name}",
+    "columns": {
+      "provider": "Provider",
+      "name": "Name",
+      "regions": "Regions",
+      "health": "Health",
+      "lastSync": "Last sync",
+      "monthlySpend": "Monthly spend"
+    },
+    "openDetail": "Open {name}"
+  },
+  "accountNew": {
+    "title": "Connect a cloud account",
+    "description": "Pick a provider, then choose how to authenticate. Credentials are encrypted with AES-256-GCM using your local master key and never leave this machine.",
+    "breadcrumb": "Breadcrumb",
+    "back": "Accounts",
+    "pickerLabel": "Cloud provider",
+    "providers": {
+      "aws": "EC2 instances, Mac dedicated hosts, full resource graph.",
+      "azure": "Virtual machines via a service principal, auto-created networking.",
+      "gcp": "Compute Engine via a service-account key.",
+      "digitalocean": "Droplets, volumes and snapshots with a personal access token.",
+      "hetzner": "Cheapest cloud VMs in Europe, one API token per project.",
+      "scaleway": "Bare-metal Apple Silicon Mac minis in Paris.",
+      "local-kvm": "QEMU/KVM under WSL2 or Hyper-V on this machine."
+    }
+  },
+  "accountDetail": {
+    "breadcrumb": "Breadcrumb",
+    "allAccounts": "Accounts",
+    "connected": "connected",
+    "stats": {
+      "instances": "Instances",
+      "running": "Running",
+      "resources": "Resources",
+      "burn": "Burn / mo"
+    },
+    "trend": {
+      "title": "7-day trend",
+      "description": "Running instances and hourly burn captured at every sync.",
+      "running": "Running",
+      "hourly": "$ / hr"
+    },
+    "regions": {
+      "title": "Regions",
+      "description": "Regions synced for this account and what runs in each.",
+      "selected": "{count, plural, one {# region} other {# regions}}",
+      "more": "+{count}",
+      "saved": "Regions saved",
+      "breakdown": "{running}/{total} running",
+      "perMonth": "{amount}/mo",
+      "free": "free"
+    },
+    "probe": {
+      "title": "Credentials & keys",
+      "description": "One private key used by vmui to collect cockpit metrics and stream cloud-init logs for every instance in this account. Stored encrypted with your master key.",
+      "configured": "Probe key configured",
+      "configuredHint": "ready for live metrics",
+      "replace": "Replace",
+      "upload": "Upload probe key",
+      "privateKey": "Private key (PEM)",
+      "passphrase": "Passphrase (optional)",
+      "defaultUser": "Default user (optional)",
+      "save": "Save key",
+      "uploaded": "Probe key uploaded",
+      "removed": "Probe key removed",
+      "removeTitle": "Remove the probe key?",
+      "removeDescription": "Cockpit metrics and cloud-init streaming stop until you upload a new one."
+    },
+    "policies": {
+      "title": "Policies",
+      "description": "Guard-rails applied to every instance created or terminated through vmui for this account."
+    },
+    "defaultTags": {
+      "title": "Default tags",
+      "hint": "Applied to every new instance created for this account. Existing instances are not touched.",
+      "empty": "No default tags. Add one to start.",
+      "keyLabel": "Tag key",
+      "keyPlaceholder": "key",
+      "valueLabel": "Tag value",
+      "valuePlaceholder": "value",
+      "removeRow": "Remove tag",
+      "add": "Add tag",
+      "backfill": "Back-fill existing",
+      "backfillHint": "Apply the current default tags to every existing instance in this account",
+      "saved": "Default tags saved",
+      "backfilled": "{count, plural, one {Back-filled # instance} other {Back-filled # instances}}"
+    },
+    "requiredTags": {
+      "title": "Required tags",
+      "sectionHint": "Compliance scan flags instances missing any of these keys.",
+      "label": "Tag key",
+      "hint": "Press Enter to add.",
+      "placeholder": "cost-center",
+      "empty": "No required tags.",
+      "remove": "Remove {key}",
+      "cleared": "Required tags cleared",
+      "saved": "{count, plural, one {Saved # required tag} other {Saved # required tags}}"
+    },
+    "budget": {
+      "title": "Monthly budget cap",
+      "sectionHint": "Hard limit. New instances are refused when projected burn would exceed this.",
+      "label": "USD / month",
+      "hint": "Leave empty to disable.",
+      "invalid": "Enter a positive amount in USD, or leave empty to disable.",
+      "cleared": "Budget cap cleared",
+      "saved": "Cap: ${amount}/mo"
+    },
+    "vcpu": {
+      "title": "vCPU quota",
+      "sectionHint": "Hard cap on the sum of vCPUs across running instances in this account.",
+      "label": "vCPUs",
+      "hint": "Leave empty to disable.",
+      "invalid": "Enter a positive integer, or leave empty to disable.",
+      "cleared": "vCPU quota cleared",
+      "saved": "Cap: {count} vCPU"
+    },
+    "retention": {
+      "title": "Snapshot retention",
+      "sectionHint": "Keep only the most recent N snapshots per instance; delete the rest.",
+      "label": "Keep last",
+      "hint": "0 or empty disables retention.",
+      "invalid": "Enter a non-negative integer up to 1000.",
+      "disabled": "Retention disabled",
+      "saved": "Retention: keep last {count}",
+      "deleted": "{count, plural, one {Deleted # old snapshot} other {Deleted # old snapshots}}",
+      "runNow": "Run now"
+    },
+    "safeTerminate": {
+      "title": "Safe terminate",
+      "label": "Auto-snapshot before terminate",
+      "hint": "Creates a fresh snapshot first if no snapshot newer than 7 days exists. Skipped silently when the provider does not support snapshots.",
+      "enabled": "Safe terminate enabled",
+      "disabled": "Safe terminate disabled"
+    },
+    "instances": {
+      "title": "Instances",
+      "count": "{count, plural, =0 {No instances synced yet} one {# instance} other {# instances}}",
+      "empty": "No instances synced yet."
+    },
+    "activity": {
+      "title": "Recent activity",
+      "empty": "No recorded activity yet."
+    },
+    "disconnect": {
+      "label": "Disconnect {name}",
+      "title": "Disconnect {name}?",
+      "description": "Stored credentials for this account will be wiped and its instances disappear from the dashboard. This cannot be undone.",
+      "confirm": "Disconnect",
+      "done": "{name} disconnected"
+    },
+    "sync": {
+      "label": "Sync",
+      "done": "{count, plural, one {Synced # instance} other {Synced # instances}}"
+    }
+  },
+  "connect": {
+    "common": {
+      "verifying": "Verifying with {provider}…",
+      "verifyConnect": "Verify & connect",
+      "encrypted": "Stored encrypted at rest with AES-256-GCM",
+      "copied": "Copied to clipboard",
+      "copy": "Copy",
+      "copyValue": "Copy {value}"
+    },
+    "azure": {
+      "tabs": {
+        "sp": "Service principal",
+        "help": "Guided setup"
+      },
+      "connected": "Azure subscription connected",
+      "sp": {
+        "title": "Connect with a service principal",
+        "description": "Create an app registration with a client secret and grant it Reader (or Contributor for actions) on the subscription. Credentials are AES-256-GCM encrypted locally.",
+        "name": "Display name",
+        "namePlaceholder": "My Azure subscription",
+        "tenantId": "Tenant ID (Directory)",
+        "subscriptionId": "Subscription ID",
+        "clientId": "Client (App) ID",
+        "clientSecret": "Client secret",
+        "defaultLocation": "Default location"
+      },
+      "guide": {
+        "title": "Create an Azure service principal",
+        "description": "Headless credentials for vmui — no interactive login needed.",
+        "intro": "Run in Azure Cloud Shell or with the Azure CLI installed locally:",
+        "outro": "The CLI prints <code>appId</code> (= client ID), <code>password</code> (= client secret) and <code>tenant</code>. Use Reader instead of Contributor if you only want read-only listing.",
+        "docs": "Microsoft docs"
+      }
+    },
+    "gcp": {
+      "tabs": {
+        "sa": "Service-account JSON",
+        "help": "Guided setup"
+      },
+      "connected": "GCP project connected",
+      "sa": {
+        "title": "Connect with a service-account key",
+        "description": "Create a service account in IAM with the Compute Viewer (or Compute Admin for actions) role, then download a JSON key. Encrypted locally with AES-256-GCM.",
+        "name": "Display name",
+        "namePlaceholder": "My GCP project",
+        "keyJson": "Service-account key JSON",
+        "keyJsonHint": "Paste the entire JSON file. The <code>project_id</code> field determines which GCP project we connect to.",
+        "defaultZone": "Default zone"
+      },
+      "guide": {
+        "title": "Create a GCP service account",
+        "description": "A JSON key file is all vmui needs.",
+        "outro": "Use <code>roles/compute.instanceAdmin.v1</code> instead of <code>compute.viewer</code> if you want vmui to start, stop or reboot VMs.",
+        "docs": "Google Cloud docs"
+      }
+    },
+    "digitalocean": {
+      "tabs": {
+        "token": "Personal Access Token",
+        "help": "Guided setup"
+      },
+      "connected": "DigitalOcean account connected",
+      "token": {
+        "title": "Connect with a Personal Access Token",
+        "description": "Create a token in the DigitalOcean console with <strong>read & write</strong> scopes. The token is encrypted with AES-256-GCM and stored locally.",
+        "name": "Display name",
+        "namePlaceholder": "My DigitalOcean team",
+        "nameHint": "Shown in vmui. Does not need to match your DO team name.",
+        "token": "Personal Access Token",
+        "tokenHint": "From Console → API → Tokens/Keys → Generate New Token. Read+Write recommended.",
+        "defaultRegion": "Default region"
+      },
+      "guide": {
+        "title": "Get a DigitalOcean PAT",
+        "description": "Droplets, volumes, snapshots, firewalls, floating IPs, VPCs, load balancers, managed databases, Spaces and DOKS all surface in vmui.",
+        "step1": {
+          "title": "Open the DigitalOcean console"
+        },
+        "step2": {
+          "title": "Create a new Personal Access Token",
+          "body": "Navigate to <strong>API → Tokens/Keys → Generate New Token</strong>. Give it a name (e.g. <code>vmui</code>), set an expiration (90 days is a sensible default), and tick both <strong>Read</strong> and <strong>Write</strong> scopes for full lifecycle.",
+          "link": "API → Tokens/Keys",
+          "note": "If you only want vmui to observe (no power on/off, no create), uncheck Write."
+        },
+        "step3": {
+          "title": "Copy the token (shown once)",
+          "body": "DigitalOcean displays the token <em>once</em>. Copy it before closing the dialog. If you lose it, generate a new one — old tokens can be revoked from the same page."
+        },
+        "step4": {
+          "title": "Pick a default region",
+          "body": "Choose the region you most often use. You can add more regions later from the account page — vmui syncs all of them in parallel."
+        },
+        "step5": {
+          "title": "Paste the token",
+          "body": "Switch back to the <strong>Personal Access Token</strong> tab and paste the value. vmui verifies it and stores an encrypted copy locally."
+        }
+      }
+    },
+    "hetzner": {
+      "tabs": {
+        "token": "API token",
+        "help": "Guided setup"
+      },
+      "connected": "Hetzner Cloud account connected",
+      "token": {
+        "title": "Connect with an API token",
+        "description": "Generate a token in Hetzner Cloud Console → Security → API tokens. Use <strong>read & write</strong> scope for full lifecycle. The token is encrypted with AES-256-GCM.",
+        "name": "Display name",
+        "namePlaceholder": "My Hetzner project",
+        "nameHint": "Hetzner does not return a friendly project name in the API; pick whatever you want.",
+        "token": "API token",
+        "tokenPlaceholder": "64-character alphanumeric string",
+        "tokenHint": "Console → Security → API Tokens → Generate API Token. Read+Write recommended.",
+        "defaultLocation": "Default location"
+      },
+      "guide": {
+        "title": "Get a Hetzner Cloud API token",
+        "description": "Hetzner has the cheapest cloud VMs in Europe. ARM cax-* servers start at €3.79/month.",
+        "step1": {
+          "title": "Open Hetzner Cloud Console"
+        },
+        "step2": {
+          "title": "Create or select a project",
+          "body": "Tokens are <strong>per project</strong>. Either pick an existing project or create a new one (e.g. <code>vmui</code>)."
+        },
+        "step3": {
+          "title": "Generate an API token",
+          "body": "Inside the project: <strong>Security → API Tokens → Generate API Token</strong>. Pick <strong>Read & Write</strong> for full lifecycle. Copy the 64-character token — shown only once.",
+          "note": "Tokens never expire automatically. Rotate them by deleting the old one and creating a new one."
+        },
+        "step4": {
+          "title": "Pick a default location",
+          "body": "<strong>nbg1</strong> (Nuremberg) and <strong>fsn1</strong> (Falkenstein) are the cheapest. <strong>ash</strong>/<strong>hil</strong> for North America, <strong>sin</strong> for Asia."
+        },
+        "step5": {
+          "title": "Paste it",
+          "body": "Switch to the <strong>API token</strong> tab. vmui verifies the token by calling <code>/servers</code> and stores an encrypted copy locally."
+        }
+      }
+    },
+    "scaleway": {
+      "tabs": {
+        "keys": "API key",
+        "help": "Guided setup"
+      },
+      "connected": "Scaleway account connected",
+      "keys": {
+        "title": "Connect with an API secret key",
+        "description": "Generate an IAM API key in the Scaleway console. Credentials are encrypted with AES-256-GCM and stored locally.",
+        "name": "Display name",
+        "namePlaceholder": "My Scaleway project",
+        "nameHint": "Shown in vmui — does not need to match your Scaleway project name.",
+        "secretKey": "Secret key",
+        "secretKeyHint": "UUID-format secret from Console → IAM → API Keys → Create API key.",
+        "projectId": "Project ID",
+        "projectIdHint": "From Console → Project dashboard → Project ID button at the top right.",
+        "defaultZone": "Default zone",
+        "defaultZoneHint": "Apple Silicon is only available in Paris. Pick fr-par-1 unless you specifically want a Mac mini M1.",
+        "zones": {
+          "fr-par-1": "Paris 1 — M2 / M2 Pro / M4",
+          "fr-par-3": "Paris 3 — M1 only"
+        }
+      },
+      "guide": {
+        "title": "Get a Scaleway API key for Apple Silicon",
+        "description": "Scaleway runs real Mac minis (M1 / M2 / M2 Pro / M4) in Paris with hourly billing after the 24h Apple minimum.",
+        "step1": {
+          "title": "Create or sign in to a Scaleway account",
+          "body": "Open the console and either sign up or sign in."
+        },
+        "step2": {
+          "title": "Find your Project ID",
+          "body": "On the console homepage your <code>Default</code> project is shown. Click it (or any other project) — the top-right shows a <strong>Project ID</strong> button. Click to copy.",
+          "link": "Project settings"
+        },
+        "step3": {
+          "title": "Create an API key",
+          "body": "Go to <strong>IAM → API Keys → Create API key</strong>. Bearer: <strong>your IAM user (yourself)</strong>. Tick <strong>Use this API key for the default project</strong>. Copy the <strong>Secret key</strong> shown <em>once</em>.",
+          "link": "IAM → API Keys",
+          "note": "You only see the secret once — save it to a password manager. If you lose it, just generate another key."
+        },
+        "step4": {
+          "title": "Permissions vmui needs",
+          "body": "For full functionality grant the IAM user the <strong>AppleSiliconFullAccess</strong> permission set. For read-only sync, <strong>AppleSiliconReadOnly</strong> is enough."
+        },
+        "step5": {
+          "title": "Paste them in the API key tab",
+          "body": "Switch back to the <strong>API key</strong> tab and paste the Secret key and Project ID. vmui verifies them and stores an encrypted copy locally."
+        }
+      }
+    },
+    "aws": {
+      "tabs": {
+        "cli": "AWS CLI profile",
+        "keys": "Access keys",
+        "help": "Guided setup"
+      },
+      "cli": {
+        "title": "Import from AWS CLI",
+        "description": "Auto-detected from <code>~/.aws/credentials</code> and <code>~/.aws/config</code>.",
+        "refresh": "Refresh profiles",
+        "defaultProfileName": "AWS (default)",
+        "imported": "Imported “{name}” successfully",
+        "staticKeys": "static keys",
+        "import": "Import",
+        "displayName": "Display name",
+        "defaultRegion": "Default region",
+        "ssoLoginFirst": "Make sure you are logged in first — run <cmd>aws sso login</cmd> in your terminal.",
+        "verifying": "Verifying with {provider}…",
+        "verifyImport": "Verify & import",
+        "noCli": {
+          "title": "AWS CLI not found on PATH",
+          "body": "Install the AWS CLI v2 to import profiles automatically, or use the <strong>Access keys</strong> tab.",
+          "winget": "Windows (winget)",
+          "brew": "macOS (Homebrew)",
+          "after": "After installing, run <configure>aws configure</configure> (for static keys) or <sso>aws configure sso</sso> (for AWS SSO / IAM Identity Center), then refresh."
+        },
+        "noProfiles": {
+          "title": "No AWS CLI profiles found yet",
+          "body": "Configure one with either of the commands below, then refresh.",
+          "staticLabel": "Static IAM user keys",
+          "ssoLabel": "AWS SSO / IAM Identity Center"
+        }
+      },
+      "keys": {
+        "connected": "AWS account connected",
+        "title": "Connect with access keys",
+        "name": "Friendly name",
+        "namePlaceholder": "Personal AWS",
+        "nameHint": "Just a label shown in vmui.",
+        "accessKeyId": "Access Key ID",
+        "accessKeyIdHint": "Starts with AKIA (long-term) or ASIA (temporary). From IAM → Users → Security credentials → Create access key.",
+        "secretAccessKey": "Secret Access Key",
+        "secretAccessKeyHint": "Shown only once at creation. If lost, create a new key pair.",
+        "sessionToken": "Session token",
+        "sessionTokenHint": "Required only for temporary credentials (AWS SSO / STS / role assumption).",
+        "defaultRegion": "Default region",
+        "defaultRegionHint": "The region vmui queries by default. macOS dedicated hosts have limited regional availability — <code>us-east-1</code> and <code>us-west-2</code> are the safest."
+      },
+      "guide": {
+        "pick": {
+          "title": "Pick your path",
+          "description": "Two clean ways to connect AWS. Use SSO if your company uses Identity Center; otherwise an IAM user is the quickest.",
+          "a": {
+            "title": "A · IAM user (personal)",
+            "subtitle": "Static long-term access keys",
+            "s1": "Best for personal or sandbox accounts.",
+            "s2": "vmui uses the access key directly.",
+            "s3": "About 5 minutes."
+          },
+          "b": {
+            "title": "B · AWS SSO / Identity Center",
+            "subtitle": "Temporary credentials via browser login",
+            "s1": "Best for company accounts.",
+            "s2": "You log in via browser; vmui imports the temporary credentials.",
+            "s3": "About 3 minutes if SSO is already set up."
+          }
+        },
+        "a": {
+          "title": "Path A — Create an IAM user",
+          "step1": {
+            "title": "Sign in to the AWS Console",
+            "body": "Open <link>IAM → Users</link> (or run the CLI commands below if you already have admin keys)."
+          },
+          "step2": {
+            "title": "Create a user named vmui-controller",
+            "body": "The last command prints <code>AccessKeyId</code> and <code>SecretAccessKey</code>. Copy both."
+          },
+          "step3": {
+            "title": "Pick how to feed them to vmui",
+            "cliLabel": "Recommended: configure the CLI",
+            "cliBody": "Then go to the <strong>AWS CLI profile</strong> tab and click <strong>Import</strong>.",
+            "pasteLabel": "Or: paste directly",
+            "pasteBody": "Switch to the <strong>Access keys</strong> tab and paste them there."
+          },
+          "note": "For tighter security, replace <code>AmazonEC2FullAccess</code> with a custom policy granting only the actions vmui needs (RunInstances, StartInstances, StopInstances, DescribeInstances, etc.)."
+        },
+        "b": {
+          "title": "Path B — AWS SSO / IAM Identity Center",
+          "step1": {
+            "title": "Configure your SSO profile (one-time)",
+            "body": "The CLI asks for the start URL (e.g. <code>https://my-org.awsapps.com/start</code>), region, account and role. It opens a browser to authenticate you."
+          },
+          "step2": {
+            "title": "Log in (every session)",
+            "body": "Tokens last about 8h by default. Re-run this when vmui says credentials expired."
+          },
+          "step3": {
+            "title": "Import in vmui",
+            "body": "Open the <strong>AWS CLI profile</strong> tab — your <code>vmui-sso</code> profile appears with an <badge>SSO</badge> badge. Click <strong>Import</strong>."
+          },
+          "note": "If you do not have IAM Identity Center set up, your AWS administrator needs to enable it in the management account. Use Path A in the meantime."
+        },
+        "perms": {
+          "title": "Permissions vmui needs",
+          "full": "For full functionality (list, start, stop, reboot, terminate, create, allocate Mac dedicated hosts), the simplest policy is:",
+          "least": "For least-privilege, the minimum actions are:"
+        }
+      }
+    },
+    "localKvm": {
+      "title": "Local KVM host",
+      "description": "Connect a WSL2 distro running QEMU/KVM or a native Hyper-V guest. Pick a guest kind — vmui drives lifecycle through QMP or Hyper-V.",
+      "connected": "Local KVM host connected",
+      "guestKind": "Guest kind",
+      "namePlaceholder": "Local {kind}",
+      "kinds": {
+        "mac": {
+          "label": "macOS",
+          "sub": "OSX-KVM + OpenCore",
+          "hostLabel": "Local Mac (KVM)",
+          "setupHint": "Clones OSX-KVM and installs QEMU + libvirt."
+        },
+        "win": {
+          "label": "Windows 11 (KVM)",
+          "sub": "WSL2 + QEMU + swtpm",
+          "hostLabel": "Local Windows 11 (KVM)",
+          "setupHint": "Builds the autounattend ISO with your guest credentials, copies OVMF and initialises swtpm."
+        },
+        "ubuntu": {
+          "label": "Ubuntu LTS",
+          "sub": "Desktop with autoinstall",
+          "hostLabel": "Local Ubuntu (KVM)",
+          "setupHint": "Downloads the Ubuntu LTS cloud image and builds the cloud-init seed with your guest credentials."
+        },
+        "hyperv-win": {
+          "label": "Windows 11 (Hyper-V)",
+          "sub": "Native Gen2 + vTPM",
+          "hostLabel": "Local Windows 11 (Hyper-V)",
+          "setupHint": "Builds the autounattend ISO with oscdimg and creates a Gen2 Hyper-V VM (vTPM, Secure Boot, nested virt)."
+        },
+        "hyperv-haos": {
+          "label": "Home Assistant",
+          "sub": "HAOS appliance, web UI :80",
+          "hostLabel": "Home Assistant (Hyper-V)",
+          "setupHint": "Downloads Home Assistant OS, verifies its SHA-256 and creates a Gen2 VM with Secure Boot off on an External switch."
+        }
+      },
+      "fields": {
+        "name": "Display name",
+        "hostLabel": "Host label",
+        "hostLabelHint": "Shown in the instances list as the host for this VM.",
+        "distro": "WSL distro name",
+        "distroHint": "Name shown by wsl --list (case-sensitive).",
+        "vmDir": "VM directory",
+        "vmDirHint": "Absolute Linux path. Must contain {script} (synced from the repo on launch).",
+        "vncPort": "VNC port",
+        "qmpPort": "QMP port",
+        "sshPort": "SSH forward",
+        "wsPort": "WS port",
+        "cores": "Cores / socket",
+        "threads": "vCPU threads",
+        "ramMb": "RAM (MiB)",
+        "osUsername": "Guest username",
+        "osUsernameHint": "Baked into the unattended install. Lowercase, digits, _ and - (max 32). Leave blank for default.",
+        "osPassword": "Guest password",
+        "osPasswordPlaceholder": "your-guest-password",
+        "osPasswordHint": "Stored encrypted; written to vm-creds.env in the WSL distro."
+      },
+      "generated": {
+        "toast": "Account created. Generated guest credentials: {username} / {password}",
+        "title": "Save these guest credentials now",
+        "body": "They were auto-generated and cannot be recovered later. Re-run the setup script if you lose them — it reinstalls the VM.",
+        "copy": "Copy user:password",
+        "copied": "Copied to clipboard"
+      },
+      "checklist": {
+        "title": "Setup checklist · {kind}",
+        "description": "Run these once inside the chosen WSL distro before connecting.",
+        "kvm": {
+          "title": "WSL2 with /dev/kvm",
+          "body": "Should print <code>crw-rw---- 1 root kvm</code>. If missing, CPU virtualisation is off in BIOS or Hyper-V is broken."
+        },
+        "qemu": {
+          "title": "QEMU installed",
+          "body": "Run <script>setup</script> if not present."
+        },
+        "setup": {
+          "title": "Run {script}",
+          "body": "One-time setup: creates {dir}, downloads ISOs, copies OVMF and builds the unattended-install seed."
+        },
+        "mac": {
+          "title": "macOS installed (or installing)",
+          "body": "Connect a VNC client to <code>127.0.0.1:5900</code> after starting the VM. First boot needs you to format the virtual disk in Disk Utility and pick Reinstall macOS."
+        },
+        "win": {
+          "title": "Drop the Windows 11 ISO at $VMDIR/Win11.iso",
+          "body": "Get the official ISO from <code>microsoft.com/software-download/windows11</code> (x64 English). Local administrator credentials are baked into autounattend.xml from the values above (or auto-generated when blank)."
+        },
+        "ubuntu": {
+          "title": "First boot runs cloud-init",
+          "body": "The setup script downloads the Ubuntu LTS cloud image and seeds cloud-init with the guest credentials above (or auto-generated when blank) plus passwordless sudo. SSH is up within about 60 s; <code>ubuntu-desktop-minimal</code> completes in 5–8 min."
+        },
+        "msrs": {
+          "title": "ignore_msrs (only required for macOS)"
+        }
+      }
+    }
+  },
+  "resources": {
+    "title": "Resources",
+    "description": "Volumes, snapshots, security groups, key pairs and networks across every connected account.",
+    "count": "{count, plural, =0 {No resources} one {# resource} other {# resources}}",
+    "driftLink": "Drift history",
+    "cleanupLink": "Cleanup",
+    "sync": "Sync resources",
+    "synced": "{count, plural, =0 {No resources synced} one {Synced # resource} other {Synced # resources}}",
+    "syncFailed": "Resource sync failed",
+    "empty": {
+      "title": "No resources cached yet",
+      "description": "Sync resources to pull volumes, snapshots, security groups and networks from all your connected accounts."
+    },
+    "filter": {
+      "kindLabel": "Resource type",
+      "all": "All",
+      "providerLabel": "Provider",
+      "allProviders": "All providers"
+    },
+    "columns": {
+      "kind": "Type",
+      "name": "Name",
+      "id": "ID",
+      "provider": "Provider",
+      "region": "Region",
+      "status": "Status",
+      "size": "Size",
+      "linked": "Linked instance",
+      "monthly": "Monthly cost"
+    },
+    "kinds": {
+      "volume": "Volume",
+      "snapshot": "Snapshot",
+      "security-group": "Security group",
+      "keypair": "Key pair",
+      "vpc": "VPC",
+      "subnet": "Subnet",
+      "bucket": "Bucket",
+      "database": "Database",
+      "load-balancer": "Load balancer",
+      "dns-zone": "DNS zone",
+      "disk": "Disk",
+      "network": "Network",
+      "firewall": "Firewall",
+      "image": "Image",
+      "nsg": "Network security group",
+      "vnet": "Virtual network"
+    },
+    "detail": {
+      "provider": "Provider",
+      "region": "Region",
+      "status": "Status",
+      "cost": "Cost / month",
+      "copyId": "Copy ID",
+      "copied": "Copied",
+      "openConsole": "Open in {provider} console",
+      "raw": "Raw payload",
+      "showHistory": "Show drift history ({count})",
+      "hideHistory": "Hide drift history ({count})",
+      "noLineChanges": "No line-level changes; whitespace or ordering only."
+    }
+  },
+  "cleanup": {
+    "title": "Resource cleanup",
+    "description": "Permanently delete AWS resources not attached to any instance. Volumes still mounted to a VM are filtered out automatically.",
+    "breadcrumb": "Resources",
+    "summary": "{count, plural, one {# cleanup candidate} other {# cleanup candidates}} · about {savings}/mo if everything is removed",
+    "empty": {
+      "title": "No detached resources found",
+      "description": "Run a resource sync first; candidates are unattached volumes, snapshots and key pairs."
+    },
+    "columns": {
+      "resource": "Resource",
+      "region": "Region",
+      "status": "Status",
+      "size": "Size",
+      "cost": "Cost"
+    },
+    "selectAll": "Select all",
+    "selectRow": "Select {name}",
+    "selected": "{count, plural, one {# selected} other {# selected}} · ~{savings}/mo",
+    "deleteSelected": "Delete selected",
+    "confirm": {
+      "title": "{count, plural, one {Delete # resource?} other {Delete # resources?}}",
+      "description": "Permanent. AWS volumes, snapshots and key pairs only. Attached volumes are skipped.",
+      "action": "Delete"
+    },
+    "deleted": "{count, plural, one {Deleted # resource} other {Deleted # resources}}",
+    "partial": "{deleted} deleted, {failed} failed"
+  },
+  "drift": {
+    "title": "Drift history",
+    "description": "Append-only log of every cached-resource change detected at sync time.",
+    "breadcrumb": "Resources",
+    "about": "Drift is captured on the next resource sync after a provider-side change to a resource's raw payload.",
+    "totals": "{count, plural, one {# entry} other {# entries}} · +{added} / −{removed} lines",
+    "empty": {
+      "title": "No drift recorded yet",
+      "description": "Changes appear here after the next sync detects a difference against the cached payload."
+    },
+    "columns": {
+      "kind": "Type",
+      "id": "ID",
+      "region": "Region",
+      "account": "Account",
+      "delta": "Delta",
+      "when": "When"
+    },
+    "unknownAccount": "Unknown account"
+  },
+  "trash": {
+    "title": "Trash",
+    "description": "Metadata of terminated instances kept for forensic lookup. Purging removes the record for good.",
+    "count": "{count, plural, =0 {Empty} one {# item} other {# items}}",
+    "empty": {
+      "title": "Trash is empty",
+      "description": "Terminated instances show up here with their last known metadata."
+    },
+    "columns": {
+      "name": "Name",
+      "provider": "Provider",
+      "region": "Region",
+      "type": "Type",
+      "terminated": "Terminated"
+    },
+    "purge": "Purge",
+    "purgeAria": "Purge {name}",
+    "confirm": {
+      "title": "Purge this record?",
+      "description": "The stored metadata for {name} will be deleted permanently.",
+      "action": "Purge"
+    },
+    "purged": "Record purged"
+  },
+  "providerStatus": {
+    "title": "Provider status board",
+    "description": "Reachability of each provider's public status page. Refreshed every minute.",
+    "state": {
+      "ok": "Reachable",
+      "incident": "Incident",
+      "unknown": "Unknown"
+    },
+    "latency": "{ms, number} ms",
+    "openPage": "Open {label} status page",
+    "note": "A reachable page does not mean there are no incidents — check the linked page for full detail."
+  },
+  "regionMap": {
+    "title": "Region heatmap",
+    "description": "VM count per geographic bucket. Bucket labels are an approximation grouping the providers' native regions.",
+    "mapAria": "World map with {count, plural, one {# VM} other {# VMs}} plotted across {buckets, plural, one {# region bucket} other {# region buckets}}",
+    "other": "Other",
+    "empty": {
+      "title": "No VMs to plot",
+      "description": "Sync at least one account with running or stopped instances to populate the map."
+    }
+  },
+  "fleetDiff": {
+    "title": "Fleet diff",
+    "description": "Compare the current fleet to a previous snapshot.",
+    "capture": "Capture snapshot now",
+    "compare": {
+      "before": "Before",
+      "after": "After",
+      "diff": "Diff",
+      "snapshot": "{date} ({count, plural, one {# VM} other {# VMs}})"
+    },
+    "range": "Comparing {before} → {after}",
+    "nothing": "nothing",
+    "empty": {
+      "title": "No snapshots yet",
+      "description": "Capture one to begin tracking fleet changes day over day."
+    },
+    "notFound": {
+      "title": "Snapshot not found",
+      "description": "One of the selected snapshots no longer exists. Pick another pair."
+    },
+    "stats": {
+      "added": "Added",
+      "removed": "Removed",
+      "changed": "Changed"
+    },
+    "changed": {
+      "title": "Changed VMs",
+      "columns": {
+        "vm": "VM",
+        "field": "Field",
+        "before": "Before",
+        "after": "After"
+      },
+      "empty": "No field changes"
+    },
+    "added": {
+      "title": "Added VMs",
+      "empty": "No new VMs"
+    },
+    "removed": {
+      "title": "Removed VMs",
+      "empty": "No removed VMs"
+    }
+  },
+  "costs": {
+    "title": "Cost overview",
+    "description": "{count, plural, one {Live view of running VMs across # account.} other {Live view of running VMs across # accounts.}} Pricing combines the Azure Retail Prices API with a curated table for AWS, GCP and Scaleway.",
+    "actions": {
+      "recommendations": "Recommendations",
+      "projections": "Projections"
+    },
+    "stats": {
+      "hourlyBurn": "Hourly burn",
+      "projectedMonth": "Projected month",
+      "projectedMonthHint": "at {hours}h/mo",
+      "runningVms": "Running VMs",
+      "runningVmsHint": "{total, plural, one {of # VM total} other {of # VMs total}}",
+      "unpriced": "Unpriced",
+      "unpricedHint": "{count, plural, =0 {every running VM is priced} one {# type missing from pricing tables} other {# types missing from pricing tables}}"
+    },
+    "perMonth": "{amount}/mo",
+    "perHour": "{amount}/hr",
+    "perDay": "{amount}/day",
+    "free": "free",
+    "empty": {
+      "title": "No instances yet",
+      "description": "Connect a cloud account and run a sync to see where your money goes.",
+      "action": "Connect an account"
+    },
+    "byProvider": {
+      "title": "By provider",
+      "description": "Running burn per cloud, share of the total hourly spend.",
+      "columns": {
+        "provider": "Provider",
+        "running": "Running / total",
+        "hourly": "Hourly",
+        "monthly": "Monthly",
+        "share": "Share"
+      }
+    },
+    "topSpenders": {
+      "title": "Top spenders",
+      "description": "Running VMs with the highest hourly rate.",
+      "columns": {
+        "instance": "Instance",
+        "type": "Type",
+        "region": "Region",
+        "hourly": "Hourly",
+        "monthly": "Monthly",
+        "source": "Source"
+      },
+      "source": {
+        "static": "Curated static price — may not reflect live regional rates",
+        "stale": "Cached {hours}h ago — refreshed on next sync",
+        "staleLabel": "{source} · {hours}h old"
+      }
+    },
+    "savings": {
+      "title": "Cost-saving candidates",
+      "description": "Larger running VMs worth a stop or right-size check, plus workloads that could move to spot/preemptible. Verify in the per-instance metrics tab first.",
+      "upTo": "up to {amount}/mo",
+      "idleTitle": "Right-size or stop",
+      "idleEmpty": "No large running VMs to flag.",
+      "spotTitle": "Spot / preemptible",
+      "spotEmpty": "No spot-eligible workloads with meaningful savings.",
+      "spotDiscount": "~{pct}% off on-demand",
+      "saveMonthly": "-{amount}/mo"
+    },
+    "trend": {
+      "title": "{days}-day burn trend",
+      "description": "Hourly burn aggregated from sync history in one-hour buckets.",
+      "notEnough": "Need at least two history snapshots to draw the trend. Sync runs in the background every 30 seconds.",
+      "delta": "{delta} ({pct}%) vs {days}d ago",
+      "chartLabel": "Hourly burn over the last {days} days",
+      "currentLabel": "Now",
+      "startLabel": "{days}d ago"
+    },
+    "forecast": {
+      "title": "7-day cost forecast",
+      "description": "Linear fit over the last {days} days · {count, plural, one {# sample} other {# samples}}",
+      "notEnough": "Not enough history yet. The forecast appears after about four sync snapshots.",
+      "hourly": "Hourly burn in 7 days",
+      "monthly": "Monthly run-rate",
+      "slope": "Trend"
+    },
+    "anomalies": {
+      "title": "Cost anomalies",
+      "description": "Days where hourly spend deviates from the 7-day trailing average.",
+      "vsAverage": "vs avg {amount}",
+      "ratio": "{ratio}x"
+    },
+    "byTag": {
+      "title": "Cost by tag",
+      "description": "Running burn grouped by tag key=value. A VM with several tags appears in each bucket, so slices intentionally over-count.",
+      "untagged": "(untagged)",
+      "vmCount": "{count, plural, one {# VM} other {# VMs}}"
+    },
+    "budgets": {
+      "title": "Per-tag budgets",
+      "description": "Monthly USD caps per tag, evaluated against the current fleet burn × {hours}h.",
+      "add": "Add budget",
+      "empty": "No budgets yet. Add one to start tracking a tag.",
+      "anyValue": "(any value)",
+      "observed": "{observed}/mo observed · cap {cap}",
+      "daysToCap": "≈ {days}d to cap",
+      "overBudget": "Over budget",
+      "delete": "Delete budget {tag}",
+      "evaluating": "Evaluating…",
+      "form": {
+        "tagKey": "Tag key",
+        "tagKeyPlaceholder": "team",
+        "tagValue": "Value",
+        "tagValuePlaceholder": "blank = any",
+        "monthlyUsd": "Cap (USD/month)",
+        "monthlyUsdPlaceholder": "500"
+      },
+      "toast": {
+        "invalidAmount": "Enter a positive monthly amount.",
+        "saved": "Budget saved",
+        "deleted": "Budget deleted"
+      }
+    },
+    "idle": {
+      "title": "Truly idle",
+      "description": "AWS-only: running instances with average CPU below 5% over the last 7 days (CloudWatch). Verify in the metrics tab before stopping.",
+      "flagged": "{count, plural, one {# flagged} other {# flagged}}",
+      "avgCpu": "avg CPU {pct}%",
+      "scan": "Scan AWS",
+      "rescan": "Re-scan",
+      "scanning": "Scanning…",
+      "intro": "Query CloudWatch and flag running EC2 instances with average CPU below 5% over the last 7 days. Read-only — nothing is changed automatically.",
+      "noneFound": "All running AWS VMs look active. Nothing to flag.",
+      "scanFailed": "Idle scan failed",
+      "badge": "Idle",
+      "window": "7d"
+    }
+  },
+  "projections": {
+    "title": "Cost projections",
+    "description": "30 / 60 / 90 day projections from the last 30 days of sync history. Confidence widens with horizon.",
+    "breadcrumb": "Costs",
+    "breadcrumbLabel": "Breadcrumb",
+    "empty": {
+      "title": "Not enough history to project",
+      "description": "Run a few syncs over the next hours and the 30 / 60 / 90 day bands will appear here.",
+      "action": "Back to costs"
+    },
+    "band": {
+      "label": "In {days} days",
+      "ci": "{lo} – {hi} · 95% CI",
+      "hourly": "{amount}/hr"
+    },
+    "chart": {
+      "title": "Hourly burn trend",
+      "description": "History (solid) and the linear fit (dashed) with its confidence band.",
+      "ariaLabel": "Cost projection chart",
+      "noHistory": "No history yet.",
+      "horizon": "{days}d"
+    },
+    "facts": {
+      "slope": "Slope",
+      "slopeValue": "{amount}/day",
+      "points": "Points used",
+      "sigma": "Residual σ",
+      "sigmaValue": "{amount}/hr"
+    },
+    "perMonth": "{amount}/mo"
+  },
+  "recommendations": {
+    "title": "Cost recommendations",
+    "description": "AWS CloudWatch over the last 14 days. Idle = p95 CPU < 3%; Rightsize = p95 < 20% with a smaller type in the same family.",
+    "recompute": "Recompute",
+    "recomputing": "Analysing…",
+    "recomputed": "{analysed, plural, one {Analysed # VM} other {Analysed # VMs}} — {count, plural, one {# recommendation} other {# recommendations}}.",
+    "stats": {
+      "open": "Open recommendations",
+      "savings": "Projected savings / mo",
+      "idle": "Idle candidates"
+    },
+    "empty": {
+      "title": "No recommendations yet",
+      "description": "Recompute after instances have been running for at least a day."
+    },
+    "kind": {
+      "rightsize": "Rightsize",
+      "idle": "Idle",
+      "stop-after-hours": "Stop after hours",
+      "spot-eligible": "Spot eligible"
+    },
+    "confidence": {
+      "low": "Low confidence",
+      "medium": "Medium confidence",
+      "high": "High confidence"
+    },
+    "card": {
+      "saving": "Estimated saving",
+      "perMonth": "{amount}/mo",
+      "cpuHint": "p95 CPU {pct}% over {days}d",
+      "suggested": "Suggested: {type}",
+      "open": "Open instance"
+    }
+  },
+  "optimizer": {
+    "title": "Cost optimizer",
+    "description": "Idle detection, rightsizing and reserved-instance estimates from 7-day metric history and the pricing cache.",
+    "stats": {
+      "count": "Recommendations",
+      "monthly": "Monthly savings (shown)",
+      "annual": "Annual savings (shown)"
+    },
+    "filterLabel": "Filter by kind",
+    "kind": {
+      "all": "All",
+      "idle": "Idle",
+      "rightsize-down": "Rightsize down",
+      "stop-and-snapshot": "Stop & snapshot",
+      "reserved-instance": "Reserved instance"
+    },
+    "columns": {
+      "kind": "Kind",
+      "instance": "Instance",
+      "type": "Type",
+      "reason": "Reason",
+      "suggestion": "Suggestion",
+      "monthly": "Monthly saving"
+    },
+    "empty": {
+      "title": "No recommendations yet",
+      "description": "Collect more metric history (probe samples) to enable analysis."
+    },
+    "noneForKind": "No recommendations of this kind."
+  },
+  "recos": {
+    "title": "Downsize suggestions",
+    "description": "Heuristic suggestions to downsize idle VMs from the last 7 days of probe data (CPU < 10%, network < 100 kbps).",
+    "stats": {
+      "total": "Estimated monthly savings",
+      "totalHint": "{count, plural, one {across # VM} other {across # VMs}}",
+      "count": "Idle VMs"
+    },
+    "empty": {
+      "title": "No idle VMs detected",
+      "description": "Either the fleet is running tight or there is not enough probe data yet."
+    },
+    "columns": {
+      "vm": "VM",
+      "region": "Region",
+      "current": "Current",
+      "suggested": "Suggested",
+      "savings": "Savings / mo",
+      "reason": "Reason"
+    },
+    "perHour": "{amount}/hr",
+    "noSuggestion": "—"
+  },
+  "budgets": {
+    "title": "Tag budgets",
+    "description": "Set a monthly cap per tag and get notified before you hit it.",
+    "newBudget": "New budget",
+    "newBudgetDescription": "Instances carrying this tag are summed against the cap every sync.",
+    "form": {
+      "tagKey": "Tag key",
+      "tagKeyPlaceholder": "env",
+      "tagValue": "Tag value",
+      "tagValuePlaceholder": "prod",
+      "monthlyUsd": "Cap (USD/month)",
+      "monthlyUsdPlaceholder": "500",
+      "saved": "Budget saved"
+    },
+    "section": "Budgets",
+    "empty": {
+      "title": "No budgets yet",
+      "description": "Create one above to start tracking spend per tag."
+    },
+    "columns": {
+      "tag": "Tag",
+      "cap": "Cap",
+      "observed": "Observed",
+      "utilisation": "Utilisation",
+      "status": "Status"
+    },
+    "status": {
+      "exceeded": "Exceeded",
+      "ok": "OK"
+    },
+    "perMonth": "{amount}/mo",
+    "delete": {
+      "label": "Delete budget {tag}",
+      "title": "Delete budget {tag}?",
+      "description": "Spend for this tag will no longer be tracked or alerted on.",
+      "confirm": "Delete",
+      "done": "Budget deleted"
+    }
+  },
+  "accountBudgets": {
+    "title": "Per-account budgets",
+    "description": "Alerts fire when projected monthly spend reaches 80% of the cap.",
+    "columns": {
+      "account": "Account",
+      "projected": "Projected / month",
+      "cap": "Cap (USD/month)",
+      "utilisation": "Utilisation",
+      "status": "Status"
+    },
+    "capLabel": "Monthly cap for {name}",
+    "status": {
+      "over": "Over",
+      "warning": "Near cap",
+      "ok": "OK",
+      "none": "No cap"
+    },
+    "alerted": "Alerted",
+    "saved": "Cap saved",
+    "clearLabel": "Clear cap for {name}",
+    "cleared": "Cap cleared",
+    "perMonth": "{amount}/mo",
+    "empty": {
+      "title": "No cloud accounts",
+      "description": "Connect an account to set a monthly spend cap on it.",
+      "action": "Add account"
+    }
+  },
+  "forecast": {
+    "title": "Cost forecast",
+    "description": "Linear regression on the last 30 days of fleet hourly burn, projected 30 days forward.",
+    "stats": {
+      "slope": "Slope",
+      "slopeHint": "USD per day",
+      "r2": "R²",
+      "day30Daily": "Day-30 daily",
+      "day30Monthly": "Day-30 monthly"
+    },
+    "chart": {
+      "title": "Daily spend",
+      "description": "Solid line is observed daily spend; the dashed line is the projection.",
+      "aria": "Line chart of actual and projected daily spend over {count} days",
+      "actual": "Actual",
+      "projected": "Projected"
+    },
+    "empty": {
+      "title": "No history yet",
+      "description": "Sync your accounts to record cost snapshots."
+    },
+    "perDay": "{amount}/day"
+  },
+  "burnRate": {
+    "title": "Burn rate guard",
+    "description": "Alert when projected daily spend exceeds a threshold.",
+    "exceeded": {
+      "title": "Daily burn rate is above your threshold",
+      "description": "Projected {daily}/day against a threshold of {threshold}/day."
+    },
+    "stats": {
+      "projectedDaily": "Projected daily",
+      "projectedMonthly": "Projected monthly",
+      "threshold": "Threshold (daily)"
+    },
+    "threshold": {
+      "title": "Threshold",
+      "description": "Projected daily spend above this value raises an alert.",
+      "label": "Threshold (USD/day)",
+      "hint": "Set 0 to disable."
+    },
+    "chart": {
+      "title": "Last 30 days",
+      "description": "Projected daily burn from the peak hourly rate of each account.",
+      "aria": "Line chart of projected daily burn over {count} days",
+      "legendBurn": "Daily burn",
+      "legendThreshold": "Threshold"
+    },
+    "empty": {
+      "title": "Not enough history yet",
+      "description": "Daily points appear after a few syncs."
+    }
+  },
+  "billExplainer": {
+    "title": "Bill explainer",
+    "description": "Heuristic 7-day delta of per-account spend. Top movers ranked by absolute monthly impact.",
+    "movers": {
+      "title": "Top spend movers (7d)",
+      "description": "Change in hourly rate between the first and last snapshot of the week.",
+      "perMonth": "{amount}/mo",
+      "pct": "{value}%",
+      "range": "{start}/h ({startVms, plural, one {# VM} other {# VMs}}) → {end}/h ({endVms, plural, one {# VM} other {# VMs}})",
+      "vmChange": "{sign}{count, plural, one {# VM} other {# VMs}}",
+      "empty": {
+        "title": "Not enough snapshot history",
+        "description": "At least two snapshots per account are needed to compute a delta."
+      }
+    },
+    "types": {
+      "title": "Top instance types",
+      "description": "Most common instance types across the fleet.",
+      "columns": {
+        "provider": "Provider",
+        "type": "Type",
+        "count": "Count"
+      },
+      "unknown": "unknown"
+    },
+    "links": {
+      "accountForecast": "Per-account forecast",
+      "costRecos": "Resize candidates"
+    }
+  },
+  "spendHeatmap": {
+    "title": "Spend heatmap",
+    "description": "Mean hourly spend by hour of day × day of week (UTC, last 30 days).",
+    "aria": "Heatmap of mean hourly spend by day of week and hour of day",
+    "cell": "{day} {hour}:00 UTC · {amount}/h · {count, plural, one {# sample} other {# samples}}",
+    "legend": "Darker = higher mean USD/hour. Peak {amount}/h.",
+    "empty": {
+      "title": "No samples yet",
+      "description": "Cost snapshots from the last 30 days feed this grid."
+    }
+  },
+  "heatmap": {
+    "title": "Error heatmap",
+    "description": "Audit-log errors over the last {days} days.",
+    "aria": "Calendar heatmap of audit-log errors per day",
+    "cell": "{date}: {count, plural, one {# error} other {# errors}}",
+    "legend": {
+      "fewer": "fewer",
+      "more": "more"
+    },
+    "recent": {
+      "title": "Recent errors",
+      "description": "The ten most recent failed actions.",
+      "columns": {
+        "when": "When",
+        "action": "Action",
+        "target": "Target",
+        "message": "Message"
+      },
+      "empty": {
+        "title": "No errors logged"
+      }
+    }
+  },
+  "accountForecast": {
+    "title": "Per-account spend forecast",
+    "description": "30-day projection per account via linear regression of daily peak spend.",
+    "projected": "Projected next 30 days",
+    "ofBudget": "of monthly cap",
+    "slope": "Slope {amount}/day",
+    "cap": "Cap {amount}/mo",
+    "sparklineAria": "Daily spend trend for {name}",
+    "empty": {
+      "title": "Not enough history yet",
+      "description": "Sync your accounts a few times to build a per-account trend."
+    }
+  }
+}

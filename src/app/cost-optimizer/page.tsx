@@ -1,19 +1,18 @@
-import { generateCostRecommendations } from "@/lib/cost-optimizer";
+import "server-only";
 import { CostOptimizerView } from "@/components/cost-optimizer/cost-optimizer-view";
+import { PageHeader, PageShell } from "@/components/ui";
+import { generateCostRecommendations } from "@/lib/cost-optimizer";
+import { Gauge } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function CostOptimizerPage() {
-  const recs = await generateCostRecommendations();
+  const [t, recs] = await Promise.all([getTranslations("cloud.optimizer"), generateCostRecommendations()]);
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Cost optimizer</h1>
-        <p className="text-sm text-muted">
-          Idle detection, rightsizing recommendations, and reserved-instance savings estimates based on 7-day metric history and the pricing cache.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader icon={<Gauge />} title={t("title")} description={t("description")} />
       <CostOptimizerView recommendations={recs} />
-    </main>
+    </PageShell>
   );
 }
