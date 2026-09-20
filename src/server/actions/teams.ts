@@ -1,11 +1,11 @@
 "use server";
 
-import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { getCurrentUser, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
-import { requireRole, getCurrentUser } from "@/lib/auth";
-import { createTeam, listTeamsForUser, inviteToTeam, acceptInvitation, removeMember } from "@/lib/teams";
+import { acceptInvitation, createTeam, inviteToTeam, listTeamsForUser, removeMember } from "@/lib/teams";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 const createSchema = z.object({
   name: z.string().min(2).max(80),
@@ -35,7 +35,7 @@ export async function listMyTeamsAction() {
 
 const inviteSchema = z.object({
   teamId: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
   role: z.enum(["admin", "operator", "viewer", "member"]).default("member"),
 });
 

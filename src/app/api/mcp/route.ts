@@ -1,9 +1,9 @@
 import "server-only";
 
-import { NextResponse, type NextRequest } from "next/server";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { requireApiRole, validateApiKey } from "@/lib/api-auth";
 import { TOOL_BY_NAME, TOOLS } from "@/lib/mcp/tools";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 
 /**
  * MCP server (Streamable HTTP, stateless, JSON responses) exposing this house
@@ -32,7 +32,7 @@ function toolList() {
   return TOOLS.map((t) => ({
     name: t.name,
     description: t.description,
-    inputSchema: zodToJsonSchema(t.schema, { $refStrategy: "none", target: "openApi3" }),
+    inputSchema: z.toJSONSchema(t.schema, { target: "openapi-3.0", reused: "inline", io: "input" }),
     annotations: {
       title: t.name.replace(/_/g, " "),
       readOnlyHint: t.readOnly ?? false,

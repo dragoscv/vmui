@@ -1,12 +1,13 @@
 "use client";
 
-import { VibeSwitcher } from "@/components/dashboard/vibe-switcher";
+import { AppearanceSwitcher } from "@/components/appearance/appearance-switcher";
 import { LocaleSwitcher } from "@/components/nav/locale-switcher";
 import { NotificationsBell } from "@/components/nav/notifications-bell";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { syncAllAccounts } from "@/server/actions/instances";
-import { Moon, Plus, RefreshCw, Sun } from "lucide-react";
+import { Moon, Plus, RefreshCw, Search, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import Link from "next/link";
@@ -14,6 +15,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { currentNavItem } from "./nav-model";
+import { openCommandPalette } from "./shell-events";
 
 export function Topbar({ user, compact = false }: { user?: ReactNode; compact?: boolean }) {
   const t = useTranslations("nav");
@@ -39,13 +41,14 @@ export function Topbar({ user, compact = false }: { user?: ReactNode; compact?: 
   }
 
   return (
-    <header data-vmui-topbar className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-bg)_70%,transparent)] px-4 backdrop-blur-md sm:px-6 lg:px-10">
+    <header data-vmui-topbar className="sticky top-0 z-[var(--z-topbar)] border-b border-border bg-[color-mix(in_oklch,var(--color-bg)_70%,transparent)] pt-[env(safe-area-inset-top)] backdrop-blur-md">
+      <div className="flex h-14 items-center justify-between gap-2 px-4 sm:px-6 lg:px-10">
       <nav aria-label={t("controlPlane")} className="flex min-w-0 items-center gap-2 text-sm text-muted">
         <span className="hidden truncate sm:inline">{t("controlPlane")}</span>
         {current && (
           <>
             <span className="hidden opacity-40 sm:inline" aria-hidden>/</span>
-            <span className="flex min-w-0 items-center gap-1.5 font-medium text-[var(--color-fg)]">
+            <span className="flex min-w-0 items-center gap-1.5 font-medium text-fg">
               <current.icon className="size-4 shrink-0 text-muted" aria-hidden />
               <span className="truncate">{tShell(`items.${current.id}` as Parameters<typeof tShell>[0])}</span>
             </span>
@@ -54,11 +57,27 @@ export function Topbar({ user, compact = false }: { user?: ReactNode; compact?: 
       </nav>
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              aria-label={tShell("topbar.search")}
+              className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-md)] px-2 text-sm text-muted transition-colors hover:bg-[color-mix(in_oklch,var(--color-fg)_8%,transparent)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--color-primary)_55%,transparent)] sm:h-9 md:w-56 md:justify-start md:border md:border-border md:bg-bg-muted md:px-3"
+            >
+              <Search className="size-4 shrink-0" aria-hidden />
+              <span className="hidden flex-1 truncate text-left md:inline">{tShell("topbar.searchHint")}</span>
+              <Kbd className="hidden md:inline-flex">⌘K</Kbd>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="md:hidden">{tShell("brand.commandPalette")}</TooltipContent>
+        </Tooltip>
+
         <NotificationsBell />
 
         <LocaleSwitcher />
 
-        <div className="hidden sm:block"><VibeSwitcher /></div>
+        <AppearanceSwitcher />
 
         {!compact && <div className="hidden sm:block"><Tooltip>
           <TooltipTrigger asChild>
@@ -99,7 +118,8 @@ export function Topbar({ user, compact = false }: { user?: ReactNode; compact?: 
             <Plus className="h-4 w-4" /> <span className="hidden md:inline">{t("newInstance")}</span>
           </Link>
         </Button>}
-        {user && <div className="ml-0.5 border-l border-[var(--color-border)] pl-1.5 sm:ml-1 sm:pl-3">{user}</div>}
+        {user && <div className="ml-0.5 border-l border-border pl-1.5 sm:ml-1 sm:pl-3">{user}</div>}
+      </div>
       </div>
     </header>
   );

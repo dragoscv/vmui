@@ -1,8 +1,10 @@
-import { CommandPalette } from "@/components/command-palette";
-import { VibeProvider } from "@/components/dashboard/vibe-provider";
+import { AppearanceProvider } from "@/components/appearance/appearance-provider";
+import { ThemedToaster } from "@/components/appearance/themed-toaster";
 import { IncidentBanner } from "@/components/incident-banner";
+import { ContextRailHost, ContextRailProvider } from "@/components/nav/context-rail";
 import { GlobalOverlays } from "@/components/nav/global-overlays";
 import { MobileNav } from "@/components/nav/mobile-nav";
+import { NavProgress } from "@/components/nav/nav-progress";
 import { Sidebar } from "@/components/nav/sidebar";
 import { Topbar } from "@/components/nav/topbar";
 import { UserMenu } from "@/components/nav/user-menu";
@@ -10,17 +12,18 @@ import { PullToRefresh } from "@/components/pwa/pull-to-refresh";
 import { QueryProvider } from "@/components/query-provider";
 import { RealtimeListener } from "@/components/realtime-listener";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
-import { ThemeProvider } from "@/components/theme-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { VoiceCommander } from "@/components/voice-commander";
 import { ensureAlertSchedulerRunning } from "@/lib/alert-engine";
+import { accentHueOf, appearanceAttributes } from "@/lib/appearance/model";
+import { resolveAppearance } from "@/lib/appearance/server";
 import { ensureAuditRetention } from "@/lib/audit-retention";
 import { getCurrentUser } from "@/lib/auth";
-import { currentHomeActor } from "@/lib/home/access";
 import { ensureBackupSchedulerRunning } from "@/lib/backups";
 import { ensureComplianceScanRunning } from "@/lib/compliance-scheduler";
 import { ensureGitopsSchedulerRunning } from "@/lib/gitops";
+import { currentHomeActor } from "@/lib/home/access";
 import { ensureSchedulerRunning } from "@/lib/scheduler";
 import { startWebhookDispatcher } from "@/lib/webhook-dispatcher";
 import type { Metadata, Viewport } from "next";
@@ -28,7 +31,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Toaster } from "sonner";
 import "./globals.css";
 
 // Module-load side effects run in every `next build` page-data worker too
@@ -65,8 +67,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0e16" },
+    { media: "(prefers-color-scheme: light)", color: "#fbfbfd" },
+    { media: "(prefers-color-scheme: dark)", color: "#14151f" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -95,52 +97,50 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     if (path && !path.startsWith("/home") && !path.startsWith("/sign-") && !path.startsWith("/invite")) redirect("/home");
   }
   // Auth-ish pages (sign-in, invitation acceptance) have no shell: nothing to navigate to yet.
-  const bare = ((await headers()).get("x-vmui-path") ?? "").startsWith("/invite/");
+  const path = (await headers()).get("x-vmui-path") ?? "";
+  const bare = path.startsWith("/invite/") || path.startsWith("/sign-in") || path.startsWith("/sign-up");
+  const appearance = await resolveAppearance();
+  const { style: _accentStyle, ...htmlAttrs } = appearanceAttributes(appearance);
   return (
-    <html lang={locale} suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "(function(){try{var v=localStorage.getItem('vmui:vibe');if(v&&['default','cyberpunk','cockpit','strategy','terminal','minimal','aurora','synthwave'].indexOf(v)>=0){document.documentElement.setAttribute('data-vibe',v);}}catch(e){}})();",
-          }}
-        />
-      </head>
+    <html lang={locale} suppressHydrationWarning {...htmlAttrs} style={{ ["--accent-h" as string]: String(accentHueOf(appearance)) }}>
       <body className="min-h-screen antialiased">
         <NextIntlClientProvider>
-        <ThemeProvider>
-          <VibeProvider>
+          <AppearanceProvider initial={appearance}>
             <QueryProvider>
               <TooltipProvider delayDuration={300}>
                 <ConfirmProvider>
+                  <NavProgress />
                   <PullToRefresh>
                     {bare ? (
-                      <main className="grid min-h-screen place-items-center px-4 py-10">{children}</main>
+                      <main className="grid min-h-dvh place-items-center px-4 py-10">{children}</main>
                     ) : (
-                    <div className="flex min-h-screen">
-                      <Sidebar compact={familyOnly} />
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <Topbar user={<UserMenuSlot />} compact={familyOnly} />
-                        <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">
-                          {!familyOnly && <IncidentBanner />}
-                          {children}
-                        </main>
+                    <ContextRailProvider>
+                      <div className="flex min-h-dvh">
+                        <Sidebar compact={familyOnly} />
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <Topbar user={<UserMenuSlot />} compact={familyOnly} />
+                          <div className="flex min-w-0 flex-1">
+                            <main id="main" className="min-w-0 flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">
+                              {!familyOnly && <IncidentBanner />}
+                              {children}
+                            </main>
+                            <ContextRailHost compact={familyOnly} />
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    </ContextRailProvider>
                     )}
                   </PullToRefresh>
                   <MobileNav compact={familyOnly || bare} />
-                  <Toaster position="bottom-right" theme="system" richColors closeButton />
+                  <ThemedToaster />
                   <GlobalOverlays />
                   <ServiceWorkerRegister />
-                  <CommandPalette />
                   <VoiceCommander />
                   <RealtimeListener />
                 </ConfirmProvider>
               </TooltipProvider>
             </QueryProvider>
-          </VibeProvider>
-        </ThemeProvider>
+          </AppearanceProvider>
         </NextIntlClientProvider>
       </body>
     </html>

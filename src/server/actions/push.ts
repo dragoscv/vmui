@@ -1,17 +1,17 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
-import { z } from "zod";
+import { getCurrentUser, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { pushSubscriptions, auditLog } from "@/lib/db/schema";
-import { requireRole, getCurrentUser } from "@/lib/auth";
+import { auditLog, pushSubscriptions } from "@/lib/db/schema";
 import { sendPush, vapidPublicKey, type PushTopic } from "@/lib/push";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
 
 const TOPICS = ["state", "builds", "alerts", "costs", "compliance"] as const;
 
 const SubscribeSchema = z.object({
-  endpoint: z.string().url(),
+  endpoint: z.url(),
   p256dh: z.string().min(1),
   authKey: z.string().min(1),
   topics: z.array(z.enum(TOPICS)).min(1).default([...TOPICS]),

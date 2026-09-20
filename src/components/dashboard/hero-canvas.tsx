@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useMemo, useRef } from "react";
+import { useVibe } from "@/components/appearance/appearance-provider";
+import type { Vibe } from "@/lib/appearance/model";
+import { Float, Line, Sparkles, Stars } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Stars, Sparkles, Line } from "@react-three/drei";
-import { useVibe, type Vibe } from "@/components/dashboard/vibe-provider";
+import { Suspense, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 /**

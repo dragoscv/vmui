@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CopilotSignals } from "@/lib/copilot/signals-schema";
 import type { DisplaySettings } from "@/lib/display/settings-meta";
-import type { ButtonBindings } from "@/lib/home/button-bindings-schema";
 import type { HomeAccessView } from "@/lib/home/access-model";
+import type { ButtonBindings } from "@/lib/home/button-bindings-schema";
 import { AMBILIGHT_MODES, type RoomId } from "@/lib/home/catalog";
 import type { HaState } from "@/lib/home/ha-client";
 import type { NutritionProfile } from "@/lib/nutrition/schema";
@@ -18,7 +18,7 @@ import { addWaterAction } from "@/server/actions/nutrition";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { BellRing, Bot, Clapperboard, DoorOpen, Droplets, Eye, GlassWater, Lamp, Lightbulb, MonitorSmartphone, MousePointerClick, Music2, Radar, Tablet, Thermometer, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRouter, useSearchParams } from "next/navigation";
+import { parseAsStringLiteral, useQueryStates } from "nuqs";
 import * as React from "react";
 import { toast } from "sonner";
 import { AmbilightPanel } from "./ambilight-panel";
@@ -89,18 +89,15 @@ export function HomeDashboard({
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
   const tabs = HOME_TABS.filter((id) => (id === "settings" ? access.canManage : id === "ambilight" ? access.canControlAny : true));
-  const router = useRouter();
-  const params = useSearchParams();
-  const [tab, setTab] = React.useState<HomeTab>(initialTab);
-  const [section, setSection] = React.useState<SettingsSection>(initialSection);
+  const [{ tab, section }, setNav] = useQueryStates(
+    {
+      tab: parseAsStringLiteral(HOME_TABS).withDefault(initialTab),
+      section: parseAsStringLiteral(SETTINGS_SECTIONS).withDefault(initialSection),
+    },
+    { history: "replace", scroll: false, shallow: true },
+  );
   const navigate = (nextTab: HomeTab, nextSection?: SettingsSection) => {
-    setTab(nextTab);
-    if (nextSection) setSection(nextSection);
-    const q = new URLSearchParams(params.toString());
-    q.set("tab", nextTab);
-    if (nextTab === "settings") q.set("section", nextSection ?? section);
-    else q.delete("section");
-    router.replace(`?${q.toString()}`, { scroll: false });
+    void setNav({ tab: nextTab, section: nextTab === "settings" ? (nextSection ?? section) : null });
   };
 
   return (

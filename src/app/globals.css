@@ -2,54 +2,164 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ---------- Design tokens ---------- */
+/* ---------- Design tokens ----------
+ * Colour is derived from ONE hue (--accent-h, set on <html> by the appearance
+ * provider) so an accent change re-tints primary, focus, selection, glow and
+ * charts together. Neutrals carry a whisper of the same hue so surfaces never
+ * look grey next to a saturated accent. Vibes and .dark override the neutrals;
+ * [data-surface] and [data-density] switch material and spacing.
+ */
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas,
     monospace;
 
-  --color-bg: oklch(0.99 0.005 270);
-  --color-bg-muted: oklch(0.97 0.008 270);
+  --color-bg: oklch(0.99 0.005 var(--accent-h));
+  --color-bg-muted: oklch(0.965 0.008 var(--accent-h));
   --color-surface: oklch(1 0 0);
-  --color-border: oklch(0.92 0.01 270);
-  --color-fg: oklch(0.18 0.02 270);
-  --color-fg-muted: oklch(0.46 0.02 270);
-  --color-primary: oklch(0.62 0.18 265);
-  --color-primary-fg: oklch(0.99 0.005 270);
-  --color-accent: oklch(0.7 0.18 200);
-  --color-success: oklch(0.7 0.16 150);
-  --color-warning: oklch(0.78 0.16 75);
-  --color-danger: oklch(0.62 0.22 25);
+  --color-surface-muted: oklch(0.975 0.006 var(--accent-h));
+  --color-surface-2: oklch(0.95 0.01 var(--accent-h));
+  --color-border: oklch(0.91 0.012 var(--accent-h));
+  --color-fg: oklch(0.18 0.02 var(--accent-h));
+  --color-fg-muted: oklch(0.46 0.02 var(--accent-h));
+  --color-fg-soft: oklch(0.62 0.015 var(--accent-h));
+  --color-primary: oklch(0.58 0.19 var(--accent-h));
+  --color-primary-fg: oklch(0.99 0.005 var(--accent-h));
+  --color-accent: oklch(0.68 0.16 calc(var(--accent-h) - 60));
+  --color-accent-fg: oklch(0.14 0.02 var(--accent-h));
+  --color-success: oklch(0.62 0.16 150);
+  --color-success-fg: oklch(0.99 0.005 150);
+  --color-warning: oklch(0.72 0.16 75);
+  --color-warning-fg: oklch(0.2 0.03 75);
+  --color-danger: oklch(0.58 0.22 25);
+  --color-danger-fg: oklch(0.99 0.005 25);
+  --color-info: oklch(0.64 0.15 230);
+  --color-info-fg: oklch(0.99 0.005 230);
+  /* Aliases kept for older call sites; prefer the names above. */
+  --color-destructive: var(--color-danger);
+  --color-muted: var(--color-fg-muted);
+  --color-text: var(--color-fg);
+  --color-text-muted: var(--color-fg-muted);
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-fg);
+  --color-muted-foreground: var(--color-fg-muted);
 
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
   --radius-xl: 1.25rem;
 
+  --shadow-sm: 0 1px 2px color-mix(in oklch, var(--color-fg) 6%, transparent);
+  --shadow-md: 0 6px 20px -8px color-mix(in oklch, var(--color-fg) 18%, transparent);
   --shadow-glow: 0 10px 30px -10px color-mix(in oklch, var(--color-primary) 35%, transparent);
+
+  /* Motion: every transition/animation in the app reads one of these. */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout */
+  --spacing-sidebar: 15rem;
+  --spacing-sidebar-rail: 4.25rem;
+  --spacing-content: 100rem; /* 1600px: readable measure on 21:9+, the rest goes to the context rail */
+  --spacing-rail: 20rem;
+  --breakpoint-3xl: 120rem; /* 1920px */
+  --breakpoint-4xl: 160rem; /* 2560px */
+
+  --z-sticky: 20;
+  --z-topbar: 30;
+  --z-nav: 40;
+  --z-overlay: 50;
+  --z-toast: 60;
+}
+
+/* Accent hue default (overridden inline on <html> by the appearance provider). */
+:root {
+  --accent-h: 265;
+  color-scheme: light;
 }
 
 /* Dark theme override */
 .dark {
-  --color-bg: oklch(0.16 0.02 265);
-  --color-bg-muted: oklch(0.20 0.025 265);
-  --color-surface: oklch(0.22 0.025 265);
-  --color-border: oklch(0.30 0.02 265);
-  --color-fg: oklch(0.97 0.01 265);
-  --color-fg-muted: oklch(0.72 0.02 265);
-  --color-primary: oklch(0.72 0.17 260);
-  --color-primary-fg: oklch(0.14 0.02 265);
+  color-scheme: dark;
+  --color-bg: oklch(0.15 0.02 var(--accent-h));
+  --color-bg-muted: oklch(0.19 0.025 var(--accent-h));
+  --color-surface: oklch(0.215 0.025 var(--accent-h));
+  --color-surface-muted: oklch(0.245 0.025 var(--accent-h));
+  --color-surface-2: oklch(0.275 0.025 var(--accent-h));
+  --color-border: oklch(0.30 0.02 var(--accent-h));
+  --color-fg: oklch(0.97 0.01 var(--accent-h));
+  --color-fg-muted: oklch(0.72 0.02 var(--accent-h));
+  --color-fg-soft: oklch(0.58 0.02 var(--accent-h));
+  --color-primary: oklch(0.74 0.16 var(--accent-h));
+  --color-primary-fg: oklch(0.14 0.02 var(--accent-h));
+  --color-accent: oklch(0.76 0.15 calc(var(--accent-h) - 60));
+  --color-success: oklch(0.74 0.15 150);
+  --color-success-fg: oklch(0.16 0.03 150);
+  --color-warning: oklch(0.8 0.15 75);
+  --color-danger: oklch(0.68 0.2 25);
+  --color-danger-fg: oklch(0.14 0.03 25);
+  --color-info: oklch(0.74 0.13 230);
+  --color-info-fg: oklch(0.14 0.03 230);
+  --shadow-sm: 0 1px 2px color-mix(in oklch, #000 30%, transparent);
+  --shadow-md: 0 8px 24px -10px color-mix(in oklch, #000 55%, transparent);
   --shadow-glow: 0 18px 50px -12px color-mix(in oklch, var(--color-primary) 45%, transparent);
 }
 
-/* ---------- Vibes ----------
- * Each vibe overrides the design tokens above. Vibes layer on top of the
- * dark/light theme; pair them carefully (cyberpunk + dark, terminal + dark,
- * minimal works in either, etc.).
+/* ---------- Surface material ----------
+ * glass (default): translucent panels with blur — the signature look.
+ * flat: opaque panels, no blur/atmosphere — cheaper on the Pi and phones, calmer.
+ * contrast: opaque, stronger borders and text for WCAG AAA.
  */
-[data-vibe="cyberpunk"].dark,
-[data-vibe="cyberpunk"] {
+:root {
+  --surface-alpha: 92%;
+  --surface-blur: 8px;
+  --border-alpha: 80%;
+}
+[data-surface="flat"] {
+  --surface-alpha: 100%;
+  --surface-blur: 0px;
+  --border-alpha: 100%;
+}
+[data-surface="flat"] body::before {
+  display: none;
+}
+[data-surface="contrast"] {
+  --surface-alpha: 100%;
+  --surface-blur: 0px;
+  --border-alpha: 100%;
+  --color-border: oklch(0.72 0.02 var(--accent-h));
+  --color-fg-muted: oklch(0.32 0.02 var(--accent-h));
+  --color-fg-soft: oklch(0.4 0.02 var(--accent-h));
+}
+[data-surface="contrast"].dark {
+  --color-border: oklch(0.55 0.02 var(--accent-h));
+  --color-fg-muted: oklch(0.86 0.02 var(--accent-h));
+  --color-fg-soft: oklch(0.78 0.02 var(--accent-h));
+}
+[data-surface="contrast"] body::before {
+  display: none;
+}
+
+/* ---------- Density ---------- */
+:root {
+  --density: 1;
+}
+[data-density="compact"] {
+  --density: 0.85;
+  font-size: 15px;
+}
+
+/* ---------- Vibes ----------
+ * Presets: a vibe fixes the neutrals + atmosphere; the provider also sets the
+ * matching accent + surface (VIBE_PRESET in lib/appearance/model.ts). Vibes
+ * with a saturated night palette only override in .dark so light mode stays
+ * readable; `minimal` has both variants.
+ */
+[data-vibe="cyberpunk"].dark {
   --color-bg: oklch(0.10 0.04 285);
   --color-bg-muted: oklch(0.14 0.06 285);
   --color-surface: oklch(0.17 0.06 285);
@@ -62,8 +172,7 @@
   --shadow-glow: 0 18px 60px -10px color-mix(in oklch, var(--color-primary) 60%, transparent);
 }
 
-[data-vibe="cockpit"].dark,
-[data-vibe="cockpit"] {
+[data-vibe="cockpit"].dark {
   --color-bg: oklch(0.13 0.04 220);
   --color-bg-muted: oklch(0.17 0.04 220);
   --color-surface: oklch(0.20 0.04 220);
@@ -76,8 +185,7 @@
   --shadow-glow: 0 14px 40px -10px color-mix(in oklch, var(--color-primary) 50%, transparent);
 }
 
-[data-vibe="strategy"].dark,
-[data-vibe="strategy"] {
+[data-vibe="strategy"].dark {
   --color-bg: oklch(0.12 0.04 230);
   --color-bg-muted: oklch(0.16 0.04 230);
   --color-surface: oklch(0.20 0.04 230);
@@ -90,8 +198,7 @@
   --shadow-glow: 0 16px 50px -12px color-mix(in oklch, var(--color-primary) 45%, transparent);
 }
 
-[data-vibe="terminal"].dark,
-[data-vibe="terminal"] {
+[data-vibe="terminal"].dark {
   --color-bg: oklch(0.07 0.02 145);
   --color-bg-muted: oklch(0.10 0.03 145);
   --color-surface: oklch(0.12 0.03 145);
@@ -119,8 +226,7 @@
   --color-accent: oklch(0.85 0.02 270);
 }
 
-[data-vibe="aurora"].dark,
-[data-vibe="aurora"] {
+[data-vibe="aurora"].dark {
   --color-bg: oklch(0.12 0.04 250);
   --color-bg-muted: oklch(0.15 0.05 240);
   --color-surface: oklch(0.18 0.05 235);
@@ -131,8 +237,7 @@
   --shadow-glow: 0 24px 80px -16px color-mix(in oklch, var(--color-accent) 55%, transparent);
 }
 
-[data-vibe="synthwave"].dark,
-[data-vibe="synthwave"] {
+[data-vibe="synthwave"].dark {
   --color-bg: oklch(0.10 0.06 305);
   --color-bg-muted: oklch(0.14 0.07 305);
   --color-surface: oklch(0.18 0.07 305);
@@ -204,6 +309,19 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+  html {
+    /* Custom pull-to-refresh owns the gesture; stop Chrome's native one fighting it. */
+    overscroll-behavior-y: none;
+    scrollbar-color: color-mix(in oklch, var(--color-fg) 25%, transparent) transparent;
+  }
+  body {
+    min-height: 100dvh;
+    text-rendering: optimizeLegibility;
+  }
+  /* Native form controls and inputs pick up the accent. */
+  input, textarea, select, button {
+    accent-color: var(--color-primary);
   }
 
   /* Animated mesh background */
@@ -291,14 +409,14 @@
 /* ---------- Components ---------- */
 @layer components {
   .glass {
-    background: color-mix(in oklch, var(--color-surface) 70%, transparent);
-    backdrop-filter: saturate(140%) blur(10px);
-    -webkit-backdrop-filter: saturate(140%) blur(10px);
-    border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+    background: color-mix(in oklch, var(--color-surface) calc(var(--surface-alpha) - 22%), transparent);
+    backdrop-filter: saturate(140%) blur(calc(var(--surface-blur) + 2px));
+    -webkit-backdrop-filter: saturate(140%) blur(calc(var(--surface-blur) + 2px));
+    border: 1px solid color-mix(in oklch, var(--color-border) var(--border-alpha), transparent);
   }
 
   .card-hover {
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
   }
   .card-hover:hover {
     transform: translateY(-2px);
@@ -361,6 +479,10 @@
     box-shadow: 0 0 0 1px var(--color-primary);
     cursor: pointer;
   }
+  .hue-range {
+    height: 8px;
+    background: linear-gradient(90deg in oklch longer hue, oklch(0.7 0.18 0), oklch(0.7 0.18 360));
+  }
 }
 
 /* Utility helpers */
@@ -369,12 +491,13 @@
 }
 
 @utility surface {
-  background: color-mix(in oklch, var(--color-surface) 92%, transparent);
-  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+  background: color-mix(in oklch, var(--color-surface) var(--surface-alpha), transparent);
+  border: 1px solid color-mix(in oklch, var(--color-border) var(--border-alpha), transparent);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
-  transition: border-color 180ms ease, box-shadow 220ms ease;
+  backdrop-filter: blur(var(--surface-blur)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(120%);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
   /* Tailwind 4.2 rejects `@utility surface:hover` as an invalid name; the
      hover state has to live inside the utility body instead. */
   &:hover {
@@ -406,9 +529,34 @@
   }
   /* Light glow on the floor plan: hue comes from --glow, set inline. */
   @keyframes glow-breathe { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.85; transform: scale(1.08); } }
+  /* Reduced motion: the OS setting, or the in-app override (data-motion on <html>),
+     collapses every animation and transition to an instant state change. */
   @media (prefers-reduced-motion: reduce) {
-    .motion-safe-only { animation: none !important; }
+    html:not([data-motion="full"]) *,
+    html:not([data-motion="full"]) *::before,
+    html:not([data-motion="full"]) *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    html:not([data-motion="full"]) ::view-transition-old(*),
+    html:not([data-motion="full"]) ::view-transition-new(*) {
+      animation: none !important;
+    }
   }
+  html[data-motion="reduce"] *,
+  html[data-motion="reduce"] *::before,
+  html[data-motion="reduce"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html[data-motion="reduce"] ::view-transition-old(*),
+  html[data-motion="reduce"] ::view-transition-new(*) {
+    animation: none !important;
+  }
+  .motion-safe-only { /* legacy hook; the global guard above covers it */ }
 
   [data-state="open"].data-\[state\=open\]\:animate-in,
   [data-state="open"][class*="data-[state=open]:animate-in"] { animation: vmui-in 220ms cubic-bezier(0.16, 1, 0.3, 1); }

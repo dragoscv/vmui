@@ -6,7 +6,9 @@
   },
   "sidebar": {
     "label": "Main navigation",
-    "toggleGroup": "Toggle {group}"
+    "toggleGroup": "Toggle {group}",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar"
   },
   "mobile": {
     "more": "More",
@@ -17,7 +19,93 @@
     "shell": "Shell"
   },
   "topbar": {
-    "host": "local"
+    "host": "local",
+    "search": "Search",
+    "searchHint": "Search or jump to…"
+  },
+  "rail": {
+    "label": "Context",
+    "clock": "Clock",
+    "quickLinks": "Quick links",
+    "recent": "Recent",
+    "noRecent": "Pages you visit show up here."
+  },
+  "incident": {
+    "issues": "{n, plural, one {# active issue} other {# active issues}}:",
+    "actionErrors": "{n, plural, one {# action error} other {# action errors}}",
+    "unknownVms": "{n, plural, one {# VM in unknown state} other {# VMs in unknown state}}",
+    "failedBackups": "{n, plural, one {# failed backup} other {# failed backups}}",
+    "viewActivity": "View activity",
+    "last": "last:"
+  },
+  "userMenu": {
+    "menu": "Account menu",
+    "account": "Account settings",
+    "family": "Family",
+    "signOut": "Sign out",
+    "role": {
+      "admin": "Admin",
+      "operator": "Operator",
+      "viewer": "Viewer"
+    }
+  },
+  "palette": {
+    "title": "Command palette",
+    "placeholder": "Type a command, instance, or page…",
+    "noMatches": "No matches.",
+    "hints": "↑↓ navigate · ↵ run · esc close",
+    "count": "{n, plural, one {# item} other {# items}}",
+    "groups": {
+      "navigate": "Navigate",
+      "actions": "Actions",
+      "instances": "Instances",
+      "accounts": "Accounts",
+      "resources": "Resources",
+      "tags": "Tags"
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "accounts": "Accounts",
+      "activity": "Activity log",
+      "settings": "Settings"
+    },
+    "actions": {
+      "new": "Launch new instance",
+      "sync": "Sync all accounts",
+      "themeLight": "Switch to light theme",
+      "themeDark": "Switch to dark theme",
+      "synced": "Synced {accounts} account(s) — {instances} instance(s)",
+      "syncFailed": "Sync failed",
+      "failed": "Failed"
+    },
+    "vm": {
+      "open": "Open {name}",
+      "connect": "Connect to {name}",
+      "stop": "Stop {name}",
+      "reboot": "Reboot {name}",
+      "start": "Start {name}",
+      "requested": {
+        "start": "Start requested",
+        "stop": "Stop requested",
+        "reboot": "Reboot requested"
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Move through vmui without leaving the keyboard.",
+    "palette": "Open command palette",
+    "help": "Show this help",
+    "search": "Focus dashboard search",
+    "goInstances": "Go to Instances",
+    "goAccounts": "Go to Accounts",
+    "goActivity": "Go to Activity log",
+    "goSettings": "Go to Settings",
+    "new": "Launch new instance",
+    "sync": "Sync all accounts",
+    "theme": "Toggle theme",
+    "sidebar": "Toggle sidebar",
+    "escape": "Clear selection / close dialog"
   },
   "groups": {
     "cloud": "Cloud",

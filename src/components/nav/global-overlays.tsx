@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { CommandPalette } from "./command-palette";
 import { ShortcutsDialog } from "./shortcuts-dialog";
+import { PALETTE_EVENT, toggleSidebarRail } from "./shell-events";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { syncAllAccounts } from "@/server/actions/instances";
 
@@ -19,10 +21,12 @@ import { syncAllAccounts } from "@/server/actions/instances";
  *   N            → /instances/new
  *   R            → sync all accounts
  *   T            → toggle theme
+ *   [            → collapse / expand the sidebar rail
  *   G then I/A/L/S → go to instances/accounts/log/settings
  */
 export function GlobalOverlays() {
   const router = useRouter();
+  const t = useTranslations("nav");
   const { resolvedTheme, setTheme } = useTheme();
   const [, start] = useTransition();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -40,13 +44,19 @@ export function GlobalOverlays() {
     start(async () => {
       try {
         const r = await syncAllAccounts();
-        toast.success(`Synced ${r.accounts} account(s) — ${r.instances} instance(s)`);
+        toast.success(t("synced", { accounts: r.accounts, instances: r.instances }));
         router.refresh();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Sync failed");
+        toast.error(e instanceof Error ? e.message : t("syncFailed"));
       }
     });
-  }, [router]);
+  }, [router, t]);
+
+  useEffect(() => {
+    const open = () => setPaletteOpen(true);
+    window.addEventListener(PALETTE_EVENT, open);
+    return () => window.removeEventListener(PALETTE_EVENT, open);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -105,6 +115,10 @@ export function GlobalOverlays() {
         case "T":
           e.preventDefault();
           setTheme(resolvedTheme === "dark" ? "light" : "dark");
+          return;
+        case "[":
+          e.preventDefault();
+          toggleSidebarRail();
           return;
       }
     }

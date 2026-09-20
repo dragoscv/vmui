@@ -1,8 +1,8 @@
 "use server";
 
+import { issueSessionForUser } from "@/lib/auth";
 import { FAMILY_ROLES, HomeAccessError, inviteRoleSchema, requireOwner, roomGrantsSchema, type RoomGrants } from "@/lib/home/access";
 import { acceptInvite, bindDevice, createInvite, createMemberAccount, inviteByToken, ownerCount, removeMember, revokeInvite, upsertMember } from "@/lib/home/family";
-import { issueSessionForUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -19,7 +19,7 @@ async function owner<T>(fn: (by: string) => Promise<T>): Promise<Result<{ data: 
   }
 }
 
-const expiry = z.string().datetime().nullable().optional();
+const expiry = z.iso.datetime().nullable().optional();
 const toDate = (s: string | null | undefined) => (s ? new Date(s) : null);
 const memberInput = z.object({ userId: z.string().min(1), role: z.enum(FAMILY_ROLES), rooms: roomGrantsSchema, expiresAt: expiry });
 
@@ -46,7 +46,7 @@ export async function removeMemberAction(userId: string): Promise<Result> {
 }
 
 const accountInput = z.object({
-  email: z.string().email().max(200),
+  email: z.email().max(200),
   displayName: z.string().trim().min(1).max(80),
   password: z.string().min(8).max(200),
   role: inviteRoleSchema,
@@ -93,7 +93,7 @@ export async function bindDeviceAction(input: { deviceId: string; userId: string
 
 // ---- public: the invitee side of /invite/<token> (no session yet)
 
-const acceptInput = z.object({ token: z.string().min(16).max(128), email: z.string().email().max(200), displayName: z.string().trim().min(1).max(80), password: z.string().min(8).max(200) });
+const acceptInput = z.object({ token: z.string().min(16).max(128), email: z.email().max(200), displayName: z.string().trim().min(1).max(80), password: z.string().min(8).max(200) });
 
 export async function acceptInviteAction(input: z.input<typeof acceptInput>): Promise<Result> {
   const p = acceptInput.safeParse(input);

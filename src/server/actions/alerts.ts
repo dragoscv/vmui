@@ -1,28 +1,28 @@
 "use server";
 
-import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { randomUUID } from "node:crypto";
-import { db } from "@/lib/db";
-import { alertChannels, alertRules, alertFirings, auditLog } from "@/lib/db/schema";
+import { deliverChannel, type AlertPayload, type ChannelConfig } from "@/lib/alert-channels";
+import { evaluateAllRules } from "@/lib/alert-engine";
 import { requireRole } from "@/lib/auth";
 import { encryptJSON } from "@/lib/crypto";
-import { deliverChannel, type ChannelConfig, type AlertPayload } from "@/lib/alert-channels";
-import { evaluateAllRules } from "@/lib/alert-engine";
+import { db } from "@/lib/db";
+import { alertChannels, alertFirings, alertRules, auditLog } from "@/lib/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
 
-const discordSchema = z.object({ kind: z.literal("discord"), webhookUrl: z.string().url(), username: z.string().max(64).optional() });
-const slackSchema = z.object({ kind: z.literal("slack"), webhookUrl: z.string().url(), channel: z.string().max(64).optional() });
+const discordSchema = z.object({ kind: z.literal("discord"), webhookUrl: z.url(), username: z.string().max(64).optional() });
+const slackSchema = z.object({ kind: z.literal("slack"), webhookUrl: z.url(), channel: z.string().max(64).optional() });
 const ntfySchema = z.object({
   kind: z.literal("ntfy"),
-  baseUrl: z.string().url(),
+  baseUrl: z.url(),
   topic: z.string().min(1).max(64),
   token: z.string().max(256).optional(),
   priority: z.number().int().min(1).max(5).optional(),
 });
 const webhookSchema = z.object({
   kind: z.literal("webhook"),
-  url: z.string().url(),
+  url: z.url(),
   hmacSecret: z.string().max(256).optional(),
   headers: z.record(z.string(), z.string()).optional(),
 });
@@ -33,8 +33,8 @@ const smtpSchema = z.object({
   secure: z.boolean().optional(),
   username: z.string().max(255).optional(),
   password: z.string().max(255).optional(),
-  from: z.string().email(),
-  to: z.string().email(),
+  from: z.email(),
+  to: z.email(),
 });
 const toastSchema = z.object({ kind: z.literal("toast"), level: z.enum(["info", "warning", "critical"]).optional() });
 

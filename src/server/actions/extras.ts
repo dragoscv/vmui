@@ -1,13 +1,13 @@
 "use server";
-import "server-only";
-import { z } from "zod";
+import { requireRole } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { auditLog, instanceRunbooks, instanceWebhooks, savedSearches } from "@/lib/db/schema";
+import { setQuietHours, type QuietHoursConfig } from "@/lib/quiet-hours";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
-import { savedSearches, instanceRunbooks, instanceWebhooks, auditLog } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { requireRole } from "@/lib/auth";
-import { setQuietHours, type QuietHoursConfig } from "@/lib/quiet-hours";
+import "server-only";
+import { z } from "zod";
 
 /* -------- saved searches -------- */
 export async function createSavedSearchAction(input: { name: string; query: string; pinned?: boolean }) {
@@ -65,7 +65,7 @@ export async function upsertInstanceWebhookAction(input: { id?: string; accountI
     id: z.string().optional(),
     accountId: z.string().nullable().optional(),
     providerInstanceId: z.string().nullable().optional(),
-    url: z.string().url().max(2048),
+    url: z.url().max(2048),
     secret: z.string().max(512).nullable().optional(),
     enabled: z.boolean().optional(),
   }).parse(input);

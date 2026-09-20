@@ -10,6 +10,7 @@ import { ha } from "@/lib/home/ha-client";
 import { dismissByTag, notify } from "@/lib/notify";
 import { agentSessions } from "@/lib/turzx/feeds";
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +125,7 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   const parsed = copilotEventSchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   const { event, text, session, source, project, chat } = parsed.data;
   const s = await loadCopilotSignals();
   const p = s.patterns[event];

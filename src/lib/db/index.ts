@@ -457,6 +457,9 @@ if (!existingUserCols.has("totp_verified_at")) {
 if (!existingUserCols.has("totp_backup_codes_enc")) {
   sqlite.exec(`ALTER TABLE users ADD COLUMN totp_backup_codes_enc TEXT`);
 }
+if (!existingUserCols.has("preferences")) {
+  sqlite.exec(`ALTER TABLE users ADD COLUMN preferences TEXT`);
+}
 
 sqlite.exec(`CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,

@@ -25,7 +25,7 @@ import { FAMILY_ROLES, ROOM_LEVELS, type FamilyRole, type HomeAccessView, type R
 export { FAMILY_ROLES, ROOM_LEVELS, type FamilyRole, type HomeAccessView, type RoomGrants, type RoomLevel };
 
 export const roomIdSchema = z.enum(ROOMS.map((r) => r.id) as [RoomId, ...RoomId[]]);
-export const roomGrantsSchema = z.record(roomIdSchema, z.enum(ROOM_LEVELS)) as z.ZodType<RoomGrants>;
+export const roomGrantsSchema = z.partialRecord(roomIdSchema, z.enum(ROOM_LEVELS)) as z.ZodType<RoomGrants>;
 export const inviteRoleSchema = z.enum(["adult", "child", "guest"]);
 
 export type HomeActor = {

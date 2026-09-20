@@ -1,96 +1,96 @@
 {
-	"title": "Ambilight",
-	"description": "OLED-ul conduce fiecare lumină. Alege ce face camera.",
-	"failed": "A eșuat",
-	"live": {
-		"live": "live",
-		"connecting": "se conectează",
-		"offline": "offline"
-	},
-	"hyperhdr": "HyperHDR {status}",
-	"status": {
-		"movie": "film",
-		"music": "muzică",
-		"idle": "inactiv",
-		"unreachable": "OPRIT",
-		"unknown": "--"
-	},
-	"modes": {
-		"movie": {
-			"name": "Film",
-			"description": "Ecranul conduce fiecare lumină. Proiectorul de stele oprit."
-		},
-		"music": {
-			"name": "Muzică",
-			"description": "Reactiv la sunet, Voicemeeter B1."
-		},
-		"off": {
-			"name": "Cameră caldă",
-			"description": "Captură oprită; 3000 K la 60 %."
-		}
-	},
-	"modeApplied": "Mod {name}",
-	"capture": {
-		"title": "Captură ecran",
-		"hint": "DX11 · 60 fps · HDR tone-mapped",
-		"switch": "Captură ecran pe toate instanțele"
-	},
-	"clearEffects": "Șterge efectele",
-	"effectsCleared": "Efecte șterse",
-	"wall": {
-		"title": "Compensare perete",
-		"description": "Corectează banda monitorului pentru culoarea peretelui din spate",
-		"colour": "Perete",
-		"colourLabel": "Culoarea peretelui",
-		"strength": "Intensitatea compensării",
-		"preview": "Previzualizare „alb” pe perete",
-		"applied": "Compensarea peretelui aplicată"
-	},
-	"groups": {
-		"music": "Muzică",
-		"ambient": "Ambient"
-	},
-	"effects": {
-		"musicStereo": "Stereo",
-		"musicStereoFast": "Stereo rapid",
-		"musicQuatro": "Quatro",
-		"musicPulseWaves": "Valuri pulsante",
-		"musicFullscreenPulse": "Puls pe tot ecranul",
-		"musicFullscreenPulseWhite": "Puls pe tot ecranul (alb)",
-		"warmBlobs": "Pete calde",
-		"coldBlobs": "Pete reci",
-		"colorBlobs": "Pete colorate",
-		"seaWaves": "Valuri de mare",
-		"rainbowSwirl": "Vârtej curcubeu",
-		"plasma": "Plasmă",
-		"candle": "Lumânare",
-		"breath": "Respirație"
-	},
-	"notify": {
-		"title": "Flash notificare",
-		"hint": "telefonul le declanșează automat",
-		"last": "Ultima notificare de pe telefon",
-		"apps": {
-			"whatsapp": "WhatsApp",
-			"phone": "Telefon",
-			"messages": "Mesaje",
-			"gmail": "Gmail"
-		}
-	},
-	"instances": {
-		"label": "inst {n}",
-		"fps": "{n} fps",
-		"0": {
-			"name": "DX Light (monitor)",
-			"target": "Bandă cu 65 LED-uri în spatele OLED-ului"
-		},
-		"1": {
-			"name": "Glow PC (OpenRGB)",
-			"target": "Benzi carcasă · GPU · placă"
-		},
-		"2": {
-			"name": "Lumini cameră (HA)",
-			"target": "Bandă MELK (tot ecranul)"
-		}
-	}
+  "title": "Ambilight",
+  "description": "OLED-ul conduce fiecare lumină. Alege ce face camera.",
+  "failed": "A eșuat",
+  "live": {
+    "live": "live",
+    "connecting": "se conectează",
+    "offline": "offline"
+  },
+  "hyperhdr": "HyperHDR {status}",
+  "status": {
+    "movie": "film",
+    "music": "muzică",
+    "idle": "inactiv",
+    "unreachable": "OPRIT",
+    "unknown": "--"
+  },
+  "modes": {
+    "movie": {
+      "name": "Film",
+      "description": "Ecranul conduce fiecare lumină. Proiectorul de stele oprit."
+    },
+    "music": {
+      "name": "Muzică",
+      "description": "Reactiv la sunet, Voicemeeter B1."
+    },
+    "off": {
+      "name": "Cameră caldă",
+      "description": "Captură oprită; 3000 K la 60 %."
+    }
+  },
+  "modeApplied": "Mod {name}",
+  "capture": {
+    "title": "Captură ecran",
+    "hint": "DX11 · 60 fps · HDR tone-mapped",
+    "switch": "Captură ecran pe toate instanțele"
+  },
+  "clearEffects": "Șterge efectele",
+  "effectsCleared": "Efecte șterse",
+  "wall": {
+    "title": "Compensare perete",
+    "description": "Corectează banda monitorului pentru culoarea peretelui din spate",
+    "colour": "Perete",
+    "colourLabel": "Culoarea peretelui",
+    "strength": "Intensitatea compensării",
+    "preview": "Previzualizare „alb” pe perete",
+    "applied": "Compensarea peretelui aplicată"
+  },
+  "groups": {
+    "music": "Muzică",
+    "ambient": "Ambient"
+  },
+  "effects": {
+    "musicStereo": "Stereo",
+    "musicStereoFast": "Stereo rapid",
+    "musicQuatro": "Quatro",
+    "musicPulseWaves": "Valuri pulsante",
+    "musicFullscreenPulse": "Puls pe tot ecranul",
+    "musicFullscreenPulseWhite": "Puls pe tot ecranul (alb)",
+    "warmBlobs": "Pete calde",
+    "coldBlobs": "Pete reci",
+    "colorBlobs": "Pete colorate",
+    "seaWaves": "Valuri de mare",
+    "rainbowSwirl": "Vârtej curcubeu",
+    "plasma": "Plasmă",
+    "candle": "Lumânare",
+    "breath": "Respirație"
+  },
+  "notify": {
+    "title": "Flash notificare",
+    "hint": "telefonul le declanșează automat",
+    "last": "Ultima notificare de pe telefon",
+    "apps": {
+      "whatsapp": "WhatsApp",
+      "phone": "Telefon",
+      "messages": "Mesaje",
+      "gmail": "Gmail"
+    }
+  },
+  "instances": {
+    "label": "inst {n}",
+    "fps": "{n} fps",
+    "0": {
+      "name": "DX Light (monitor)",
+      "target": "Bandă cu 65 LED-uri în spatele OLED-ului"
+    },
+    "1": {
+      "name": "Glow PC (OpenRGB)",
+      "target": "Benzi carcasă · GPU · placă"
+    },
+    "2": {
+      "name": "Lumini cameră (HA)",
+      "target": "Bandă MELK (tot ecranul)"
+    }
+  }
 }

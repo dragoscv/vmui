@@ -1,31 +1,31 @@
 "use server";
 
-import "server-only";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
+import {
+    authEnabled,
+    signOut as authSignOut,
+    createUser,
+    getCurrentUser,
+    issueSessionForUser,
+    requireRole,
+    signInWithPassword,
+    userCount,
+    verifyUserPassword,
+} from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLog, users } from "@/lib/db/schema";
-import {
-  authEnabled,
-  createUser,
-  issueSessionForUser,
-  signInWithPassword,
-  signOut as authSignOut,
-  userCount,
-  getCurrentUser,
-  requireRole,
-  verifyUserPassword,
-} from "@/lib/auth";
-import { rateLimit, recordFailure, clearFailures } from "@/lib/rate-limit";
+import { clearFailures, rateLimit, recordFailure } from "@/lib/rate-limit";
 import { redactSecrets } from "@/lib/redact";
 import {
-  consumeBackupCode,
-  decryptTotpSecret,
-  verifyTotpCode,
+    consumeBackupCode,
+    decryptTotpSecret,
+    verifyTotpCode,
 } from "@/lib/totp";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import "server-only";
+import { z } from "zod";
 
 interface PendingTotp {
   userId: string;
@@ -54,7 +54,7 @@ function consumePending(token: string): string | null {
 }
 
 const signInSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(1),
 });
 
@@ -190,7 +190,7 @@ export async function verifyTotpAction(
 }
 
 const signUpSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   displayName: z.string().min(1).max(80),
   password: z.string().min(8).max(200),
   role: z.enum(["admin", "operator", "viewer"]).default("admin"),

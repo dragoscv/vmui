@@ -1,11 +1,11 @@
 import { espAuthorized } from "@/lib/esp/auth";
 import { homeActorOrOwner, journalUserId } from "@/lib/home/access";
 import { runCoach } from "@/lib/nutrition/coach";
-import { MEAL_ANALYSIS_JSON_SCHEMA, MEAL_ANALYSIS_SYSTEM_PROMPT } from "@/lib/nutrition/schema";
+import { MEAL_ANALYSIS_JSON_SCHEMA, MEAL_ANALYSIS_SYSTEM_PROMPT, nutritionProfileSchema } from "@/lib/nutrition/schema";
 import { loadProfile, saveProfile } from "@/lib/nutrition/store";
-import { nutritionProfileSchema } from "@/lib/nutrition/schema";
 import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest) {
   const a = await scoped(req);
   if (!a) return new NextResponse("unauthorized", { status: 401 });
   const parsed = nutritionProfileSchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   await saveProfile(parsed.data, a.uid);
   const s = await nutritionSummary(a.scope);
   if (a.isOwner) void publishToHa(s);

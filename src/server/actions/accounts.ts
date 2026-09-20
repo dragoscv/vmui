@@ -1,28 +1,28 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { requireRole } from "@/lib/auth";
+import { encryptJSON } from "@/lib/crypto";
+import { db } from "@/lib/db";
+import { auditLog, cloudAccounts, instanceTags, instances } from "@/lib/db/schema";
+import { AwsProvider } from "@/lib/providers/aws";
+import {
+    hasAwsCli,
+    listAwsProfiles,
+    resolveProfileViaCli,
+    type AwsProfile,
+} from "@/lib/providers/aws-profiles";
+import { AzureProvider } from "@/lib/providers/azure";
+import { DigitalOceanProvider } from "@/lib/providers/digitalocean";
+import { GcpProvider } from "@/lib/providers/gcp";
+import { HetznerProvider } from "@/lib/providers/hetzner";
+import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
+import { getProvider } from "@/lib/providers/registry";
+import { ScalewayProvider } from "@/lib/providers/scaleway";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { revalidatePath } from "next/cache";
 import { randomBytes, randomInt } from "node:crypto";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
-import { cloudAccounts, auditLog, instanceTags, instances } from "@/lib/db/schema";
-import { encryptJSON } from "@/lib/crypto";
-import { getProvider } from "@/lib/providers/registry";
-import { AwsProvider } from "@/lib/providers/aws";
-import { ScalewayProvider } from "@/lib/providers/scaleway";
-import { LocalKvmProvider, type LocalKvmCredentials } from "@/lib/providers/local-kvm";
-import { AzureProvider } from "@/lib/providers/azure";
-import { GcpProvider } from "@/lib/providers/gcp";
-import { DigitalOceanProvider } from "@/lib/providers/digitalocean";
-import { HetznerProvider } from "@/lib/providers/hetzner";
-import {
-  hasAwsCli,
-  listAwsProfiles,
-  resolveProfileViaCli,
-  type AwsProfile,
-} from "@/lib/providers/aws-profiles";
 
 const awsCredentialsSchema = z.object({
   name: z.string().min(1, "Name is required").max(64),

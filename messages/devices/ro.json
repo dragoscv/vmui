@@ -1,157 +1,157 @@
 {
-	"buttons": {
-		"title": "Butonul de birou",
-		"summaryEmpty": "niciun gest configurat",
-		"summaryItem": "{gesture}: {kind}",
-		"intro": "Ce face fiecare gest. Implicit: 1 click = un pahar de apă. Fereastra între clickuri e 400 ms; apăsarea lungă ≥ 1 s.",
-		"save": "Salvează",
-		"saved": "Butonul a fost reconfigurat",
-		"test": "Test",
-		"testAria": "Testează {gesture}",
-		"actionLabel": "Acțiune",
-		"actionAria": "Acțiune pentru {gesture}",
-		"scriptAria": "Script",
-		"scriptPlaceholder": "alege scriptul",
-		"mlAria": "mililitri",
-		"minutesAria": "minute",
-		"serviceAria": "serviciu",
-		"servicePlaceholder": "light.toggle",
-		"entityAria": "entitate",
-		"entityPlaceholder": "light.birou (opțional)",
-		"gesture": {
-			"1": "1 click",
-			"2": "2 clickuri",
-			"3": "3 clickuri",
-			"4": "4 clickuri",
-			"5": "5 clickuri",
-			"long": "apăsare lungă"
-		},
-		"kind": {
-			"none": "Nimic",
-			"water_add": "Apă: adaugă ml",
-			"water_undo": "Apă: anulează ultima",
-			"ha_script": "Script HA",
-			"ha_service": "Serviciu HA",
-			"intercom_open": "Interfon: deschide",
-			"intercom_arm": "Interfon auto (min)",
-			"turzx_next": "Turzx: view următor",
-			"turzx_pause": "Turzx: pauză/continuă",
-			"ambilight_movie": "Ambilight: movie mode",
-			"pc_wake": "PC: pornește (WoL)"
-		},
-		"hint": {
-			"none": "Gestul nu face nimic.",
-			"water_add": "Înregistrează mililitrii de apă indicați.",
-			"water_undo": "Șterge ultima înregistrare de apă.",
-			"ha_script": "Rulează un script Home Assistant.",
-			"ha_service": "Apelează un serviciu Home Assistant, opțional pe o entitate.",
-			"intercom_open": "Deschide ușa cât timp sună interfonul.",
-			"intercom_arm": "Deschide automat ușa pentru următoarele N minute (curier, musafir).",
-			"turzx_next": "Trece ecranul Turzx la view-ul următor.",
-			"turzx_pause": "Pune pe pauză sau reia rotația Turzx.",
-			"ambilight_movie": "Comută movie mode pe Ambilight.",
-			"pc_wake": "Pornește PC-ul prin Wake-on-LAN."
-		}
-	},
-	"intercom": {
-		"title": "Interfon",
-		"description": "Electra IA02 · sonerie pe telefon, deschidere de la distanță",
-		"badge": {
-			"ringing": "sună acum",
-			"armed": "auto-deschidere încă {left}",
-			"quiet": "liniște"
-		},
-		"actions": {
-			"answerOpen": "Răspunde și deschide",
-			"ignore": "Ignoră",
-			"disarm": "Oprește auto-deschiderea",
-			"armCourier": "Curier · 30 min",
-			"arm60": "60 min"
-		},
-		"toast": {
-			"opening": "Deschid ușa",
-			"ignored": "Ignorat",
-			"disarmed": "Auto-deschidere oprită",
-			"armedFor": "Deschide automat {n, plural, one {# minut} few {# minute} other {# de minute}}",
-			"failed": "eșuat"
-		},
-		"stats": {
-			"state": "Stare",
-			"lastRing": "Ultimul apel",
-			"lastOpen": "Ultima deschidere",
-			"autoOpen": "Auto-deschidere",
-			"until": "până la {time}",
-			"off": "oprită"
-		},
-		"ago": {
-			"never": "—",
-			"seconds": "{n} s",
-			"minutes": "{n} min",
-			"hours": "{n} h"
-		},
-		"event": {
-			"ring": "a sunat",
-			"end": "apel încheiat",
-			"opened": "ușa deschisă",
-			"armed": "auto-deschidere pornită",
-			"disarmed": "auto-deschidere oprită"
-		},
-		"logAria": "Jurnal evenimente",
-		"footnote": "Deschiderea funcționează doar cât timp sună (linia AVP e alimentată numai în apel). Fiecare deschidere e în jurnalul de audit."
-	},
-	"copilot": {
-		"title": "Semnale Copilot",
-		"summaryOff": "oprit",
-		"summary": "{events, plural, one {# eveniment} few {# evenimente} other {# de evenimente}} · {lights, plural, one {# bec} few {# becuri} other {# de becuri}} · liniște {from}–{to}",
-		"enabledAria": "Semnale active",
-		"save": "Salvează",
-		"saving": "Se salvează…",
-		"saved": "Semnalele Copilot salvate",
-		"saveFirst": "Salvează mai întâi — testul folosește setările salvate",
-		"sent": "Trimis: {name}",
-		"failed": "Eșuat",
-		"intro": "Becuri, ecranul Turzx, ESP32 și telefonul reacționează la ce face agentul în VS Code.",
-		"lightsTitle": "Becurile care poartă semnalul",
-		"noLights": "Niciun bec RGB în Home Assistant încă. Împerechează becurile Calex în Smart Life; apar aici automat.",
-		"phoneNotify": "Serviciu HA notify (doar fallback / coach)",
-		"phoneNotifyAria": "Serviciu notify telefon",
-		"muteInMovie": "Mut în timpul filmului",
-		"muteInMovieAria": "Mut în movie mode",
-		"quietFrom": "Liniște de la",
-		"quietTo": "Liniște până la",
-		"eventsTitle": "Evenimente",
-		"eventsHint": "Ce se aprinde, unde, în ce culoare.",
-		"activeAria": "{name} activ",
-		"targetsLabel": "Ținte",
-		"targetsAria": "Ținte pentru {name}",
-		"colorLabel": "Culoare",
-		"colorAria": "Culoare pentru {name}",
-		"test": "Test",
-		"testAria": "Testează {name}",
-		"target": {
-			"light": "Becuri",
-			"strip": "Bandă monitor",
-			"turzx": "Turzx",
-			"esp": "ESP32",
-			"phone": "Telefon"
-		},
-		"event": {
-			"ask": {
-				"label": "Așteaptă răspuns",
-				"hint": "askQuestions — becuri: puls agresiv; bandă: un punct luminos aleargă pe ramă până răspunzi"
-			},
-			"done": {
-				"label": "Tură terminată",
-				"hint": "Stop — becuri: fade calm; bandă: val verde urcă pe ambele laturi și se stinge"
-			},
-			"blocked": {
-				"label": "Comandă blocată",
-				"hint": "guard (git add -A, reset --hard…) — becuri: 3 flash-uri; bandă: 2 unde roșii din mijlocul de sus"
-			},
-			"failed": {
-				"label": "Build/test eșuat",
-				"hint": "run-build.ps1 exit ≠ 0 — becuri: 2 flash-uri; bandă: 2 clipiri duble galbene"
-			}
-		}
-	}
+  "buttons": {
+    "title": "Butonul de birou",
+    "summaryEmpty": "niciun gest configurat",
+    "summaryItem": "{gesture}: {kind}",
+    "intro": "Ce face fiecare gest. Implicit: 1 click = un pahar de apă. Fereastra între clickuri e 400 ms; apăsarea lungă ≥ 1 s.",
+    "save": "Salvează",
+    "saved": "Butonul a fost reconfigurat",
+    "test": "Test",
+    "testAria": "Testează {gesture}",
+    "actionLabel": "Acțiune",
+    "actionAria": "Acțiune pentru {gesture}",
+    "scriptAria": "Script",
+    "scriptPlaceholder": "alege scriptul",
+    "mlAria": "mililitri",
+    "minutesAria": "minute",
+    "serviceAria": "serviciu",
+    "servicePlaceholder": "light.toggle",
+    "entityAria": "entitate",
+    "entityPlaceholder": "light.birou (opțional)",
+    "gesture": {
+      "1": "1 click",
+      "2": "2 clickuri",
+      "3": "3 clickuri",
+      "4": "4 clickuri",
+      "5": "5 clickuri",
+      "long": "apăsare lungă"
+    },
+    "kind": {
+      "none": "Nimic",
+      "water_add": "Apă: adaugă ml",
+      "water_undo": "Apă: anulează ultima",
+      "ha_script": "Script HA",
+      "ha_service": "Serviciu HA",
+      "intercom_open": "Interfon: deschide",
+      "intercom_arm": "Interfon auto (min)",
+      "turzx_next": "Turzx: view următor",
+      "turzx_pause": "Turzx: pauză/continuă",
+      "ambilight_movie": "Ambilight: movie mode",
+      "pc_wake": "PC: pornește (WoL)"
+    },
+    "hint": {
+      "none": "Gestul nu face nimic.",
+      "water_add": "Înregistrează mililitrii de apă indicați.",
+      "water_undo": "Șterge ultima înregistrare de apă.",
+      "ha_script": "Rulează un script Home Assistant.",
+      "ha_service": "Apelează un serviciu Home Assistant, opțional pe o entitate.",
+      "intercom_open": "Deschide ușa cât timp sună interfonul.",
+      "intercom_arm": "Deschide automat ușa pentru următoarele N minute (curier, musafir).",
+      "turzx_next": "Trece ecranul Turzx la view-ul următor.",
+      "turzx_pause": "Pune pe pauză sau reia rotația Turzx.",
+      "ambilight_movie": "Comută movie mode pe Ambilight.",
+      "pc_wake": "Pornește PC-ul prin Wake-on-LAN."
+    }
+  },
+  "intercom": {
+    "title": "Interfon",
+    "description": "Electra IA02 · sonerie pe telefon, deschidere de la distanță",
+    "badge": {
+      "ringing": "sună acum",
+      "armed": "auto-deschidere încă {left}",
+      "quiet": "liniște"
+    },
+    "actions": {
+      "answerOpen": "Răspunde și deschide",
+      "ignore": "Ignoră",
+      "disarm": "Oprește auto-deschiderea",
+      "armCourier": "Curier · 30 min",
+      "arm60": "60 min"
+    },
+    "toast": {
+      "opening": "Deschid ușa",
+      "ignored": "Ignorat",
+      "disarmed": "Auto-deschidere oprită",
+      "armedFor": "Deschide automat {n, plural, one {# minut} few {# minute} other {# de minute}}",
+      "failed": "eșuat"
+    },
+    "stats": {
+      "state": "Stare",
+      "lastRing": "Ultimul apel",
+      "lastOpen": "Ultima deschidere",
+      "autoOpen": "Auto-deschidere",
+      "until": "până la {time}",
+      "off": "oprită"
+    },
+    "ago": {
+      "never": "—",
+      "seconds": "{n} s",
+      "minutes": "{n} min",
+      "hours": "{n} h"
+    },
+    "event": {
+      "ring": "a sunat",
+      "end": "apel încheiat",
+      "opened": "ușa deschisă",
+      "armed": "auto-deschidere pornită",
+      "disarmed": "auto-deschidere oprită"
+    },
+    "logAria": "Jurnal evenimente",
+    "footnote": "Deschiderea funcționează doar cât timp sună (linia AVP e alimentată numai în apel). Fiecare deschidere e în jurnalul de audit."
+  },
+  "copilot": {
+    "title": "Semnale Copilot",
+    "summaryOff": "oprit",
+    "summary": "{events, plural, one {# eveniment} few {# evenimente} other {# de evenimente}} · {lights, plural, one {# bec} few {# becuri} other {# de becuri}} · liniște {from}–{to}",
+    "enabledAria": "Semnale active",
+    "save": "Salvează",
+    "saving": "Se salvează…",
+    "saved": "Semnalele Copilot salvate",
+    "saveFirst": "Salvează mai întâi — testul folosește setările salvate",
+    "sent": "Trimis: {name}",
+    "failed": "Eșuat",
+    "intro": "Becuri, ecranul Turzx, ESP32 și telefonul reacționează la ce face agentul în VS Code.",
+    "lightsTitle": "Becurile care poartă semnalul",
+    "noLights": "Niciun bec RGB în Home Assistant încă. Împerechează becurile Calex în Smart Life; apar aici automat.",
+    "phoneNotify": "Serviciu HA notify (doar fallback / coach)",
+    "phoneNotifyAria": "Serviciu notify telefon",
+    "muteInMovie": "Mut în timpul filmului",
+    "muteInMovieAria": "Mut în movie mode",
+    "quietFrom": "Liniște de la",
+    "quietTo": "Liniște până la",
+    "eventsTitle": "Evenimente",
+    "eventsHint": "Ce se aprinde, unde, în ce culoare.",
+    "activeAria": "{name} activ",
+    "targetsLabel": "Ținte",
+    "targetsAria": "Ținte pentru {name}",
+    "colorLabel": "Culoare",
+    "colorAria": "Culoare pentru {name}",
+    "test": "Test",
+    "testAria": "Testează {name}",
+    "target": {
+      "light": "Becuri",
+      "strip": "Bandă monitor",
+      "turzx": "Turzx",
+      "esp": "ESP32",
+      "phone": "Telefon"
+    },
+    "event": {
+      "ask": {
+        "label": "Așteaptă răspuns",
+        "hint": "askQuestions — becuri: puls agresiv; bandă: un punct luminos aleargă pe ramă până răspunzi"
+      },
+      "done": {
+        "label": "Tură terminată",
+        "hint": "Stop — becuri: fade calm; bandă: val verde urcă pe ambele laturi și se stinge"
+      },
+      "blocked": {
+        "label": "Comandă blocată",
+        "hint": "guard (git add -A, reset --hard…) — becuri: 3 flash-uri; bandă: 2 unde roșii din mijlocul de sus"
+      },
+      "failed": {
+        "label": "Build/test eșuat",
+        "hint": "run-build.ps1 exit ≠ 0 — becuri: 2 flash-uri; bandă: 2 clipiri duble galbene"
+      }
+    }
+  }
 }

@@ -1,157 +1,157 @@
 {
-	"buttons": {
-		"title": "Desk button",
-		"summaryEmpty": "no gesture configured",
-		"summaryItem": "{gesture}: {kind}",
-		"intro": "What each gesture does. Default: 1 click = one glass of water. The click window is 400 ms; a long press is ≥ 1 s.",
-		"save": "Save",
-		"saved": "Button reconfigured",
-		"test": "Test",
-		"testAria": "Test {gesture}",
-		"actionLabel": "Action",
-		"actionAria": "Action for {gesture}",
-		"scriptAria": "Script",
-		"scriptPlaceholder": "pick a script",
-		"mlAria": "millilitres",
-		"minutesAria": "minutes",
-		"serviceAria": "service",
-		"servicePlaceholder": "light.toggle",
-		"entityAria": "entity",
-		"entityPlaceholder": "light.desk (optional)",
-		"gesture": {
-			"1": "1 click",
-			"2": "2 clicks",
-			"3": "3 clicks",
-			"4": "4 clicks",
-			"5": "5 clicks",
-			"long": "long press"
-		},
-		"kind": {
-			"none": "Nothing",
-			"water_add": "Water: add ml",
-			"water_undo": "Water: undo last",
-			"ha_script": "HA script",
-			"ha_service": "HA service",
-			"intercom_open": "Intercom: open",
-			"intercom_arm": "Intercom auto (min)",
-			"turzx_next": "Turzx: next view",
-			"turzx_pause": "Turzx: pause/resume",
-			"ambilight_movie": "Ambilight: movie mode",
-			"pc_wake": "PC: wake (WoL)"
-		},
-		"hint": {
-			"none": "The gesture does nothing.",
-			"water_add": "Logs the given millilitres of water.",
-			"water_undo": "Removes the last water entry.",
-			"ha_script": "Runs a Home Assistant script.",
-			"ha_service": "Calls a Home Assistant service, optionally on one entity.",
-			"intercom_open": "Opens the door while the intercom is ringing.",
-			"intercom_arm": "Auto-opens the door for the next N minutes (courier, guest).",
-			"turzx_next": "Switches the Turzx screen to the next view.",
-			"turzx_pause": "Pauses or resumes the Turzx rotation.",
-			"ambilight_movie": "Toggles Ambilight movie mode.",
-			"pc_wake": "Wakes the PC over Wake-on-LAN."
-		}
-	},
-	"intercom": {
-		"title": "Intercom",
-		"description": "Electra IA02 · doorbell on the phone, remote open",
-		"badge": {
-			"ringing": "ringing now",
-			"armed": "auto-open for {left}",
-			"quiet": "quiet"
-		},
-		"actions": {
-			"answerOpen": "Answer & open",
-			"ignore": "Ignore",
-			"disarm": "Stop auto-open",
-			"armCourier": "Courier · 30 min",
-			"arm60": "60 min"
-		},
-		"toast": {
-			"opening": "Opening the door",
-			"ignored": "Ignored",
-			"disarmed": "Auto-open stopped",
-			"armedFor": "Auto-open for {n, plural, one {# minute} other {# minutes}}",
-			"failed": "failed"
-		},
-		"stats": {
-			"state": "State",
-			"lastRing": "Last ring",
-			"lastOpen": "Last open",
-			"autoOpen": "Auto-open",
-			"until": "until {time}",
-			"off": "off"
-		},
-		"ago": {
-			"never": "—",
-			"seconds": "{n} s",
-			"minutes": "{n} min",
-			"hours": "{n} h"
-		},
-		"event": {
-			"ring": "rang",
-			"end": "call ended",
-			"opened": "door opened",
-			"armed": "auto-open started",
-			"disarmed": "auto-open stopped"
-		},
-		"logAria": "Event log",
-		"footnote": "Opening only works while it rings (the AVP line is powered only during a call). Every open is in the audit log."
-	},
-	"copilot": {
-		"title": "Copilot signals",
-		"summaryOff": "off",
-		"summary": "{events, plural, one {# event} other {# events}} · {lights, plural, one {# bulb} other {# bulbs}} · quiet {from}–{to}",
-		"enabledAria": "Signals active",
-		"save": "Save",
-		"saving": "Saving…",
-		"saved": "Copilot signals saved",
-		"saveFirst": "Save first — the test uses the saved settings",
-		"sent": "Sent: {name}",
-		"failed": "Failed",
-		"intro": "Bulbs, the Turzx screen, the ESP32 and the phone react to what the agent does in VS Code.",
-		"lightsTitle": "Bulbs carrying the signal",
-		"noLights": "No RGB bulb in Home Assistant yet. Pair the Calex bulbs in Smart Life; they show up here automatically.",
-		"phoneNotify": "HA notify service (fallback / coach only)",
-		"phoneNotifyAria": "Phone notify service",
-		"muteInMovie": "Mute during a film",
-		"muteInMovieAria": "Mute in movie mode",
-		"quietFrom": "Quiet from",
-		"quietTo": "Quiet until",
-		"eventsTitle": "Events",
-		"eventsHint": "What lights up, where, in which colour.",
-		"activeAria": "{name} active",
-		"targetsLabel": "Targets",
-		"targetsAria": "Targets for {name}",
-		"colorLabel": "Colour",
-		"colorAria": "Colour for {name}",
-		"test": "Test",
-		"testAria": "Test {name}",
-		"target": {
-			"light": "Bulbs",
-			"strip": "Monitor strip",
-			"turzx": "Turzx",
-			"esp": "ESP32",
-			"phone": "Phone"
-		},
-		"event": {
-			"ask": {
-				"label": "Waiting for an answer",
-				"hint": "askQuestions — bulbs: aggressive pulse; strip: a bright dot runs along the frame until you answer"
-			},
-			"done": {
-				"label": "Turn finished",
-				"hint": "Stop — bulbs: calm fade; strip: a green wave climbs both sides and fades out"
-			},
-			"blocked": {
-				"label": "Command blocked",
-				"hint": "guard (git add -A, reset --hard…) — bulbs: 3 flashes; strip: 2 red waves from the top centre"
-			},
-			"failed": {
-				"label": "Build/test failed",
-				"hint": "run-build.ps1 exit ≠ 0 — bulbs: 2 flashes; strip: 2 yellow double blinks"
-			}
-		}
-	}
+  "buttons": {
+    "title": "Desk button",
+    "summaryEmpty": "no gesture configured",
+    "summaryItem": "{gesture}: {kind}",
+    "intro": "What each gesture does. Default: 1 click = one glass of water. The click window is 400 ms; a long press is ≥ 1 s.",
+    "save": "Save",
+    "saved": "Button reconfigured",
+    "test": "Test",
+    "testAria": "Test {gesture}",
+    "actionLabel": "Action",
+    "actionAria": "Action for {gesture}",
+    "scriptAria": "Script",
+    "scriptPlaceholder": "pick a script",
+    "mlAria": "millilitres",
+    "minutesAria": "minutes",
+    "serviceAria": "service",
+    "servicePlaceholder": "light.toggle",
+    "entityAria": "entity",
+    "entityPlaceholder": "light.desk (optional)",
+    "gesture": {
+      "1": "1 click",
+      "2": "2 clicks",
+      "3": "3 clicks",
+      "4": "4 clicks",
+      "5": "5 clicks",
+      "long": "long press"
+    },
+    "kind": {
+      "none": "Nothing",
+      "water_add": "Water: add ml",
+      "water_undo": "Water: undo last",
+      "ha_script": "HA script",
+      "ha_service": "HA service",
+      "intercom_open": "Intercom: open",
+      "intercom_arm": "Intercom auto (min)",
+      "turzx_next": "Turzx: next view",
+      "turzx_pause": "Turzx: pause/resume",
+      "ambilight_movie": "Ambilight: movie mode",
+      "pc_wake": "PC: wake (WoL)"
+    },
+    "hint": {
+      "none": "The gesture does nothing.",
+      "water_add": "Logs the given millilitres of water.",
+      "water_undo": "Removes the last water entry.",
+      "ha_script": "Runs a Home Assistant script.",
+      "ha_service": "Calls a Home Assistant service, optionally on one entity.",
+      "intercom_open": "Opens the door while the intercom is ringing.",
+      "intercom_arm": "Auto-opens the door for the next N minutes (courier, guest).",
+      "turzx_next": "Switches the Turzx screen to the next view.",
+      "turzx_pause": "Pauses or resumes the Turzx rotation.",
+      "ambilight_movie": "Toggles Ambilight movie mode.",
+      "pc_wake": "Wakes the PC over Wake-on-LAN."
+    }
+  },
+  "intercom": {
+    "title": "Intercom",
+    "description": "Electra IA02 · doorbell on the phone, remote open",
+    "badge": {
+      "ringing": "ringing now",
+      "armed": "auto-open for {left}",
+      "quiet": "quiet"
+    },
+    "actions": {
+      "answerOpen": "Answer & open",
+      "ignore": "Ignore",
+      "disarm": "Stop auto-open",
+      "armCourier": "Courier · 30 min",
+      "arm60": "60 min"
+    },
+    "toast": {
+      "opening": "Opening the door",
+      "ignored": "Ignored",
+      "disarmed": "Auto-open stopped",
+      "armedFor": "Auto-open for {n, plural, one {# minute} other {# minutes}}",
+      "failed": "failed"
+    },
+    "stats": {
+      "state": "State",
+      "lastRing": "Last ring",
+      "lastOpen": "Last open",
+      "autoOpen": "Auto-open",
+      "until": "until {time}",
+      "off": "off"
+    },
+    "ago": {
+      "never": "—",
+      "seconds": "{n} s",
+      "minutes": "{n} min",
+      "hours": "{n} h"
+    },
+    "event": {
+      "ring": "rang",
+      "end": "call ended",
+      "opened": "door opened",
+      "armed": "auto-open started",
+      "disarmed": "auto-open stopped"
+    },
+    "logAria": "Event log",
+    "footnote": "Opening only works while it rings (the AVP line is powered only during a call). Every open is in the audit log."
+  },
+  "copilot": {
+    "title": "Copilot signals",
+    "summaryOff": "off",
+    "summary": "{events, plural, one {# event} other {# events}} · {lights, plural, one {# bulb} other {# bulbs}} · quiet {from}–{to}",
+    "enabledAria": "Signals active",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Copilot signals saved",
+    "saveFirst": "Save first — the test uses the saved settings",
+    "sent": "Sent: {name}",
+    "failed": "Failed",
+    "intro": "Bulbs, the Turzx screen, the ESP32 and the phone react to what the agent does in VS Code.",
+    "lightsTitle": "Bulbs carrying the signal",
+    "noLights": "No RGB bulb in Home Assistant yet. Pair the Calex bulbs in Smart Life; they show up here automatically.",
+    "phoneNotify": "HA notify service (fallback / coach only)",
+    "phoneNotifyAria": "Phone notify service",
+    "muteInMovie": "Mute during a film",
+    "muteInMovieAria": "Mute in movie mode",
+    "quietFrom": "Quiet from",
+    "quietTo": "Quiet until",
+    "eventsTitle": "Events",
+    "eventsHint": "What lights up, where, in which colour.",
+    "activeAria": "{name} active",
+    "targetsLabel": "Targets",
+    "targetsAria": "Targets for {name}",
+    "colorLabel": "Colour",
+    "colorAria": "Colour for {name}",
+    "test": "Test",
+    "testAria": "Test {name}",
+    "target": {
+      "light": "Bulbs",
+      "strip": "Monitor strip",
+      "turzx": "Turzx",
+      "esp": "ESP32",
+      "phone": "Phone"
+    },
+    "event": {
+      "ask": {
+        "label": "Waiting for an answer",
+        "hint": "askQuestions — bulbs: aggressive pulse; strip: a bright dot runs along the frame until you answer"
+      },
+      "done": {
+        "label": "Turn finished",
+        "hint": "Stop — bulbs: calm fade; strip: a green wave climbs both sides and fades out"
+      },
+      "blocked": {
+        "label": "Command blocked",
+        "hint": "guard (git add -A, reset --hard…) — bulbs: 3 flashes; strip: 2 red waves from the top centre"
+      },
+      "failed": {
+        "label": "Build/test failed",
+        "hint": "run-build.ps1 exit ≠ 0 — bulbs: 2 flashes; strip: 2 yellow double blinks"
+      }
+    }
+  }
 }

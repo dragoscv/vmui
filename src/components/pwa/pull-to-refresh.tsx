@@ -17,11 +17,17 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
   const [delta, setDelta] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
+  const deltaRef = useRef(0);
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const update = (d: number) => {
+      deltaRef.current = d;
+      setDelta(d);
+    };
     const onStart = (e: TouchEvent) => {
-      if (window.scrollY > 0) {
+      if (window.scrollY !== 0) {
         startY.current = null;
         return;
       }
@@ -31,20 +37,20 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
       if (startY.current == null) return;
       const dy = (e.touches[0]?.clientY ?? 0) - startY.current;
       if (dy <= 0) {
-        setDelta(0);
+        update(0);
         return;
       }
-      setDelta(Math.min(dy * 0.5, THRESHOLD * 1.4));
+      update(Math.min(dy * 0.5, THRESHOLD * 1.4));
     };
-    const onEnd = async () => {
+    const onEnd = () => {
       if (startY.current == null) return;
-      const triggered = delta >= THRESHOLD;
+      const triggered = deltaRef.current >= THRESHOLD;
       startY.current = null;
-      setDelta(0);
+      update(0);
       if (triggered) {
         haptic("confirm");
         setRefreshing(true);
-        router.refresh();
+        routerRef.current.refresh();
         setTimeout(() => setRefreshing(false), 600);
       }
     };
@@ -56,7 +62,7 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
     };
-  }, [delta, router]);
+  }, []);
 
   const progress = Math.min(delta / THRESHOLD, 1);
   const ready = delta >= THRESHOLD;

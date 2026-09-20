@@ -3,14 +3,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, Subsection } from "@/components/ui/settings-panel";
+import { usePairedDevices } from "@/hooks/use-poll";
 import { Check, Laptop, Smartphone, Trash2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
-type Device = { id: string; name: string; platform: string; status: string; approvedBy: string | null; lastSeenAt: string | Date | null; lastIp: string | null; createdAt: string | Date };
-type Pending = Device & { code: string };
-type Payload = { devices: Device[]; pending: Pending[]; version: number };
 type T = ReturnType<typeof useTranslations<"notify.devices">>;
 
 const PLATFORM_KEYS = ["android", "ios", "windows", "macos", "linux", "web"] as const;
@@ -19,36 +17,18 @@ const PLATFORM_KEYS = ["android", "ios", "windows", "macos", "linux", "web"] as 
  *  pairing request pops up here (and as a toast) within a second. */
 export function PairedDevicesCard() {
   const t = useTranslations("notify.devices");
-  const [data, setData] = React.useState<Payload | null>(null);
+  const { data, pending } = usePairedDevices();
   const [busy, setBusy] = React.useState<string | null>(null);
   const announced = React.useRef(new Set<string>());
 
   React.useEffect(() => {
-    let alive = true;
-    let version: number | undefined;
-    const loop = async () => {
-      while (alive) {
-        try {
-          const r = await fetch(`/api/devices${version === undefined ? "" : `?since=${version}`}`, { cache: "no-store" });
-          if (!r.ok) throw new Error(String(r.status));
-          const j = (await r.json()) as Payload;
-          if (!alive) return;
-          version = j.version;
-          setData(j);
-          for (const p of j.pending) {
-            if (!announced.current.has(p.id)) {
-              announced.current.add(p.id);
-              toast(t("newDeviceTitle", { name: p.name }), { description: t("newDeviceBody", { code: p.code }), duration: 15000 });
-            }
-          }
-        } catch {
-          await new Promise((res) => setTimeout(res, 5000));
-        }
+    for (const p of pending) {
+      if (!announced.current.has(p.id)) {
+        announced.current.add(p.id);
+        toast(t("newDeviceTitle", { name: p.name }), { description: t("newDeviceBody", { code: p.code }), duration: 15000 });
       }
-    };
-    void loop();
-    return () => { alive = false; };
-  }, [t]);
+    }
+  }, [pending, t]);
 
   const op = async (body: Record<string, unknown>, okMsg: string) => {
     setBusy(String(body.id));

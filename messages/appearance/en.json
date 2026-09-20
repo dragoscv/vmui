@@ -1,0 +1,71 @@
+{
+  "open": "Appearance",
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "accent": {
+    "label": "Accent",
+    "custom": "Custom hue",
+    "indigo": "Indigo",
+    "violet": "Violet",
+    "rose": "Rose",
+    "orange": "Orange",
+    "amber": "Amber",
+    "emerald": "Emerald",
+    "teal": "Teal",
+    "sky": "Sky"
+  },
+  "surface": {
+    "label": "Surface",
+    "glass": "Glass",
+    "flat": "Flat",
+    "contrast": "High contrast"
+  },
+  "density": {
+    "label": "Density",
+    "comfortable": "Comfortable",
+    "compact": "Compact"
+  },
+  "motion": {
+    "label": "Reduce motion",
+    "hint": "No animations or transitions"
+  },
+  "vibe": {
+    "label": "Presets",
+    "default": {
+      "name": "Signature",
+      "hint": "Gradient depth"
+    },
+    "cyberpunk": {
+      "name": "Cyberpunk",
+      "hint": "Magenta-cyan neon"
+    },
+    "cockpit": {
+      "name": "Cockpit",
+      "hint": "Amber mission HUD"
+    },
+    "strategy": {
+      "name": "Strategy",
+      "hint": "Command-room calm"
+    },
+    "terminal": {
+      "name": "Terminal",
+      "hint": "Phosphor green CRT"
+    },
+    "minimal": {
+      "name": "Minimal",
+      "hint": "Hairlines, whitespace"
+    },
+    "aurora": {
+      "name": "Aurora",
+      "hint": "Iridescent night"
+    },
+    "synthwave": {
+      "name": "Synthwave",
+      "hint": "Chrome horizon grid"
+    }
+  }
+}

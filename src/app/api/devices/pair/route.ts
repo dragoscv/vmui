@@ -23,7 +23,7 @@ const langOf = (req: NextRequest) => localeFromAcceptLanguage(req.headers.get("a
 
 const body = z.union([
   z.object({ name: z.string().min(1).max(64), platform: z.string().min(1).max(32) }),
-  z.object({ name: z.string().min(1).max(64), platform: z.string().min(1).max(32), email: z.string().email(), password: z.string().min(1) }),
+  z.object({ name: z.string().min(1).max(64), platform: z.string().min(1).max(32), email: z.email(), password: z.string().min(1) }),
 ]);
 
 /** POST: start a pairing request, or sign in with the vmui account for instant approval. */

@@ -1,0 +1,71 @@
+{
+  "open": "Aspect",
+  "theme": {
+    "label": "Temă",
+    "light": "Luminos",
+    "dark": "Întunecat",
+    "system": "Sistem"
+  },
+  "accent": {
+    "label": "Accent",
+    "custom": "Nuanță personalizată",
+    "indigo": "Indigo",
+    "violet": "Violet",
+    "rose": "Roz",
+    "orange": "Portocaliu",
+    "amber": "Ambră",
+    "emerald": "Smarald",
+    "teal": "Turcoaz",
+    "sky": "Cer"
+  },
+  "surface": {
+    "label": "Suprafață",
+    "glass": "Sticlă",
+    "flat": "Plat",
+    "contrast": "Contrast mare"
+  },
+  "density": {
+    "label": "Densitate",
+    "comfortable": "Aerisit",
+    "compact": "Compact"
+  },
+  "motion": {
+    "label": "Mai puțină mișcare",
+    "hint": "Fără animații și tranziții"
+  },
+  "vibe": {
+    "label": "Presetări",
+    "default": {
+      "name": "Semnătură",
+      "hint": "Gradient cu adâncime"
+    },
+    "cyberpunk": {
+      "name": "Cyberpunk",
+      "hint": "Neon magenta-cyan"
+    },
+    "cockpit": {
+      "name": "Cockpit",
+      "hint": "HUD de misiune ambră"
+    },
+    "strategy": {
+      "name": "Strategie",
+      "hint": "Calm de sală de comandă"
+    },
+    "terminal": {
+      "name": "Terminal",
+      "hint": "CRT verde fosfor"
+    },
+    "minimal": {
+      "name": "Minimal",
+      "hint": "Linii fine, spațiu"
+    },
+    "aurora": {
+      "name": "Auroră",
+      "hint": "Noapte irizată"
+    },
+    "synthwave": {
+      "name": "Synthwave",
+      "hint": "Grilă pe orizont cromat"
+    }
+  }
+}

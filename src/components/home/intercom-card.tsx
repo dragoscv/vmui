@@ -3,20 +3,14 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/settings-panel";
+import { useIntercomState, type IntercomState } from "@/hooks/use-poll";
 import { armIntercomAction, ignoreIntercomAction, openIntercomAction } from "@/server/actions/intercom";
 import { BellRing, DoorOpen, PackageCheck, ShieldOff } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
-export interface IntercomCardState {
-  ringing: boolean;
-  ringingSince: number | null;
-  lastRingAt: number | null;
-  lastOpenAt: number | null;
-  autoOpenUntil: number | null;
-  log: Array<{ at: number; event: string; by: string }>;
-}
+export type IntercomCardState = IntercomState;
 
 const LOG_EVENTS = ["ring", "end", "opened", "armed", "disarmed"] as const;
 type LogEvent = (typeof LOG_EVENTS)[number];
@@ -28,7 +22,7 @@ const isLogEvent = (e: string): e is LogEvent => (LOG_EVENTS as readonly string[
 export function IntercomCard({ initial, token, canOpen = true }: { initial: IntercomCardState; token: string; canOpen?: boolean }) {
   const t = useTranslations("devices.intercom");
   const locale = useLocale();
-  const [s, setS] = React.useState(initial);
+  const { data: s } = useIntercomState(initial, { url: token ? `/api/esp/intercom?k=${encodeURIComponent(token)}` : undefined });
   const [now, setNow] = React.useState(() => Date.now());
   const [busy, setBusy] = React.useState(false);
 
@@ -43,18 +37,9 @@ export function IntercomCard({ initial, token, canOpen = true }: { initial: Inte
   const clock = (ms: number) => new Date(ms).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 
   React.useEffect(() => {
-    const tick = async () => {
-      setNow(Date.now());
-      try {
-        const r = await fetch(token ? `/api/esp/intercom?k=${encodeURIComponent(token)}` : "/api/esp/intercom", { cache: "no-store" });
-        if (r.ok) setS((await r.json()) as IntercomCardState);
-      } catch {
-        /* offline; keep last */
-      }
-    };
-    const id = setInterval(tick, 3000);
+    const id = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(id);
-  }, [token]);
+  }, []);
 
   const armed = (s.autoOpenUntil ?? 0) > now;
   const run = async (label: string, fn: () => Promise<{ ok: boolean; error?: string }>) => {

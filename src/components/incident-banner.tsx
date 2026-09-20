@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auditLog, backupJobs, instances } from "@/lib/db/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import "server-only";
 
@@ -20,33 +21,34 @@ export async function IncidentBanner() {
   const total = errs + vms + backups;
   if (total === 0) return null;
 
-  const recent = await db.select({ a: auditLog.action, t: auditLog.target, m: auditLog.message })
-    .from(auditLog)
-    .where(and(eq(auditLog.status, "error"), gte(auditLog.createdAt, since)))
-    .orderBy(desc(auditLog.createdAt))
-    .limit(3);
+  const [t, recent] = await Promise.all([
+    getTranslations("shell.incident"),
+    db.select({ a: auditLog.action, t: auditLog.target, m: auditLog.message })
+      .from(auditLog)
+      .where(and(eq(auditLog.status, "error"), gte(auditLog.createdAt, since)))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(3),
+  ]);
 
   return (
-    <div className="border-b border-rose-500/40 bg-rose-950/40 px-4 py-2 text-sm text-rose-100">
+    <div role="status" className="border-b border-[color-mix(in_oklch,var(--color-danger)_45%,var(--color-border))] bg-[color-mix(in_oklch,var(--color-danger)_12%,transparent)] px-4 py-2 text-sm text-fg">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          <span className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-rose-400" />
-          <span className="shrink-0 font-medium">
-            {total} active issue{total === 1 ? "" : "s"}:
-          </span>
-          <span className="flex min-w-0 flex-wrap gap-x-3 text-rose-200">
-            {errs > 0 && <span className="whitespace-nowrap">{errs} action error{errs === 1 ? "" : "s"}</span>}
-            {vms > 0 && <span className="whitespace-nowrap">{vms} VM{vms === 1 ? "" : "s"} in unknown state</span>}
-            {backups > 0 && <span className="whitespace-nowrap">{backups} failed backup{backups === 1 ? "" : "s"}</span>}
+          <span className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" aria-hidden />
+          <span className="shrink-0 font-medium">{t("issues", { n: total })}</span>
+          <span className="flex min-w-0 flex-wrap gap-x-3 text-muted">
+            {errs > 0 && <span className="whitespace-nowrap">{t("actionErrors", { n: errs })}</span>}
+            {vms > 0 && <span className="whitespace-nowrap">{t("unknownVms", { n: vms })}</span>}
+            {backups > 0 && <span className="whitespace-nowrap">{t("failedBackups", { n: backups })}</span>}
           </span>
         </div>
-        <Link href="/activity" className="ml-auto shrink-0 whitespace-nowrap rounded px-1 py-0.5 text-rose-100 underline-offset-2 hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">
-          view activity →
+        <Link href="/activity" className="ml-auto shrink-0 whitespace-nowrap rounded-[var(--radius-sm)] px-1 py-0.5 font-medium text-fg underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger">
+          {t("viewActivity")} →
         </Link>
       </div>
       {recent.length > 0 && (
-        <div className="mt-1 text-xs text-rose-200/80 truncate">
-          last: {recent.map((r) => `${r.a}${r.t ? ` (${r.t})` : ""}${r.m ? ` — ${r.m.slice(0, 60)}` : ""}`).join(" · ")}
+        <div className="mt-1 truncate text-xs text-muted">
+          {t("last")} {recent.map((r) => `${r.a}${r.t ? ` (${r.t})` : ""}${r.m ? ` — ${r.m.slice(0, 60)}` : ""}`).join(" · ")}
         </div>
       )}
     </div>

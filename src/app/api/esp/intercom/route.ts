@@ -43,7 +43,7 @@ const cmd = z.object({
 export async function PUT(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   const p = cmd.safeParse(await req.json().catch(() => ({})));
-  if (!p.success) return NextResponse.json({ ok: false, error: p.error.flatten() }, { status: 400 });
+  if (!p.success) return NextResponse.json({ ok: false, error: z.flattenError(p.error) }, { status: 400 });
   const { action, minutes, by } = p.data;
   if (action === "open" || action === "arm") {
     const actor = await homeActorOrOwner(req, deviceIdFromRequest(req) === null);

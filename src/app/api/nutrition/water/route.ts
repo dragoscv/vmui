@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const a = await scoped(req);
   if (!a) return new NextResponse("unauthorized", { status: 401 });
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   const r = await drinkGlass(parsed.data.ml, parsed.data.source, a.uid, a.isOwner);
   return NextResponse.json({ ok: true, action: r.action, ml: r.water.ml, target: r.water.targetMl, glasses: r.water.glasses, underPace: r.water.underPace });
 }

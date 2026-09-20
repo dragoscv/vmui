@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   Search,
@@ -23,7 +24,7 @@ import {
   Tag as TagIcon,
   Cloud,
 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { instanceAction, syncAllAccounts } from "@/server/actions/instances";
 import { listPaletteIndex, type PaletteIndex } from "@/server/actions/palette";
 import type { InstanceRow } from "@/lib/db/schema";
@@ -47,6 +48,7 @@ export function CommandPalette({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
+  const t = useTranslations("shell.palette");
   const { resolvedTheme, setTheme } = useTheme();
   const [, start] = useTransition();
   const [query, setQuery] = useState("");
@@ -86,32 +88,41 @@ export function CommandPalette({
   }
 
   const items = useMemo<CommandItem[]>(() => {
+    const groups = {
+      navigate: t("groups.navigate"),
+      actions: t("groups.actions"),
+      instances: t("groups.instances"),
+      accounts: t("groups.accounts"),
+      resources: t("groups.resources"),
+      tags: t("groups.tags"),
+    };
+    const requested = (verb: "start" | "stop" | "reboot") => t(`vm.requested.${verb}`);
     const navItems: CommandItem[] = [
       {
         id: "nav:dashboard",
-        group: "Navigate",
-        label: "Dashboard",
+        group: groups.navigate,
+        label: t("nav.dashboard"),
         icon: Server,
         run: () => router.push("/"),
       },
       {
         id: "nav:accounts",
-        group: "Navigate",
-        label: "Accounts",
+        group: groups.navigate,
+        label: t("nav.accounts"),
         icon: KeyRound,
         run: () => router.push("/accounts"),
       },
       {
         id: "nav:activity",
-        group: "Navigate",
-        label: "Activity log",
+        group: groups.navigate,
+        label: t("nav.activity"),
         icon: Activity,
         run: () => router.push("/activity"),
       },
       {
         id: "nav:settings",
-        group: "Navigate",
-        label: "Settings",
+        group: groups.navigate,
+        label: t("nav.settings"),
         icon: SettingsIcon,
         run: () => router.push("/settings"),
       },
@@ -120,34 +131,34 @@ export function CommandPalette({
     const actionItems: CommandItem[] = [
       {
         id: "action:new",
-        group: "Actions",
-        label: "Launch new instance",
+        group: groups.actions,
+        label: t("actions.new"),
         hint: "N",
         icon: Plus,
         run: () => router.push("/instances/new"),
       },
       {
         id: "action:sync",
-        group: "Actions",
-        label: "Sync all accounts",
+        group: groups.actions,
+        label: t("actions.sync"),
         hint: "R",
         icon: RefreshCw,
         run: () => {
           start(async () => {
             try {
               const r = await syncAllAccounts();
-              toast.success(`Synced ${r.accounts} account(s) — ${r.instances} instance(s)`);
+              toast.success(t("actions.synced", { accounts: r.accounts, instances: r.instances }));
               router.refresh();
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Sync failed");
+              toast.error(e instanceof Error ? e.message : t("actions.syncFailed"));
             }
           });
         },
       },
       {
         id: "action:theme",
-        group: "Actions",
-        label: resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme",
+        group: groups.actions,
+        label: resolvedTheme === "dark" ? t("actions.themeLight") : t("actions.themeDark"),
         hint: "T",
         icon: resolvedTheme === "dark" ? Sun : Moon,
         run: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
@@ -159,8 +170,8 @@ export function CommandPalette({
       const out: CommandItem[] = [
         {
           id: `vm:open:${i.id}`,
-          group: "Instances",
-          label: `Open ${label}`,
+          group: groups.instances,
+          label: t("vm.open", { name: label }),
           hint: i.provider,
           icon: Server,
           keywords: `${i.providerInstanceId} ${i.region} ${i.publicIp ?? ""} ${i.notes ?? ""}`,
@@ -170,15 +181,15 @@ export function CommandPalette({
       if (i.state === "running") {
         out.push({
           id: `vm:connect:${i.id}`,
-          group: "Instances",
-          label: `Connect to ${label}`,
+          group: groups.instances,
+          label: t("vm.connect", { name: label }),
           icon: Plug,
           run: () => router.push(`/instances/${encodeURIComponent(i.id)}`),
         });
         out.push({
           id: `vm:stop:${i.id}`,
-          group: "Instances",
-          label: `Stop ${label}`,
+          group: groups.instances,
+          label: t("vm.stop", { name: label }),
           icon: Square,
           run: () =>
             start(async () => {
@@ -187,15 +198,15 @@ export function CommandPalette({
                 region: i.region,
                 providerInstanceId: i.providerInstanceId,
               });
-              if (r.ok) toast.success(`stop requested`);
-              else toast.error(r.error ?? "Failed");
+              if (r.ok) toast.success(requested("stop"));
+              else toast.error(r.error ?? t("actions.failed"));
               router.refresh();
             }),
         });
         out.push({
           id: `vm:reboot:${i.id}`,
-          group: "Instances",
-          label: `Reboot ${label}`,
+          group: groups.instances,
+          label: t("vm.reboot", { name: label }),
           icon: RotateCw,
           run: () =>
             start(async () => {
@@ -204,16 +215,16 @@ export function CommandPalette({
                 region: i.region,
                 providerInstanceId: i.providerInstanceId,
               });
-              if (r.ok) toast.success(`reboot requested`);
-              else toast.error(r.error ?? "Failed");
+              if (r.ok) toast.success(requested("reboot"));
+              else toast.error(r.error ?? t("actions.failed"));
               router.refresh();
             }),
         });
       } else if (i.state === "stopped") {
         out.push({
           id: `vm:start:${i.id}`,
-          group: "Instances",
-          label: `Start ${label}`,
+          group: groups.instances,
+          label: t("vm.start", { name: label }),
           icon: Play,
           run: () =>
             start(async () => {
@@ -222,8 +233,8 @@ export function CommandPalette({
                 region: i.region,
                 providerInstanceId: i.providerInstanceId,
               });
-              if (r.ok) toast.success(`start requested`);
-              else toast.error(r.error ?? "Failed");
+              if (r.ok) toast.success(requested("start"));
+              else toast.error(r.error ?? t("actions.failed"));
               router.refresh();
             }),
         });
@@ -233,7 +244,7 @@ export function CommandPalette({
 
     const accountItems: CommandItem[] = accounts.map((a) => ({
       id: `account:${a.id}`,
-      group: "Accounts",
+      group: groups.accounts,
       label: `${a.name}`,
       hint: a.provider,
       icon: Cloud,
@@ -243,7 +254,7 @@ export function CommandPalette({
 
     const resourceItems: CommandItem[] = resources.slice(0, 200).map((r) => ({
       id: `res:${r.id}`,
-      group: "Resources",
+      group: groups.resources,
       label: r.name ?? r.externalId,
       hint: `${r.kind} · ${r.region}`,
       icon: Boxes,
@@ -259,7 +270,7 @@ export function CommandPalette({
       seenTagPairs.add(k);
       tagItems.push({
         id: `tag:${k}`,
-        group: "Tags",
+        group: groups.tags,
         label: t.value ? `${t.key}: ${t.value}` : t.key,
         icon: TagIcon,
         keywords: `${t.key} ${t.value}`,
@@ -268,7 +279,7 @@ export function CommandPalette({
     }
 
     return [...navItems, ...actionItems, ...vmItems, ...accountItems, ...resourceItems, ...tagItems];
-  }, [instances, resources, accounts, tags, resolvedTheme, router, setTheme]);
+  }, [instances, resources, accounts, tags, resolvedTheme, router, setTheme, t]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -319,6 +330,8 @@ export function CommandPalette({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl gap-0 overflow-hidden p-0">
+        <DialogTitle className="sr-only">{t("title")}</DialogTitle>
+        <DialogDescription className="sr-only">{t("hints")}</DialogDescription>
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-3">
           <Search className="h-4 w-4 text-muted" />
           <input
@@ -326,7 +339,7 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Type a command, instance, or page…"
+            placeholder={t("placeholder")}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-fg-muted)]"
           />
           <kbd className="hidden rounded border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-1.5 py-0.5 font-mono text-[10px] text-muted sm:inline">
@@ -336,7 +349,7 @@ export function CommandPalette({
 
         <div ref={listRef} className="max-h-[60vh] overflow-y-auto p-1.5">
           {filtered.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted">No matches.</div>
+            <div className="p-6 text-center text-sm text-muted">{t("noMatches")}</div>
           ) : (
             grouped.map(([group, list]) => (
               <div key={group} className="mb-1.5">
@@ -379,8 +392,8 @@ export function CommandPalette({
         </div>
 
         <div className="flex items-center justify-between border-t border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 py-2 text-[11px] text-muted">
-          <span>↑↓ navigate · ↵ run · esc close</span>
-          <span>{filtered.length} item{filtered.length === 1 ? "" : "s"}</span>
+          <span>{t("hints")}</span>
+          <span>{t("count", { n: filtered.length })}</span>
         </div>
       </DialogContent>
     </Dialog>

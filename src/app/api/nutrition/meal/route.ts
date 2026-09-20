@@ -8,6 +8,7 @@ import { mealInputSchema } from "@/lib/nutrition/schema";
 import { addMeal, deleteMeal, mealsForDay, updateMeal } from "@/lib/nutrition/store";
 import { nutritionSummary, publishToHa } from "@/lib/nutrition/summary";
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   const a = await scoped(req);
   if (!a) return new NextResponse("unauthorized", { status: 401 });
   const parsed = mealInputSchema.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: z.flattenError(parsed.error) }, { status: 400 });
   const { meal, created } = await addMeal({ ...parsed.data, userId: a.uid });
   if (created) {
     if (a.isOwner) {
@@ -62,7 +63,7 @@ export async function PATCH(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { id?: string } & Record<string, unknown>;
   if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
   const patch = mealInputSchema.partial().pick({ name: true, mealType: true, calories: true, protein: true, carbs: true, fats: true, fiber: true, notes: true }).safeParse(body);
-  if (!patch.success) return NextResponse.json({ error: patch.error.flatten() }, { status: 400 });
+  if (!patch.success) return NextResponse.json({ error: z.flattenError(patch.error) }, { status: 400 });
   const meal = await updateMeal(body.id, patch.data, a.uid);
   if (!meal) return new NextResponse("not found", { status: 404 });
   await db.insert(auditLog).values({ accountId: "home", action: "nutrition.meal.update", target: meal.id, status: "ok", message: meal.name });

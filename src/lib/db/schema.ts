@@ -582,6 +582,8 @@ export const users = sqliteTable("users", {
   totpVerifiedAt: integer("totp_verified_at", { mode: "timestamp" }),
   /** Encrypted JSON array of single-use backup codes. */
   totpBackupCodesEnc: text("totp_backup_codes_enc"),
+    /** Appearance + locale preferences (lib/appearance/model.ts); JSON, mirrored to the `vmui_appearance` cookie. */
+    preferences: text("preferences"),
 });
 
 export const sessions = sqliteTable("sessions", {

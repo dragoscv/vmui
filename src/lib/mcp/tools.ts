@@ -238,17 +238,27 @@ export const TOOLS: McpTool[] = [
   },
   {
     name: "nest_hub_show",
-    description: "Cast a Home Assistant dashboard view onto the Nest Hub screen (cast.show_lovelace_view). viewPath is the dashboard view's URL path, e.g. 'home'. The Hub drops the cast after ~10 min unless HA's continuous casting is set up.",
-    schema: z.object({ viewPath: z.string().min(1).max(64), dashboardPath: z.string().max(64).default("lovelace"), entity: entityId.default(NEST_HUB) }),
-    run: ({ viewPath, dashboardPath, entity }) =>
-      run("mcp.cast", entity as string, `${dashboardPath}/${viewPath}`, () =>
-        ha.callService("cast", "show_lovelace_view", { entity_id: entity, view_path: viewPath, dashboard_path: dashboardPath }),
+    description: "Cast a Home Assistant dashboard view onto the Nest Hub screen. viewPath is the view's URL path ('0' = first view of the default dashboard). keep=true arms continuous casting: HA re-sends the view whenever the Hub drops it (~10 min idle), until nest_hub_stop.",
+    schema: z.object({ viewPath: z.string().min(1).max(64).default("0"), dashboardPath: z.string().max(64).default("lovelace"), keep: z.boolean().default(false), entity: entityId.default(NEST_HUB) }),
+    run: ({ viewPath, dashboardPath, keep, entity }) =>
+      run("mcp.cast", entity as string, `${dashboardPath}/${viewPath}${keep ? " (keep)" : ""}`, () =>
+        keep
+          // script.turn_on is fire-and-forget; calling script/<name> directly blocks on
+          // cast.show_lovelace_view and HA answers 400 when it times out.
+          ? ha.callService("script", "turn_on", { entity_id: "script.vmui_cast_start", variables: { view_path: viewPath, dashboard_path: dashboardPath } })
+          : ha.callService("cast", "show_lovelace_view", { entity_id: entity, view_path: viewPath, dashboard_path: dashboardPath }),
       ),
+  },
+  {
+    name: "nest_hub_stop",
+    description: "Stop casting to the Nest Hub and disarm continuous casting (back to the ambient photo frame).",
+    schema: z.object({}),
+    run: () => run("mcp.cast_stop", NEST_HUB, "stop", () => ha.callService("script", "turn_on", { entity_id: "script.vmui_cast_stop" })),
   },
   {
     name: "ha_script",
     description: "Run a Home Assistant script by name (e.g. movie_mode_on, movie_mode_off, music_mode, copilot_done). Only for scripts not covered by a dedicated tool.",
-    schema: z.object({ name: z.string().regex(/^[a-z0-9_]+$/).max(64), data: z.record(z.unknown()).optional() }),
+    schema: z.object({ name: z.string().regex(/^[a-z0-9_]+$/).max(64), data: z.record(z.string(), z.unknown()).optional() }),
     run: ({ name, data }) => run("mcp.ha_script", name as string, JSON.stringify(data ?? {}), () => ha.runScript(name as string, (data as Record<string, unknown>) ?? {})),
   },
   {

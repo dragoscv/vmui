@@ -7,7 +7,7 @@ const schema = z.object({
     .regex(/^[0-9a-f]{64}$/i, "VMUI_MASTER_KEY must be a 64-char hex string (32 bytes). Run `pnpm keygen`.")
     .optional(),
   VMUI_DB_PATH: z.string().min(1).default("./vmui.db"),
-  VMUI_ANOMALY_WEBHOOK: z.string().url().optional(),
+  VMUI_ANOMALY_WEBHOOK: z.url().optional(),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
 

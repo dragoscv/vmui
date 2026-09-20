@@ -1,4 +1,4 @@
-import { ack, dismiss, listCards, markRead, notify, notifyInputSchema } from "@/lib/notify";
+import { ack, dismiss, listCards, localizeCard, localizeCards, markRead, notify, notifyInputSchema } from "@/lib/notify";
 import { notifyActor } from "@/lib/notify/auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const who = await notifyActor(req);
   if (!who) return new NextResponse("forbidden", { status: 403 });
   const all = req.nextUrl.searchParams.get("all") === "1";
-  const cards = await listCards({ includeDismissed: all, limit: all ? 200 : 100 });
+  const cards = await localizeCards(await listCards({ includeDismissed: all, limit: all ? 200 : 100 }), who.locale);
   return NextResponse.json({ cards, now: Date.now() }, { headers: { "Cache-Control": "no-store" } });
 }
 
@@ -33,8 +33,10 @@ export async function POST(req: NextRequest) {
     case "read":
       await markRead(p.data.ids);
       return NextResponse.json({ ok: true });
-    case "dismiss":
-      return NextResponse.json({ ok: true, card: await dismiss(p.data.id, who.by, "dismiss") });
+    case "dismiss": {
+      const c = await dismiss(p.data.id, who.by, "dismiss");
+      return NextResponse.json({ ok: true, card: c ? await localizeCard(c, who.locale) : null });
+    }
     case "dismissAll": {
       for (const c of await listCards()) if (!c.sticky) await dismiss(c.id, who.by, "dismiss");
       return NextResponse.json({ ok: true });
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
     case "create": {
       if (who.deviceId === null) return new NextResponse("forbidden", { status: 403 });
       const card = await notify(p.data.card);
-      return NextResponse.json({ ok: true, card });
+      return NextResponse.json({ ok: true, card: card ? await localizeCard(card, who.locale) : null });
     }
   }
 }

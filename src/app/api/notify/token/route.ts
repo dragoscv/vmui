@@ -1,3 +1,4 @@
+import { LOCALES } from "@/i18n/config";
 import { db } from "@/lib/db";
 import { pairedDevices } from "@/lib/db/schema";
 import { deviceFromRequest } from "@/lib/devices/pairing";
@@ -11,8 +12,8 @@ export const dynamic = "force-dynamic";
 export async function PUT(req: NextRequest) {
   const d = await deviceFromRequest(req);
   if (!d) return new NextResponse("forbidden", { status: 403 });
-  const p = z.object({ token: z.string().min(20).max(4096).nullable() }).safeParse(await req.json().catch(() => null));
+  const p = z.object({ token: z.string().min(20).max(4096).nullable(), language: z.enum(LOCALES).optional() }).safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ ok: false }, { status: 400 });
-  await db.update(pairedDevices).set({ pushToken: p.data.token }).where(eq(pairedDevices.id, d.id));
+  await db.update(pairedDevices).set({ pushToken: p.data.token, ...(p.data.language ? { language: p.data.language } : {}) }).where(eq(pairedDevices.id, d.id));
   return NextResponse.json({ ok: true });
 }

@@ -1,17 +1,17 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
-import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { gitSources, gitApplyHistory, auditLog } from "@/lib/db/schema";
 import { requireRole } from "@/lib/auth";
-import { encryptGitAuth, syncGitSource, deleteGitSourceCache } from "@/lib/gitops";
+import { db } from "@/lib/db";
+import { auditLog, gitApplyHistory, gitSources } from "@/lib/db/schema";
+import { deleteGitSourceCache, encryptGitAuth, syncGitSource } from "@/lib/gitops";
+import { desc, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
 
 const CreateSourceSchema = z.object({
   name: z.string().min(1).max(80),
-  url: z.string().url().or(z.string().regex(/^git@/)).or(z.string().regex(/^ssh:\/\//)),
+  url: z.url().or(z.string().regex(/^git@/)).or(z.string().regex(/^ssh:\/\//)),
   branch: z.string().min(1).max(120).default("main"),
   authType: z.enum(["none", "token", "ssh"]).default("none"),
   token: z.string().max(4000).optional(),

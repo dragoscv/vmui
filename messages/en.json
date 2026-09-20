@@ -1,4 +1,12 @@
 {
+  "errors": {
+    "title": "Something went wrong",
+    "hint": "The page hit an error. You can retry or go back home.",
+    "home": "Home",
+    "notFoundTitle": "Page not found",
+    "notFoundHint": "Nothing lives at this address.",
+    "digest": "Error id: {id}"
+  },
   "nav": {
     "switchLanguage": "Switch to {lang}",
     "controlPlane": "Control plane",
@@ -39,7 +47,15 @@
     "minutesShort": "{n} min",
     "secondsShort": "{n} s",
     "clear": "Clear",
-    "search": "Search"
+    "search": "Search",
+    "noResults": "No results",
+    "showing": "Showing {from}–{to} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "rowsPerPage": "Rows per page",
+    "sortAscending": "Sort ascending",
+    "sortDescending": "Sort descending",
+    "actions": "Actions"
   },
   "home": {
     "title": "Home",

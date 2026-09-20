@@ -1,4 +1,12 @@
 {
+  "errors": {
+    "title": "Ceva nu a mers",
+    "hint": "Pagina a întâmpinat o eroare. Poți reîncerca sau te poți întoarce acasă.",
+    "home": "Acasă",
+    "notFoundTitle": "Pagina nu există",
+    "notFoundHint": "Nu există nimic la această adresă.",
+    "digest": "Id eroare: {id}"
+  },
   "nav": {
     "switchLanguage": "Schimbă pe {lang}",
     "controlPlane": "Panou de control",
@@ -39,7 +47,15 @@
     "minutesShort": "{n} min",
     "secondsShort": "{n} s",
     "clear": "Curăță",
-    "search": "Caută"
+    "search": "Caută",
+    "noResults": "Niciun rezultat",
+    "showing": "Se afișează {from}–{to} din {total}",
+    "previous": "Anterior",
+    "next": "Următor",
+    "rowsPerPage": "Rânduri pe pagină",
+    "sortAscending": "Sortează crescător",
+    "sortDescending": "Sortează descrescător",
+    "actions": "Acțiuni"
   },
   "home": {
     "title": "Acasă",

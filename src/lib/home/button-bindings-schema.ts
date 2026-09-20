@@ -23,7 +23,7 @@ export type ButtonAction = z.infer<typeof buttonActionSchema>;
 
 export const buttonBindingsSchema = z.object({
   version: z.literal(1),
-  gestures: z.record(z.enum(GESTURES), buttonActionSchema),
+  gestures: z.partialRecord(z.enum(GESTURES), buttonActionSchema),
 });
 export type ButtonBindings = z.infer<typeof buttonBindingsSchema>;
 

@@ -1,4 +1,5 @@
 import type ambilight from "../../messages/ambilight/en.json";
+import type appearance from "../../messages/appearance/en.json";
 import type auth from "../../messages/auth/en.json";
 import type devices from "../../messages/devices/en.json";
 import type en from "../../messages/en.json";
@@ -27,6 +28,7 @@ declare module "next-intl" {
       devices: typeof devices;
       family: typeof family;
       shell: typeof shell;
+      appearance: typeof appearance;
       vm: typeof vm;
       settings: typeof settings;
       auth: typeof auth;

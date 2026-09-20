@@ -1,13 +1,13 @@
 "use server";
 
-import "server-only";
+import { requireRole } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { auditLog, webhooks, type WebhookRow } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
+import "server-only";
 import { z } from "zod";
-import { db } from "@/lib/db";
-import { auditLog, webhooks, type WebhookRow } from "@/lib/db/schema";
-import { requireRole } from "@/lib/auth";
 
 const KINDS = ["slack", "discord", "generic"] as const;
 const CHANNELS = [
@@ -21,7 +21,6 @@ const schema = z.object({
   id: z.string().optional(),
   name: z.string().min(1).max(80),
   url: z
-    .string()
     .url()
     .refine((u) => u.startsWith("https://"), "URL must use https://"),
   kind: z.enum(KINDS),

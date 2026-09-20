@@ -6,7 +6,9 @@
   },
   "sidebar": {
     "label": "Navigare principală",
-    "toggleGroup": "Comută {group}"
+    "toggleGroup": "Comută {group}",
+    "collapse": "Restrânge bara laterală",
+    "expand": "Extinde bara laterală"
   },
   "mobile": {
     "more": "Mai multe",
@@ -17,7 +19,93 @@
     "shell": "Shell"
   },
   "topbar": {
-    "host": "local"
+    "host": "local",
+    "search": "Căutare",
+    "searchHint": "Caută sau sari la…"
+  },
+  "rail": {
+    "label": "Context",
+    "clock": "Ceas",
+    "quickLinks": "Legături rapide",
+    "recent": "Recente",
+    "noRecent": "Paginile vizitate apar aici."
+  },
+  "incident": {
+    "issues": "{n, plural, one {# problemă activă} few {# probleme active} other {# de probleme active}}:",
+    "actionErrors": "{n, plural, one {# eroare de acțiune} few {# erori de acțiune} other {# de erori de acțiune}}",
+    "unknownVms": "{n, plural, one {# VM în stare necunoscută} few {# VM-uri în stare necunoscută} other {# de VM-uri în stare necunoscută}}",
+    "failedBackups": "{n, plural, one {# backup eșuat} few {# backupuri eșuate} other {# de backupuri eșuate}}",
+    "viewActivity": "Vezi activitatea",
+    "last": "ultimele:"
+  },
+  "userMenu": {
+    "menu": "Meniu cont",
+    "account": "Setări cont",
+    "family": "Familie",
+    "signOut": "Deconectare",
+    "role": {
+      "admin": "Administrator",
+      "operator": "Operator",
+      "viewer": "Vizualizator"
+    }
+  },
+  "palette": {
+    "title": "Paletă de comenzi",
+    "placeholder": "Scrie o comandă, o instanță sau o pagină…",
+    "noMatches": "Nicio potrivire.",
+    "hints": "↑↓ navighează · ↵ rulează · esc închide",
+    "count": "{n, plural, one {# element} few {# elemente} other {# de elemente}}",
+    "groups": {
+      "navigate": "Navigare",
+      "actions": "Acțiuni",
+      "instances": "Instanțe",
+      "accounts": "Conturi",
+      "resources": "Resurse",
+      "tags": "Etichete"
+    },
+    "nav": {
+      "dashboard": "Panou",
+      "accounts": "Conturi",
+      "activity": "Jurnal activitate",
+      "settings": "Setări"
+    },
+    "actions": {
+      "new": "Lansează o instanță nouă",
+      "sync": "Sincronizează toate conturile",
+      "themeLight": "Comută la tema deschisă",
+      "themeDark": "Comută la tema întunecată",
+      "synced": "Sincronizate {accounts} cont(uri) — {instances} instanță(e)",
+      "syncFailed": "Sincronizarea a eșuat",
+      "failed": "Eșuat"
+    },
+    "vm": {
+      "open": "Deschide {name}",
+      "connect": "Conectează-te la {name}",
+      "stop": "Oprește {name}",
+      "reboot": "Repornește {name}",
+      "start": "Pornește {name}",
+      "requested": {
+        "start": "Pornire solicitată",
+        "stop": "Oprire solicitată",
+        "reboot": "Repornire solicitată"
+      }
+    }
+  },
+  "shortcuts": {
+    "title": "Scurtături de taste",
+    "description": "Mișcă-te prin vmui fără să lași tastatura.",
+    "palette": "Deschide paleta de comenzi",
+    "help": "Arată acest ajutor",
+    "search": "Focalizează căutarea din panou",
+    "goInstances": "Mergi la Instanțe",
+    "goAccounts": "Mergi la Conturi",
+    "goActivity": "Mergi la Jurnalul de activitate",
+    "goSettings": "Mergi la Setări",
+    "new": "Lansează o instanță nouă",
+    "sync": "Sincronizează toate conturile",
+    "theme": "Comută tema",
+    "sidebar": "Comută bara laterală",
+    "escape": "Golește selecția / închide dialogul"
   },
   "groups": {
     "cloud": "Cloud",
