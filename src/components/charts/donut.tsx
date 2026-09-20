@@ -29,8 +29,8 @@ export function DonutCard({ data, total, totalLabel, unit, ariaLabel, ...card }:
   const height = card.height ?? 220;
   return (
     <ChartCard {...card} height={height} empty={data.length === 0 || sum === 0}>
-      <div className="flex h-full min-w-0 items-center gap-4">
-        <div role="img" aria-label={ariaLabel} className="relative h-full shrink-0" style={{ width: height }}>
+      <div className="flex h-full min-w-0 flex-col items-center gap-4 sm:flex-row">
+        <div role="img" aria-label={ariaLabel} className="relative h-full w-full max-w-[var(--donut-size)] shrink-0 sm:w-[var(--donut-size)]" style={{ "--donut-size": `${height}px` } as React.CSSProperties}>
           <PieChart responsive style={{ width: "100%", height: "100%" }}>
             <Tooltip content={(p) => <ChartTooltip active={p.active} payload={p.payload} unit={unit} />} />
             <Pie data={data} dataKey="value" nameKey="name" innerRadius="68%" outerRadius="95%" paddingAngle={2} strokeWidth={0} isAnimationActive animationDuration={300}>
@@ -46,7 +46,7 @@ export function DonutCard({ data, total, totalLabel, unit, ariaLabel, ...card }:
             </div>
           </div>
         </div>
-        <ul className="min-w-0 flex-1 space-y-1 text-xs">
+        <ul className="w-full min-w-0 flex-1 space-y-1 text-xs">
           {data.map((d, i) => (
             <li key={d.name} className="flex items-center justify-between gap-2">
               <span className="flex min-w-0 items-center gap-1.5 text-fg-muted">

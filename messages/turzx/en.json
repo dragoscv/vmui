@@ -338,7 +338,7 @@
       },
       "device": {
         "label": "HA device slug",
-        "hint": "prefix of the sensor.<slug>_heart_rate etc. entities",
+        "hint": "prefix of the sensor.SLUG_heart_rate etc. entities",
         "placeholder": "dragos_s_s25_ultra"
       },
       "heightCm": {

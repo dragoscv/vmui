@@ -71,7 +71,7 @@ export function Panel({ title, description, action, children, className, id }: {
           <h2 className="text-sm font-semibold">{title}</h2>
           {description && <p className="mt-0.5 text-xs leading-snug text-muted">{description}</p>}
         </div>
-        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">{action}</div>}
       </header>
       {children}
     </section>

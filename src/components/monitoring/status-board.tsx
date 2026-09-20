@@ -83,8 +83,11 @@ export function StatusBoard(p: StatusBoardProps) {
         emptyTitle={t("noInstances")}
       />
 
-      <footer className="text-center text-[11px] text-fg-muted">
-        {t("signature")} <code className="font-mono">{p.signature}</code> · <code className="font-mono">HMAC-SHA256(VMUI_MASTER_KEY, payload)</code>
+      <footer className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[11px] text-fg-muted">
+        <span>{t("signature")}</span>
+        <code className="break-all font-mono">{p.signature}</code>
+        <span aria-hidden>·</span>
+        <code className="break-all font-mono">HMAC-SHA256(VMUI_MASTER_KEY, payload)</code>
       </footer>
     </div>
   );

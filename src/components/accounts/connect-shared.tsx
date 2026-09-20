@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Field, Input } from "@/components/ui";
-import { SelectContent, SelectItem, SelectTrigger, SelectValue, Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Copy, ExternalLink, HelpCircle, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -35,7 +35,7 @@ export function ConnectPanel({
           <h2 className="text-base font-semibold">{title}</h2>
           {description && <p className="mt-0.5 text-xs leading-snug text-muted">{description}</p>}
         </div>
-        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">{action}</div>}
       </header>
       {children}
     </section>

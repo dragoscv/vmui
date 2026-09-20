@@ -10,6 +10,20 @@ export interface RegionBucketPoint {
 const W = 900;
 const H = 460;
 
+/** Places each bubble label below its circle, flipping it above when it would collide with one already placed. */
+function layoutLabels(points: RegionBucketPoint[], max: number) {
+  const placed: { x: number; y: number }[] = [];
+  return points.map((p) => {
+    const r = 8 + Math.sqrt(p.n / max) * 36;
+    const below = p.y + r + 14;
+    const above = p.y - r - 6;
+    const collides = (y: number) => placed.some((q) => Math.abs(q.x - p.x) < 72 && Math.abs(q.y - y) < 14);
+    const y = collides(below) ? above : below;
+    placed.push({ x: p.x, y });
+    return { point: p, r, labelY: y };
+  });
+}
+
 export function RegionMap({
   points,
   max,
@@ -39,9 +53,7 @@ export function RegionMap({
               <line key={`v${i}`} x1={(W / 12) * i} y1={0} x2={(W / 12) * i} y2={H} />
             ))}
           </g>
-          {points.map((p) => {
-            const r = 8 + Math.sqrt(p.n / max) * 36;
-            return (
+          {layoutLabels(points, max).map(({ point: p, r, labelY }) => (
               <g key={p.label}>
                 <circle
                   cx={p.x}
@@ -54,12 +66,11 @@ export function RegionMap({
                 <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize={11} fill="var(--color-fg)" fontWeight={600}>
                   {p.n}
                 </text>
-                <text x={p.x} y={p.y + r + 12} textAnchor="middle" fontSize={9} fill="var(--color-fg-muted)">
+                <text x={p.x} y={labelY} textAnchor="middle" fontSize={12} fill="var(--color-fg-muted)">
                   {p.label}
                 </text>
               </g>
-            );
-          })}
+          ))}
         </svg>
       </div>
 

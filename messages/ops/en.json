@@ -108,7 +108,7 @@
     "editor": {
       "titleNew": "New stack",
       "titleEdit": "Edit · {name}",
-      "description": "YAML is written to /opt/compose/<name>/docker-compose.yml on the target and started with docker compose up -d."
+      "description": "YAML is written to /opt/compose/NAME/docker-compose.yml on the target and started with docker compose up -d."
     },
     "fields": {
       "name": "Name",

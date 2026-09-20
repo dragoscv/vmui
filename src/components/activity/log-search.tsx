@@ -114,7 +114,7 @@ export function LogSearch({ rows, total, facets, matched, query, accountNames, p
           ) : (
             <ol className="divide-y divide-border">
               {rows.map((r) => (
-                <li key={r.id} className="grid gap-x-3 gap-y-0.5 px-3 py-2 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] sm:items-baseline">
+                <li key={r.id} className="grid gap-x-3 gap-y-0.5 px-3 py-2 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-baseline">
                   <time dateTime={r.createdAt.toISOString()} className="whitespace-nowrap text-fg-muted" title={r.createdAt.toISOString()}>
                     {format.dateTime(r.createdAt, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </time>

@@ -166,7 +166,7 @@ export function DataTable<TData extends RowData>({
       {loading ? (
         <SkeletonTable rows={Math.min(pageSize, 8)} cols={Math.min(colCount, 6)} />
       ) : (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-border">
+        <div className="min-w-0 max-w-full overflow-x-auto rounded-[var(--radius-lg)] border border-border">
           <table className="w-full text-sm">
             <thead className={cn("text-xs text-muted", stickyHeader && "sticky top-0 z-[1] bg-surface/95 backdrop-blur")}>
               {table.getHeaderGroups().map((hg) => (

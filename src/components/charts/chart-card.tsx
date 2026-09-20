@@ -33,7 +33,7 @@ export function ChartCard({ title, description, action, height = 220, loading = 
           </h3>
           {description && <p className="mt-0.5 text-xs leading-snug text-fg-muted">{description}</p>}
         </div>
-        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">{action}</div>}
       </header>
       <div className="relative min-w-0" style={{ height }}>
         {loading ? (

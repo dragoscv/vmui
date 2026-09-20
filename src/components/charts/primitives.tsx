@@ -85,29 +85,32 @@ export function ChartDataTable<T extends object>({
   if (data.length === 0 || data.length > 50) return null;
   const rows = data as unknown as ChartDatum[];
   return (
-    <table className="sr-only">
-      <caption>{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">{x}</th>
-          {series.map((s) => (
-            <th key={s.key} scope="col">
-              {s.label}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr key={i}>
-            <th scope="row">{String(row[x] ?? "")}</th>
+    // The wrapper carries sr-only: a <table> ignores the 1px width (min-content wins) and would widen the page.
+    <div className="sr-only">
+      <table>
+        <caption>{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{x}</th>
             {series.map((s) => (
-              <td key={s.key}>{formatValue(format, row[s.key], unit)}</td>
+              <th key={s.key} scope="col">
+                {s.label}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i}>
+              <th scope="row">{String(row[x] ?? "")}</th>
+              {series.map((s) => (
+                <td key={s.key}>{formatValue(format, row[s.key], unit)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

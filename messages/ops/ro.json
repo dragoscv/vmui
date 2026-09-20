@@ -108,7 +108,7 @@
     "editor": {
       "titleNew": "Stack nou",
       "titleEdit": "Editare · {name}",
-      "description": "YAML-ul este scris în /opt/compose/<nume>/docker-compose.yml pe țintă și pornit cu docker compose up -d."
+      "description": "YAML-ul este scris în /opt/compose/NUME/docker-compose.yml pe țintă și pornit cu docker compose up -d."
     },
     "fields": {
       "name": "Nume",

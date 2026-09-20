@@ -187,7 +187,7 @@ function GeneralSection({ snapshot: s }: { snapshot: SettingsSnapshot }) {
           <Field
             className="sm:col-span-2"
             label={t("pwa.push")}
-            hint={t.rich("pwa.pushHint", { code: (chunks) => <code className="font-mono">{chunks}</code> })}
+            hint={t.rich("pwa.pushHint", { code: (chunks) => <code className="font-mono break-words">{chunks}</code> })}
           >
             <PushManager />
           </Field>

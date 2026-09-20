@@ -53,7 +53,7 @@ export function Alert({
         {title && <p className="font-semibold">{title}</p>}
         {children && <div className={cn(title && "text-muted")}>{children}</div>}
       </div>
-      {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+      {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">{action}</div>}
     </div>
   );
 }

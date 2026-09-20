@@ -19,7 +19,7 @@ export function PageShell({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("mx-auto w-full space-y-6", WIDTHS[width], className)}>{children}</div>;
+  return <div className={cn("page-enter mx-auto w-full space-y-6", WIDTHS[width], className)}>{children}</div>;
 }
 
 export function PageHeader({
@@ -51,13 +51,13 @@ export function PageHeader({
           )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
               {badge}
             </div>
             {description && <p className="mt-1 text-sm text-muted">{description}</p>}
           </div>
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
+        {actions && <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0">{actions}</div>}
       </div>
     </header>
   );
@@ -81,7 +81,7 @@ export function PageSection({
   const autoId = React.useId();
   const titleId = `${id ?? autoId}-title`;
   return (
-    <section id={id} aria-labelledby={titleId} className={cn("surface p-4 sm:p-5", className)}>
+    <section id={id} aria-labelledby={titleId} className={cn("surface min-w-0 p-4 sm:p-5", className)}>
       <header className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="min-w-0 flex-1 basis-[12rem]">
           <h2 id={titleId} className="text-sm font-semibold">
@@ -89,7 +89,7 @@ export function PageSection({
           </h2>
           {description && <p className="mt-0.5 text-xs leading-snug text-muted">{description}</p>}
         </div>
-        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        {action && <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">{action}</div>}
       </header>
       {children}
     </section>

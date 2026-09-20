@@ -6,28 +6,64 @@
     "syncHistory": "Istoric sincronizări",
     "exportNdjson": "NDJSON",
     "exportCsv": "CSV",
-    "stats": { "ok24h": "OK · ultimele 24h", "error24h": "Erori · ultimele 24h" },
+    "stats": {
+      "ok24h": "OK · ultimele 24h",
+      "error24h": "Erori · ultimele 24h"
+    },
     "searchPlaceholder": "Caută acțiuni, ținte, mesaje…",
-    "filters": { "status": "Stare", "range": "Interval", "account": "Cont", "allAccounts": "Toate conturile" },
-    "status": { "ok": "OK", "error": "Eroare" },
-    "range": { "1h": "1h", "24h": "24h", "7d": "7z", "30d": "30z", "all": "Tot" },
+    "filters": {
+      "status": "Stare",
+      "range": "Interval",
+      "account": "Cont",
+      "allAccounts": "Toate conturile"
+    },
+    "status": {
+      "ok": "OK",
+      "error": "Eroare"
+    },
+    "range": {
+      "1h": "1h",
+      "24h": "24h",
+      "7d": "7z",
+      "30d": "30z",
+      "all": "Tot"
+    },
     "live": "Live",
     "tail": "Urmărește",
     "paused": "Oprit",
     "loadMore": "Încă 50",
     "loadFailed": "Nu s-au putut încărca mai multe evenimente",
-    "columns": { "when": "Când", "action": "Acțiune", "target": "Țintă", "status": "Stare", "message": "Mesaj" },
-    "detail": { "id": "Id audit" },
-    "empty": { "title": "Niciun eveniment nu se potrivește", "description": "Lărgește intervalul sau elimină un filtru." },
-    "summary": { "title": "Vizualizare curentă", "shown": "Afișate", "count": "{shown} din {total}", "stream": "Flux" }
+    "columns": {
+      "when": "Când",
+      "action": "Acțiune",
+      "target": "Țintă",
+      "status": "Stare",
+      "message": "Mesaj"
+    },
+    "detail": {
+      "id": "Id audit"
+    },
+    "empty": {
+      "title": "Niciun eveniment nu se potrivește",
+      "description": "Lărgește intervalul sau elimină un filtru."
+    },
+    "summary": {
+      "title": "Vizualizare curentă",
+      "shown": "Afișate",
+      "count": "{shown} din {total}",
+      "stream": "Flux"
+    }
   },
   "archive": {
     "title": "Arhive audit",
     "description": "Rândurile din jurnalul de audit mai vechi de 30 de zile sunt comprimate și mutate aici.",
     "fileCount": "{count, plural, =0 {niciun fișier} one {# fișier} few {# fișiere} other {# de fișiere}}",
     "filesTitle": "Fișiere arhivate",
-    "inspectHint": "Inspectează un fișier cu gunzip -c {dir}/<fișier>",
-    "empty": { "title": "Nicio arhivă încă", "description": "Apar după primul ciclu de curățare, 24 de ore de la pornire." }
+    "inspectHint": "Inspectează un fișier cu gunzip -c {dir}/FIȘIER",
+    "empty": {
+      "title": "Nicio arhivă încă",
+      "description": "Apar după primul ciclu de curățare, 24 de ore de la pornire."
+    }
   },
   "sync": {
     "title": "Istoric sincronizări",
@@ -37,14 +73,35 @@
     "tableTitle": "Evenimente de sincronizare",
     "tableHint": "Apasă pe un rând pentru a vedea ce instanțe s-au schimbat.",
     "ms": "{n} ms",
-    "columns": { "when": "Când", "account": "Cont", "region": "Regiune", "delta": "Modificări", "total": "Total", "duration": "Durată" },
-    "detail": { "added": "Adăugate", "removed": "Eliminate", "stateChanged": "Stare schimbată", "noChanges": "Nu s-au înregistrat detalii la nivel de instanță" },
-    "empty": { "title": "Nicio diferență de sincronizare încă", "description": "Modificările vor apărea aici pe măsură ce VM-urile apar și dispar." }
+    "columns": {
+      "when": "Când",
+      "account": "Cont",
+      "region": "Regiune",
+      "delta": "Modificări",
+      "total": "Total",
+      "duration": "Durată"
+    },
+    "detail": {
+      "added": "Adăugate",
+      "removed": "Eliminate",
+      "stateChanged": "Stare schimbată",
+      "noChanges": "Nu s-au înregistrat detalii la nivel de instanță"
+    },
+    "empty": {
+      "title": "Nicio diferență de sincronizare încă",
+      "description": "Modificările vor apărea aici pe măsură ce VM-urile apar și dispar."
+    }
   },
   "monitoring": {
     "title": "Monitorizare",
     "description": "Tendințe de resurse ale flotei, instalare node_exporter dintr-un clic, configurație Prometheus și un panou Grafana încorporat.",
-    "stats": { "monitored": "Gazde accesibile", "samples": "Eșantioane probă", "window": "ultimele 6 ore", "cpuNow": "CPU acum", "memNow": "Memorie acum" },
+    "stats": {
+      "monitored": "Gazde accesibile",
+      "samples": "Eșantioane probă",
+      "window": "ultimele 6 ore",
+      "cpuNow": "CPU acum",
+      "memNow": "Memorie acum"
+    },
     "charts": {
       "cpu": "CPU",
       "mem": "Memorie",
@@ -62,10 +119,19 @@
       "title": "Gazde",
       "description": "Instanțe Linux și macOS pornite, accesibile prin SSH.",
       "deploy": "Instalează exporter",
-      "empty": { "title": "Nicio gazdă accesibilă", "description": "Pornește o instanță Linux sau macOS cu adresă publică pentru a instala node_exporter." }
+      "empty": {
+        "title": "Nicio gazdă accesibilă",
+        "description": "Pornește o instanță Linux sau macOS cu adresă publică pentru a instala node_exporter."
+      }
     },
     "deployed": "node_exporter instalat",
-    "columns": { "instance": "Instanță", "provider": "Furnizor", "cpu": "CPU", "mem": "Memorie", "result": "Ultimul rezultat" },
+    "columns": {
+      "instance": "Instanță",
+      "provider": "Furnizor",
+      "cpu": "CPU",
+      "mem": "Memorie",
+      "result": "Ultimul rezultat"
+    },
     "prom": {
       "title": "Configurație Prometheus",
       "description": "Generată din flota pornită — lipește în prometheus.yml.",
@@ -86,8 +152,16 @@
     "description": "Reguli de prag peste metricile live, trimise către Discord, Slack, ntfy, e-mail, webhook-uri sau notificări în browser.",
     "firingCount": "{count, plural, one {# activă} few {# active} other {# active}}",
     "allQuiet": "Totul e liniștit",
-    "firingBanner": { "title": "{count, plural, one {# alertă este activă} few {# alerte sunt active} other {# de alerte sunt active}}", "more": "+{count} în plus" },
-    "stats": { "rules": "Reguli", "enabled": "{count} activate", "channels": "Canale", "firing": "Active acum" },
+    "firingBanner": {
+      "title": "{count, plural, one {# alertă este activă} few {# alerte sunt active} other {# de alerte sunt active}}",
+      "more": "+{count} în plus"
+    },
+    "stats": {
+      "rules": "Reguli",
+      "enabled": "{count} activate",
+      "channels": "Canale",
+      "firing": "Active acum"
+    },
     "rules": {
       "title": "Reguli",
       "description": "Depășirile susținute ale pragului declanșează o alertă; perioada de răcire suprimă repetările.",
@@ -99,10 +173,30 @@
       "enable": "Activează regula",
       "disable": "Dezactivează regula",
       "confirmDelete": "Ștergi regula „{name}”?",
-      "columns": { "enabled": "Activ", "name": "Nume", "severity": "Severitate", "expression": "Condiție" },
-      "severity": { "info": "Informativ", "warning": "Avertisment", "critical": "Critic" },
-      "metric": { "cpu": "CPU %", "mem": "Memorie %", "disk": "Disc %", "net_in": "Rețea intrare", "net_out": "Rețea ieșire", "load1": "Încărcare (1m)", "uptime": "Timp de funcționare" },
-      "sheet": { "title": "Regulă de alertă nouă", "description": "Se declanșează când condiția se menține pe toată fereastra." },
+      "columns": {
+        "enabled": "Activ",
+        "name": "Nume",
+        "severity": "Severitate",
+        "expression": "Condiție"
+      },
+      "severity": {
+        "info": "Informativ",
+        "warning": "Avertisment",
+        "critical": "Critic"
+      },
+      "metric": {
+        "cpu": "CPU %",
+        "mem": "Memorie %",
+        "disk": "Disc %",
+        "net_in": "Rețea intrare",
+        "net_out": "Rețea ieșire",
+        "load1": "Încărcare (1m)",
+        "uptime": "Timp de funcționare"
+      },
+      "sheet": {
+        "title": "Regulă de alertă nouă",
+        "description": "Se declanșează când condiția se menține pe toată fereastra."
+      },
       "form": {
         "name": "Nume",
         "severity": "Severitate",
@@ -118,7 +212,10 @@
         "channels": "Canale",
         "noChannels": "Creează mai întâi un canal."
       },
-      "empty": { "title": "Nicio regulă încă", "description": "Încearcă: CPU > 80 % menținut 2 min, răcire 10 min." }
+      "empty": {
+        "title": "Nicio regulă încă",
+        "description": "Încearcă: CPU > 80 % menținut 2 min, răcire 10 min."
+      }
     },
     "channels": {
       "title": "Canale",
@@ -127,8 +224,18 @@
       "created": "Canal creat",
       "testSent": "Alertă de test trimisă",
       "confirmDelete": "Ștergi canalul „{name}”?",
-      "kind": { "toast": "Notificare în browser", "discord": "Discord", "slack": "Slack", "ntfy": "ntfy", "webhook": "Webhook", "smtp": "E-mail (SMTP)" },
-      "sheet": { "title": "Canal nou", "description": "Alege tipul și completează datele de acces." },
+      "kind": {
+        "toast": "Notificare în browser",
+        "discord": "Discord",
+        "slack": "Slack",
+        "ntfy": "ntfy",
+        "webhook": "Webhook",
+        "smtp": "E-mail (SMTP)"
+      },
+      "sheet": {
+        "title": "Canal nou",
+        "description": "Alege tipul și completează datele de acces."
+      },
       "fields": {
         "name": "Nume",
         "kind": "Tip",
@@ -146,17 +253,32 @@
         "from": "De la",
         "to": "Către"
       },
-      "empty": { "title": "Niciun canal încă", "description": "Adaugă Discord, Slack, ntfy, SMTP, un webhook sau notificări în browser." }
+      "empty": {
+        "title": "Niciun canal încă",
+        "description": "Adaugă Discord, Slack, ntfy, SMTP, un webhook sau notificări în browser."
+      }
     },
     "firings": {
       "title": "Alerte recente",
       "description": "Ultimele 50 de depășiri de prag și rezultatele livrării.",
-      "columns": { "when": "Când", "status": "Stare", "metric": "Metrică", "instance": "Instanță", "deliveries": "Livrări" },
-      "status": { "firing": "Activă", "resolved": "Rezolvată" },
+      "columns": {
+        "when": "Când",
+        "status": "Stare",
+        "metric": "Metrică",
+        "instance": "Instanță",
+        "deliveries": "Livrări"
+      },
+      "status": {
+        "firing": "Activă",
+        "resolved": "Rezolvată"
+      },
       "exceeds": "depășește",
       "backBelow": "a revenit sub",
       "delivered": "Livrată",
-      "empty": { "title": "Nicio alertă încă", "description": "Regulile devin active după prima depășire a pragului." }
+      "empty": {
+        "title": "Nicio alertă încă",
+        "description": "Regulile devin active după prima depășire a pragului."
+      }
     }
   },
   "logs": {
@@ -166,16 +288,34 @@
     "matches": "{count, plural, =0 {nicio potrivire} one {# potrivire} few {# potriviri} other {# de potriviri}}",
     "results": "Rezultatele căutării",
     "loadOlder": "Încarcă mai vechi",
-    "facets": { "title": "Filtre", "status": "Stare", "action": "Acțiune", "account": "Cont" },
-    "empty": { "title": "Nicio intrare nu se potrivește", "description": "Încearcă mai puține cuvinte sau elimină un filtru." }
+    "facets": {
+      "title": "Filtre",
+      "status": "Stare",
+      "action": "Acțiune",
+      "account": "Cont"
+    },
+    "empty": {
+      "title": "Nicio intrare nu se potrivește",
+      "description": "Încearcă mai puține cuvinte sau elimină un filtru."
+    }
   },
   "notifications": {
     "title": "Notificări",
     "description": "Căsuță de mesaje curatoriată, cu elemente ce pot fi respinse, derivată din evenimentele sistemului.",
     "unreadCount": "{count, plural, one {# necitită} few {# necitite} other {# necitite}}",
     "fullRecord": "Jurnal complet",
-    "filters": { "label": "Filtru", "all": "Toate", "unread": "Necitite", "category": "Categorie" },
-    "severity": { "info": "Informativ", "success": "Succes", "warning": "Avertisment", "error": "Eroare" },
+    "filters": {
+      "label": "Filtru",
+      "all": "Toate",
+      "unread": "Necitite",
+      "category": "Categorie"
+    },
+    "severity": {
+      "info": "Informativ",
+      "success": "Succes",
+      "warning": "Avertisment",
+      "error": "Eroare"
+    },
     "markAllRead": "Marchează toate ca citite",
     "markedRead": "Toate marcate ca citite",
     "dismissAll": "Respinge toate",
@@ -184,19 +324,40 @@
     "dismissed": "respinsă",
     "new": "Nou",
     "open": "Deschide",
-    "empty": { "title": "Nimic de văzut aici", "description": "Programări eșuate, depășiri de buget și constatări de conformitate vor apărea aici." }
+    "empty": {
+      "title": "Nimic de văzut aici",
+      "description": "Programări eșuate, depășiri de buget și constatări de conformitate vor apărea aici."
+    }
   },
   "timeline": {
     "title": "Mașina timpului",
     "description": "Derulează prin eșantioanele de probă și evenimentele de audit împreună pentru a inspecta orice moment.",
     "instance": "Instanță",
     "rangeLabel": "Interval",
-    "range": { "1h": "1h", "6h": "6h", "24h": "24h", "7d": "7z" },
+    "range": {
+      "1h": "1h",
+      "6h": "6h",
+      "24h": "24h",
+      "7d": "7z"
+    },
     "loading": "Se încarcă…",
     "scrub": "Derulează în timp",
-    "chart": { "title": "CPU și memorie", "description": "Eșantioane de probă în intervalul selectat.", "aria": "Utilizarea CPU și a memoriei în intervalul selectat", "empty": "Niciun eșantion în acest interval" },
-    "metrics": { "cpu": "CPU", "mem": "Memorie", "netIn": "Rețea intrare", "netOut": "Rețea ieșire" },
-    "events": { "title": "Evenimente de audit lângă cursor", "empty": "Niciun eveniment în această felie" }
+    "chart": {
+      "title": "CPU și memorie",
+      "description": "Eșantioane de probă în intervalul selectat.",
+      "aria": "Utilizarea CPU și a memoriei în intervalul selectat",
+      "empty": "Niciun eșantion în acest interval"
+    },
+    "metrics": {
+      "cpu": "CPU",
+      "mem": "Memorie",
+      "netIn": "Rețea intrare",
+      "netOut": "Rețea ieșire"
+    },
+    "events": {
+      "title": "Evenimente de audit lângă cursor",
+      "empty": "Niciun eveniment în această felie"
+    }
   },
   "status": {
     "title": "Stare",
@@ -204,7 +365,12 @@
     "operational": "Toate sistemele funcționează",
     "degraded": "Degradat",
     "generatedAt": "Generat {when}",
-    "stats": { "instances": "Instanțe", "running": "Pornite", "stopped": "Oprite", "hourly": "Pe oră" },
+    "stats": {
+      "instances": "Instanțe",
+      "running": "Pornite",
+      "stopped": "Oprite",
+      "hourly": "Pe oră"
+    },
     "uptime": {
       "title": "Rata de succes pe 30 de zile",
       "row": "Rată de succes",
@@ -225,7 +391,13 @@
     "description": "Detecție prin scor z pe cheltuiala zilnică a flotei. Zilele dincolo de ±{threshold}σ sunt marcate.",
     "anomalyCount": "{count, plural, one {# anomalie} few {# anomalii} other {# de anomalii}}",
     "none": "Nicio anomalie",
-    "stats": { "mean": "Media zilnică", "stdDev": "Abatere standard", "window": "Fereastră", "days": "{count, plural, one {# zi} few {# zile} other {# de zile}}", "anomalies": "Anomalii" },
+    "stats": {
+      "mean": "Media zilnică",
+      "stdDev": "Abatere standard",
+      "window": "Fereastră",
+      "days": "{count, plural, one {# zi} few {# zile} other {# de zile}}",
+      "anomalies": "Anomalii"
+    },
     "chart": {
       "title": "Cheltuială zilnică",
       "description": "Punctele marchează zilele aflate în afara ±{threshold}σ față de medie.",
@@ -234,8 +406,16 @@
       "upper": "limită superioară",
       "needMore": "Sunt necesare cel puțin 3 zile de instantanee de cost"
     },
-    "columns": { "day": "Zi", "spend": "Cheltuială", "zScore": "Scor z", "vsMean": "față de medie" },
-    "empty": { "title": "Nicio anomalie detectată", "description": "Cheltuiala zilnică a rămas în banda așteptată." }
+    "columns": {
+      "day": "Zi",
+      "spend": "Cheltuială",
+      "zScore": "Scor z",
+      "vsMean": "față de medie"
+    },
+    "empty": {
+      "title": "Nicio anomalie detectată",
+      "description": "Cheltuiala zilnică a rămas în banda așteptată."
+    }
   },
   "playback": {
     "title": "Redare anomalii",
@@ -251,9 +431,16 @@
     "restart": "Reia",
     "speed": "Viteză",
     "scrub": "Poziție",
-    "chart": { "title": "Redare", "description": "Apasă Redă pentru a dezvălui eșantioanele în timp.", "aria": "Utilizarea animată a CPU-ului și a memoriei" },
+    "chart": {
+      "title": "Redare",
+      "description": "Apasă Redă pentru a dezvălui eșantioanele în timp.",
+      "aria": "Utilizarea animată a CPU-ului și a memoriei"
+    },
     "empty": "Niciun eșantion în această fereastră — verifică dacă proba de statistici live rulează.",
-    "noInstances": { "title": "Nicio instanță", "description": "Adaugă un cont cloud și sincronizează pentru a obține eșantioane." }
+    "noInstances": {
+      "title": "Nicio instanță",
+      "description": "Adaugă un cont cloud și sincronizează pentru a obține eșantioane."
+    }
   },
   "recordings": {
     "title": "Înregistrări terminal",
@@ -262,8 +449,17 @@
     "listTitle": "Înregistrări",
     "play": "Redă",
     "download": "Descarcă .cast",
-    "columns": { "when": "Când", "label": "Instanță", "duration": "Durată", "size": "Dimensiune", "term": "Terminal" },
-    "empty": { "title": "Nicio înregistrare încă", "description": "Deschide o sesiune de terminal pentru a începe una." },
+    "columns": {
+      "when": "Când",
+      "label": "Instanță",
+      "duration": "Durată",
+      "size": "Dimensiune",
+      "term": "Terminal"
+    },
+    "empty": {
+      "title": "Nicio înregistrare încă",
+      "description": "Deschide o sesiune de terminal pentru a începe una."
+    },
     "player": {
       "title": "Redare",
       "back": "Toate înregistrările",
@@ -282,8 +478,17 @@
     "headlineClean": "{count, plural, one {# acțiune} few {# acțiuni} other {# de acțiuni}} în ultimele {hours}h, toate curate.",
     "headlineErrors": "{count, plural, one {# acțiune} few {# acțiuni} other {# de acțiuni}} în ultimele {hours}h — {errors, plural, one {# eroare} few {# erori} other {# de erori}} de verificat.",
     "windowLabel": "Fereastră",
-    "window": { "1": "1h", "6": "6h", "24": "24h", "168": "7z" },
-    "stats": { "events": "Evenimente", "errors": "Erori", "fleetRunning": "Flotă pornită" },
+    "window": {
+      "1": "1h",
+      "6": "6h",
+      "24": "24h",
+      "168": "7z"
+    },
+    "stats": {
+      "events": "Evenimente",
+      "errors": "Erori",
+      "fleetRunning": "Flotă pornită"
+    },
     "topActions": "Cele mai frecvente acțiuni",
     "topActionsHint": "Operațiunile cele mai frecvente din fereastră.",
     "topActionsAria": "Grafic cu bare al celor mai frecvente acțiuni",
@@ -305,7 +510,10 @@
     "copied": "Markdown copiat",
     "copyFailed": "Clipboard indisponibil",
     "system": "sistem",
-    "empty": { "title": "Niciun eveniment notabil în această fereastră", "description": "Porniri, opriri, instantanee și modificări de politici vor apărea aici." }
+    "empty": {
+      "title": "Niciun eveniment notabil în această fereastră",
+      "description": "Porniri, opriri, instantanee și modificări de politici vor apărea aici."
+    }
   },
   "actionHistory": {
     "title": "Istoric acțiuni",
@@ -313,8 +521,17 @@
     "count": "{count, plural, =0 {nicio intrare} one {# intrare} few {# intrări} other {# de intrări}}",
     "replay": "Reia",
     "replayed": "Acțiune reluată",
-    "columns": { "when": "Când", "action": "Acțiune", "target": "Țintă", "status": "Stare", "message": "Mesaj" },
-    "empty": { "title": "Niciun rând potrivit", "description": "Încearcă o altă căutare." }
+    "columns": {
+      "when": "Când",
+      "action": "Acțiune",
+      "target": "Țintă",
+      "status": "Stare",
+      "message": "Mesaj"
+    },
+    "empty": {
+      "title": "Niciun rând potrivit",
+      "description": "Încearcă o altă căutare."
+    }
   },
   "savedSearches": {
     "title": "Căutări salvate",
@@ -334,12 +551,18 @@
       "queryHint": "de ex. provider=aws&state=running",
       "pinned": "Fixează sus"
     },
-    "empty": { "title": "Nicio căutare salvată", "description": "Salvează o combinație de filtre pe care o folosești des." }
+    "empty": {
+      "title": "Nicio căutare salvată",
+      "description": "Salvează o combinație de filtre pe care o folosești des."
+    }
   },
   "offline": {
     "title": "Ești offline",
     "description": "vmui nu poate ajunge la planul de control în acest moment.",
-    "empty": { "title": "Lucrezi din cache", "description": "Instantaneul flotei pe care l-ai văzut ultima dată este încă pe acest dispozitiv." },
+    "empty": {
+      "title": "Lucrezi din cache",
+      "description": "Instantaneul flotei pe care l-ai văzut ultima dată este încă pe acest dispozitiv."
+    },
     "openDashboard": "Deschide panoul",
     "whatWorks": {
       "title": "Ce funcționează în continuare",

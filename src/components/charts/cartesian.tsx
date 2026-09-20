@@ -59,10 +59,16 @@ function useAxes<T extends object>(props: CartesianChartProps<T>) {
   const extras = (
     <>
       {props.referenceLines?.map((r, i) => (
-        <ReferenceLine key={`ref-${i}`} y={r.y} stroke={toneColor(theme, r.tone ?? "warning", i)} strokeDasharray="4 4" label={r.label ? { value: r.label, fill: theme.axis, fontSize: 10, position: "insideTopRight" } : undefined} />
+        <ReferenceLine
+          key={`ref-${i}`}
+          y={r.y}
+          stroke={toneColor(theme, r.tone ?? "warning", i)}
+          strokeDasharray="4 4"
+          label={r.label ? { value: r.label, fill: theme.axis, fontSize: 11, position: i % 2 ? "insideBottomLeft" : "insideTopRight", dy: i % 2 ? 14 : -4 } : undefined}
+        />
       ))}
       {props.markers?.map((m, i) => (
-        <ReferenceDot key={`dot-${i}`} x={m.x} y={m.y} r={5} fill={toneColor(theme, m.tone ?? "danger", i)} stroke={theme.tooltipBg} strokeWidth={2} label={m.label ? { value: m.label, fill: theme.axis, fontSize: 10, position: "top" } : undefined} />
+        <ReferenceDot key={`dot-${i}`} x={m.x} y={m.y} r={5} fill={toneColor(theme, m.tone ?? "danger", i)} stroke={theme.tooltipBg} strokeWidth={2} label={m.label ? { value: m.label, fill: theme.axis, fontSize: 11, position: "top" } : undefined} />
       ))}
     </>
   );

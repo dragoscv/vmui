@@ -121,7 +121,7 @@ function AccountsGrid({ accounts }: { accounts: AccountCardData[] }) {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
-          className="surface card-hover flex flex-col gap-3 p-4"
+          className="surface card-hover flex min-w-0 flex-col gap-3 p-4"
         >
           <div className="flex items-start gap-3">
             <ProviderTile provider={a.provider} size="lg" />

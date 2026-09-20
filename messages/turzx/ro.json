@@ -338,7 +338,7 @@
       },
       "device": {
         "label": "Slug dispozitiv HA",
-        "hint": "prefixul entităților sensor.<slug>_heart_rate etc.",
+        "hint": "prefixul entităților sensor.SLUG_heart_rate etc.",
         "placeholder": "dragos_s_s25_ultra"
       },
       "heightCm": {

@@ -45,7 +45,7 @@ export function Stat({
           </span>
         )}
       </div>
-      <div className={cn("text-2xl font-semibold leading-none tabular-nums", VALUE_TONE[tone])}>{value}</div>
+      <div className={cn("font-display text-2xl font-semibold leading-none tabular-nums", VALUE_TONE[tone])}>{value}</div>
       {(trend || hint) && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           {trend && TrendIcon && (
