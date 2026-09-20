@@ -90,12 +90,12 @@ ID, so this must be solved too — see [`07-smbios.md`](07-smbios.md).
 
 Usually not. Read this before starting.
 
-| Option                        | Cost      | Ongoing effort               | Gets simulators |
-| ----------------------------- | --------- | ---------------------------- | --------------- |
-| Keep the WSL2 VM              | €0        | none                         | no              |
-| Dual-boot Linux + RX 580      | ~€85      | reboot for every session     | yes             |
-| Linux as primary OS + RX 580  | ~€85      | relearn the desktop          | yes             |
-| Used M-series Mac mini        | ~€450–500 | none                         | yes, and faster |
+| Option                       | Cost      | Ongoing effort           | Gets simulators |
+| ---------------------------- | --------- | ------------------------ | --------------- |
+| Keep the WSL2 VM             | €0        | none                     | no              |
+| Dual-boot Linux + RX 580     | ~€85      | reboot for every session | yes             |
+| Linux as primary OS + RX 580 | ~€85      | relearn the desktop      | yes             |
+| Used M-series Mac mini       | ~€450–500 | none                     | yes, and faster |
 
 **The hidden cost is maintenance, not money.** A Hackintosh VM breaks in ways
 real hardware does not — one session of work here hit the SMP install trap, an

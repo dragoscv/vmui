@@ -29,15 +29,28 @@
   -MaxUptimeHours, so the weekly task is a no-op on a freshly started service.
 
 .PARAMETER MaxUptimeHours
-  Restart only past this uptime. Default 8.
+  Restart only past this uptime. Default 24.
 
-  The original 40 h came from ONE observation (a service up ~45 h). With eight
-  failures now recorded against uptime — 0, 10.4, 12, 14.1, 14.2, 16.4, 16.5
-  and 22.1 h — seven were above 10 h, so a 40 h guard essentially never fired
-  when it mattered. 8 h restarts before the band where failures cluster.
+  Two earlier values were wrong, both from the same mistake — reading failure
+  TIMESTAMPS without normalising for how long the tunnel actually spent at
+  each uptime:
 
-  The 0 h outlier matters too: restarting reduces the rate but does not
-  eliminate the fault, whose origin is the client-side proxy abort.
+  - 40 h, from a single observation of a service up ~45 h.
+  - 8 h, because seven of eight failures were above 10 h uptime.
+
+  Normalised by time spent in each band, the rate does NOT rise with uptime:
+
+      0-4h  0.42/h      12-16h  0.73/h
+      4-8h  0.00/h      16-20h  0.50/h
+      8-12h 0.25/h      20-24h  0.44/h
+
+  Mean 0.39/h, sd 0.22, no monotonic trend — noise, not degradation. Uptime is
+  not a predictor, so this restart is hygiene (it does clear a genuinely wedged
+  service) rather than a fix. 24 h avoids churning a healthy tunnel every few
+  hours for no measured benefit.
+
+  The real origin is the client-side proxy abort — see
+  /memories/repo/tunnel-topology.md.
 
 .NOTES
   The tunnel task runs S4U, so its processes cannot be stopped from an
@@ -47,7 +60,7 @@
 [CmdletBinding()]
 param(
     [switch]$Force,
-    [int]$MaxUptimeHours = 8,
+    [int]$MaxUptimeHours = 24,
     [string]$TaskName = 'VSCodeTunnel-dragos'
 )
 

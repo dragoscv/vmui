@@ -44,6 +44,7 @@ param(
   [int]$Cpus             = 4,
   [string]$SwitchName    = 'Default Switch',
   [string]$ImageName     = 'Windows 11 Enterprise',
+  [string]$ProductKey    = 'NPPR9-FWDCX-D2C8J-H872K-2YT43',
   [switch]$ForceRecreate,
   [switch]$KeepStaging,
   [switch]$SkipIsoBuild
@@ -144,7 +145,8 @@ if (-not $SkipIsoBuild -or -not (Test-Path $bakedIso)) {
   $xml = New-VmuiAutounattendXml -Username $Username `
                                   -Password $Password `
                                   -ComputerName $ComputerName `
-                                  -ImageName $ImageName
+                                  -ImageName $ImageName `
+                                  -ProductKey $ProductKey
   # Setup expects UTF-8. Use a writer that does NOT emit a BOM.
   [System.IO.File]::WriteAllText($autounattendPath, $xml, [System.Text.UTF8Encoding]::new($false))
   Write-Host "      wrote $autounattendPath ($((Get-Item $autounattendPath).Length) bytes)"

@@ -2,10 +2,10 @@
 // Re-runnable: skips kinds that already exist (matched by metadata accountId).
 // Run with: pnpm node scripts/seed-local-vms.mjs
 
-import { createCipheriv, randomBytes } from "node:crypto";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
 import Database from "better-sqlite3";
+import { createCipheriv, randomBytes } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 // --- load .env (simple parser, no deps) ---
 const envPath = resolve(process.cwd(), ".env");

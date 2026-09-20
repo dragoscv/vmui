@@ -34,7 +34,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'CompactWslDisks', 'KillIdleRemoteShells', 'RestartRemoteExtHost', 'Status')]
+    [ValidateSet('TunnelRefresh', 'TunnelForceRestart', 'KillRunawayRenderer', 'WatchExtensionHost', 'InstallVmSshKey', 'FixSshShell', 'CreateSshUser', 'ExposeDevServices', 'DisableSystemRestore', 'PruneDocker', 'CompactWslDisks', 'KillIdleRemoteShells', 'RestartRemoteExtHost', 'Status')]
     [string]$Operation = 'Status',
     [switch]$Register
 )
@@ -52,6 +52,32 @@ function Write-Log([string]$m) {
     try { Add-Content -Path $log -Value $line -ErrorAction Stop }
     catch { Add-Content -Path (Join-Path $env:USERPROFILE '.codai\maintenance.log') -Value $line -ErrorAction SilentlyContinue }
     Write-Host $line
+}
+
+function Invoke-DockerPrune {
+    # Growth source measured 2026-09-17: every brivio/codai image build left
+    # its tag locally (47 tags of brivio-prod-web = 101 GB), buildx cache was
+    # unbounded (178 GB) and 378 volumes from dead compose projects lingered
+    # (122 GB). This keeps anything a running container uses and anything
+    # built in the last 3 days, so a dev iterating today loses nothing.
+    if (-not (& docker info --format '{{.ServerVersion}}' 2>$null)) {
+        Write-Log 'PruneDocker: docker engine not reachable, skipped'
+        return
+    }
+    $before = (& docker system df --format '{{.Type}} {{.Size}}' 2>$null) -join '; '
+    Write-Log "PruneDocker: before -> $before"
+    $r = & docker image prune -a -f --filter 'until=72h' 2>&1 | Select-Object -Last 1
+    Write-Log "PruneDocker: images -> $r"
+    $r = & docker builder prune -f --keep-storage 20GB 2>&1 | Select-Object -Last 1
+    Write-Log "PruneDocker: build cache -> $r"
+    $r = & docker volume prune -a -f 2>&1 | Select-Object -Last 1
+    Write-Log "PruneDocker: volumes -> $r"
+    # Docker inside Ubuntu-24.04 (runners) and its own dangling volumes,
+    # then fstrim so Optimize-VHD can actually reclaim the freed blocks.
+    $r = & wsl -d Ubuntu-24.04 -u root -- sh -c 'docker volume prune -a -f 2>/dev/null | tail -1; docker image prune -a -f 2>/dev/null | tail -1; fstrim -v / 2>&1' 2>&1
+    Write-Log ("PruneDocker: Ubuntu-24.04 -> {0}" -f ($r -join ' | '))
+    $after = (& docker system df --format '{{.Type}} {{.Size}}' 2>$null) -join '; '
+    Write-Log "PruneDocker: after -> $after"
 }
 
 # --------------------------------------------------------------------------
@@ -154,9 +180,17 @@ if ($Register) {
         }
         ,
         @{
+            Name = 'CodaiMaint-PruneDocker'
+            Op   = 'PruneDocker'
+            Desc = 'Weekly, non-disruptive: drop Docker images unused for 3 days, cap build cache at 20 GB, remove dangling volumes, fstrim Ubuntu-24.04. Keeps every running container and its volumes.'
+            Daily = '04:30'
+            Weekly = 'Sunday'
+        }
+        ,
+        @{
             Name = 'CodaiMaint-CompactWslDisks'
             Op   = 'CompactWslDisks'
-            Desc = 'docker system prune, then wsl --shutdown and Optimize-VHD every WSL/Docker ext4.vhdx. DISRUPTIVE: stops every WSL distro and container. On demand only.'
+            Desc = 'PruneDocker, then stop Docker Desktop, wsl --shutdown and Optimize-VHD every WSL/Docker ext4.vhdx. DISRUPTIVE: stops every WSL distro and container for 10-30 min. On demand only.'
             Daily = $null
         }
         ,
@@ -196,7 +230,8 @@ if ($Register) {
             Force       = $true
         }
         if ($t.Daily) {
-            $trigger = New-ScheduledTaskTrigger -Daily -At $t.Daily
+            $trigger = if ($t.Weekly) { New-ScheduledTaskTrigger -Weekly -DaysOfWeek $t.Weekly -At $t.Daily }
+                       else { New-ScheduledTaskTrigger -Daily -At $t.Daily }
             if ($t.Repeat) {
                 # A once-a-day refresh cannot hold uptime under 8 h. Repeat
                 # through the day; each run is threshold-guarded, so it is a
@@ -209,7 +244,7 @@ if ($Register) {
         }
 
         Register-ScheduledTask @params | Out-Null
-        $when = if ($t.Daily) { "daily at $($t.Daily)" } else { 'on demand' }
+        $when = if ($t.Weekly) { "$($t.Weekly) at $($t.Daily)" } elseif ($t.Daily) { "daily at $($t.Daily)" } else { 'on demand' }
         Write-Host ("  registered {0,-34} {1}" -f $t.Name, $when) -ForegroundColor Green
     }
 
@@ -241,6 +276,11 @@ if ($Register) {
 # Operations
 # --------------------------------------------------------------------------
 switch ($Operation) {
+
+    'PruneDocker' {
+        Invoke-DockerPrune
+        exit 0
+    }
 
     'TunnelRefresh' {
         # Threshold-guarded: a no-op on a healthy service, so the daily
@@ -300,10 +340,10 @@ switch ($Operation) {
 
     'CompactWslDisks' {
         # WSL virtual disks grow on demand and never shrink. Measured
-        # 2026-09-14 on C:: docker_data.vhdx 404 GB, Ubuntu-24.04 236 GB,
-        # Ubuntu 117 GB, while the guests reported 48 GB used. Optimize-VHD
-        # needs the disk detached, so every distro is shut down; the brivio
-        # docker stack (restart: unless-stopped) comes back on next wsl start.
+        # 2026-09-17 on C:: docker_data.vhdx 502 GB with 60 GB of live data,
+        # Ubuntu-24.04 311 GB with 200 GB used. Optimize-VHD needs the disk
+        # detached, so every distro is shut down; the brivio docker stack
+        # (restart: unless-stopped) comes back on next wsl start.
         $wslDisks = @()
         foreach ($k in Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss' -ErrorAction SilentlyContinue) {
             $bp = (Get-ItemProperty $k.PSPath).BasePath -replace '^\\\\\?\\', ''
@@ -316,17 +356,27 @@ switch ($Operation) {
         $before = 0; foreach ($d in $wslDisks) { $before += (Get-Item $d).Length }
         Write-Log ("CompactWslDisks: {0} disks, {1:N1} GB before" -f $wslDisks.Count, ($before/1GB))
 
-        $prune = & wsl -d Ubuntu -u root -- docker system prune -f 2>&1 | Select-Object -Last 1
-        Write-Log "CompactWslDisks: docker prune -> $prune"
+        Invoke-DockerPrune
 
-        & wsl --shutdown
-        Start-Sleep -Seconds 8
-        # Docker Desktop holds its own vhdx open; stop it or Optimize-VHD fails with "in use".
-        # It is relaunched at the end via explorer.exe so the GUI runs UNELEVATED —
-        # an elevated Docker Desktop shows no window and cannot be stopped from a
-        # normal session (2026-09-14: "Docker nu porneste" was exactly this).
+        # Docker Desktop must die BEFORE wsl --shutdown: it restarts its
+        # distro (and Ubuntu-24.04, via the WSL integration) within seconds,
+        # and the 2026-09-17 run compacted only docker_data because Ubuntu
+        # was already Running again. It is relaunched at the end via
+        # explorer.exe so the GUI runs UNELEVATED — an elevated Docker Desktop
+        # shows no window and cannot be stopped from a normal session.
         Get-Process 'Docker Desktop', 'com.docker.backend', 'com.docker.build' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 5
+        $down = $false
+        for ($i = 0; $i -lt 6 -and -not $down; $i++) {
+            & wsl --shutdown
+            Start-Sleep -Seconds 6
+            $down = ((& wsl -l -v) -join ' ') -notmatch 'Running'
+            if (-not $down) {
+                Write-Log "CompactWslDisks: a distro came back after shutdown (attempt $($i+1)); killing session wsl.exe/wslhost.exe"
+                Get-Process wsl, wslhost -ErrorAction SilentlyContinue | Where-Object SessionId -ne 0 | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+        if (-not $down) { Write-Log 'CompactWslDisks: WSL still running; disks in use will FAIL below' }
 
         foreach ($d in $wslDisks) {
             $sz = (Get-Item $d).Length

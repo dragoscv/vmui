@@ -16,6 +16,15 @@
 		// Full access, including project servers and admin surfaces.
 		"group:dev": [
 			"brivio.ro@gmail.com",
+			// Shared-in from the personal tailnet; a share alone does not grant
+			// access, the sharee must also match a grant src.
+			"vladulescu.catalin@gmail.com",
+		],
+
+		// Remote desktop only. Deliberately NOT in group:dev: that would also
+		// hand out Tailscale SSH and every port on the project servers.
+		"group:remote-desktop": [
+			"xcconline.ro@gmail.com",
 		],
 	},
 
@@ -34,6 +43,9 @@
 	"grants": [
 		// Developers reach every fleet machine.
 		{"src": ["group:dev"], "dst": ["tag:workstation", "tag:project-server"], "ip": ["*"]},
+
+		// Remote-desktop users get RDP on workstations and nothing else.
+		{"src": ["group:remote-desktop"], "dst": ["tag:workstation"], "ip": ["tcp:3389"]},
 
 		// Project servers may call back to a workstation (debuggers, reverse
 		// tunnels, hot-reload clients).
@@ -65,6 +77,12 @@
 		{
 			"src":    "brivio.ro@gmail.com",
 			"accept": ["tag:project-server:22", "tag:workstation:3389"],
+		},
+		{
+			"src":    "xcconline.ro@gmail.com",
+			"accept": ["tag:workstation:3389"],
+			// Proves the grant stays scoped: no project servers, no other ports.
+			"deny":   ["tag:project-server:22", "tag:workstation:22"],
 		},
 	],
 }
