@@ -114,13 +114,5 @@
     "tailwindcss": "^4.0.6",
     "typescript": "^5.9.0",
     "vitest": "^4.1.5"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ]
   }
 }

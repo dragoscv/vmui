@@ -16,6 +16,9 @@ allowBuilds:
   # Pulled in transitively by the Google Cloud SDKs; its install script only
   # generates JS, so allowing it is safe and silences a warning every install.
   protobufjs: true
+  # Both only download/select a prebuilt binary for the platform.
+  '@parcel/watcher': true
+  '@swc/core': true
 
 packages:
   - .

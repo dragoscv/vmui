@@ -50,4 +50,5 @@ const handlers: Record<string, Handler> = {
 };
 (window as unknown as Record<string, unknown>).__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
 
-export {};
+export { };
+

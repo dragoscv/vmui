@@ -17,7 +17,10 @@ toolkit/build/
 .DS_Store
 vmui.db
 vmui.db-*
+# Written next to the DB by src/lib/audit-retention.ts (gzipped audit rows older than 30 days).
+audit-archive/
 drizzle/meta
+tsconfig.tsbuildinfo
 .vscode/*
 !.vscode/extensions.json
 .pnpm-cache/

@@ -1,0 +1,23 @@
+# Search-tool ignore file (ripgrep, fd, VS Code search).
+
+#
+
+# NOT a .gitignore -- git never reads this, so it can never affect commits.
+
+# Everything already in .gitignore is skipped by ripgrep automatically;
+
+# only the gaps belong here.
+
+#
+
+# Use `rg --no-ignore` to search these anyway.
+
+pnpm-lock.yaml
+package-lock.json
+
+# Go module cache / build artifacts under cli/.
+
+cli/vmui-cli
+cli/vmui-cli.exe
+
+\*\*/drizzle/meta/
