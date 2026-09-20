@@ -1,3 +1,4 @@
+import type { Locale } from "@/i18n/config";
 import { db } from "@/lib/db";
 import { auditLog, homeNotifications as notifications, pairedDevices, type HomeNotificationRow as NotificationRow } from "@/lib/db/schema";
 import { credential } from "@/lib/home/credentials";
@@ -8,6 +9,7 @@ import { EventEmitter } from "node:events";
 import "server-only";
 import { z } from "zod";
 import { sendFcm } from "./fcm";
+import { deviceLocale, isMsg, packText, render, unpackText, type Text } from "./i18n";
 import { loadNotifySettings } from "./settings";
 
 // Notification centre. Every source (copilot, intercom, pairing, water, PC/Pi
@@ -20,9 +22,12 @@ import { loadNotifySettings } from "./settings";
 export const NOTIFY_KINDS = ["copilot", "agents", "intercom", "pairing", "water", "pc", "pi", "door", "window", "presence", "battery", "system"] as const;
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
 
+/** A literal string or a `{ key, params }` reference into messages/notify (rendered per consumer language). */
+const textSchema = z.union([z.string().max(600), z.object({ key: z.string().min(1).max(80), params: z.record(z.string(), z.union([z.string(), z.number()])).optional() })]);
+
 export const actionSchema = z.object({
   id: z.string().min(1).max(40),
-  label: z.string().min(1).max(40),
+  label: textSchema,
   /** primary | danger | ghost */
   style: z.enum(["primary", "danger", "ghost"]).default("ghost"),
   /** opaque payload passed back to the source's action handler */
@@ -35,9 +40,9 @@ export type NotifyAction = z.infer<typeof actionSchema>;
 export const notifyInputSchema = z.object({
   kind: z.enum(NOTIFY_KINDS),
   tag: z.string().max(80).optional(),
-  title: z.string().min(1).max(120),
-  body: z.string().max(600).default(""),
-  subtitle: z.string().max(120).optional(),
+  title: textSchema,
+  body: textSchema.default(""),
+  subtitle: textSchema.optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   icon: z.string().max(40).optional(),
   image: z.string().max(600).optional(),
@@ -56,7 +61,10 @@ export const notifyInputSchema = z.object({
 });
 export type NotifyInput = z.input<typeof notifyInputSchema>;
 
-export type Card = Omit<NotificationRow, "actions" | "data"> & { actions: NotifyAction[]; data: Record<string, unknown> };
+/** Stored shape: text fields may still be message refs. Render with `localizeCard` before showing. */
+export type Card = Omit<NotificationRow, "actions" | "data" | "title" | "body" | "subtitle"> & { title: Text; body: Text; subtitle: Text | null; actions: NotifyAction[]; data: Record<string, unknown> };
+/** Fully rendered for one language — what every API/SSE/FCM consumer receives. */
+export type LocalizedCard = Omit<Card, "title" | "body" | "subtitle" | "actions"> & { title: string; body: string; subtitle: string | null; actions: Array<Omit<NotifyAction, "label"> & { label: string }> };
 
 const FALLBACK_MS = 20_000;
 
@@ -74,8 +82,20 @@ export function toCard(r: NotificationRow): Card {
   let data: Record<string, unknown> = {};
   try { actions = JSON.parse(r.actions) as NotifyAction[]; } catch { /* stored by us; unreachable */ }
   try { data = JSON.parse(r.data) as Record<string, unknown>; } catch { /* same */ }
-  return { ...r, actions, data };
+  return { ...r, title: unpackText(r.title) ?? "", body: unpackText(r.body) ?? "", subtitle: unpackText(r.subtitle), actions, data };
 }
+
+export async function localizeCard(c: Card, locale: Locale): Promise<LocalizedCard> {
+  const [title, body, subtitle, labels] = await Promise.all([
+    render(c.title, locale),
+    render(c.body, locale),
+    c.subtitle == null ? Promise.resolve(null) : render(c.subtitle, locale),
+    Promise.all(c.actions.map((a) => render(a.label, locale))),
+  ]);
+  return { ...c, title, body, subtitle, actions: c.actions.map((a, i) => ({ ...a, label: labels[i] ?? (isMsg(a.label) ? a.label.key : a.label) })) };
+}
+
+export const localizeCards = (cards: Card[], locale: Locale) => Promise.all(cards.map((c) => localizeCard(c, locale)));
 
 /** Create or update (by tag) a card, then fan out. Returns the card, or null when muted. */
 export async function notify(input: NotifyInput): Promise<Card | null> {
@@ -90,9 +110,9 @@ export async function notify(input: NotifyInput): Promise<Card | null> {
   const values = {
     kind: n.kind,
     tag: n.tag ?? null,
-    title: n.title,
-    body: n.body,
-    subtitle: n.subtitle ?? null,
+    title: packText(n.title),
+    body: packText(n.body),
+    subtitle: n.subtitle == null ? null : packText(n.subtitle),
     color: n.color ?? k.color ?? null,
     icon: n.icon ?? k.icon ?? null,
     image: n.image ?? null,
@@ -186,11 +206,18 @@ function inQuiet(from: string, to: string): boolean {
 
 async function wakePhones(card: Card, fcm: { enabled: boolean }): Promise<void> {
   if (!fcm.enabled) return;
-  const devs = await db.select({ id: pairedDevices.id, pushToken: pairedDevices.pushToken }).from(pairedDevices).where(eq(pairedDevices.status, "approved"));
-  const tokens = devs.map((d) => d.pushToken).filter((t): t is string => !!t);
-  if (tokens.length === 0) return;
-  const gone = await sendFcm(tokens, card);
-  for (const t of gone) await db.update(pairedDevices).set({ pushToken: null }).where(eq(pairedDevices.pushToken, t));
+  const devs = await db.select({ id: pairedDevices.id, pushToken: pairedDevices.pushToken, language: pairedDevices.language }).from(pairedDevices).where(eq(pairedDevices.status, "approved"));
+  // one FCM payload per language the paired phones speak
+  const byLocale = new Map<Locale, string[]>();
+  for (const d of devs) {
+    if (!d.pushToken) continue;
+    const l = deviceLocale(d.language);
+    byLocale.set(l, [...(byLocale.get(l) ?? []), d.pushToken]);
+  }
+  for (const [locale, tokens] of byLocale) {
+    const gone = await sendFcm(tokens, await localizeCard(card, locale));
+    for (const t of gone) await db.update(pairedDevices).set({ pushToken: null }).where(eq(pairedDevices.pushToken, t));
+  }
 }
 
 function scheduleFallback(card: Card) {
@@ -199,7 +226,8 @@ function scheduleFallback(card: Card) {
     bus.pendingFallback.delete(card.id);
     const r = await db.select().from(notifications).where(eq(notifications.id, card.id)).get();
     if (!r || r.dismissedAt || r.deliveredTo) return;
-    await haFallback(toCard(r));
+    const s = await loadNotifySettings();
+    await haFallback(await localizeCard(toCard(r), s.language));
     await db.update(notifications).set({ fallbackAt: new Date() }).where(eq(notifications.id, card.id));
   }, FALLBACK_MS);
   t.unref();
@@ -215,7 +243,7 @@ const phoneService = () => credential("PHONE_NOTIFY_SERVICE") ?? "mobile_app_dra
 const MDI: Partial<Record<NotifyKind, string>> = { copilot: "mdi:robot", agents: "mdi:robot", intercom: "mdi:doorbell", pairing: "mdi:cellphone-link", water: "mdi:cup-water", pc: "mdi:desktop-tower", pi: "mdi:raspberry-pi", door: "mdi:door", window: "mdi:window-open", presence: "mdi:motion-sensor", battery: "mdi:battery-alert", system: "mdi:information" };
 
 /** Same content through the HA Companion app; actions become NOTIFY_<id>_<actionId>. */
-async function haFallback(card: Card): Promise<void> {
+async function haFallback(card: LocalizedCard): Promise<void> {
   if (!credential("HA_TOKEN")) return;
   try {
     await ha.callService("notify", phoneService(), {

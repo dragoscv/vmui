@@ -1,20 +1,21 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Loader2, Server, Apple, MonitorSmartphone, AlertTriangle } from "lucide-react";
-import { motion } from "motion/react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { PriceEstimate } from "./price-estimate";
-import { cn } from "@/lib/utils";
+import { Alert, Button, Field, Input, PageSection, Textarea, ToggleGroup } from "@/components/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { InstanceTemplate, ProviderId } from "@/lib/providers/types";
+import { cn } from "@/lib/utils";
 import { createInstanceAction, type CreateInstanceState } from "@/server/actions/instances";
+import { Apple, MonitorSmartphone, Server } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { PriceEstimate } from "./price-estimate";
 
 const initial: CreateInstanceState = {};
+const NO_BOOT_SCRIPT = "__none__";
+const code = (c: React.ReactNode) => <code>{c}</code>;
 
 export function CreateInstanceForm({
   accounts,
@@ -27,6 +28,7 @@ export function CreateInstanceForm({
   regionsByProvider: Record<ProviderId, string[]>;
   bootScripts?: { id: string; name: string; kind: string }[];
 }) {
+  const t = useTranslations("vm.create");
   const [state, action, pending] = useActionState(createInstanceAction, initial);
   const router = useRouter();
 
@@ -64,13 +66,16 @@ export function CreateInstanceForm({
 
   useEffect(() => {
     if (state.ok && state.instanceId) {
-      toast.success("Instance launched");
+      toast.success(t("launched"));
       router.push("/");
       router.refresh();
     } else if (state.error) {
       toast.error(state.error);
     }
-  }, [state, router]);
+  }, [state, router, t]);
+
+  const sizes = template?.recommendedTypes ?? [];
+  const showBootScript = bootScripts.length > 0 && providerId !== "scaleway" && providerId !== "local-kvm";
 
   return (
     <form action={action} className="space-y-6">
@@ -80,200 +85,191 @@ export function CreateInstanceForm({
       <input type="hidden" name="instanceType" value={instanceType} />
       <input type="hidden" name="bootScriptId" value={bootScriptId} />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Account &amp; region</h2>
-        <Card>
-          <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Account</Label>
-              <select
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="flex h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-              >
+      <PageSection title={t("accountTitle")} description={t("accountDescription")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("account")}>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger aria-label={t("account")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
                 {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name} ({a.provider})</option>
+                  <SelectItem key={a.id} value={a.id}>
+                    {t("accountOption", { name: a.name, provider: a.provider })}
+                  </SelectItem>
                 ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>{providerId === "scaleway" ? "Zone" : "Region"}</Label>
-              <select
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="flex h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-              >
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={providerId === "scaleway" ? t("zone") : t("region")}>
+            <Select value={region} onValueChange={setRegion}>
+              <SelectTrigger aria-label={providerId === "scaleway" ? t("zone") : t("region")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
                 {regions.map((r) => (
-                  <option key={r} value={r}>{r}</option>
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
                 ))}
-              </select>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </PageSection>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Template</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {templates.map((t) => {
-            const Icon = t.platform === "macos" ? Apple : t.platform === "windows" ? MonitorSmartphone : Server;
-            const active = t.id === templateId;
+      <PageSection title={t("templateTitle")} description={t("templateDescription")}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {templates.map((tpl, i) => {
+            const Icon = tpl.platform === "macos" ? Apple : tpl.platform === "windows" ? MonitorSmartphone : Server;
+            const active = tpl.id === templateId;
             return (
               <motion.button
                 type="button"
-                key={t.id}
-                onClick={() => setTemplateId(t.id)}
-                whileHover={{ y: -2 }}
+                key={tpl.id}
+                onClick={() => setTemplateId(tpl.id)}
+                aria-pressed={active}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
                 whileTap={{ scale: 0.99 }}
                 className={cn(
-                  "surface relative flex flex-col items-start gap-2 p-4 text-left transition-all",
+                  "surface card-hover relative flex min-h-[5.5rem] flex-col items-start gap-2 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   active && "border-[color-mix(in_oklch,var(--color-primary)_60%,var(--color-border))] shadow-[var(--shadow-glow)]",
                 )}
               >
                 <div className="flex w-full items-start justify-between">
-                  <div className="grid h-9 w-9 place-items-center rounded-[var(--radius-md)] bg-[var(--color-bg-muted)]">
-                    <Icon className="h-4 w-4" />
+                  <div className="grid size-9 place-items-center rounded-[var(--radius-md)] bg-bg-muted">
+                    <Icon className="size-4" aria-hidden />
                   </div>
-                  {active && <span className="text-xs font-medium text-[var(--color-primary)]">Selected</span>}
+                  {active && <span className="text-xs font-medium text-primary">{t("selected")}</span>}
                 </div>
-                <div>
-                  <div className="font-semibold">{t.label}</div>
-                  <div className="mt-1 text-xs text-muted">{t.description}</div>
+                <div className="min-w-0">
+                  <div className="font-semibold">{tpl.label}</div>
+                  <div className="mt-1 text-xs text-muted">{tpl.description}</div>
                 </div>
               </motion.button>
             );
           })}
         </div>
-      </section>
+      </PageSection>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Size</h2>
-        <Card>
-          <CardContent className="space-y-4 p-5">
-            <div className="flex flex-wrap gap-2">
-              {(template?.recommendedTypes ?? []).map((it) => (
+      <PageSection title={t("sizeTitle")} description={t("sizeDescription")}>
+        <div className="space-y-4">
+          {sizes.length <= 6 ? (
+            <ToggleGroup
+              aria-label={t("sizeAria")}
+              value={instanceType}
+              onValueChange={setInstanceType}
+              options={sizes.map((s) => ({ value: s, label: <span className="font-mono text-xs">{s}</span> }))}
+              className="flex-wrap"
+            />
+          ) : (
+            <div role="radiogroup" aria-label={t("sizeAria")} className="flex flex-wrap gap-2">
+              {sizes.map((it) => (
                 <button
                   type="button"
                   key={it}
+                  role="radio"
+                  aria-checked={it === instanceType}
                   onClick={() => setInstanceType(it)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-mono transition-all",
+                    "min-h-10 rounded-full border px-3 py-1 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     it === instanceType
-                      ? "border-[var(--color-primary)] bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] text-[var(--color-primary)]"
-                      : "border-[var(--color-border)] hover:border-[color-mix(in_oklch,var(--color-primary)_50%,var(--color-border))]",
+                      ? "border-primary bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] text-primary"
+                      : "border-border text-fg-muted hover:border-[color-mix(in_oklch,var(--color-primary)_50%,var(--color-border))] hover:text-fg",
                   )}
                 >
                   {it}
                 </button>
               ))}
             </div>
-            {template?.notes && template.notes.length > 0 && (
-              <div className="flex gap-2 rounded-md bg-[color-mix(in_oklch,var(--color-warning)_15%,transparent)] p-3 text-xs text-[oklch(0.5_0.16_75)] dark:text-[var(--color-warning)]">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <ul className="space-y-1">
-                  {template.notes.map((n, i) => <li key={i}>{n}</li>)}
-                </ul>
-              </div>
-            )}
-            {accountId && instanceType && region && template && (
-              <PriceEstimate
-                accountId={accountId}
-                provider={providerId}
-                region={region}
-                instanceType={instanceType}
-                platform={template.platform}
-              />
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Details</h2>
-        <Card>
-          <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" placeholder="my-mac-builder" required />
-              <p className="text-xs text-muted">Becomes the instance's <code>Name</code> tag.</p>
-            </div>
-            {providerId === "aws" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="keyName">SSH key pair name (existing)</Label>
-                <Input id="keyName" name="keyName" placeholder="my-key" />
-                <p className="text-xs text-muted">
-                  Name of an EC2 key pair you already created in this region. Required for SSH/Windows password retrieval.
-                </p>
-              </div>
-            )}
-            {(providerId === "azure" || providerId === "gcp") && template?.platform === "linux" && (
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="sshPublicKey">SSH public key</Label>
-                <textarea
-                  id="sshPublicKey"
-                  name="sshPublicKey"
-                  rows={3}
-                  placeholder="ssh-rsa AAAAB3... or ssh-ed25519 AAAA..."
-                  className="flex w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs"
-                  required={providerId === "azure"}
-                />
-                <p className="text-xs text-muted">
-                  Pasted from <code>~/.ssh/id_ed25519.pub</code>. Injected as the default-user authorized key.
-                </p>
-              </div>
-            )}
-            {(providerId === "azure" || providerId === "gcp") && template?.platform === "windows" && (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="username">Admin username</Label>
-                  <Input id="username" name="username" placeholder="azureadmin" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="password">Admin password</Label>
-                  <Input id="password" name="password" type="password" placeholder="MinLen 12, mixed case + digits" />
-                  <p className="text-xs text-muted">Required by Windows. Stored only in the cloud provider.</p>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      {bootScripts.length > 0 && providerId !== "scaleway" && providerId !== "local-kvm" && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium uppercase tracking-wider text-muted">Boot script (optional)</h2>
-          <Card>
-            <CardContent className="p-5">
-              <select
-                value={bootScriptId}
-                onChange={(e) => setBootScriptId(e.target.value)}
-                className="flex h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-              >
-                <option value="">— None —</option>
-                {bootScripts.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.kind})</option>
+          )}
+          {template?.notes && template.notes.length > 0 && (
+            <Alert tone="warning" className="text-xs">
+              <ul className="space-y-1">
+                {template.notes.map((n, i) => (
+                  <li key={i}>{n}</li>
                 ))}
-              </select>
-              <p className="mt-2 text-xs text-muted">
-                Runs on first boot. AWS uses <code>UserData</code>, Azure uses <code>userData</code>, GCP uses{" "}
-                <code>startup-script</code> metadata.
-              </p>
-            </CardContent>
-          </Card>
-        </section>
+              </ul>
+            </Alert>
+          )}
+          {accountId && instanceType && region && template && (
+            <PriceEstimate
+              accountId={accountId}
+              provider={providerId}
+              region={region}
+              instanceType={instanceType}
+              platform={template.platform}
+            />
+          )}
+        </div>
+      </PageSection>
+
+      <PageSection title={t("detailsTitle")} description={t("detailsDescription")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("name")} hint={t.rich("nameHint", { code })}>
+            <Input name="name" placeholder={t("namePlaceholder")} required />
+          </Field>
+          {providerId === "aws" && (
+            <Field label={t("keyName")} hint={t("keyNameHint")}>
+              <Input name="keyName" placeholder={t("keyNamePlaceholder")} />
+            </Field>
+          )}
+          {(providerId === "azure" || providerId === "gcp") && template?.platform === "linux" && (
+            <Field label={t("sshPublicKey")} hint={t.rich("sshPublicKeyHint", { code })} className="sm:col-span-2">
+              <Textarea
+                name="sshPublicKey"
+                rows={3}
+                spellCheck={false}
+                placeholder={t("sshPublicKeyPlaceholder")}
+                className="font-mono text-xs"
+                required={providerId === "azure"}
+              />
+            </Field>
+          )}
+          {(providerId === "azure" || providerId === "gcp") && template?.platform === "windows" && (
+            <>
+              <Field label={t("adminUsername")}>
+                <Input name="username" placeholder={t("adminUsernamePlaceholder")} autoComplete="off" />
+              </Field>
+              <Field label={t("adminPassword")} hint={t("adminPasswordHint")}>
+                <Input name="password" type="password" placeholder={t("adminPasswordPlaceholder")} autoComplete="new-password" />
+              </Field>
+            </>
+          )}
+        </div>
+      </PageSection>
+
+      {showBootScript && (
+        <PageSection title={t("bootScriptTitle")} description={t("bootScriptDescription")}>
+          <Field label={t("bootScript")} hint={t.rich("bootScriptHint", { code })}>
+            <Select
+              value={bootScriptId || NO_BOOT_SCRIPT}
+              onValueChange={(v) => setBootScriptId(v === NO_BOOT_SCRIPT ? "" : v)}
+            >
+              <SelectTrigger aria-label={t("bootScript")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_BOOT_SCRIPT}>{t("bootScriptNone")}</SelectItem>
+                {bootScripts.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {t("bootScriptOption", { name: s.name, kind: s.kind })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </PageSection>
       )}
 
-      <div className="flex items-start gap-2 rounded-md bg-[var(--color-bg-muted)] p-3 text-xs text-muted">
-        <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--color-warning)]" />
-        <div>
-          <strong className="text-[var(--color-fg)]">What happens next:</strong> vmui calls{" "}
-          <code>RunInstances</code> on AWS, tags the resource <code>vmui:managed=true</code>, and starts polling. For
-          macOS, a Dedicated Host is allocated first if none is available (24-hour minimum billing).
-        </div>
-      </div>
+      <Alert tone="info" title={t("whatNextTitle")} className="text-xs">
+        {t.rich("whatNextBody", { code })}
+      </Alert>
 
-      <Button type="submit" disabled={pending} size="lg" className="w-full">
-        {pending ? <><Loader2 className="h-4 w-4 animate-spin" /> Launching…</> : "Launch instance"}
+      <Button type="submit" size="lg" loading={pending} className="w-full">
+        {t("launch")}
       </Button>
     </form>
   );

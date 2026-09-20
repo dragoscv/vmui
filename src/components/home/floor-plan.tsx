@@ -63,7 +63,7 @@ export function FloorPlan({ devices, selected, onSelect, canArrange = true }: Pr
   };
 
   return (
-    <div className="space-y-3">
+    <div className="mx-auto w-full space-y-3 3xl:max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 text-xs text-muted">{arrange ? t("hintArrange") : t("hintTap")}</p>
         {canArrange && <div className="flex shrink-0 items-center gap-1">
@@ -288,7 +288,8 @@ function DeviceDot({
       )}
       <span
         className="grid h-6 w-6 place-items-center rounded-full transition-colors sm:h-7 sm:w-7"
-        style={{ background: on ? color ?? "var(--color-primary)" : "var(--color-bg-muted)", color: on ? "#0b0e16" : "var(--color-fg-muted)" }}
+        // the "on" disc takes the bulb's own (usually bright) colour, so the icon needs a fixed dark ink in both themes
+        style={{ background: on ? color ?? "var(--color-primary)" : "var(--color-bg-muted)", color: on ? "oklch(0.18 0.02 260)" : "var(--color-fg-muted)" }}
       >
         <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
       </span>

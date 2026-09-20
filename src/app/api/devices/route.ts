@@ -1,6 +1,8 @@
 import { getCurrentUser } from "@/lib/auth";
 import { approveDevice, deviceFromRequest, devicesVersion, listDevices, pendingDevices, rejectDevice, renameDevice, revokeDevice } from "@/lib/devices/pairing";
 import { espAuthorized } from "@/lib/esp/auth";
+import { deviceLocale } from "@/lib/notify/i18n";
+import { getTranslations } from "next-intl/server";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
@@ -49,7 +51,10 @@ export async function POST(req: NextRequest) {
   switch (p.data.op) {
     case "approve": {
       const r = await approveDevice(p.data.id, p.data.code, by, who.userId);
-      return NextResponse.json(r, { status: r.ok ? 200 : 400 });
+      if (r.ok) return NextResponse.json(r);
+      // the client shows `error` verbatim, so render it in the caller's language here
+      const t = await getTranslations({ locale: deviceLocale(req.headers.get("accept-language")), namespace: "notify.errors.pairing" });
+      return NextResponse.json({ ok: false, error: t(r.error) }, { status: 400 });
     }
     case "reject":
       await rejectDevice(p.data.id, by);

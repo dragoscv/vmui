@@ -80,7 +80,7 @@ export function CopilotSignalsCard({ initial, lights, defaultOpen = false }: { i
                   type="button"
                   onClick={() => setS((p) => ({ ...p, lights: on ? p.lights.filter((x) => x !== l.id) : [...p.lights, l.id] }))}
                   aria-pressed={on}
-                  className={cn("rounded-full border px-3 py-1 text-sm transition", on ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted hover:text-foreground")}
+                  className={cn("rounded-full border px-3 py-1 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", on ? "border-primary bg-primary/15 text-fg" : "border-border text-muted hover:text-fg")}
                 >
                   {l.name}
                 </button>

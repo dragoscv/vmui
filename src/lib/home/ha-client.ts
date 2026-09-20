@@ -50,6 +50,10 @@ export const ha = {
   },
   states: () => rest<HaState[]>("/states"),
   state: (entityId: string) => rest<HaState>(`/states/${entityId}`),
+  /** Create/update a plain entity through the REST states API. HA owns no
+   *  integration for it, so it survives until HA restarts; re-post on a timer. */
+  setState: (entityId: string, state: string, attributes: Record<string, unknown> = {}) =>
+    rest<HaState>(`/states/${entityId}`, { method: "POST", body: JSON.stringify({ state, attributes }) }),
   callService: (domain: string, service: string, data: Record<string, unknown>) =>
     rest<HaState[]>(`/services/${domain}/${service}`, { method: "POST", body: JSON.stringify(data) }),
   /** Raw HyperHDR JSON-API commands fanned out to every instance via MQTT. */

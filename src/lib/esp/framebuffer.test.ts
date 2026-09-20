@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { Framebuffer, H, W } from "@/lib/esp/framebuffer";
 import { fit, text, textScroll, textWidth, wrap } from "@/lib/esp/font";
+import { Framebuffer, H, W } from "@/lib/esp/framebuffer";
+import { describe, expect, it } from "vitest";
 
 function litColumns(fb: Framebuffer, y0: number, y1: number): number[] {
   const cols: number[] = [];

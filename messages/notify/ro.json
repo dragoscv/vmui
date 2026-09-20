@@ -8,6 +8,119 @@
     "actionDone": "Gata",
     "actionFailed": "Nu a mers"
   },
+  "kinds": {
+    "copilot": "Copilot",
+    "agents": "Agenți activi",
+    "intercom": "Interfon",
+    "pairing": "Dispozitive noi",
+    "water": "Apă",
+    "pc": "PC",
+    "pi": "Raspberry Pi",
+    "door": "Ușa",
+    "window": "Geam",
+    "presence": "Prezență",
+    "battery": "Baterii",
+    "system": "Sistem"
+  },
+  "cards": {
+    "pairing": {
+      "title": "{name} cere acces",
+      "body": "{platform} · {ip} · verifică pe dispozitiv că afișează codul {code}",
+      "subtitle": "cod {code}",
+      "approve": "Aprobă · {code}",
+      "reject": "Respinge"
+    },
+    "intercom": {
+      "ringTitle": "Sună la interfon",
+      "ringArmed": "Deschidere automată armată — se deschide.",
+      "ringAsk": "Cineva e jos. Deschizi?",
+      "open": "Răspunde și deschide",
+      "ignore": "Ignoră",
+      "openedTitle": "Ușa deschisă",
+      "openedAuto": "Deschidere automată.",
+      "openedBy": "Deschis de pe {by}."
+    },
+    "water": {
+      "title": "Ești cu {l} l sub ritm",
+      "body": "{ml} l azi din {target} l",
+      "add": "+{ml} ml"
+    },
+    "pc": {
+      "title": "PC-ul nu mai răspunde",
+      "body": "Agentul din tray a dispărut (sleep, oprit sau vmui-tray căzut).",
+      "wake": "Trezește PC-ul"
+    },
+    "pi": {
+      "undervoltTitle": "Pi: alimentare insuficientă",
+      "undervoltBody": "get_throttled={flags} · CPU la 600 MHz; verifică sursa/cablul",
+      "tempTitle": "Pi: {temp} °C",
+      "tempBody": "Temperatura e peste 75 °C",
+      "unitsTitle": "{count, plural, one {Unitate căzută} few {Unități căzute} other {Unități căzute}} pe Pi",
+      "restart": "Restart {unit}"
+    },
+    "battery": {
+      "title": "{name}: baterie {pct} %",
+      "body": "Schimbă bateria senzorului."
+    },
+    "door": {
+      "title": "{sensor, select, mainDoor {Ușa principală} window {Geamul} presence {Senzorul de prezență} other {{sensor}}} s-a deschis",
+      "night": "Noaptea — verifică.",
+      "lightOn": "Aprinde holul"
+    },
+    "window": {
+      "title": "{sensor, select, mainDoor {Ușa principală} window {Geamul} presence {Senzorul de prezență} other {{sensor}}} e deschis"
+    },
+    "presence": {
+      "title": "Mișcare în casă",
+      "body": "{sensor, select, mainDoor {Ușa principală} window {Geamul} presence {Senzorul de prezență} other {{sensor}}} a detectat prezență cât ești plecat.",
+      "lightsOff": "Stinge tot"
+    },
+    "coach": {
+      "title": {
+        "streak_risk": "Streak în pericol",
+        "over_target": "Peste țintă",
+        "under_target": "Sub țintă",
+        "protein_low": "Proteine",
+        "celebration": "Bravo",
+        "weekly_review": "Bilanț săptămânal",
+        "no_data": "Nutriție"
+      },
+      "fallback": {
+        "streak_risk": "Streak-ul tău de {days} zile e în pericol — nimic înregistrat azi. O poză la cină și e salvat.",
+        "over_target": "Ultimele zile ai fost constant peste țintă (~{delta} kcal/zi). Vrei să ajustăm ținta sau porțiile?",
+        "under_target": "De câteva zile ești mult sub țintă. Dacă e intenționat, ok — dacă nu, verifică să nu sari mese.",
+        "protein_low": "Proteine azi: {protein} g din {target} g. Cina cu ceva proteic ar echilibra ziua.",
+        "celebration": "5 zile la rând la țintă. Așa se face! 🎉",
+        "weekly_review": "Săptămâna asta: {days}/7 zile înregistrate, medie {avg} kcal față de ținta {target}. {onTarget, plural, =0 {Săptămâna viitoare mai aproape de țintă?} one {Săptămâna viitoare mai aproape de țintă?} other {Foarte constant!}}",
+        "no_data": "Nimic înregistrat azi încă."
+      }
+    }
+  },
+  "results": {
+    "doorOpened": "ușa deschisă",
+    "ignored": "ignorat",
+    "approved": "aprobat",
+    "rejected": "respins",
+    "waterAdded": "+{ml} ml",
+    "wakeSent": "magic packet trimis",
+    "unitRestarted": "{unit} repornit",
+    "lightsOff": "lumini stinse",
+    "lightOn": "aprins"
+  },
+  "errors": {
+    "cardNotFound": "notificare inexistentă",
+    "alreadyResolved": "deja rezolvată",
+    "unknownAction": "acțiune necunoscută",
+    "forbidden": "interzis",
+    "openFailed": "nu s-a putut deschide",
+    "noCall": "Nu sună nimeni acum.",
+    "unsupportedAction": "acțiunea {action} nu este suportată pentru {kind}",
+    "pairing": {
+      "not_found": "cerere inexistentă sau expirată",
+      "expired": "cererea a expirat",
+      "code_mismatch": "codul nu se potrivește"
+    }
+  },
   "devices": {
     "title": "Dispozitive împerecheate",
     "description": "Telefoane și PC-uri cu aplicația vmui. Fiecare are tokenul lui, revocabil aici.",

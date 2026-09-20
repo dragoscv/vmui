@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
-import { DISPLAY_VIEW_META, displaySettingsSchema, loadDisplaySettings, saveDisplaySettings } from "@/lib/display/settings";
+import { displaySettingsSchema, loadDisplaySettings, saveDisplaySettings } from "@/lib/display/settings";
 import { espAuthorized } from "@/lib/esp/auth";
-import { BG_SOURCE_META, SKIN_META, TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_META } from "@/lib/turzx/catalog";
+import { deviceLocale } from "@/lib/notify/i18n";
+import { catalogText } from "@/lib/turzx/catalog-text";
 import { loadTurzxSettings, saveTurzxSettings, turzxSettingsSchema } from "@/lib/turzx/settings";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -14,18 +15,9 @@ export const dynamic = "force-dynamic";
 // saveTurzxSettingsAction / saveDisplaySettingsAction behind that token.
 export async function GET(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
-  const [turzx, display] = await Promise.all([loadTurzxSettings(), loadDisplaySettings()]);
+  const [turzx, display, meta] = await Promise.all([loadTurzxSettings(), loadDisplaySettings(), catalogText(deviceLocale(req.headers.get("accept-language")))]);
   return NextResponse.json(
-    {
-      turzx,
-      display,
-      meta: {
-        turzxViews: TURZX_VIEW_META,
-        turzxSkins: TURZX_SKINS.map((id) => ({ id, ...SKIN_META[id] })),
-        displayViews: DISPLAY_VIEW_META,
-        photoSources: TURZX_BG_SOURCES.map((id) => ({ id, ...BG_SOURCE_META[id] })),
-      },
-    },
+    { turzx, display, meta },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

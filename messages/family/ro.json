@@ -37,7 +37,19 @@
     "remove": "Elimină",
     "removeAria": "Elimină pe {name} din gospodărie",
     "removeConfirm": "Elimini pe {name} din gospodărie? Contul rămâne, dispozitivele asociate sunt revocate.",
-    "removed": "{name} eliminat"
+    "removed": "{name} eliminat",
+    "columns": {
+      "member": "Membru",
+      "role": "Rol",
+      "rooms": "Camere",
+      "devices": "Dispozitive",
+      "lastLogin": "Ultima autentificare"
+    },
+    "devicesCount": "{count, plural, =0 {niciunul} one {# dispozitiv} few {# dispozitive} other {# de dispozitive}}",
+    "edit": "Editează",
+    "editAria": "Editează {name}",
+    "editTitle": "Editează membrul",
+    "editDescription": "Rol, camere și dispozitive pentru {name}."
   },
   "devices": {
     "title": "Dispozitive",

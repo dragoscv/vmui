@@ -1,60 +1,54 @@
 "use client";
 
-import { useActionState } from "react";
-import { Loader2 } from "lucide-react";
+import { translateAuthError } from "@/components/auth/auth-errors";
+import { AuthField, PasswordInput } from "@/components/auth/auth-field";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { signUpAction, type SignUpState } from "@/server/actions/auth";
+import { useTranslations } from "next-intl";
+import { useActionState } from "react";
 
 const initial: SignUpState = undefined;
+const ROLES = ["admin", "operator", "viewer"] as const;
 
 export function SignUpForm({ firstUser }: { firstUser: boolean }) {
+  const t = useTranslations("auth");
   const [state, action, pending] = useActionState(signUpAction, initial);
+  const error = translateAuthError(t, state?.error);
   return (
-    <form action={action} className="space-y-3">
-      <div className="space-y-1.5">
-        <Label htmlFor="displayName">Display name</Label>
-        <Input id="displayName" name="displayName" required />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          minLength={8}
-          required
-        />
-        <p className="text-[10px] text-muted">At least 8 characters.</p>
-      </div>
+    <form action={action} className="space-y-4">
+      <AuthField id="displayName" label={t("fields.displayName")}>
+        {(a11y) => <Input {...a11y} name="displayName" autoComplete="name" maxLength={80} required />}
+      </AuthField>
+      <AuthField id="email" label={t("fields.email")}>
+        {(a11y) => <Input {...a11y} name="email" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required />}
+      </AuthField>
+      <AuthField id="password" label={t("fields.password")} hint={t("fields.passwordHint")}>
+        {(a11y) => <PasswordInput {...a11y} name="password" autoComplete="new-password" minLength={8} maxLength={200} required />}
+      </AuthField>
       {!firstUser && (
         <div className="space-y-1.5">
-          <Label htmlFor="role">Role</Label>
-          <select
-            id="role"
-            name="role"
-            className="flex h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-            defaultValue="viewer"
-          >
-            <option value="admin">Admin</option>
-            <option value="operator">Operator</option>
-            <option value="viewer">Viewer</option>
-          </select>
+          <Label htmlFor="role">{t("fields.role")}</Label>
+          <Select name="role" defaultValue="viewer">
+            <SelectTrigger id="role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {t(`roles.${r}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
-      {state?.error && (
-        <div className="rounded bg-[color-mix(in_oklch,var(--color-danger)_15%,transparent)] px-3 py-2 text-xs text-[var(--color-danger)]">
-          {state.error}
-        </div>
-      )}
-      <Button type="submit" disabled={pending} className="w-full">
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : firstUser ? "Create admin" : "Create user"}
+      {error && <Alert tone="danger">{error}</Alert>}
+      <Button type="submit" loading={pending} className="w-full">
+        {firstUser ? t("signUp.submitFirst") : t("signUp.submitAdd")}
       </Button>
     </form>
   );

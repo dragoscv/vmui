@@ -79,13 +79,13 @@ export function NotifyCenterCard() {
       ) : (
         <ul className="grid max-h-[32rem] gap-2 overflow-y-auto pr-1">
           {cards.map((c) => {
-            const color = c.color ?? "#94a3b8";
+            const color = c.color ?? "var(--color-fg-muted)";
             const I = ICON[c.kind] ?? Info;
             return (
               <li key={c.id} className="relative overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-muted)]" style={{ borderLeft: `3px solid ${color}` }}>
                 {c.image && <img src={c.image} alt="" className="h-20 w-full object-cover opacity-80" />}
                 <div className="flex gap-3 p-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full" style={{ background: `${color}22`, color }}><I className="size-4" /></span>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full" style={{ background: `color-mix(in oklch, ${color} 14%, transparent)`, color }}><I className="size-4" /></span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <div className="min-w-0 truncate text-sm font-medium">{c.title}</div>

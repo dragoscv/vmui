@@ -1,13 +1,13 @@
-import "server-only";
-import { redirect } from "next/navigation";
-import { Key } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { ApiKeysManager } from "@/components/settings/api-keys-manager";
+import { PageHeader, PageShell } from "@/components/ui";
+import { authEnabled, getCurrentUser, ROLE_RANK } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiKeys } from "@/lib/db/schema";
-import { getCurrentUser, ROLE_RANK, authEnabled } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ApiKeysManager } from "@/components/settings/api-keys-manager";
+import { desc } from "drizzle-orm";
+import { Key } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import { redirect } from "next/navigation";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 
@@ -18,35 +18,28 @@ export default async function ApiKeysPage() {
       redirect("/");
     }
   }
-  const rows = await db.select().from(apiKeys).orderBy(desc(apiKeys.createdAt));
+  const [rows, t] = await Promise.all([
+    db.select().from(apiKeys).orderBy(desc(apiKeys.createdAt)),
+    getTranslations("settings.access.apiKeys"),
+  ]);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">API keys</h1>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Key className="h-4 w-4" /> Public /api/v1 keys
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ApiKeysManager
-            keys={rows.map((k) => ({
-              id: k.id,
-              name: k.name,
-              role: k.role,
-              rateLimitPerMinute: k.rateLimitPerMinute,
-              createdAt: k.createdAt,
-              revokedAt: k.revokedAt,
-              lastUsedAt: k.lastUsedAt,
-            }))}
-          />
-        </CardContent>
-      </Card>
-      <p className="text-xs text-muted">
-        Use as <code className="rounded bg-[var(--color-surface-2)] px-1">Authorization: Bearer &lt;key&gt;</code>.{" "}
-        <Badge variant="info">operator</Badge> can mutate, <Badge variant="muted">viewer</Badge> read-only.
+    <PageShell width="narrow">
+      <PageHeader title={t("title")} description={t("description")} icon={<Key />} />
+      <ApiKeysManager
+        keys={rows.map((k) => ({
+          id: k.id,
+          name: k.name,
+          role: k.role,
+          rateLimitPerMinute: k.rateLimitPerMinute,
+          createdAt: k.createdAt,
+          revokedAt: k.revokedAt,
+          lastUsedAt: k.lastUsedAt,
+        }))}
+      />
+      <p className="text-xs text-fg-muted">
+        {t.rich("usage", { code: (chunks) => <code className="rounded bg-surface-2 px-1 font-mono">{chunks}</code> })}
       </p>
-    </div>
+    </PageShell>
   );
 }

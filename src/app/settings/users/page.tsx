@@ -1,36 +1,36 @@
-import "server-only";
-import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
-import Link from "next/link";
-import { desc } from "drizzle-orm";
+import { CreateUserDialog } from "@/components/settings/create-user-dialog";
+import { UsersTable } from "@/components/settings/users-table";
+import { Alert, Badge, Button, PageHeader, PageSection, PageShell } from "@/components/ui";
+import { authEnabled, getCurrentUser, ROLE_RANK } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { getCurrentUser, ROLE_RANK, authEnabled } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { UserRow } from "@/components/settings/user-row";
-import { SessionsCard } from "@/components/settings/sessions-card";
-import { PasskeysCard } from "@/components/settings/passkeys-card";
-import { TotpCard } from "@/components/settings/totp-card";
+import { desc } from "drizzle-orm";
+import { House, Users as UsersIcon } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
+  const t = await getTranslations("settings.users");
   if (!(await authEnabled())) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted">
-            Multi-user mode is not enabled.{" "}
-            <Link href="/sign-up" className="text-[var(--color-primary)] underline">
-              Create the first admin
-            </Link>{" "}
-            to enable sign-in.
-          </CardContent>
-        </Card>
-      </div>
+      <PageShell width="narrow">
+        <PageHeader title={t("title")} description={t("description")} icon={<UsersIcon />} />
+        <Alert
+          tone="info"
+          title={t("disabledTitle")}
+          action={
+            <Button asChild size="sm">
+              <Link href="/sign-up">{t("createFirst")}</Link>
+            </Button>
+          }
+        >
+          {t("disabledHint")}
+        </Alert>
+      </PageShell>
     );
   }
   const me = await getCurrentUser();
@@ -38,70 +38,57 @@ export default async function UsersPage() {
     redirect("/");
   }
   const rows = await db.select().from(users).orderBy(desc(users.createdAt));
+  const tr = await getTranslations("auth.roles");
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-        <Button asChild size="sm">
-          <Link href="/sign-up">Add user</Link>
-        </Button>
-      </div>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="h-4 w-4" /> Local users
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {rows.map((u) => (
-            <UserRow
-              key={u.id}
-              user={{
-                id: u.id,
-                email: u.email,
-                displayName: u.displayName,
-                role: u.role,
-                createdAt: u.createdAt,
-                lastLoginAt: u.lastLoginAt,
-              }}
-              isSelf={u.id === me.id}
-            />
-          ))}
-        </CardContent>
-      </Card>
-      <p className="text-xs text-muted">
-        Roles: <Badge variant="info">admin</Badge> manage users + everything,{" "}
-        <Badge variant="default">operator</Badge> can mutate cloud resources,{" "}
-        <Badge variant="muted">viewer</Badge> read-only.
-      </p>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Active sessions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SessionsCard />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Passkeys</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PasskeysCard />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Two-factor authentication</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TotpCard />
-        </CardContent>
-      </Card>
-    </div>
+    <PageShell>
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<UsersIcon />}
+        badge={<Badge variant="muted">{t("count", { count: rows.length })}</Badge>}
+        actions={<CreateUserDialog />}
+      />
+      <PageSection title={t("title")} description={t("count", { count: rows.length })}>
+        <UsersTable
+          meId={me.id}
+          users={rows.map((u) => ({
+            id: u.id,
+            email: u.email,
+            displayName: u.displayName,
+            role: u.role,
+            createdAt: u.createdAt,
+            lastLoginAt: u.lastLoginAt,
+          }))}
+        />
+      </PageSection>
+      <PageSection
+        title={t("legend.title")}
+        description={t("hubHint")}
+        action={
+          <Button asChild size="sm" variant="secondary">
+            <Link href="/home?tab=settings&section=family">
+              <House className="size-4" aria-hidden /> {t("familyLink")}
+            </Link>
+          </Button>
+        }
+      >
+        <ul className="space-y-2 text-sm">
+          <li className="flex flex-wrap items-baseline gap-2">
+            <Badge variant="info">{tr("admin")}</Badge>
+            <span className="text-fg-muted">{t("legend.admin")}</span>
+          </li>
+          <li className="flex flex-wrap items-baseline gap-2">
+            <Badge>{tr("operator")}</Badge>
+            <span className="text-fg-muted">{t("legend.operator")}</span>
+          </li>
+          <li className="flex flex-wrap items-baseline gap-2">
+            <Badge variant="muted">{tr("viewer")}</Badge>
+            <span className="text-fg-muted">{t("legend.viewer")}</span>
+          </li>
+          <li className="pt-1 text-fg-muted">{t("familyHint")}</li>
+        </ul>
+      </PageSection>
+    </PageShell>
   );
 }

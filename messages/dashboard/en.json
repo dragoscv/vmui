@@ -1,0 +1,68 @@
+{
+  "greeting": {
+    "morning": "Good morning{name}",
+    "afternoon": "Good afternoon{name}",
+    "evening": "Good evening{name}",
+    "night": "Working late{name}",
+    "tagline": "Your fleet at a glance"
+  },
+  "hero": {
+    "live": "Live",
+    "summary": "{accounts, plural, one {# account} other {# accounts}} connected · syncing every 15 s in the background"
+  },
+  "stats": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "burn": "Burn / month",
+    "burnEstimated": "Estimate — {known} of {total} priced",
+    "burnHint": "Running instances × 730 h",
+    "providers": "Providers",
+    "providersHint": "{count, plural, =0 {No instances} one {# instance} other {# instances}}",
+    "sinceYesterday": "vs. 24 h ago"
+  },
+  "anomaly": {
+    "title": "Cost spike on {account}",
+    "body": "Hourly burn {current} is {ratio}× the 7-day median ({median}). That projects to {monthly}/month if sustained.",
+    "bodyNoRatio": "Hourly burn {current} is above the 7-day median ({median}). That projects to {monthly}/month if sustained.",
+    "view": "View costs"
+  },
+  "spend": {
+    "title": "Spend by account",
+    "description": "Projected monthly cost of what is running right now",
+    "fullView": "Full cost view",
+    "projected": "projected / month",
+    "running": "{count, plural, one {# running} other {# running}}",
+    "cap": "Budget {cap}",
+    "ofBudget": "{pct}% of budget",
+    "noBudget": "No budget set"
+  },
+  "live": {
+    "title": "Live",
+    "count": "{count, plural, one {# running} other {# running}}",
+    "open": "Open {name}",
+    "noType": "—"
+  },
+  "instances": {
+    "title": "Instances",
+    "description": "{count, plural, =0 {No instances} one {# instance} other {# instances}} across {providers, plural, one {# provider} other {# providers}}",
+    "launch": "Launch new",
+    "emptyTitle": "No instances yet",
+    "emptyDescription": "Launch one to get started — vmui syncs from your accounts automatically.",
+    "emptyAction": "Launch instance"
+  },
+  "activity": {
+    "title": "Recent activity",
+    "empty": "Nothing has happened yet.",
+    "viewAll": "All activity"
+  },
+  "welcome": {
+    "title": "Welcome to vmui",
+    "description": "Connect a cloud account to start managing virtual machines from one place.",
+    "feature1": "One-click start / stop / reboot on any instance",
+    "feature2": "Smart connect: .rdp for Windows, SSH + VNC for macOS, SSH for Linux",
+    "feature3": "Background status checks every 15 seconds",
+    "feature4": "AES-256-GCM encrypted credentials, stored locally",
+    "connect": "Connect an account",
+    "allAccounts": "All accounts"
+  }
+}

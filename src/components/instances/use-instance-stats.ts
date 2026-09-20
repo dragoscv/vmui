@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { getInstanceStatsAction } from "@/server/actions/local-kvm";
 import type { InstanceStatsSample } from "@/lib/providers/types";
+import { getInstanceStatsAction } from "@/server/actions/local-kvm";
+import { useEffect, useRef, useState } from "react";
 
 export interface StatsHistory {
   cpu: number[];
@@ -142,7 +142,7 @@ export function useInstanceStats(
           });
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed");
+        if (!cancelled) setError(err instanceof Error && err.message ? err.message : "common.error");
       } finally {
         inFlight.current = false;
         schedule();

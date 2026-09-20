@@ -1,27 +1,20 @@
-import { Key } from "lucide-react";
-import { listSshKeys } from "@/server/queries/ssh-keys";
+import { SshConfigExport } from "@/components/settings/ssh-config-export";
 import { SshKeyComposer } from "@/components/settings/ssh-key-composer";
 import { SshKeyList } from "@/components/settings/ssh-key-list";
-import { SshConfigExport } from "@/components/settings/ssh-config-export";
+import { PageHeader, PageShell } from "@/components/ui";
 import { listInstances } from "@/server/queries";
+import { listSshKeys } from "@/server/queries/ssh-keys";
+import { KeyRound } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function SshKeysPage() {
-  const [keys, vms] = await Promise.all([listSshKeys(), listInstances()]);
+  const [keys, vms, t] = await Promise.all([listSshKeys(), listInstances(), getTranslations("settings.access.sshKeys")]);
   const reachable = vms.filter((v) => v.publicIp || v.publicDns);
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Key className="h-6 w-6 text-[var(--color-primary)]" />
-          SSH keys
-        </h1>
-        <p className="text-sm text-muted">
-          Stored locally in <code>vmui.db</code>, encrypted with your master key. Inject the public half at create-time
-          for Azure / GCP / Scaleway VMs; AWS uses provider-side keypairs.
-        </p>
-      </div>
+    <PageShell width="narrow">
+      <PageHeader title={t("title")} description={t("description")} icon={<KeyRound />} />
       <SshKeyComposer />
       <SshKeyList keys={keys} />
       <SshConfigExport
@@ -34,6 +27,6 @@ export default async function SshKeysPage() {
           platform: v.platform,
         }))}
       />
-    </div>
+    </PageShell>
   );
 }

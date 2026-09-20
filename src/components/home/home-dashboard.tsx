@@ -17,6 +17,7 @@ import { armIntercomAction } from "@/server/actions/intercom";
 import { addWaterAction } from "@/server/actions/nutrition";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
 import { BellRing, Bot, Clapperboard, DoorOpen, Droplets, Eye, GlassWater, Lamp, Lightbulb, MonitorSmartphone, MousePointerClick, Music2, Radar, Tablet, Thermometer, Users } from "lucide-react";
+import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { parseAsStringLiteral, useQueryStates } from "nuqs";
 import * as React from "react";
@@ -315,9 +316,11 @@ function DeviceGrid({ devices, onSelect }: { devices: PlacedDevice[]; onSelect: 
               {t(r)}
               {viewOnly && <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-border)] px-1.5 py-0.5 normal-case tracking-normal"><Eye className="size-3" aria-hidden />{t("viewOnly")}</span>}
             </h3>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              {list.map((d) => (
-                <DeviceTile key={d.id} device={d} onSelect={() => onSelect(d.id)} />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 3xl:grid-cols-5">
+              {list.map((d, i) => (
+                <motion.div key={d.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}>
+                  <DeviceTile device={d} onSelect={() => onSelect(d.id)} />
+                </motion.div>
               ))}
             </div>
           </section>

@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2, Save, Trash2, Plus, ScrollText } from "lucide-react";
-import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Button, DataTable, EmptyState, Field, Input, PageSection, Textarea, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAction } from "@/hooks/use-action";
+import { ok } from "@/lib/action-result";
 import type { BootScriptRow } from "@/lib/db/schema";
-import {
-  upsertBootScriptAction,
-  deleteBootScriptAction,
-} from "@/server/actions/boot-scripts";
+import { deleteBootScriptAction, upsertBootScriptAction } from "@/server/actions/boot-scripts";
+import { Pencil, Plus, Save, ScrollText, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useMemo, useState } from "react";
+import { toResult } from "./adapt";
+import { RelativeTime } from "./relative-time";
 
-type Kind = "cloud-init" | "bash" | "powershell";
+const KINDS = ["cloud-init", "bash", "powershell"] as const;
+type Kind = (typeof KINDS)[number];
 
 interface Draft {
   id?: string;
@@ -34,149 +36,169 @@ function toDraft(row: BootScriptRow): Draft {
 }
 
 export function BootScriptsCard({ initial }: { initial: BootScriptRow[] }) {
+  const t = useTranslations("settings.automation.bootScripts");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
   const [rows, setRows] = useState<BootScriptRow[]>(initial);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [pending, start] = useTransition();
 
-  function newDraft() {
-    setDraft({ name: "", description: "", kind: "cloud-init", body: "" });
-  }
-
-  function save() {
-    if (!draft) return;
-    start(async () => {
+  const save = useAction(
+    async (d: Draft) => {
       const r = await upsertBootScriptAction({
-        id: draft.id,
-        name: draft.name,
-        description: draft.description || null,
-        kind: draft.kind,
-        body: draft.body,
+        id: d.id,
+        name: d.name,
+        description: d.description || null,
+        kind: d.kind,
+        body: d.body,
       });
-      if (!r.ok) {
-        toast.error("Save failed", { description: r.error });
-        return;
-      }
-      toast.success("Boot script saved");
-      const id = r.id!;
+      if (!r.ok || !r.id) return toResult(r);
       const row: BootScriptRow = {
-        id,
-        name: draft.name,
-        description: draft.description || null,
-        kind: draft.kind,
-        body: draft.body,
+        id: r.id,
+        name: d.name,
+        description: d.description || null,
+        kind: d.kind,
+        body: d.body,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
       setRows((prev) => {
-        const exists = prev.findIndex((x) => x.id === id);
-        if (exists >= 0) {
-          const copy = [...prev];
-          copy[exists] = row;
-          return copy;
-        }
-        return [...prev, row];
+        const i = prev.findIndex((x) => x.id === row.id);
+        if (i < 0) return [...prev, row];
+        const copy = [...prev];
+        copy[i] = { ...prev[i]!, ...row, createdAt: prev[i]!.createdAt };
+        return copy;
       });
-      setDraft(null);
+      return ok();
+    },
+    { success: t("saved"), refresh: false, onSuccess: () => setDraft(null) },
+  );
+
+  const remove = useAction(
+    async (id: string) => {
+      const r = toResult(await deleteBootScriptAction(id));
+      if (r.ok) setRows((prev) => prev.filter((x) => x.id !== id));
+      return r;
+    },
+    { success: t("deleted"), refresh: false },
+  );
+
+  async function onRemove(row: BootScriptRow) {
+    const yes = await confirm({
+      title: t("confirmDelete", { name: row.name }),
+      description: t("confirmDeleteHint"),
+      tone: "danger",
+      confirmText: tc("delete"),
     });
+    if (yes) await remove.run(row.id);
   }
 
-  function remove(id: string) {
-    if (!window.confirm("Delete this boot script?")) return;
-    start(async () => {
-      const r = await deleteBootScriptAction(id);
-      if (r.ok) {
-        setRows((prev) => prev.filter((x) => x.id !== id));
-        toast.success("Boot script deleted");
-      }
-    });
-  }
+  const columns = useMemo<ColumnDef<BootScriptRow, unknown>[]>(
+    () => [
+      { accessorKey: "name", header: t("columns.name"), cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+      { accessorKey: "kind", header: t("columns.kind"), cell: ({ row }) => <Badge variant="info">{row.original.kind}</Badge> },
+      {
+        accessorKey: "description",
+        header: t("columns.description"),
+        enableSorting: false,
+        cell: ({ row }) => <span className="block max-w-[20rem] truncate text-fg-muted">{row.original.description ?? "—"}</span>,
+      },
+      {
+        accessorKey: "updatedAt",
+        header: t("columns.updated"),
+        cell: ({ row }) => <RelativeTime date={row.original.updatedAt} className="whitespace-nowrap text-fg-muted" />,
+      },
+    ],
+    [t],
+  );
+
+  const canSave = !!draft && draft.name.trim().length > 0 && draft.body.trim().length > 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ScrollText className="h-4 w-4 text-[var(--color-primary)]" />
-          Boot scripts
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-muted">
-          User-data scripts passed verbatim to the provider at instance creation. Pick one in the
-          create form. vmui never executes them locally.
-        </p>
+    <PageSection
+      title={t("title")}
+      description={t("description")}
+      action={
+        <Button size="sm" onClick={() => setDraft({ name: "", description: "", kind: "cloud-init", body: "" })}>
+          <Plus className="size-4" aria-hidden /> {t("add")}
+        </Button>
+      }
+    >
+      <DataTable
+        columns={columns}
+        data={rows}
+        dense
+        getRowId={(r) => r.id}
+        emptyState={<EmptyState compact icon={<ScrollText />} title={t("empty")} description={t("emptyHint")} />}
+        rowActions={(s) => (
+          <>
+            <Button size="icon" variant="ghost" onClick={() => setDraft(toDraft(s))} aria-label={t("edit")}>
+              <Pencil className="size-4" aria-hidden />
+            </Button>
+            <Button size="icon" variant="ghost" onClick={() => void onRemove(s)} disabled={remove.pending} aria-label={t("delete")}>
+              <Trash2 className="size-4 text-danger" aria-hidden />
+            </Button>
+          </>
+        )}
+      />
 
-        <ul className="space-y-2">
-          {rows.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center gap-2 rounded-md border border-[var(--color-border)] p-2 text-xs"
+      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
+        <DialogContent className="max-w-2xl">
+          {draft && (
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (canSave) void save.run(draft);
+              }}
             >
-              <Badge variant="info" className="shrink-0 text-[10px]">
-                {s.kind}
-              </Badge>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{s.name}</div>
-                {s.description && <div className="truncate text-[11px] text-muted">{s.description}</div>}
+              <DialogHeader>
+                <DialogTitle>{draft.id ? t("editTitle") : t("newTitle")}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                <Field label={t("name")}>
+                  <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={t("namePlaceholder")} required />
+                </Field>
+                <Field label={t("kind")}>
+                  <Select value={draft.kind} onValueChange={(v) => setDraft({ ...draft, kind: v as Kind })}>
+                    <SelectTrigger aria-label={t("kind")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {KINDS.map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {k}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setDraft(toDraft(s))}>
-                Edit
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => remove(s.id)} disabled={pending}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-
-        {!draft && (
-          <Button size="sm" variant="secondary" onClick={newDraft}>
-            <Plus className="h-3.5 w-3.5" /> New boot script
-          </Button>
-        )}
-
-        {draft && (
-          <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3">
-            <Input
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="Install Docker"
-              className="text-xs"
-            />
-            <Input
-              value={draft.description}
-              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              placeholder="One-line description (optional)"
-              className="text-xs"
-            />
-            <select
-              value={draft.kind}
-              onChange={(e) => setDraft({ ...draft, kind: e.target.value as Kind })}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-xs"
-            >
-              <option value="cloud-init">cloud-init</option>
-              <option value="bash">bash</option>
-              <option value="powershell">powershell</option>
-            </select>
-            <textarea
-              value={draft.body}
-              onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-              rows={10}
-              placeholder={"#cloud-config\npackage_update: true\n..."}
-              className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2 font-mono text-[11px]"
-              spellCheck={false}
-            />
-            <div className="flex items-center gap-2">
-              <Button size="sm" onClick={save} disabled={pending || !draft.name.trim() || !draft.body.trim()}>
-                {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Save
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={pending}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <Field label={t("descriptionField")}>
+                <Input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder={t("descriptionPlaceholder")} />
+              </Field>
+              <Field label={t("body")}>
+                <Textarea
+                  value={draft.body}
+                  onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                  rows={12}
+                  placeholder={"#cloud-config\npackage_update: true"}
+                  spellCheck={false}
+                  className="font-mono text-xs"
+                  required
+                />
+              </Field>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setDraft(null)} disabled={save.pending}>
+                  {tc("cancel")}
+                </Button>
+                <Button type="submit" loading={save.pending} disabled={!canSave}>
+                  <Save className="size-4" aria-hidden /> {tc("save")}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </PageSection>
   );
 }

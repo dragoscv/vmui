@@ -1,6 +1,8 @@
-import { ExternalLink } from "lucide-react";
-import type { ProviderId } from "@/lib/providers/types";
+import { Button } from "@/components/ui/button";
 import { consoleUrl } from "@/lib/console-links";
+import type { ProviderId } from "@/lib/providers/types";
+import { ExternalLink } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 
 interface Props {
   providerId: ProviderId;
@@ -8,18 +10,20 @@ interface Props {
   providerInstanceId: string;
 }
 
-export function ConsoleLinkButton({ providerId, region, providerInstanceId }: Props) {
+export async function ConsoleLinkButton({ providerId, region, providerInstanceId }: Props) {
+  const t = await getTranslations("vm.actions.console");
   const url = consoleUrl(providerId, { region, providerInstanceId });
   if (!url) return null;
+  const consoleName =
+    providerId === "aws" || providerId === "azure" || providerId === "gcp"
+      ? t(providerId)
+      : t("other", { provider: providerId });
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-xs hover:bg-zinc-800"
-    >
-      <ExternalLink className="h-3.5 w-3.5" />
-      Open in {providerId === "aws" ? "AWS Console" : providerId === "azure" ? "Azure Portal" : providerId === "gcp" ? "GCP Console" : `${providerId} console`}
-    </a>
+    <Button asChild variant="outline" size="sm">
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+        {t("open", { console: consoleName })}
+      </a>
+    </Button>
   );
 }

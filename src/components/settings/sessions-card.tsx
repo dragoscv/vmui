@@ -1,123 +1,106 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2, LogOut, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Button, DataTable, EmptyState, type ColumnDef } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import {
-  listSessionsAction,
-  revokeAllOtherSessionsAction,
-  revokeSessionAction,
-  type SessionListItem,
+    listSessionsAction,
+    revokeAllOtherSessionsAction,
+    revokeSessionAction,
+    type SessionListItem,
 } from "@/server/actions/sessions";
-
-function relative(d: Date): string {
-  const diff = Math.max(0, Date.now() - new Date(d).getTime());
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
-}
+import { LogOut, MonitorSmartphone, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toError } from "./adapt";
+import { RelativeTime } from "./relative-time";
 
 export function SessionsCard() {
+  const t = useTranslations("settings.security.sessions");
   const router = useRouter();
   const [rows, setRows] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pending, start] = useTransition();
 
-  async function refresh() {
-    const s = await listSessionsAction();
-    setRows(s);
+  const refresh = useCallback(async () => {
+    setRows(await listSessionsAction());
     setLoading(false);
-  }
-
-  useEffect(() => {
-    refresh();
   }, []);
 
-  function revoke(id: string, isCurrent: boolean) {
-    start(async () => {
-      const r = await revokeSessionAction(id);
-      if (r.ok) {
-        toast.success("Session revoked");
-        if (isCurrent) {
-          router.push("/sign-in");
-          router.refresh();
-        } else {
-          await refresh();
-          router.refresh();
-        }
-      } else {
-        toast.error(r.error ?? "Failed");
-      }
-    });
-  }
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-  function revokeAll() {
-    start(async () => {
+  const revoke = useAction(
+    async (s: SessionListItem): Promise<ActionResult<boolean>> => {
+      const r = await revokeSessionAction(s.id);
+      return r.ok ? ok(s.isCurrent) : toError(r);
+    },
+    {
+      success: t("revoked"),
+      onSuccess: (wasCurrent) => {
+        if (wasCurrent) router.push("/sign-in");
+        else void refresh();
+      },
+    },
+  );
+
+  const revokeAll = useAction(
+    async (): Promise<ActionResult<number>> => {
       const r = await revokeAllOtherSessionsAction();
-      if (r.ok) {
-        toast.success(`Revoked ${r.count} other session(s)`);
-        await refresh();
-        router.refresh();
-      }
-    });
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Loader2 className="h-3 w-3 animate-spin" /> Loading sessions…
-      </div>
-    );
-  }
-
-  if (rows.length === 0) {
-    return <div className="text-xs text-muted">No active sessions.</div>;
-  }
+      return r.ok ? ok(r.count) : toError({});
+    },
+    { success: (count) => t("revokedOthers", { count }), onSuccess: () => void refresh() },
+  );
 
   const others = rows.filter((r) => !r.isCurrent).length;
 
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted">
-          {rows.length} active session{rows.length === 1 ? "" : "s"}
-        </span>
-        {others > 0 && (
-          <Button size="sm" variant="ghost" onClick={revokeAll} disabled={pending}>
-            <LogOut className="h-3.5 w-3.5" /> Sign out everywhere else
-          </Button>
-        )}
-      </div>
-      <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-md)] border border-[var(--color-border)]">
-        {rows.map((s) => (
-          <li key={s.id} className="flex items-center justify-between px-3 py-2 text-sm">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{s.displayName}</span>
-                <code className="text-[11px] text-muted">{s.email}</code>
-                {s.isCurrent && <Badge variant="success">this session</Badge>}
-              </div>
-              <div className="mt-0.5 text-[11px] text-muted">
-                Last seen {relative(s.lastSeenAt)} · created {relative(s.createdAt)} · expires {relative(s.expiresAt)}
-              </div>
+  const columns = useMemo<ColumnDef<SessionListItem, unknown>[]>(() => {
+    const rel = (d: Date) => <RelativeTime date={d} className="whitespace-nowrap text-fg-muted" />;
+    return [
+      {
+        accessorKey: "displayName",
+        header: t("user"),
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate font-medium">{row.original.displayName}</span>
+              {row.original.isCurrent && <Badge variant="success">{t("current")}</Badge>}
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => revoke(s.id, s.isCurrent)}
-              disabled={pending}
-              aria-label="Revoke"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {s.isCurrent ? "Sign out" : "Revoke"}
+            <code className="block truncate text-[11px] text-fg-muted">{row.original.email}</code>
+          </div>
+        ),
+      },
+      { accessorKey: "lastSeenAt", header: t("lastSeen"), cell: ({ row }) => rel(row.original.lastSeenAt) },
+      { accessorKey: "createdAt", header: t("created"), cell: ({ row }) => rel(row.original.createdAt) },
+      { accessorKey: "expiresAt", header: t("expires"), cell: ({ row }) => rel(row.original.expiresAt) },
+    ];
+  }, [t]);
+
+  return (
+    <DataTable
+      columns={columns}
+      data={rows}
+      loading={loading}
+      dense
+      getRowId={(r) => r.id}
+      toolbar={
+        <>
+          <span className="text-xs text-fg-muted tabular-nums">{t("count", { count: rows.length })}</span>
+          {others > 0 && (
+            <Button size="sm" variant="outline" onClick={() => void revokeAll.run()} loading={revokeAll.pending}>
+              <LogOut className="size-4" aria-hidden /> {t("signOutOthers")}
             </Button>
-          </li>
-        ))}
-      </ul>
-    </div>
+          )}
+        </>
+      }
+      emptyState={<EmptyState compact icon={<MonitorSmartphone />} title={t("empty")} />}
+      rowActions={(s) => (
+        <Button size="sm" variant="ghost" onClick={() => void revoke.run(s)} disabled={revoke.pending}>
+          {s.isCurrent ? <LogOut className="size-4" aria-hidden /> : <Trash2 className="size-4 text-danger" aria-hidden />}
+          {s.isCurrent ? t("signOut") : t("revoke")}
+        </Button>
+      )}
+    />
   );
 }

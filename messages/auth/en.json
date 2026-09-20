@@ -1,1 +1,163 @@
-{}
+{
+  "brand": {
+    "name": "vmui",
+    "tagline": "Local-first control plane"
+  },
+  "or": "or",
+  "theme": {
+    "toLight": "Switch to light theme",
+    "toDark": "Switch to dark theme"
+  },
+  "fields": {
+    "email": "Email",
+    "password": "Password",
+    "passwordHint": "At least 8 characters.",
+    "confirmPassword": "Confirm password",
+    "displayName": "Display name",
+    "role": "Role",
+    "code": "Authenticator code or backup code",
+    "codePlaceholder": "123456"
+  },
+  "password": {
+    "show": "Show password",
+    "hide": "Hide password"
+  },
+  "roles": {
+    "admin": "Admin",
+    "operator": "Operator",
+    "viewer": "Viewer"
+  },
+  "signIn": {
+    "title": "Sign in to vmui",
+    "description": "Your VMs, your machine. Nothing leaves this host.",
+    "submit": "Sign in",
+    "noAccount": "Need an account? Ask a vmui admin to create one.",
+    "twoFactorTitle": "Two-factor check",
+    "twoFactorBody": "Enter the code for <b>{email}</b>.",
+    "verify": "Verify"
+  },
+  "passkey": {
+    "button": "Sign in with passkey",
+    "signedIn": "Signed in"
+  },
+  "signUp": {
+    "firstTitle": "Create the first vmui admin",
+    "firstDescription": "No users exist yet — this account becomes the local admin.",
+    "addTitle": "Add a user",
+    "addDescription": "The new user can sign in right away with the role you pick.",
+    "submitFirst": "Create admin",
+    "submitAdd": "Create user",
+    "backToUsers": "Back to users",
+    "haveAccount": "Already have an account?",
+    "signInLink": "Sign in"
+  },
+  "invite": {
+    "title": "Join the household",
+    "description": "Pick your credentials to finish joining.",
+    "invitedBy": "Invited by {name}",
+    "invitedAs": "You join as",
+    "roomsIntro": "Rooms you will have access to",
+    "noRooms": "No rooms granted yet — the owner can add them later.",
+    "accessUntil": "Access until {date}",
+    "displayName": "Your name",
+    "submit": "Create my account",
+    "joined": "Welcome home",
+    "invalidTitle": "Invite not valid",
+    "invalidBody": "This link has expired, was revoked, or was already used. Ask the owner for a new one.",
+    "invalidCta": "Go to sign-in"
+  },
+  "validation": {
+    "emailRequired": "Enter your email.",
+    "emailInvalid": "Enter a valid email address.",
+    "passwordRequired": "Enter your password.",
+    "passwordShort": "The password needs at least 8 characters.",
+    "passwordMismatch": "The passwords do not match.",
+    "nameRequired": "Enter a name.",
+    "codeRequired": "Enter the code from your authenticator app."
+  },
+  "errors": {
+    "invalidInput": "Enter a valid email and password.",
+    "invalidCredentials": "Invalid email or password.",
+    "rateLimited": "Too many attempts. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+    "codeInvalidInput": "Enter the 6-digit code.",
+    "verificationExpired": "Verification expired. Sign in again.",
+    "userNotFound": "User not found.",
+    "notEnrolled": "Two-factor is not enrolled for this account.",
+    "decryptFailed": "Could not read the two-factor secret.",
+    "invalidCode": "Invalid code.",
+    "invalidEmail": "Enter a valid email address.",
+    "passwordShort": "The password needs at least 8 characters.",
+    "nameRequired": "Enter a display name.",
+    "emailTaken": "An account with this email already exists.",
+    "createFailed": "Could not create the user.",
+    "notAuthenticated": "You are not signed in.",
+    "adminRequired": "Only an admin can create users.",
+    "inviteInvalid": "This invite is no longer valid.",
+    "noPasskeys": "No passkeys are registered yet.",
+    "challengeExpired": "The passkey challenge expired. Try again.",
+    "unknownPasskey": "This passkey is not recognised.",
+    "verificationFailed": "Passkey verification failed.",
+    "generic": "That did not work: {message}"
+  },
+  "onboarding": {
+    "title": "Welcome to vmui",
+    "description": "Local-first multi-cloud control plane. Everything stays on this machine — no cloud accounts of vmui's own.",
+    "progress": "{done} of {total} steps done",
+    "status": {
+      "done": "done",
+      "next": "next",
+      "later": "later"
+    },
+    "step": "Step {n}",
+    "steps": {
+      "masterKey": {
+        "title": "Set the master key",
+        "done": "VMUI_MASTER_KEY is set; credentials are encrypted at rest.",
+        "todo": "Generate a 32-byte key and put it in .env.local as VMUI_MASTER_KEY before continuing.",
+        "cta": "How to generate it"
+      },
+      "account": {
+        "title": "Connect a cloud account",
+        "done": "{count, plural, one {# account connected.} other {# accounts connected.}}",
+        "todo": "Paste read+write API credentials for AWS, Azure, GCP, Scaleway, or local-kvm.",
+        "cta": "Connect an account"
+      },
+      "firstVm": {
+        "title": "Create your first VM",
+        "done": "{count, plural, one {# instance in the local cache.} other {# instances in the local cache.}}",
+        "todo": "Run a sync to pull existing instances, or provision a new one from a provider image.",
+        "cta": "New instance"
+      },
+      "sshKey": {
+        "title": "Save an SSH key",
+        "detail": "Generate or import a key under Settings → SSH keys to use the in-app terminal without pasting keys each time.",
+        "cta": "SSH keys"
+      },
+      "schedule": {
+        "title": "Schedule auto-shutdown",
+        "detail": "Stop dev VMs overnight, restart them in the morning, or schedule weekly reboots.",
+        "cta": "Schedules"
+      }
+    },
+    "optional": {
+      "title": "Optional next steps",
+      "description": "Nice to have once the basics work."
+    },
+    "keygen": {
+      "title": "Generating a master key",
+      "body": "Run <code>pnpm keygen</code> in the project root, then add the printed line (<code>VMUI_MASTER_KEY=...</code>) to <code>.env.local</code>. Restart the dev server. Everything sensitive — credentials, SSH private keys — is sealed with AES-256-GCM using this key."
+    },
+    "providers": {
+      "title": "Provider quick reference",
+      "aws": "<b>AWS:</b> IAM access key + secret. Recommend a dedicated user with EC2 + S3 + RDS + ELB + Route53 read/write.",
+      "azure": "<b>Azure:</b> Service principal — tenantId, clientId, clientSecret, subscriptionId. Contributor on the target subscription.",
+      "gcp": "<b>GCP:</b> Service-account JSON key. Compute, Storage, Cloud SQL, DNS roles. Pasted JSON is encrypted before disk.",
+      "scaleway": "<b>Scaleway:</b> API token + organization id.",
+      "kvm": "<b>local-kvm:</b> SSH host + key for the libvirt host. vmui talks directly to libvirt via the chosen URI."
+    },
+    "background": {
+      "title": "What runs in the background",
+      "body": "A sync loop refreshes instances every minute. Schedules tick every 30 seconds. Audit logs older than 30 days are gzipped to disk and removed from the live table."
+    }
+  }
+}

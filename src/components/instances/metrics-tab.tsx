@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { motion } from "motion/react";
-import { Activity, Loader2, RefreshCw } from "lucide-react";
+import { Alert, Badge, Button, PageSection, SkeletonCard, ToggleGroup } from "@/components/ui";
+import type { MetricSeries, MetricsHistory } from "@/lib/providers/types";
 import { getMetricsHistoryAction } from "@/server/actions/metrics";
-import type { MetricsHistory, MetricSeries } from "@/lib/providers/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 interface Props {
   accountId: string;
@@ -17,16 +16,17 @@ interface Props {
 }
 
 const RANGES = [
-  { id: "30m", label: "30m", minutes: 30 },
-  { id: "1h", label: "1h", minutes: 60 },
-  { id: "6h", label: "6h", minutes: 360 },
-  { id: "24h", label: "24h", minutes: 1440 },
-  { id: "7d", label: "7d", minutes: 60 * 24 * 7 },
+  { id: "30m", key: "range30m", minutes: 30 },
+  { id: "1h", key: "range1h", minutes: 60 },
+  { id: "6h", key: "range6h", minutes: 360 },
+  { id: "24h", key: "range24h", minutes: 1440 },
+  { id: "7d", key: "range7d", minutes: 60 * 24 * 7 },
 ] as const;
 
 type RangeId = (typeof RANGES)[number]["id"];
 
 export function MetricsTab({ accountId, providerInstanceId, enabled = true }: Props) {
+  const t = useTranslations("vm.metrics");
   const [range, setRange] = useState<RangeId>("1h");
   const [data, setData] = useState<MetricsHistory | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,66 +49,67 @@ export function MetricsTab({ accountId, providerInstanceId, enabled = true }: Pr
   }, [accountId, providerInstanceId, range, enabled]);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-4 w-4 text-[var(--color-primary)]" />
-            Metrics
-            {data?.source && <Badge variant="muted" className="text-[10px]">{data.source}</Badge>}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-md border border-[var(--color-border)] p-0.5">
-              {RANGES.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => setRange(r.id)}
-                  className={
-                    "rounded px-2 py-0.5 text-xs transition-colors " +
-                    (range === r.id
-                      ? "bg-[var(--color-primary)] text-white"
-                      : "text-muted hover:bg-[var(--color-bg-muted)]")
-                  }
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={pending}>
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <PageSection
+      title={
+        <span className="inline-flex items-center gap-2">
+          {t("title")}
+          {data?.source && <Badge variant="muted" className="text-[10px]">{data.source}</Badge>}
+        </span>
+      }
+      description={t("description")}
+      action={
+        <>
+          <ToggleGroup
+            size="sm"
+            value={range}
+            onValueChange={setRange}
+            aria-label={t("range")}
+            options={RANGES.map((r) => ({ value: r.id, label: t(r.key) }))}
+          />
+          <Button variant="ghost" size="sm" onClick={reload} loading={pending} aria-label={t("refresh")}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
         {error && (
-          <div className="rounded-md bg-[color-mix(in_oklch,var(--color-danger)_15%,transparent)] p-2 text-xs text-[var(--color-danger)]">
+          <Alert tone="danger" className="text-xs">
             {error}
-          </div>
+          </Alert>
         )}
         {data?.note && (
-          <div className="rounded-md bg-[var(--color-bg-muted)] px-3 py-1.5 text-[11px] text-muted">
+          <Alert tone="info" className="text-xs">
             {data.note}
-          </div>
+          </Alert>
         )}
         {!data && !error && (
-          <div className="grid place-items-center py-12 text-xs text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
         )}
         {data && (
           <div className="grid gap-4 sm:grid-cols-2">
-            {data.series.map((s) => (
-              <SeriesChart key={s.id} series={s} />
+            {data.series.map((s, i) => (
+              <motion.div
+                key={s.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
+              >
+                <SeriesChart series={s} />
+              </motion.div>
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </PageSection>
   );
 }
 
 function SeriesChart({ series }: { series: MetricSeries }) {
+  const t = useTranslations("vm.metrics");
   const points = series.points.filter((p) => p.v != null) as { t: number; v: number }[];
   const last = points[points.length - 1]?.v ?? null;
   const max = useMemo(() => {
@@ -137,18 +138,26 @@ function SeriesChart({ series }: { series: MetricSeries }) {
   const peakFormatted = format(max / 1.1, series.unit);
 
   return (
-    <div className="rounded-md border border-[var(--color-border)] bg-[color-mix(in_oklch,var(--color-bg)_60%,transparent)] p-3">
+    <div className="rounded-[var(--radius-md)] border border-border bg-[color-mix(in_oklch,var(--color-bg)_60%,transparent)] p-3">
       <div className="mb-1 flex items-center justify-between text-xs">
         <span className="font-medium">{series.label}</span>
         <span className="font-mono tabular-nums text-muted">
-          {formatted} <span className="opacity-60">peak {peakFormatted}</span>
+          {formatted} <span className="opacity-60">{t("peak", { value: peakFormatted })}</span>
         </span>
       </div>
-      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <svg
+        width="100%"
+        height={h}
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={t("chart", { label: series.label })}
+        className="text-primary"
+      >
         <defs>
           <linearGradient id={`grad-${series.id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>
         {points.length > 1 ? (
@@ -159,22 +168,22 @@ function SeriesChart({ series }: { series: MetricSeries }) {
               fill={`url(#grad-${series.id})`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.3 }}
             />
             <motion.path
               key={`stroke-${path}`}
               d={path}
               fill="none"
-              stroke="var(--color-primary)"
+              stroke="currentColor"
               strokeWidth={1.5}
               initial={{ pathLength: 0 }}
               animate={{ pathLength: 1 }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
+              transition={{ duration: 0.32, ease: "easeOut" }}
             />
           </>
         ) : (
-          <text x={w / 2} y={h / 2} textAnchor="middle" className="fill-current" fontSize="10" opacity="0.5">
-            no data
+          <text x={w / 2} y={h / 2} textAnchor="middle" className="fill-[var(--color-fg-muted)]" fontSize="10">
+            {t("noData")}
           </text>
         )}
       </svg>

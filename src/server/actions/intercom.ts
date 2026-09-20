@@ -1,7 +1,8 @@
 "use server";
 
 import { requireDoorAccess, requireHomeActor, type HomeActor } from "@/lib/home/access";
-import { armAutoOpen, ignoreCall, openDoor } from "@/lib/home/intercom";
+import { NO_CALL, armAutoOpen, ignoreCall, openDoor } from "@/lib/home/intercom";
+import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -14,7 +15,8 @@ async function guard(gate: () => Promise<HomeActor>, fn: (actor: HomeActor) => P
   try {
     actor = await gate();
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Not authorized" };
+    const t = await getTranslations("common");
+    return { ok: false, error: err instanceof Error ? err.message : t("failed") };
   }
   const r = await fn(actor);
   revalidatePath("/home");
@@ -23,7 +25,7 @@ async function guard(gate: () => Promise<HomeActor>, fn: (actor: HomeActor) => P
 
 export async function armIntercomAction(minutes: number): Promise<Result> {
   const m = z.number().int().min(0).max(240).safeParse(minutes);
-  if (!m.success) return { ok: false, error: "minute invalide" };
+  if (!m.success) return { ok: false, error: (await getTranslations("common"))("failed") };
   return guard(requireDoorAccess, async (a) => {
     await armAutoOpen(m.data, source(a));
     return { ok: true };
@@ -33,7 +35,9 @@ export async function armIntercomAction(minutes: number): Promise<Result> {
 export async function openIntercomAction(): Promise<Result> {
   return guard(requireDoorAccess, async (a) => {
     const r = await openDoor(source(a));
-    return r.ok ? { ok: true } : { ok: false, error: r.error ?? "eșuat" };
+    if (r.ok) return { ok: true };
+    const t = await getTranslations();
+    return { ok: false, error: r.error === NO_CALL ? t("notify.errors.noCall") : (r.error ?? t("common.failed")) };
   });
 }
 

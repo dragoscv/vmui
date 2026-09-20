@@ -8,6 +8,119 @@
     "actionDone": "Done",
     "actionFailed": "That did not work"
   },
+  "kinds": {
+    "copilot": "Copilot",
+    "agents": "Active agents",
+    "intercom": "Intercom",
+    "pairing": "New devices",
+    "water": "Water",
+    "pc": "PC",
+    "pi": "Raspberry Pi",
+    "door": "Door",
+    "window": "Window",
+    "presence": "Presence",
+    "battery": "Batteries",
+    "system": "System"
+  },
+  "cards": {
+    "pairing": {
+      "title": "{name} is asking for access",
+      "body": "{platform} · {ip} · check that the device shows code {code}",
+      "subtitle": "code {code}",
+      "approve": "Approve · {code}",
+      "reject": "Reject"
+    },
+    "intercom": {
+      "ringTitle": "The intercom is ringing",
+      "ringArmed": "Auto-open is armed — the door will open.",
+      "ringAsk": "Someone is downstairs. Open?",
+      "open": "Answer and open",
+      "ignore": "Ignore",
+      "openedTitle": "Door opened",
+      "openedAuto": "Opened automatically.",
+      "openedBy": "Opened from {by}."
+    },
+    "water": {
+      "title": "You are {l} L behind pace",
+      "body": "{ml} L today out of {target} L",
+      "add": "+{ml} ml"
+    },
+    "pc": {
+      "title": "The PC stopped responding",
+      "body": "The tray agent is gone (sleep, powered off, or vmui-tray crashed).",
+      "wake": "Wake the PC"
+    },
+    "pi": {
+      "undervoltTitle": "Pi: not enough power",
+      "undervoltBody": "get_throttled={flags} · CPU down to 600 MHz; check the supply and cable",
+      "tempTitle": "Pi: {temp} °C",
+      "tempBody": "Temperature is above 75 °C",
+      "unitsTitle": "{count, plural, one {Unit down} other {Units down}} on the Pi",
+      "restart": "Restart {unit}"
+    },
+    "battery": {
+      "title": "{name}: battery {pct}%",
+      "body": "Change the sensor battery."
+    },
+    "door": {
+      "title": "{sensor, select, mainDoor {The front door} window {The window} presence {The presence sensor} other {{sensor}}} was opened",
+      "night": "Night time — check it.",
+      "lightOn": "Turn the hallway light on"
+    },
+    "window": {
+      "title": "{sensor, select, mainDoor {The front door} window {The window} presence {The presence sensor} other {{sensor}}} is open"
+    },
+    "presence": {
+      "title": "Movement in the flat",
+      "body": "{sensor, select, mainDoor {The front door} window {The window} presence {The presence sensor} other {{sensor}}} detected presence while you are away.",
+      "lightsOff": "Turn everything off"
+    },
+    "coach": {
+      "title": {
+        "streak_risk": "Streak at risk",
+        "over_target": "Over target",
+        "under_target": "Under target",
+        "protein_low": "Protein",
+        "celebration": "Well done",
+        "weekly_review": "Weekly review",
+        "no_data": "Nutrition"
+      },
+      "fallback": {
+        "streak_risk": "Your {days}-day streak is at risk — nothing logged today. One photo of dinner saves it.",
+        "over_target": "You have been consistently over target these past days (~{delta} kcal/day). Shall we adjust the target or the portions?",
+        "under_target": "You have been well under target for a few days. If that is on purpose, fine — if not, check you are not skipping meals.",
+        "protein_low": "Protein today: {protein} g out of {target} g. A protein-heavy dinner would balance the day.",
+        "celebration": "Five days in a row on target. That is how it is done! 🎉",
+        "weekly_review": "This week: {days}/7 days logged, {avg} kcal on average against a {target} kcal target. {onTarget, plural, =0 {Next week closer to target?} one {Next week closer to target?} other {Very consistent!}}",
+        "no_data": "Nothing logged yet today."
+      }
+    }
+  },
+  "results": {
+    "doorOpened": "door opened",
+    "ignored": "ignored",
+    "approved": "approved",
+    "rejected": "rejected",
+    "waterAdded": "+{ml} ml",
+    "wakeSent": "magic packet sent",
+    "unitRestarted": "{unit} restarted",
+    "lightsOff": "lights off",
+    "lightOn": "turned on"
+  },
+  "errors": {
+    "cardNotFound": "no such notification",
+    "alreadyResolved": "already resolved",
+    "unknownAction": "unknown action",
+    "forbidden": "forbidden",
+    "openFailed": "the door could not be opened",
+    "noCall": "Nobody is ringing right now.",
+    "unsupportedAction": "action {action} is not supported for {kind}",
+    "pairing": {
+      "not_found": "no such request, or it expired",
+      "expired": "the request expired",
+      "code_mismatch": "the code does not match"
+    }
+  },
   "devices": {
     "title": "Paired devices",
     "description": "Phones and PCs running the vmui app. Each has its own token, revocable here.",

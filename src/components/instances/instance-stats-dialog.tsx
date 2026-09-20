@@ -1,14 +1,15 @@
 "use client";
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
-import { InstanceStatsPanel } from "./instance-stats-panel";
 import type { InstanceRow } from "@/lib/db/schema";
+import { useTranslations } from "next-intl";
+import { InstanceStatsPanel } from "./instance-stats-panel";
 
 export function InstanceStatsDialog({
   open,
@@ -19,13 +20,14 @@ export function InstanceStatsDialog({
   onOpenChange: (v: boolean) => void;
   instance: InstanceRow;
 }) {
+  const t = useTranslations("vm.stats");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{instance.name ?? instance.providerInstanceId}</DialogTitle>
           <DialogDescription>
-            Realtime resource usage — {instance.provider} · {instance.region}
+            {t("dialogDescription", { provider: instance.provider, region: instance.region })}
           </DialogDescription>
         </DialogHeader>
         <InstanceStatsPanel

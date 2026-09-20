@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { instanceSecrets } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
+import "server-only";
 import { SecretsVaultClient } from "./secrets-vault.client";
 
 export async function SecretsVault({ accountId, providerInstanceId }: { accountId: string; providerInstanceId: string }) {

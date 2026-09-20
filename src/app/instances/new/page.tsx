@@ -1,22 +1,21 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { listAccounts } from "@/server/queries";
-import { Button } from "@/components/ui/button";
 import { CreateInstanceForm } from "@/components/instances/create-form";
-import { listBootScriptsAction } from "@/server/actions/boot-scripts";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button, EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { AwsProvider } from "@/lib/providers/aws";
-import { ScalewayProvider } from "@/lib/providers/scaleway";
 import { DigitalOceanProvider } from "@/lib/providers/digitalocean";
 import { HetznerProvider } from "@/lib/providers/hetzner";
 import { LocalKvmProvider } from "@/lib/providers/local-kvm";
+import { ScalewayProvider } from "@/lib/providers/scaleway";
 import type { InstanceTemplate, ProviderId } from "@/lib/providers/types";
+import { listBootScriptsAction } from "@/server/actions/boot-scripts";
+import { listAccounts } from "@/server/queries";
+import { Cloud, Server } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewInstancePage() {
-  const accounts = await listAccounts();
-  const bootScripts = await listBootScriptsAction();
+  const [accounts, bootScripts, t] = await Promise.all([listAccounts(), listBootScriptsAction(), getTranslations("vm.new")]);
 
   // Pre-fetch templates from each provider (static, no API calls).
   const awsTemplates = await new AwsProvider({
@@ -99,28 +98,35 @@ export default async function NewInstancePage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
-      </Button>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Launch a new instance</h1>
-        <p className="text-sm text-muted">Pick an account, template, and size. vmui handles the cloud-specific plumbing.</p>
-      </div>
+    <PageShell width="narrow">
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        icon={<Server />}
+        breadcrumbs={
+          <nav aria-label={t("title")} className="flex items-center gap-1">
+            <Link href="/" className="hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              {t("back")}
+            </Link>
+            <span aria-hidden>/</span>
+            <span aria-current="page" className="text-fg">
+              {t("title")}
+            </span>
+          </nav>
+        }
+      />
 
       {accounts.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted">
-            Connect a cloud account first.
-            <div className="mt-3">
-              <Button asChild>
-                <Link href="/accounts/new">Connect account</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<Cloud />}
+          title={t("noAccountsTitle")}
+          description={t("noAccountsDescription")}
+          action={
+            <Button asChild>
+              <Link href="/accounts/new">{t("connectAccount")}</Link>
+            </Button>
+          }
+        />
       ) : (
         <CreateInstanceForm
           accounts={accounts.map((a) => ({
@@ -134,6 +140,6 @@ export default async function NewInstancePage() {
           bootScripts={bootScripts.map((s) => ({ id: s.id, name: s.name, kind: s.kind }))}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

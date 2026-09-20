@@ -1,7 +1,13 @@
 "use client";
-import { useState, useTransition } from "react";
+import { Button, EmptyState, Field, Input, PageSection, Subsection, Textarea } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
 import type { InstanceRunbookRow } from "@/lib/db/schema";
-import { upsertRunbookAction, deleteRunbookAction } from "@/server/actions/extras";
+import { deleteRunbookAction, upsertRunbookAction } from "@/server/actions/extras";
+import { BookOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useState } from "react";
 
 export function RunbookEditorClient({
   accountId,
@@ -12,11 +18,18 @@ export function RunbookEditorClient({
   providerInstanceId: string;
   initial: InstanceRunbookRow[];
 }) {
+  const t = useTranslations("vm.runbooks");
+  const tc = useTranslations("common");
+  const format = useFormatter();
+  const confirm = useConfirm();
   const [rows, setRows] = useState(initial);
   const [editing, setEditing] = useState<InstanceRunbookRow | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [pending, start] = useTransition();
+
+  const { run: runSave, pending: saving } = useAction(upsertRunbookAction, { success: t("saved"), refresh: false });
+  const { run: runDelete, pending: deleting } = useAction(deleteRunbookAction, { success: t("deleted"), refresh: false });
+  const pending = saving || deleting;
 
   function startNew() {
     setEditing({ id: "", accountId, providerInstanceId, title: "", body: "", createdAt: new Date(), updatedAt: new Date(), createdBy: null });
@@ -30,60 +43,146 @@ export function RunbookEditorClient({
   }
   function cancel() { setEditing(null); }
 
-  function save() {
-    start(async () => {
-      const id = editing?.id || undefined;
-      await upsertRunbookAction({ id, accountId, providerInstanceId, title, body });
-      setEditing(null);
-      const newRow: InstanceRunbookRow = {
-        id: id ?? crypto.randomUUID(),
-        accountId, providerInstanceId, title, body,
-        createdAt: editing?.createdAt ?? new Date(), updatedAt: new Date(), createdBy: editing?.createdBy ?? null,
-      };
-      setRows((prev) => id ? prev.map((r) => r.id === id ? newRow : r) : [newRow, ...prev]);
-    });
+  async function save() {
+    const id = editing?.id || undefined;
+    const r = await runSave({ id, accountId, providerInstanceId, title, body });
+    if (!r.ok) return;
+    setEditing(null);
+    const newRow: InstanceRunbookRow = {
+      id: id ?? crypto.randomUUID(),
+      accountId, providerInstanceId, title, body,
+      createdAt: editing?.createdAt ?? new Date(), updatedAt: new Date(), createdBy: editing?.createdBy ?? null,
+    };
+    setRows((prev) => id ? prev.map((x) => x.id === id ? newRow : x) : [newRow, ...prev]);
   }
-  function remove(id: string) {
-    start(async () => {
-      await deleteRunbookAction(id);
-      setRows((prev) => prev.filter((r) => r.id !== id));
+  async function remove(row: InstanceRunbookRow) {
+    const ok = await confirm({
+      title: t("deleteTitle", { title: row.title }),
+      description: t("deleteBody"),
+      tone: "danger",
+      confirmText: tc("delete"),
     });
+    if (!ok) return;
+    const r = await runDelete(row.id);
+    if (r.ok) setRows((prev) => prev.filter((x) => x.id !== row.id));
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-zinc-200">Runbooks</h3>
-        {!editing && <button onClick={startNew} className="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 text-xs">New</button>}
-      </div>
+    <PageSection
+      title={t("title")}
+      description={t("description")}
+      action={
+        !editing && (
+          <Button size="sm" onClick={startNew}>
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            {t("new")}
+          </Button>
+        )
+      }
+    >
+      <div className="space-y-3">
+        <AnimatePresence initial={false}>
+          {editing && (
+            <motion.form
+              key="editor"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.2 }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void save();
+              }}
+            >
+              <Subsection title={editing.id ? tc("edit") : t("new")}>
+                <Field label={t("titleLabel")}>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={t("titlePlaceholder")}
+                    maxLength={200}
+                    disabled={saving}
+                  />
+                </Field>
+                <Field label={t("bodyLabel")}>
+                  <Textarea
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder={t("bodyPlaceholder")}
+                    rows={8}
+                    className="font-mono"
+                    disabled={saving}
+                  />
+                </Field>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={cancel} disabled={saving}>
+                    {tc("cancel")}
+                  </Button>
+                  <Button type="submit" size="sm" disabled={!title.trim() || !body.trim()} loading={saving}>
+                    {tc("save")}
+                  </Button>
+                </div>
+              </Subsection>
+            </motion.form>
+          )}
+        </AnimatePresence>
 
-      {editing ? (
-        <div className="rounded border border-zinc-800 bg-zinc-950 p-3 space-y-2">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="w-full rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1 text-sm" />
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Markdown body…" rows={8} className="w-full rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1 text-sm font-mono" />
-          <div className="flex justify-end gap-2">
-            <button onClick={cancel} disabled={pending} className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1">Cancel</button>
-            <button onClick={save} disabled={pending || !title || !body} className="rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-2 py-1 text-xs">Save</button>
+        {rows.length === 0 && !editing ? (
+          <EmptyState
+            compact
+            icon={<BookOpen />}
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
+            action={
+              <Button size="sm" variant="secondary" onClick={startNew}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                {t("new")}
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2">
+            <AnimatePresence initial={false}>
+              {rows.map((r, i) => (
+                <motion.div
+                  key={r.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
+                >
+                  <Subsection
+                    collapsible
+                    defaultOpen={false}
+                    title={r.title}
+                    hint={t("updated", { date: format.dateTime(r.updatedAt, { dateStyle: "medium" }) })}
+                  >
+                    <pre className="whitespace-pre-wrap break-words font-mono text-xs text-fg-muted">{r.body}</pre>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(r)} disabled={pending}>
+                        <Pencil className="h-3.5 w-3.5" aria-hidden />
+                        {tc("edit")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-danger hover:text-danger"
+                        onClick={() => void remove(r)}
+                        disabled={pending}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        {tc("delete")}
+                      </Button>
+                    </div>
+                  </Subsection>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
-        </div>
-      ) : null}
-
-      <div className="space-y-2">
-        {rows.length === 0 && !editing && <div className="text-xs text-zinc-500">No runbooks yet.</div>}
-        {rows.map((r) => (
-          <details key={r.id} className="rounded border border-zinc-800 bg-zinc-950 p-2 group">
-            <summary className="flex items-center justify-between cursor-pointer text-sm">
-              <span className="font-medium">{r.title}</span>
-              <span className="text-xs text-zinc-500">{r.updatedAt.toLocaleDateString()}</span>
-            </summary>
-            <pre className="mt-2 whitespace-pre-wrap text-xs text-zinc-300 font-mono">{r.body}</pre>
-            <div className="mt-2 flex justify-end gap-2">
-              <button onClick={() => startEdit(r)} className="text-xs text-emerald-300 hover:text-emerald-200 px-2 py-1">Edit</button>
-              <button onClick={() => remove(r.id)} disabled={pending} className="text-xs text-rose-300 hover:text-rose-200 px-2 py-1">Delete</button>
-            </div>
-          </details>
-        ))}
+        )}
       </div>
-    </div>
+    </PageSection>
   );
 }

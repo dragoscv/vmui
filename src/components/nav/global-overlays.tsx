@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import { CommandPalette } from "./command-palette";
-import { ShortcutsDialog } from "./shortcuts-dialog";
-import { PALETTE_EVENT, toggleSidebarRail } from "./shell-events";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { syncAllAccounts } from "@/server/actions/instances";
+import { useTranslations } from "next-intl";
+import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
+import { CommandPalette } from "./command-palette";
+import { PALETTE_EVENT, toggleSidebarRail } from "./shell-events";
+import { ShortcutsDialog } from "./shortcuts-dialog";
 
 /**
  * Mounts the command palette + shortcuts overlay and wires the global

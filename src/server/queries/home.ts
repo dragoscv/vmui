@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { homeLayout } from "@/lib/db/schema";
-import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { canView, visibleEntities, type HomeActor } from "@/lib/home/access";
+import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { DEVICES, type CatalogDevice } from "@/lib/home/catalog";
 import { ha, type HaState } from "@/lib/home/ha-client";
 import "server-only";

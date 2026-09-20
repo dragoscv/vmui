@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Trash2, Plus, Copy, Check } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Alert, Badge, Button, DataTable, EmptyState, Field, Input, PageSection, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAction } from "@/hooks/use-action";
+import { ok, type ActionResult } from "@/lib/action-result";
 import { createApiKeyAction, revokeApiKeyAction } from "@/server/actions/api-keys";
+import { Check, Copy, Key, Plus, Trash2 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useMemo, useState } from "react";
+import { toError, toResult } from "./adapt";
+import { RelativeTime } from "./relative-time";
 
 export type ApiKeyView = {
   id: string;
@@ -18,37 +22,44 @@ export type ApiKeyView = {
   lastUsedAt: Date | null;
 };
 
+const ROLES = ["viewer", "operator"] as const;
+
 export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
-  const [pending, start] = useTransition();
-  const [showCreate, setShowCreate] = useState(false);
+  const t = useTranslations("settings.access.apiKeys");
+  const tr = useTranslations("auth.roles");
+  const format = useFormatter();
+  const confirm = useConfirm();
   const [name, setName] = useState("");
   const [role, setRole] = useState<"operator" | "viewer">("viewer");
   const [rate, setRate] = useState(60);
   const [issued, setIssued] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const create = () => {
-    if (!name.trim()) return;
-    start(async () => {
+  const create = useAction(
+    async (): Promise<ActionResult<string>> => {
       const r = await createApiKeyAction({ name: name.trim(), role, rateLimitPerMinute: rate });
-      if (!r.ok) {
-        toast.error(r.error);
-        return;
-      }
-      setIssued(r.plaintext);
-      setName("");
-      toast.success("API key created — copy it now");
-    });
-  };
+      return r.ok ? ok(r.plaintext) : toError(r);
+    },
+    {
+      success: t("created"),
+      onSuccess: (plaintext) => {
+        setIssued(plaintext);
+        setName("");
+      },
+    },
+  );
 
-  const revoke = (id: string, displayName: string) => {
-    if (!confirm(`Revoke key "${displayName}"? This cannot be undone.`)) return;
-    start(async () => {
-      const r = await revokeApiKeyAction(id);
-      if (!r.ok) toast.error(r.error ?? "Failed");
-      else toast.success("Key revoked");
+  const revoke = useAction(async (id: string) => toResult(await revokeApiKeyAction(id)), { success: t("revoked") });
+
+  async function onRevoke(k: ApiKeyView) {
+    const yes = await confirm({
+      title: t("confirmRevoke", { name: k.name }),
+      description: t("confirmRevokeHint"),
+      tone: "danger",
+      confirmText: t("revoke"),
     });
-  };
+    if (yes) await revoke.run(k.id);
+  }
 
   const copy = async () => {
     if (!issued) return;
@@ -57,100 +68,125 @@ export function ApiKeysManager({ keys }: { keys: ApiKeyView[] }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const columns = useMemo<ColumnDef<ApiKeyView, unknown>[]>(
+    () => [
+      { accessorKey: "name", header: t("columns.name"), cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+      {
+        accessorKey: "role",
+        header: t("columns.role"),
+        cell: ({ row }) => <Badge variant={row.original.role === "operator" ? "info" : "muted"}>{tr(row.original.role)}</Badge>,
+      },
+      {
+        accessorKey: "rateLimitPerMinute",
+        header: t("columns.rate"),
+        cell: ({ row }) => <span className="tabular-nums text-fg-muted">{t("perMinute", { n: row.original.rateLimitPerMinute })}</span>,
+      },
+      {
+        accessorKey: "createdAt",
+        header: t("columns.created"),
+        cell: ({ row }) => <span className="whitespace-nowrap text-fg-muted">{format.dateTime(new Date(row.original.createdAt), { dateStyle: "medium" })}</span>,
+      },
+      {
+        accessorKey: "lastUsedAt",
+        header: t("columns.lastUsed"),
+        cell: ({ row }) =>
+          row.original.lastUsedAt ? (
+            <RelativeTime date={row.original.lastUsedAt} className="whitespace-nowrap text-fg-muted" />
+          ) : (
+            <span className="text-fg-muted">{t("neverUsed")}</span>
+          ),
+      },
+      {
+        id: "status",
+        accessorFn: (k) => (k.revokedAt ? "revoked" : "active"),
+        header: t("columns.status"),
+        cell: ({ row }) =>
+          row.original.revokedAt ? <Badge variant="danger">{t("revokedBadge")}</Badge> : <Badge variant="success">{t("active")}</Badge>,
+      },
+    ],
+    [t, tr, format],
+  );
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {issued && (
-        <div className="rounded border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-3 text-sm">
-          <p className="mb-2 font-medium">New API key — copy now, it will not be shown again:</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-[var(--color-surface-2)] px-2 py-1 text-xs">
-              {issued}
-            </code>
-            <Button size="sm" variant="outline" onClick={copy}>
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            </Button>
+        <Alert
+          tone="success"
+          title={t("issuedTitle")}
+          action={
             <Button size="sm" variant="ghost" onClick={() => setIssued(null)}>
-              Dismiss
+              {t("dismiss")}
+            </Button>
+          }
+        >
+          <p>{t("issuedHint")}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="min-w-0 flex-1 break-all rounded-[var(--radius-sm)] bg-surface-2 px-2 py-1 font-mono text-xs">{issued}</code>
+            <Button size="icon" variant="outline" onClick={() => void copy()} aria-label={t("copy")}>
+              {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
             </Button>
           </div>
-        </div>
+        </Alert>
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">{keys.length} key(s)</p>
-        <Button size="sm" onClick={() => setShowCreate((v) => !v)}>
-          <Plus className="mr-1 h-3 w-3" /> New key
-        </Button>
-      </div>
+      <PageSection title={t("createTitle")} description={t("createDescription")}>
+        <form
+          className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_8rem_auto] sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) void create.run();
+          }}
+        >
+          <Field label={t("name")}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("namePlaceholder")} required />
+          </Field>
+          <Field label={t("role")}>
+            <Select value={role} onValueChange={(v) => setRole(v as "operator" | "viewer")}>
+              <SelectTrigger aria-label={t("role")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {tr(r)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t("rateLimit")} hint={t("rateLimitHint")}>
+            <Input
+              type="number"
+              min={1}
+              max={10000}
+              value={rate}
+              onChange={(e) => setRate(Number.parseInt(e.target.value, 10) || 60)}
+              className="tabular-nums"
+            />
+          </Field>
+          <Button type="submit" loading={create.pending} disabled={!name.trim()}>
+            <Plus className="size-4" aria-hidden /> {t("create")}
+          </Button>
+        </form>
+      </PageSection>
 
-      {showCreate && (
-        <div className="space-y-2 rounded border border-[var(--color-border)] p-3">
-          <Input
-            placeholder="Key name (e.g. terraform-prod)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <label className="flex items-center gap-1">
-              Role:
-              <select
-                className="rounded border border-[var(--color-border)] bg-[var(--color-surface-1)] px-2 py-1"
-                value={role}
-                onChange={(e) => setRole(e.target.value as "operator" | "viewer")}
-              >
-                <option value="viewer">viewer</option>
-                <option value="operator">operator</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-1">
-              Rate/min:
-              <Input
-                type="number"
-                min={1}
-                max={10000}
-                className="w-24"
-                value={rate}
-                onChange={(e) => setRate(parseInt(e.target.value, 10) || 60)}
-              />
-            </label>
-            <Button size="sm" onClick={create} disabled={pending || !name.trim()}>
-              Create
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-1">
-        {keys.length === 0 && <p className="text-sm text-muted">No keys yet.</p>}
-        {keys.map((k) => (
-          <div
-            key={k.id}
-            className="flex items-center justify-between rounded border border-[var(--color-border)] px-3 py-2 text-sm"
-          >
-            <div className="flex flex-1 items-center gap-2">
-              <span className="font-medium">{k.name}</span>
-              <Badge variant={k.role === "operator" ? "info" : "muted"}>{k.role}</Badge>
-              <span className="text-xs text-muted">{k.rateLimitPerMinute}/min</span>
-              {k.revokedAt && <Badge variant="danger">revoked</Badge>}
-              {k.lastUsedAt && (
-                <span className="text-xs text-muted">
-                  last used {new Date(k.lastUsedAt).toLocaleString()}
-                </span>
-              )}
-            </div>
-            {!k.revokedAt && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => revoke(k.id, k.name)}
-                disabled={pending}
-              >
-                <Trash2 className="h-3 w-3" />
+      <PageSection title={t("title")} description={t("count", { count: keys.length })}>
+        <DataTable
+          columns={columns}
+          data={keys}
+          dense
+          searchable={keys.length > 5}
+          getRowId={(k) => k.id}
+          emptyState={<EmptyState compact icon={<Key />} title={t("empty")} description={t("emptyHint")} />}
+          rowActions={(k) =>
+            k.revokedAt ? null : (
+              <Button size="icon" variant="ghost" onClick={() => void onRevoke(k)} disabled={revoke.pending} aria-label={t("revoke")}>
+                <Trash2 className="size-4 text-danger" aria-hidden />
               </Button>
-            )}
-          </div>
-        ))}
-      </div>
+            )
+          }
+        />
+      </PageSection>
     </div>
   );
 }

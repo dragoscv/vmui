@@ -1,11 +1,11 @@
-import "server-only";
-import { Link as LinkIcon, HardDrive, Camera, Shield, KeyRound, Globe, Database } from "lucide-react";
-import Link from "next/link";
-import { and, eq, like, or } from "drizzle-orm";
+import { Badge, PageSection } from "@/components/ui";
 import { db } from "@/lib/db";
 import { cachedResources } from "@/lib/db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { and, eq, like, or } from "drizzle-orm";
+import { Camera, Database, Globe, HardDrive, KeyRound, Shield } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+import "server-only";
 
 const KIND_ICON: Record<string, typeof HardDrive> = {
   volume: HardDrive,
@@ -19,6 +19,26 @@ const KIND_ICON: Record<string, typeof HardDrive> = {
   "load-balancer": Globe,
 };
 
+const KIND_KEYS = [
+  "volume",
+  "disk",
+  "snapshot",
+  "security-group",
+  "nsg",
+  "firewall",
+  "keypair",
+  "bucket",
+  "load-balancer",
+  "vpc",
+  "subnet",
+  "network",
+  "image",
+  "db",
+  "dns",
+] as const;
+type KindKey = (typeof KIND_KEYS)[number];
+const isKindKey = (k: string): k is KindKey => (KIND_KEYS as readonly string[]).includes(k);
+
 interface Props {
   accountId: string;
   region: string;
@@ -31,6 +51,7 @@ interface Props {
  * goes to the resources page filtered to the matching record.
  */
 export async function RelatedResourcesCard({ accountId, region, providerInstanceId }: Props) {
+  const t = await getTranslations("vm.resources");
   const idFragment = `%${providerInstanceId}%`;
   const rows = await db
     .select()
@@ -57,48 +78,45 @@ export async function RelatedResourcesCard({ accountId, region, providerInstance
   }
 
   return (
-    <Card className="surface">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <LinkIcon className="h-4 w-4 text-[var(--color-primary)]" />
-          Related resources
+    <PageSection
+      title={
+        <span className="inline-flex items-center gap-2">
+          {t("title")}
           <Badge variant="muted" className="text-[10px]">
             {rows.length}
           </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[...groups.entries()].map(([kind, items]) => {
-            const Icon = KIND_ICON[kind] ?? HardDrive;
-            return (
-              <div key={kind} className="rounded-md border border-[var(--color-border)] p-3">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                  <Icon className="h-3.5 w-3.5 text-[var(--color-primary)]" />
-                  {kind}
-                  <span className="ml-auto font-mono text-[10px] opacity-70">{items.length}</span>
-                </div>
-                <ul className="space-y-1">
-                  {items.slice(0, 6).map((r) => (
-                    <li key={r.id} className="truncate text-xs">
-                      <Link
-                        href={`/resources?q=${encodeURIComponent(r.externalId)}`}
-                        className="hover:text-[var(--color-primary)] hover:underline"
-                        title={r.externalId}
-                      >
-                        {r.name ?? r.externalId}
-                      </Link>
-                    </li>
-                  ))}
-                  {items.length > 6 && (
-                    <li className="text-[11px] text-muted">+ {items.length - 6} more</li>
-                  )}
-                </ul>
+        </span>
+      }
+      description={t("description")}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[...groups.entries()].map(([kind, items]) => {
+          const Icon = KIND_ICON[kind] ?? HardDrive;
+          return (
+            <div key={kind} className="rounded-[var(--radius-md)] border border-border p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                <Icon className="h-3.5 w-3.5 text-primary" aria-hidden />
+                {isKindKey(kind) ? t(`kinds.${kind}`) : kind}
+                <span className="ml-auto font-mono text-[10px] opacity-70">{items.length}</span>
               </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+              <ul className="space-y-1">
+                {items.slice(0, 6).map((r) => (
+                  <li key={r.id} className="min-w-0 truncate text-xs">
+                    <Link
+                      href={`/resources?q=${encodeURIComponent(r.externalId)}`}
+                      className="rounded-[var(--radius-sm)] hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      title={r.externalId}
+                    >
+                      {r.name ?? r.externalId}
+                    </Link>
+                  </li>
+                ))}
+                {items.length > 6 && <li className="text-[11px] text-muted">{t("more", { count: items.length - 6 })}</li>}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </PageSection>
   );
 }

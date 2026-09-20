@@ -1,90 +1,148 @@
 "use client";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { upsertStickyNoteAction, deleteStickyNoteAction } from "@/server/actions/sticky-and-tags";
+import { Button, EmptyState, Field, PageSection, Textarea } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { cn } from "@/lib/utils";
+import { deleteStickyNoteAction, upsertStickyNoteAction } from "@/server/actions/sticky-and-tags";
+import { StickyNote, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useState } from "react";
 
 type Color = "amber" | "rose" | "emerald" | "sky" | "violet";
+const COLORS: readonly Color[] = ["amber", "rose", "emerald", "sky", "violet"];
+// Stored ids stay as-is so existing rows keep rendering; only the paint maps to tokens.
 const COLOR_BG: Record<Color, string> = {
-  amber: "bg-amber-200/90 text-amber-950",
-  rose: "bg-rose-200/90 text-rose-950",
-  emerald: "bg-emerald-200/90 text-emerald-950",
-  sky: "bg-sky-200/90 text-sky-950",
-  violet: "bg-violet-200/90 text-violet-950",
+  amber: "bg-[color-mix(in_oklch,var(--color-warning)_22%,transparent)] border-[color-mix(in_oklch,var(--color-warning)_45%,var(--color-border))]",
+  rose: "bg-[color-mix(in_oklch,var(--color-danger)_22%,transparent)] border-[color-mix(in_oklch,var(--color-danger)_45%,var(--color-border))]",
+  emerald: "bg-[color-mix(in_oklch,var(--color-success)_22%,transparent)] border-[color-mix(in_oklch,var(--color-success)_45%,var(--color-border))]",
+  sky: "bg-[color-mix(in_oklch,var(--color-info)_22%,transparent)] border-[color-mix(in_oklch,var(--color-info)_45%,var(--color-border))]",
+  violet: "bg-[color-mix(in_oklch,var(--color-accent)_22%,transparent)] border-[color-mix(in_oklch,var(--color-accent)_45%,var(--color-border))]",
 };
+const COLOR_SWATCH: Record<Color, string> = {
+  amber: "bg-warning",
+  rose: "bg-danger",
+  emerald: "bg-success",
+  sky: "bg-info",
+  violet: "bg-accent",
+};
+const isColor = (c: string): c is Color => (COLORS as readonly string[]).includes(c);
 
 interface Note { id: string; body: string; color: string; createdAt: string; createdBy: string | null }
 interface Props { accountId: string; providerInstanceId: string; notes: Note[] }
 
 export function StickyNotesClient({ accountId, providerInstanceId, notes }: Props) {
+  const t = useTranslations("vm.notesCard");
+  const format = useFormatter();
   const [draft, setDraft] = useState("");
   const [color, setColor] = useState<Color>("amber");
-  const [pending, start] = useTransition();
 
-  function add() {
-    if (!draft.trim()) return;
-    start(async () => {
-      try {
-        await upsertStickyNoteAction({ accountId, providerInstanceId, body: draft, color });
-        setDraft("");
-        toast.success("Note added");
-      } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-    });
-  }
+  const { run: runAdd, pending: adding } = useAction(
+    (body: string, c: Color) => upsertStickyNoteAction({ accountId, providerInstanceId, body, color: c }),
+    { success: t("added") },
+  );
+  const { run: runDelete, pending: deleting } = useAction(deleteStickyNoteAction, { success: t("deleted") });
 
-  function remove(id: string) {
-    start(async () => {
-      try { await deleteStickyNoteAction(id); toast.success("Note deleted"); }
-      catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-    });
+  async function add() {
+    const body = draft.trim();
+    if (!body) return;
+    const r = await runAdd(body, color);
+    if (r.ok) setDraft("");
   }
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Sticky notes</h3>
-        <span className="text-xs text-zinc-500">{notes.length} note{notes.length === 1 ? "" : "s"}</span>
-      </div>
-
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Jot a note about this VM…"
-          rows={2}
-          className="flex-1 rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1.5 text-sm"
-          maxLength={2000}
-        />
-        <div className="flex flex-col gap-2">
-          <select value={color} onChange={(e) => setColor(e.target.value as Color)} className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1 text-xs">
-            {(["amber", "rose", "emerald", "sky", "violet"] as Color[]).map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <button type="button" disabled={pending || !draft.trim()} onClick={add} className="rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-3 py-1.5 text-sm">
-            Add
-          </button>
-        </div>
-      </div>
-
-      {notes.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {notes.map((n) => {
-            const bg = COLOR_BG[(n.color as Color)] ?? COLOR_BG.amber;
-            return (
-              <div key={n.id} className={`relative rounded-lg p-3 text-sm shadow ${bg}`}>
+    <PageSection
+      title={t("title")}
+      action={<span className="text-xs text-muted">{t("count", { count: notes.length })}</span>}
+    >
+      <div className="space-y-4">
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void add();
+          }}
+        >
+          <Field label={t("body")}>
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={t("placeholder")}
+              rows={2}
+              maxLength={2000}
+              disabled={adding}
+            />
+          </Field>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div role="radiogroup" aria-label={t("color")} className="flex items-center gap-2">
+              {COLORS.map((c) => (
                 <button
+                  key={c}
                   type="button"
-                  onClick={() => remove(n.id)}
-                  className="absolute right-2 top-1.5 text-xs opacity-60 hover:opacity-100"
-                  aria-label="Delete note"
-                >×</button>
-                <div className="whitespace-pre-wrap pr-4">{n.body}</div>
-                <div className="mt-2 text-[10px] opacity-70">
-                  {new Date(n.createdAt).toLocaleString()}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                  role="radio"
+                  aria-checked={color === c}
+                  aria-label={t(`colors.${c}`)}
+                  title={t(`colors.${c}`)}
+                  onClick={() => setColor(c)}
+                  className={cn(
+                    "grid size-10 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-9",
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "block size-5 rounded-full transition-transform",
+                      COLOR_SWATCH[c],
+                      color === c ? "scale-110 ring-2 ring-fg ring-offset-2 ring-offset-surface" : "opacity-70",
+                    )}
+                  />
+                </button>
+              ))}
+            </div>
+            <Button type="submit" size="sm" disabled={!draft.trim()} loading={adding}>
+              {t("add")}
+            </Button>
+          </div>
+        </form>
+
+        {notes.length === 0 ? (
+          <EmptyState compact icon={<StickyNote />} title={t("emptyTitle")} description={t("emptyDescription")} />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <AnimatePresence initial={false}>
+              {notes.map((n, i) => {
+                const c: Color = isColor(n.color) ? n.color : "amber";
+                return (
+                  <motion.div
+                    key={n.id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
+                    className={cn("relative rounded-[var(--radius-lg)] border p-3 text-sm text-fg", COLOR_BG[c])}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1 h-8 w-8 text-muted hover:text-fg sm:h-7 sm:w-7"
+                      onClick={() => void runDelete(n.id)}
+                      disabled={deleting}
+                      aria-label={t("deleteNote")}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </Button>
+                    <div className="whitespace-pre-wrap break-words pr-7">{n.body}</div>
+                    <div className="mt-2 text-[10px] text-muted">
+                      {format.dateTime(new Date(n.createdAt), { dateStyle: "medium", timeStyle: "short" })}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+    </PageSection>
   );
 }

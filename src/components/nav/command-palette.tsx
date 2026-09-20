@@ -1,34 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useTranslations } from "next-intl";
-import { toast } from "sonner";
-import {
-  Search,
-  Server,
-  KeyRound,
-  Activity,
-  Settings as SettingsIcon,
-  Plus,
-  RefreshCw,
-  Sun,
-  Moon,
-  Plug,
-  Play,
-  Square,
-  RotateCw,
-  CornerDownLeft,
-  Boxes,
-  Tag as TagIcon,
-  Cloud,
-} from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { instanceAction, syncAllAccounts } from "@/server/actions/instances";
-import { listPaletteIndex, type PaletteIndex } from "@/server/actions/palette";
 import type { InstanceRow } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+import { instanceAction, syncAllAccounts } from "@/server/actions/instances";
+import { listPaletteIndex, type PaletteIndex } from "@/server/actions/palette";
+import {
+    Activity,
+    Boxes,
+    Cloud,
+    CornerDownLeft,
+    KeyRound,
+    Moon,
+    Play,
+    Plug,
+    Plus,
+    RefreshCw,
+    RotateCw,
+    Search,
+    Server,
+    Settings as SettingsIcon,
+    Square,
+    Sun,
+    Tag as TagIcon,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 type CommandItem = {
   id: string;

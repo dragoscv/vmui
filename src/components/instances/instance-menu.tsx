@@ -1,34 +1,46 @@
 "use client";
 
-import * as React from "react";
+import { Alert } from "@/components/ui/alert";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
+import { err, ok } from "@/lib/action-result";
+import type { InstanceRow } from "@/lib/db/schema";
 import {
-  Play,
-  Square,
-  RotateCw,
-  Trash2,
-  Plug,
-  Pin,
-  PinOff,
-  Pencil,
-  StickyNote,
-  Copy,
-  ExternalLink,
-  BarChart3,
-  RefreshCw,
-  Camera,
-} from "lucide-react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import {
-  instanceAction,
-  setInstancePinnedAction,
-  syncAccountInstances,
+    instanceAction,
+    setInstancePinnedAction,
+    syncAccountInstances,
 } from "@/server/actions/instances";
 import { checkSnapshotFreshness } from "@/server/actions/snapshot-freshness";
-import type { InstanceRow } from "@/lib/db/schema";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+    BarChart3,
+    Camera,
+    Copy,
+    ExternalLink,
+    Pencil,
+    Pin,
+    PinOff,
+    Play,
+    Plug,
+    RefreshCw,
+    RotateCw,
+    Square,
+    StickyNote,
+    Trash2,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
+import * as React from "react";
+import { useRef } from "react";
+import { toast } from "sonner";
 import { instanceLabel } from "./instance-label";
+
+type Action = "start" | "stop" | "reboot" | "terminate";
+const REQUESTED = {
+  start: "startRequested",
+  stop: "stopRequested",
+  reboot: "rebootRequested",
+  terminate: "terminateRequested",
+} as const;
 
 export type InstanceMenuItemDescriptor =
   | { kind: "item"; key: string; label: string; icon: React.ComponentType<{ className?: string }>; onSelect: () => void; disabled?: boolean; danger?: boolean; shortcut?: string }
@@ -45,105 +57,95 @@ export function useInstanceMenuItems(
   },
 ): InstanceMenuItemDescriptor[] {
   const router = useRouter();
-  const [pending, start] = useTransition();
+  const t = useTranslations("vm.menu");
+  const ta = useTranslations("vm.actions");
   const confirm = useConfirm();
   const label = instanceLabel(instance);
   const isRunning = instance.state === "running";
   const isStopped = instance.state === "stopped";
   const showStats =
     instance.provider === "local-kvm" && instance.state === "running" && !!open.stats;
+  const target = {
+    accountId: instance.accountId,
+    region: instance.region,
+    providerInstanceId: instance.providerInstanceId,
+  };
+  const lastAction = useRef<Action>("start");
 
-  function run(action: "start" | "stop" | "reboot" | "terminate") {
-    start(async () => {
-      if (action === "terminate") {
-        const freshness = await checkSnapshotFreshness({
-          accountId: instance.accountId,
-          region: instance.region,
-          providerInstanceId: instance.providerInstanceId,
-        });
-        const warning = !freshness.hasAny
-          ? "No snapshot of this instance exists in our cache. If you need its disk later, take a snapshot first."
-          : !freshness.hasRecent
-            ? `Most recent matching snapshot is ${freshness.daysSince}d old. Consider snapshotting first.`
-            : null;
-        const ok = await confirm({
-          title: `Terminate ${label}?`,
-          description: (
-            <>
-              This permanently destroys the instance. <b>This cannot be undone.</b>
-              {warning && (
-                <div className="mt-2 rounded-md border border-[var(--color-warning)]/40 bg-[color-mix(in_oklch,var(--color-warning)_10%,transparent)] p-2 text-xs">
-                  ⚠ {warning}
-                </div>
-              )}
-            </>
-          ),
-          tone: "danger",
-          confirmText: "Terminate",
-          requireText: "terminate",
-        });
-        if (!ok) return;
-      } else if (action === "stop") {
-        const ok = await confirm({
-          title: `Stop ${label}?`,
-          description: "The VM will shut down. Disk data is preserved.",
-          tone: "warning",
-          confirmText: "Stop",
-        });
-        if (!ok) return;
-      }
-      const r = await instanceAction(action, {
-        accountId: instance.accountId,
-        region: instance.region,
-        providerInstanceId: instance.providerInstanceId,
-      });
-      if (r.ok) {
-        toast.success(`${action} requested`);
-        router.refresh();
-      } else {
-        toast.error(r.error ?? "Failed");
-      }
-    });
-  }
-
-  function togglePin() {
-    start(async () => {
+  const lifecycle = useAction(
+    async (a: Action) => {
+      const r = await instanceAction(a, target);
+      return r.ok ? ok() : err(r.error ?? "common.error");
+    },
+    { success: () => ta(REQUESTED[lastAction.current]) },
+  );
+  const pin = useAction(
+    async () => {
       const r = await setInstancePinnedAction({ id: instance.id, pinned: !instance.pinned });
-      if (r.ok) {
-        toast.success(instance.pinned ? "Unpinned" : "Pinned to top");
-        router.refresh();
-      }
-    });
+      return r.ok ? ok() : err(r.error ?? "common.error");
+    },
+    { success: () => t(instance.pinned ? "unpinnedToast" : "pinnedToast") },
+  );
+  const sync = useAction(
+    async () => ok(await syncAccountInstances(instance.accountId)),
+    { success: (d) => t("synced", { count: d.count }), error: t("syncFailed") },
+  );
+  const pending = lifecycle.pending || pin.pending || sync.pending;
+
+  async function run(action: Action) {
+    if (action === "terminate") {
+      const freshness = await checkSnapshotFreshness(target);
+      const warning = !freshness.hasAny
+        ? ta("terminateNoSnapshot")
+        : !freshness.hasRecent
+          ? ta("terminateOldSnapshot", { days: freshness.daysSince ?? 0 })
+          : null;
+      const confirmed = await confirm({
+        title: ta("confirmTerminateTitle", { name: label }),
+        description: (
+          <>
+            {ta.rich("confirmTerminateBody", { b: (c) => <b>{c}</b> })}
+            {warning && (
+              <Alert tone="warning" className="mt-2 text-xs">
+                {warning}
+              </Alert>
+            )}
+          </>
+        ),
+        tone: "danger",
+        confirmText: ta("terminate"),
+        requireText: ta("typeToConfirm"),
+      });
+      if (!confirmed) return;
+    } else if (action === "stop") {
+      const confirmed = await confirm({
+        title: ta("confirmStopTitle", { name: label }),
+        description: ta("confirmStopBody"),
+        tone: "warning",
+        confirmText: ta("stop"),
+      });
+      if (!confirmed) return;
+    }
+    lastAction.current = action;
+    await lifecycle.run(action);
   }
 
   function copyId() {
     void navigator.clipboard.writeText(instance.providerInstanceId);
-    toast.success("Instance ID copied");
+    toast.success(t("copiedId"));
   }
 
   function copyIp() {
     if (!instance.publicIp) return;
     void navigator.clipboard.writeText(instance.publicIp);
-    toast.success("Public IP copied");
-  }
-
-  function syncNow() {
-    start(async () => {
-      try {
-        const r = await syncAccountInstances(instance.accountId);
-        toast.success(`Synced ${r.count} instance${r.count === 1 ? "" : "s"}`);
-        router.refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Sync failed");
-      }
-    });
+    toast.success(t("copiedIp"));
   }
 
   const items: InstanceMenuItemDescriptor[] = [
     {
       kind: "item",
       key: "connect",
-      label: "Connect",
+      label: ta("connect"),
       icon: Plug,
       disabled: !isRunning || pending,
       onSelect: open.connect,
@@ -154,7 +156,7 @@ export function useInstanceMenuItems(
     items.push({
       kind: "item",
       key: "start",
-      label: "Start",
+      label: ta("start"),
       icon: Play,
       disabled: pending,
       onSelect: () => run("start"),
@@ -164,7 +166,7 @@ export function useInstanceMenuItems(
     items.push({
       kind: "item",
       key: "stop",
-      label: "Stop",
+      label: ta("stop"),
       icon: Square,
       disabled: pending,
       onSelect: () => run("stop"),
@@ -172,7 +174,7 @@ export function useInstanceMenuItems(
     items.push({
       kind: "item",
       key: "reboot",
-      label: "Reboot",
+      label: ta("reboot"),
       icon: RotateCw,
       disabled: pending,
       onSelect: () => run("reboot"),
@@ -184,7 +186,7 @@ export function useInstanceMenuItems(
   items.push({
     kind: "item",
     key: "rename",
-    label: "Rename…",
+    label: t("rename"),
     icon: Pencil,
     onSelect: open.rename,
     shortcut: "F2",
@@ -192,15 +194,15 @@ export function useInstanceMenuItems(
   items.push({
     kind: "item",
     key: "pin",
-    label: instance.pinned ? "Unpin" : "Pin to top",
+    label: instance.pinned ? t("unpin") : t("pin"),
     icon: instance.pinned ? PinOff : Pin,
-    onSelect: togglePin,
+    onSelect: () => void pin.run(),
     disabled: pending,
   });
   items.push({
     kind: "item",
     key: "notes",
-    label: instance.notes ? "Edit notes…" : "Add notes…",
+    label: instance.notes ? t("editNotes") : t("addNotes"),
     icon: StickyNote,
     onSelect: open.notes,
   });
@@ -209,7 +211,7 @@ export function useInstanceMenuItems(
     items.push({
       kind: "item",
       key: "stats",
-      label: "Detailed stats…",
+      label: t("detailedStats"),
       icon: BarChart3,
       onSelect: open.stats!,
     });
@@ -221,7 +223,7 @@ export function useInstanceMenuItems(
     items.push({
       kind: "item",
       key: "snapshot",
-      label: "Snapshots…",
+      label: t("snapshots"),
       icon: Camera,
       onSelect: () =>
         router.push(`/instances/${encodeURIComponent(instance.id)}#snapshots`),
@@ -233,14 +235,14 @@ export function useInstanceMenuItems(
   items.push({
     kind: "item",
     key: "open",
-    label: "Open details",
+    label: t("openDetails"),
     icon: ExternalLink,
     onSelect: () => router.push(`/instances/${encodeURIComponent(instance.id)}`),
   });
   items.push({
     kind: "item",
     key: "copy-id",
-    label: "Copy instance ID",
+    label: t("copyId"),
     icon: Copy,
     onSelect: copyId,
   });
@@ -248,7 +250,7 @@ export function useInstanceMenuItems(
     items.push({
       kind: "item",
       key: "copy-ip",
-      label: "Copy public IP",
+      label: t("copyIp"),
       icon: Copy,
       onSelect: copyIp,
     });
@@ -256,9 +258,9 @@ export function useInstanceMenuItems(
   items.push({
     kind: "item",
     key: "sync",
-    label: "Sync this account",
+    label: t("syncAccount"),
     icon: RefreshCw,
-    onSelect: syncNow,
+    onSelect: () => void sync.run(),
     disabled: pending,
   });
 
@@ -266,7 +268,7 @@ export function useInstanceMenuItems(
   items.push({
     kind: "item",
     key: "terminate",
-    label: "Terminate…",
+    label: t("terminate"),
     icon: Trash2,
     onSelect: () => run("terminate"),
     danger: true,

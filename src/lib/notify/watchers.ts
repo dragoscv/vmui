@@ -1,10 +1,11 @@
+import { ownerActor } from "@/lib/home/access";
 import { haConfig } from "@/lib/home/credentials";
 import { ha } from "@/lib/home/ha-client";
-import { ownerActor } from "@/lib/home/access";
 import { nutritionSummary } from "@/lib/nutrition/summary";
 import { execFile } from "node:child_process";
 import { platform } from "node:os";
 import "server-only";
+import { msg } from "./i18n";
 import { dismissByTag, notify } from "./index";
 import { loadNotifySettings } from "./settings";
 
@@ -16,11 +17,14 @@ import { loadNotifySettings } from "./settings";
 type W = { started: boolean; last: Record<string, unknown> };
 const w: W = ((globalThis as { __vmuiNotifyWatch__?: W }).__vmuiNotifyWatch__ ??= { started: false, last: {} });
 
-const NAME: Record<string, string> = {
-  "binary_sensor.main_door_door": "Ușa principală",
-  "binary_sensor.window_sensor_door": "Geamul",
-  "binary_sensor.human_presence_sensor_occupancy": "Senzorul de prezență",
+// Watched HA sensors → the `{sensor, select, …}` branch in messages/notify cards.door/window/presence.
+const SENSOR: Record<string, "mainDoor" | "window" | "presence"> = {
+  "binary_sensor.main_door_door": "mainDoor",
+  "binary_sensor.window_sensor_door": "window",
+  "binary_sensor.human_presence_sensor_occupancy": "presence",
 };
+
+const liters = (ml: number, digits: number) => (ml / 1000).toFixed(digits).replace(/\.?0+$/, "");
 
 export function ensureNotifyWatchers(): void {
   if (w.started) return;
@@ -54,15 +58,15 @@ async function water() {
     await notify({
       kind: "water",
       tag: "water-pace",
-      title: `Ești cu ${(behind / 1000).toFixed(1).replace(/\.0$/, "")} l sub ritm`,
-      body: `${(ml / 1000).toFixed(2).replace(/\.?0+$/, "")} l azi din ${(targetMl / 1000).toFixed(1)} l`,
+      title: msg("cards.water.title", { l: liters(behind, 1) }),
+      body: msg("cards.water.body", { ml: liters(ml, 2), target: (targetMl / 1000).toFixed(1) }),
       progress: Math.round((ml / Math.max(1, targetMl)) * 100),
       priority: "default",
       ttlSec: 3 * 3600,
       noFallback: true,
       actions: [
-        { id: "add250", label: "+250 ml", style: "primary", body: { ml: 250 } },
-        { id: "add500", label: "+500 ml", style: "ghost", body: { ml: 500 } },
+        { id: "add250", label: msg("cards.water.add", { ml: 250 }), style: "primary", body: { ml: 250 } },
+        { id: "add500", label: msg("cards.water.add", { ml: 500 }), style: "ghost", body: { ml: 500 } },
       ],
       data: { ml, targetMl },
     });
@@ -87,12 +91,12 @@ async function pcAgent() {
     await notify({
       kind: "pc",
       tag: "pc-agent",
-      title: "PC-ul nu mai răspunde",
-      body: "Agentul din tray a dispărut (sleep, oprit sau vmui-tray căzut).",
+      title: msg("cards.pc.title"),
+      body: msg("cards.pc.body"),
       priority: "default",
       ttlSec: 6 * 3600,
       noFallback: true,
-      actions: [{ id: "wake", label: "Trezește PC-ul", style: "primary" }],
+      actions: [{ id: "wake", label: msg("cards.pc.wake"), style: "primary" }],
     });
   } else if (!was && online) {
     await dismissByTag("pc-agent", "pc");
@@ -114,8 +118,8 @@ async function pi() {
     await notify({
       kind: "pi",
       tag: "pi-health",
-      title: undervoltNow ? "Pi: alimentare insuficientă" : `Pi: ${t.toFixed(0)} °C`,
-      body: undervoltNow ? `get_throttled=${thr.split("=")[1]} · CPU la 600 MHz; verifică sursa/cablul` : "Temperatura e peste 75 °C",
+      title: undervoltNow ? msg("cards.pi.undervoltTitle") : msg("cards.pi.tempTitle", { temp: t.toFixed(0) }),
+      body: undervoltNow ? msg("cards.pi.undervoltBody", { flags: thr.split("=")[1] ?? "?" }) : msg("cards.pi.tempBody"),
       priority: "default",
       ttlSec: 2 * 3600,
       noFallback: true,
@@ -132,11 +136,11 @@ async function pi() {
     await notify({
       kind: "pi",
       tag: "pi-units",
-      title: `${down.length === 1 ? "Unitate căzută" : "Unități căzute"} pe Pi`,
+      title: msg("cards.pi.unitsTitle", { count: down.length }),
       body: down.join(", "),
       priority: "high",
       ttlSec: 6 * 3600,
-      actions: down.slice(0, 2).map((u) => ({ id: `restart-${u}`, label: `Restart ${u}`, style: "primary" as const, body: { unit: u } })),
+      actions: down.slice(0, 2).map((u) => ({ id: `restart-${u}`, label: msg("cards.pi.restart", { unit: u }), style: "primary" as const, body: { unit: u } })),
       data: { down },
     });
   } else if (!down.length && w.last.piDown) {
@@ -154,7 +158,7 @@ async function batteries() {
   const low = states.filter((x) => x.entity_id.startsWith("sensor.") && x.attributes.device_class === "battery" && Number(x.state) <= s.batteryBelow && Number.isFinite(Number(x.state)));
   for (const x of low) {
     const name = String(x.attributes.friendly_name ?? x.entity_id).replace(/ battery$/i, "");
-    await notify({ kind: "battery", tag: `battery-${x.entity_id}`, title: `${name}: baterie ${x.state} %`, body: "Schimbă bateria senzorului.", priority: "low", ttlSec: 24 * 3600, noFallback: true, data: { entity: x.entity_id, pct: Number(x.state) } });
+    await notify({ kind: "battery", tag: `battery-${x.entity_id}`, title: msg("cards.battery.title", { name, pct: Number(x.state) }), body: msg("cards.battery.body"), priority: "low", ttlSec: 24 * 3600, noFallback: true, data: { entity: x.entity_id, pct: Number(x.state) } });
   }
 }
 
@@ -175,7 +179,7 @@ function haEvents() {
           const d = m.event.data ?? {};
           const ns = d.new_state;
           const eid = d.entity_id ?? "";
-          if (!ns || !(eid in NAME) || d.old_state?.state === ns.state) return;
+          if (!ns || !(eid in SENSOR) || d.old_state?.state === ns.state) return;
           void onSensor(eid, ns.state, d.old_state?.state);
         }
       } catch (e) {
@@ -190,22 +194,22 @@ function haEvents() {
 
 async function onSensor(eid: string, state: string, was: string | undefined) {
   if (was === undefined || state === "unavailable" || state === "unknown") return;
-  const name = NAME[eid] ?? eid;
+  const sensor = SENSOR[eid] ?? eid;
   const hour = new Date().getHours();
   const night = hour >= 23 || hour < 7;
   if (eid.includes("door")) {
     if (state === "on") {
-      await notify({ kind: "door", tag: `door-${eid}`, title: `${name} s-a deschis`, body: night ? "Noaptea — verifică." : "", priority: night ? "high" : "default", ttlSec: 1800, noFallback: !night, actions: [{ id: "light_on", label: "Aprinde holul", style: "ghost", body: { entity: "light.main_light" } }], data: { entity: eid } });
+      await notify({ kind: "door", tag: `door-${eid}`, title: msg("cards.door.title", { sensor }), body: night ? msg("cards.door.night") : "", priority: night ? "high" : "default", ttlSec: 1800, noFallback: !night, actions: [{ id: "light_on", label: msg("cards.door.lightOn"), style: "ghost", body: { entity: "light.main_light" } }], data: { entity: eid } });
     } else await dismissByTag(`door-${eid}`, "door");
   } else if (eid.includes("window")) {
     if (state === "on") {
-      await notify({ kind: "window", tag: `window-${eid}`, title: `${name} e deschis`, body: "", priority: "low", ttlSec: 6 * 3600, noFallback: true, data: { entity: eid } });
+      await notify({ kind: "window", tag: `window-${eid}`, title: msg("cards.window.title", { sensor }), body: "", priority: "low", ttlSec: 6 * 3600, noFallback: true, data: { entity: eid } });
     } else await dismissByTag(`window-${eid}`, "window");
   } else if (eid.includes("presence") || eid.includes("occupancy")) {
     // only worth a card when nobody should be home
     const away = await ha.state("person.dragos").then((p) => p.state !== "home").catch(() => false);
     if (state === "on" && away) {
-      await notify({ kind: "presence", tag: "presence-away", title: "Mișcare în casă", body: `${name} a detectat prezență cât ești plecat.`, priority: "urgent", ttlSec: 3600, force: true, actions: [{ id: "lights_off", label: "Stinge tot", style: "danger" }], data: { entity: eid } });
+      await notify({ kind: "presence", tag: "presence-away", title: msg("cards.presence.title"), body: msg("cards.presence.body", { sensor }), priority: "urgent", ttlSec: 3600, force: true, actions: [{ id: "lights_off", label: msg("cards.presence.lightsOff"), style: "danger" }], data: { entity: eid } });
     }
   }
 }

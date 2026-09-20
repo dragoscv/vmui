@@ -26,7 +26,111 @@
     "skin": "Skin",
     "ownBackground": "Own background",
     "ownBackgroundOn": "Own background for this view",
-    "ownBackgroundOff": "Uses the global background"
+    "ownBackgroundOff": "Uses the global background",
+    "clock": {
+      "label": "Clock",
+      "description": "Morphing digits, the date, inside/outside."
+    },
+    "weather": {
+      "label": "Weather",
+      "description": "Animated icon, temperature, wind, pressure, sunrise/sunset."
+    },
+    "home": {
+      "label": "Home",
+      "description": "Door, presence, ACs, lights that are on."
+    },
+    "ambilight": {
+      "label": "Ambilight",
+      "description": "Live strip colour, wall, HyperHDR."
+    },
+    "pc": {
+      "label": "PC",
+      "description": "CPU / GPU / RAM with arcs and a sparkline."
+    },
+    "pi": {
+      "label": "Raspberry Pi",
+      "description": "Home server CPU / temperature / RAM, disk, network, throttling."
+    },
+    "activity": {
+      "label": "Activity",
+      "description": "Latest events around the house."
+    },
+    "media": {
+      "label": "Now playing",
+      "description": "What is playing now, with cover art and scrolling titles."
+    },
+    "lists": {
+      "label": "Lists",
+      "description": "Shopping and to-do lists from HA."
+    },
+    "fx": {
+      "label": "BNR rates",
+      "description": "EUR/USD/GBP in RON with the 30-day trend."
+    },
+    "crypto": {
+      "label": "Crypto",
+      "description": "CoinGecko prices with the 24 h change."
+    },
+    "photo": {
+      "label": "Photo / Art",
+      "description": "One full-screen image with title and credit."
+    },
+    "fleet": {
+      "label": "Virtual machines",
+      "description": "VMs from vmui: state, RAM, CPU."
+    },
+    "climate": {
+      "label": "Climate 24 h",
+      "description": "Temperature and humidity chart over the last 24 h."
+    },
+    "calendar": {
+      "label": "Calendar",
+      "description": "Upcoming events from HA calendars, with a countdown."
+    },
+    "pomodoro": {
+      "label": "Pomodoro",
+      "description": "Focus timer controlled from /home. Visible only while running."
+    },
+    "network": {
+      "label": "Network",
+      "description": "Ping, up/down traffic, Tailscale peers online."
+    },
+    "countdown": {
+      "label": "Countdown",
+      "description": "Days until your events."
+    },
+    "quote": {
+      "label": "Quote",
+      "description": "One quote a day, typographic, over art."
+    },
+    "ambient": {
+      "label": "Ambient (night)",
+      "description": "Just the background and a small clock. Active automatically during night hours."
+    },
+    "copilot": {
+      "label": "Copilot agents",
+      "description": "Active agent sessions on the PC, their repo, last message, turns today."
+    },
+    "focus": {
+      "label": "Focus",
+      "description": "Active window and for how long, plus how the day split: code / browser / media / other."
+    },
+    "anniversaries": {
+      "label": "Anniversaries",
+      "description": "Birthdays and yearly anniversaries, with age and days left."
+    },
+    "nutrition": {
+      "label": "Nutrition",
+      "description": "Calories and macros today vs. target (Mifflin-St Jeor from the scale weight), today's meals, streak, coach. Meals come from the codai assistant on the phone."
+    },
+    "health": {
+      "label": "Health",
+      "description": "Steps, heart rate, sleep, SpO2, weight from Samsung Health via Health Connect (the HA app on the phone)."
+    },
+    "energy": {
+      "label": "Energy",
+      "description": "Power now and kWh today from HA sensors, estimated cost."
+    }
   },
   "notify": {
     "title": "Phone notifications",
@@ -94,5 +198,219 @@
     "startWork": "Work",
     "startBreak": "Break",
     "stop": "Stop"
+  },
+  "options": {
+    "clock": {
+      "seconds": {
+        "label": "Show seconds"
+      }
+    },
+    "pc": {
+      "hostname": {
+        "label": "Displayed name",
+        "placeholder": "dragos-pc"
+      },
+      "disks": {
+        "label": "Disks",
+        "hint": "letters separated by spaces",
+        "placeholder": "C: E:"
+      }
+    },
+    "pi": {
+      "hostname": {
+        "label": "Displayed name",
+        "placeholder": "homepi"
+      }
+    },
+    "activity": {
+      "max": {
+        "label": "Events shown"
+      }
+    },
+    "media": {
+      "skipIdle": {
+        "label": "Skip when nothing is playing"
+      },
+      "lyrics": {
+        "label": "Synced lyrics (LRCLIB)"
+      }
+    },
+    "fx": {
+      "currencies": {
+        "label": "Currencies",
+        "hint": "ISO codes, e.g. EUR USD GBP CHF XAU (gold, RON/gram)",
+        "placeholder": "EUR"
+      },
+      "watchAmount": {
+        "label": "Watched amount",
+        "hint": "shows the RON equivalent",
+        "placeholder": "1000 EUR"
+      }
+    },
+    "crypto": {
+      "coins": {
+        "label": "Coins",
+        "hint": "CoinGecko ids: bitcoin ethereum solana",
+        "placeholder": "bitcoin"
+      },
+      "vs": {
+        "label": "In",
+        "choice_usd": "USD",
+        "choice_eur": "EUR",
+        "choice_ron": "RON"
+      },
+      "holdings": {
+        "label": "Portfolio",
+        "hint": "one line: id amount → shows total value and Δ today",
+        "placeholder": "bitcoin 0.05"
+      }
+    },
+    "photo": {
+      "caption": {
+        "label": "Show title and credit"
+      },
+      "kenBurns": {
+        "label": "Slow motion (Ken Burns)"
+      }
+    },
+    "calendar": {
+      "entities": {
+        "label": "Calendars (entity_id)",
+        "placeholder": "calendar.personal"
+      }
+    },
+    "pomodoro": {
+      "workMin": {
+        "label": "Work (min)"
+      },
+      "breakMin": {
+        "label": "Break (min)"
+      }
+    },
+    "network": {
+      "pingHost": {
+        "label": "Ping host",
+        "placeholder": "1.1.1.1"
+      }
+    },
+    "countdown": {
+      "events": {
+        "label": "Events",
+        "hint": "one line: YYYY-MM-DD Title",
+        "placeholder": "2026-12-24 Christmas"
+      }
+    },
+    "quote": {
+      "lang": {
+        "label": "Language",
+        "choice_ro": "Romanian",
+        "choice_en": "English"
+      }
+    },
+    "ambient": {
+      "nightOnly": {
+        "label": "Night only"
+      }
+    },
+    "copilot": {
+      "activeMin": {
+        "label": "Active in the last (min)"
+      }
+    },
+    "focus": {
+      "idleMin": {
+        "label": "Idle after (min)"
+      }
+    },
+    "anniversaries": {
+      "people": {
+        "label": "People",
+        "hint": "one line: YYYY-MM-DD Name (the year = birth year, for the age)",
+        "placeholder": "1990-05-14 Andreea"
+      }
+    },
+    "health": {
+      "stepsGoal": {
+        "label": "Steps goal / day"
+      },
+      "sleepGoalH": {
+        "label": "Sleep goal (hours)"
+      },
+      "device": {
+        "label": "HA device slug",
+        "hint": "prefix of the sensor.<slug>_heart_rate etc. entities",
+        "placeholder": "dragos_s_s25_ultra"
+      },
+      "heightCm": {
+        "label": "Height (cm)"
+      },
+      "birthDate": {
+        "label": "Date of birth",
+        "hint": "YYYY-MM-DD; with the height it gives BMI, fat, water, muscle (Deurenberg/Hume/Boer estimates — the OKOK scale pads are decorative)",
+        "placeholder": "1993-12-12"
+      },
+      "sex": {
+        "label": "Sex (m/f)",
+        "placeholder": "m"
+      }
+    },
+    "energy": {
+      "pricePerKwh": {
+        "label": "Price RON/kWh"
+      },
+      "entities": {
+        "label": "Power sensors (entity_id)",
+        "hint": "empty = every sensor with device_class power/energy",
+        "placeholder": "sensor.priza_birou_power"
+      }
+    }
+  },
+  "skins": {
+    "minimal": {
+      "label": "Minimal",
+      "description": "Dark background, accent, no ornaments."
+    },
+    "glass": {
+      "label": "Glass",
+      "description": "Translucent panes over a photo background."
+    },
+    "neon": {
+      "label": "Neon",
+      "description": "Glowing outlines, deep black."
+    },
+    "editorial": {
+      "label": "Editorial",
+      "description": "One dominant figure, large typography."
+    },
+    "terminal": {
+      "label": "Terminal",
+      "description": "Green/amber monospace, scan lines."
+    },
+    "paper": {
+      "label": "Paper",
+      "description": "Light background, serif, calm."
+    }
+  },
+  "sources": {
+    "folder": {
+      "label": "Folder local",
+      "description": "Images from a folder on this PC."
+    },
+    "apod": {
+      "label": "NASA APOD",
+      "description": "NASA's astronomy picture of the day."
+    },
+    "met": {
+      "label": "Met Museum",
+      "description": "CC0 works from The Met."
+    },
+    "artic": {
+      "label": "Art Institute Chicago",
+      "description": "Public-domain works."
+    },
+    "commons": {
+      "label": "Wikimedia Commons",
+      "description": "Picture of the day on Commons."
+    }
   }
 }

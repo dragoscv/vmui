@@ -1,7 +1,13 @@
 "use client";
-import { useState, useTransition } from "react";
+import { Button, EmptyState, Field, Input, PageSection } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
 import type { InstanceSecretRow } from "@/lib/db/schema";
-import { setInstanceSecretAction, deleteInstanceSecretAction } from "@/server/actions/extras-2";
+import { deleteInstanceSecretAction, setInstanceSecretAction } from "@/server/actions/extras-2";
+import { KeyRound, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useState } from "react";
 
 type Row = Pick<InstanceSecretRow, "id" | "key" | "updatedAt">;
 
@@ -14,54 +20,120 @@ export function SecretsVaultClient({
   providerInstanceId: string;
   initial: Row[];
 }) {
+  const t = useTranslations("vm.secrets");
+  const tc = useTranslations("common");
+  const format = useFormatter();
+  const confirm = useConfirm();
   const [rows, setRows] = useState(initial);
   const [k, setK] = useState("");
   const [v, setV] = useState("");
-  const [pending, start] = useTransition();
 
-  function add() {
-    start(async () => {
-      const key = k.trim();
-      if (!key) return;
-      await setInstanceSecretAction({ accountId, providerInstanceId, key, value: v });
-      setRows((prev) => prev.find((r) => r.key === key)
-        ? prev.map((r) => r.key === key ? { ...r, updatedAt: new Date() } : r)
-        : [{ id: crypto.randomUUID(), key, updatedAt: new Date() }, ...prev]);
-      setK("");
-      setV("");
-    });
+  const { run: runSet, pending: saving } = useAction(setInstanceSecretAction, { success: t("saved"), refresh: false });
+  const { run: runDelete, pending: deleting } = useAction(deleteInstanceSecretAction, { success: t("deleted"), refresh: false });
+
+  async function add() {
+    const key = k.trim();
+    if (!key) return;
+    const r = await runSet({ accountId, providerInstanceId, key, value: v });
+    if (!r.ok) return;
+    setRows((prev) => prev.find((x) => x.key === key)
+      ? prev.map((x) => x.key === key ? { ...x, updatedAt: new Date() } : x)
+      : [{ id: crypto.randomUUID(), key, updatedAt: new Date() }, ...prev]);
+    setK("");
+    setV("");
   }
-  function remove(id: string) {
-    start(async () => {
-      await deleteInstanceSecretAction(id);
-      setRows((prev) => prev.filter((r) => r.id !== id));
+  async function remove(row: Row) {
+    const ok = await confirm({
+      title: t("deleteTitle", { key: row.key }),
+      description: t("deleteBody"),
+      tone: "danger",
+      confirmText: tc("delete"),
     });
+    if (!ok) return;
+    const r = await runDelete(row.id);
+    if (r.ok) setRows((prev) => prev.filter((x) => x.id !== row.id));
   }
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Secrets vault</h3>
-        <span className="text-xs text-zinc-500">AES-256-GCM at rest</span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <input value={k} onChange={(e) => setK(e.target.value.toUpperCase())} placeholder="KEY_NAME" className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1 text-sm font-mono" />
-        <input value={v} onChange={(e) => setV(e.target.value)} type="password" placeholder="value" className="rounded-md bg-zinc-900 border border-zinc-800 px-2 py-1 text-sm sm:col-span-2" />
-      </div>
-      <div className="flex justify-end"><button onClick={add} disabled={pending || !k} className="rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-2 py-1 text-xs">Save secret</button></div>
-
-      <div className="space-y-1 text-xs">
-        {rows.length === 0 && <div className="text-zinc-500">No secrets yet.</div>}
-        {rows.map((r) => (
-          <div key={r.id} className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-900 px-2 py-1">
-            <div className="font-mono">{r.key}</div>
-            <div className="flex items-center gap-3 text-zinc-500">
-              <span>updated {r.updatedAt.toLocaleDateString()}</span>
-              <button onClick={() => remove(r.id)} disabled={pending} className="text-rose-300 hover:text-rose-200">Delete</button>
-            </div>
+    <PageSection title={t("title")} description={t("description")}>
+      <div className="space-y-4">
+        <form
+          className="space-y-3"
+          autoComplete="off"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void add();
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label={t("keyLabel")} hint={t("keyHint")}>
+              <Input
+                value={k}
+                onChange={(e) => setK(e.target.value.toUpperCase())}
+                placeholder={t("keyPlaceholder")}
+                className="font-mono"
+                maxLength={80}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={saving}
+              />
+            </Field>
+            <Field label={t("valueLabel")} className="sm:col-span-2">
+              <Input
+                value={v}
+                onChange={(e) => setV(e.target.value)}
+                type="password"
+                placeholder={t("valuePlaceholder")}
+                maxLength={8192}
+                autoComplete="new-password"
+                disabled={saving}
+              />
+            </Field>
           </div>
-        ))}
+          <div className="flex justify-end">
+            <Button type="submit" size="sm" disabled={!k.trim()} loading={saving}>
+              {t("save")}
+            </Button>
+          </div>
+        </form>
+
+        {rows.length === 0 ? (
+          <EmptyState compact icon={<KeyRound />} title={t("emptyTitle")} description={t("emptyDescription")} />
+        ) : (
+          <ul className="divide-y divide-border rounded-[var(--radius-md)] border border-border text-xs">
+            <AnimatePresence initial={false}>
+              {rows.map((r, i) => (
+                <motion.li
+                  key={r.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
+                  className="flex items-center gap-3 px-3 py-2"
+                >
+                  <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate font-mono">{r.key}</span>
+                  <span className="hidden text-muted sm:inline">
+                    {t("updated", { date: format.dateTime(r.updatedAt, { dateStyle: "medium" }) })}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted hover:text-danger"
+                    onClick={() => void remove(r)}
+                    disabled={deleting}
+                    aria-label={t("deleteAria", { key: r.key })}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  </Button>
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </ul>
+        )}
       </div>
-    </div>
+    </PageSection>
   );
 }

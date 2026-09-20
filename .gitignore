@@ -35,3 +35,7 @@ __pycache__/
 
 # Microsoft fonts copied for the Pi renderer; licensed, never commit
 turzx/fonts/
+
+# Agent scratch. Also keeps Tailwind v4's source scan out of it: a literal
+# `rounded-[var(--radius-sm|md|lg|xl)]` in a brief there breaks globals.css.
+.copilot-tmp/

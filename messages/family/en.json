@@ -37,7 +37,19 @@
     "remove": "Remove",
     "removeAria": "Remove {name} from the household",
     "removeConfirm": "Remove {name} from the household? Their account stays, their paired devices are revoked.",
-    "removed": "{name} removed"
+    "removed": "{name} removed",
+    "columns": {
+      "member": "Member",
+      "role": "Role",
+      "rooms": "Rooms",
+      "devices": "Devices",
+      "lastLogin": "Last sign-in"
+    },
+    "devicesCount": "{count, plural, =0 {none} one {# device} other {# devices}}",
+    "edit": "Edit",
+    "editAria": "Edit {name}",
+    "editTitle": "Edit member",
+    "editDescription": "Role, rooms and devices for {name}."
   },
   "devices": {
     "title": "Devices",

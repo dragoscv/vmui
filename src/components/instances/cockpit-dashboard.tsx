@@ -1,15 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Cpu, MemoryStick, HardDrive, ArrowDownUp, Activity as ActivityIcon, Clock } from "lucide-react";
+import { Alert, Button } from "@/components/ui";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sparkline } from "@/components/ui/sparkline";
 import type { ProbeMetrics } from "@/lib/probe";
+import { cn } from "@/lib/utils";
+import { Activity as ActivityIcon, ArrowDownUp, Clock, Cpu, HardDrive, MemoryStick } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 
 interface Props {
   instanceId: string;
   intervalSec?: number | null;
   initial?: ProbeMetrics | null;
 }
+
+type Tone = "ok" | "warn" | "crit";
+
+const TONE_STROKE: Record<Tone, string> = {
+  ok: "text-primary",
+  warn: "text-warning",
+  crit: "text-danger",
+};
 
 function formatBytes(n: number, perSec = false): string {
   const suffix = perSec ? "/s" : "";
@@ -39,57 +51,45 @@ function Gauge({
   unit = "%",
   max = 100,
   icon: Icon,
-  tone,
+  tone = "ok",
 }: {
   label: string;
   value: number;
   unit?: string;
   max?: number;
-  icon: React.ComponentType<{ className?: string }>;
-  tone?: "ok" | "warn" | "crit";
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  tone?: Tone;
 }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   const r = 38;
   const c = 2 * Math.PI * r;
   const dash = (pct / 100) * c;
-  const colorVar =
-    tone === "crit"
-      ? "oklch(70% 0.22 25)"
-      : tone === "warn"
-      ? "oklch(80% 0.18 75)"
-      : "var(--color-primary)";
   return (
-    <div className="relative flex flex-col items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-      <svg width="100" height="100" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--color-surface-muted)" strokeWidth="8" />
+    <div className="relative flex flex-col items-center justify-center rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+      <svg width="100" height="100" viewBox="0 0 100 100" role="img" aria-label={`${label}: ${value.toFixed(unit === "%" ? 0 : 1)} ${unit}`}>
+        <circle cx="50" cy="50" r={r} fill="none" className="stroke-[var(--color-surface-muted)]" strokeWidth="8" />
         <circle
           cx="50"
           cy="50"
           r={r}
           fill="none"
-          stroke={colorVar}
+          stroke="currentColor"
+          className={TONE_STROKE[tone]}
           strokeWidth="8"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${c}`}
           transform="rotate(-90 50 50)"
-          style={{ transition: "stroke-dasharray 600ms cubic-bezier(.4,.2,.2,1)" }}
+          style={{ transition: "stroke-dasharray 300ms cubic-bezier(.4,.2,.2,1)" }}
         />
-        <text
-          x="50"
-          y="48"
-          textAnchor="middle"
-          fontSize="20"
-          fontWeight="600"
-          fill="var(--color-text)"
-        >
+        <text x="50" y="48" textAnchor="middle" fontSize="20" fontWeight="600" className="fill-[var(--color-fg)]">
           {value.toFixed(unit === "%" ? 0 : 1)}
         </text>
-        <text x="50" y="64" textAnchor="middle" fontSize="11" fill="var(--color-text-muted)">
+        <text x="50" y="64" textAnchor="middle" fontSize="11" className="fill-[var(--color-fg-muted)]">
           {unit}
         </text>
       </svg>
       <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-muted">
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-3.5 w-3.5" aria-hidden />
         {label}
       </div>
     </div>
@@ -97,9 +97,10 @@ function Gauge({
 }
 
 export function CockpitDashboard({ instanceId, intervalSec, initial }: Props) {
+  const t = useTranslations("vm.cockpit");
   const [metrics, setMetrics] = useState<ProbeMetrics | null>(initial ?? null);
   const [history, setHistory] = useState<{ t: number; cpu: number; mem: number; netIn: number; netOut: number }[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [disconnected, setDisconnected] = useState(false);
   const [running, setRunning] = useState(true);
   const interval = intervalSec ?? 10;
 
@@ -110,7 +111,7 @@ export function CockpitDashboard({ instanceId, intervalSec, initial }: Props) {
       try {
         const m = JSON.parse((ev as MessageEvent).data) as ProbeMetrics;
         setMetrics(m);
-        setError(null);
+        setDisconnected(false);
         setHistory((h) =>
           [...h, { t: m.collectedAt, cpu: m.cpu, mem: m.mem, netIn: m.netIn, netOut: m.netOut }].slice(-60),
         );
@@ -119,75 +120,64 @@ export function CockpitDashboard({ instanceId, intervalSec, initial }: Props) {
       }
     });
     es.addEventListener("error", () => {
-      setError("stream disconnected — retrying");
+      setDisconnected(true);
     });
     return () => {
       es.close();
     };
   }, [instanceId, interval, running]);
 
-  const cpuTone: "ok" | "warn" | "crit" =
-    !metrics ? "ok" : metrics.cpu >= 90 ? "crit" : metrics.cpu >= 70 ? "warn" : "ok";
-  const memTone: "ok" | "warn" | "crit" =
-    !metrics ? "ok" : metrics.mem >= 90 ? "crit" : metrics.mem >= 75 ? "warn" : "ok";
-  const diskTone: "ok" | "warn" | "crit" =
-    !metrics ? "ok" : metrics.disk >= 90 ? "crit" : metrics.disk >= 80 ? "warn" : "ok";
+  const cpuTone: Tone = !metrics ? "ok" : metrics.cpu >= 90 ? "crit" : metrics.cpu >= 70 ? "warn" : "ok";
+  const memTone: Tone = !metrics ? "ok" : metrics.mem >= 90 ? "crit" : metrics.mem >= 75 ? "warn" : "ok";
+  const diskTone: Tone = !metrics ? "ok" : metrics.disk >= 90 ? "crit" : metrics.disk >= 80 ? "warn" : "ok";
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold">Cockpit</h2>
+          <h2 className="text-base font-semibold">{t("title")}</h2>
           <p className="text-xs text-muted">
-            {metrics
-              ? `${metrics.hostname} · sample every ${interval}s`
-              : "Awaiting first sample…"}
+            {metrics ? t("sampleEvery", { hostname: metrics.hostname, seconds: interval }) : t("awaiting")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setRunning((r) => !r)}
-            className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-2.5 py-1 text-xs hover:bg-[var(--color-surface-muted)]"
-          >
-            {running ? "Pause" : "Resume"}
-          </button>
-        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setRunning((r) => !r)} aria-pressed={!running}>
+          {running ? t("pause") : t("resume")}
+        </Button>
       </div>
 
-      {error && (
-        <div className="rounded-[var(--radius-md)] border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">
-          {error}
-        </div>
+      {disconnected && (
+        <Alert tone="danger" className="text-xs">
+          {t("disconnected")}
+        </Alert>
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Gauge label="CPU" value={metrics?.cpu ?? 0} icon={Cpu} tone={cpuTone} />
-        <Gauge label="Memory" value={metrics?.mem ?? 0} icon={MemoryStick} tone={memTone} />
-        <Gauge label="Disk /" value={metrics?.disk ?? 0} icon={HardDrive} tone={diskTone} />
+        <Gauge label={t("cpu")} value={metrics?.cpu ?? 0} icon={Cpu} tone={cpuTone} />
+        <Gauge label={t("memory")} value={metrics?.mem ?? 0} icon={MemoryStick} tone={memTone} />
+        <Gauge label={t("disk")} value={metrics?.disk ?? 0} icon={HardDrive} tone={diskTone} />
         <Gauge
-          label="Load 1m"
+          label={t("load")}
           value={metrics?.load1 ?? 0}
-          unit="load"
+          unit={t("loadUnit")}
           max={Math.max(4, metrics?.cores.length ?? 4)}
           icon={ActivityIcon}
         />
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-4 text-xs">
-            <ArrowDownUp className="mb-1 h-4 w-4 text-[var(--color-primary)]" />
+            <ArrowDownUp className="mb-1 h-4 w-4 text-primary" aria-hidden />
             <div className="font-mono text-sm">{formatBytes(metrics?.netIn ?? 0, true)}</div>
-            <div className="font-mono text-[10px] text-muted">↓ in</div>
+            <div className="font-mono text-[10px] text-muted">{t("in")}</div>
             <div className="mt-1 font-mono text-sm">{formatBytes(metrics?.netOut ?? 0, true)}</div>
-            <div className="font-mono text-[10px] text-muted">↑ out</div>
+            <div className="font-mono text-[10px] text-muted">{t("out")}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-4 text-xs">
-            <Clock className="mb-1 h-4 w-4 text-[var(--color-primary)]" />
+            <Clock className="mb-1 h-4 w-4 text-primary" aria-hidden />
             <div className="text-sm font-semibold">{metrics ? formatUptime(metrics.uptimeSec) : "—"}</div>
-            <div className="text-[10px] text-muted">uptime</div>
+            <div className="text-[10px] text-muted">{t("uptime")}</div>
             <div className="mt-1 text-[10px] text-muted">
-              IOPS {metrics ? `${metrics.iopsRead}/${metrics.iopsWrite}` : "—"}
+              {t("iops", { read: metrics?.iopsRead ?? "—", write: metrics?.iopsWrite ?? "—" })}
             </div>
           </CardContent>
         </Card>
@@ -196,22 +186,22 @@ export function CockpitDashboard({ instanceId, intervalSec, initial }: Props) {
       {metrics && metrics.cores.length > 0 && (
         <Card>
           <CardContent className="py-3">
-            <div className="mb-2 text-xs font-semibold text-muted">Per-core CPU ({metrics.cores.length})</div>
+            <div className="mb-2 text-xs font-semibold text-muted">{t("perCore", { count: metrics.cores.length })}</div>
             <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.min(metrics.cores.length, 16)}, minmax(0, 1fr))` }}>
               {metrics.cores.map((c, i) => (
                 <div
                   key={i}
-                  className="relative h-12 overflow-hidden rounded-sm bg-[var(--color-surface-muted)]"
-                  title={`core ${i}: ${c.toFixed(1)}%`}
+                  className="relative h-12 overflow-hidden rounded-[var(--radius-sm)] bg-surface-muted"
+                  title={t("coreTitle", { index: i, percent: c.toFixed(1) })}
                 >
                   <div
-                    className="absolute inset-x-0 bottom-0 transition-[height] duration-500"
-                    style={{
-                      height: `${Math.min(100, c)}%`,
-                      background: c >= 80 ? "oklch(70% 0.22 25)" : c >= 50 ? "oklch(80% 0.18 75)" : "var(--color-primary)",
-                    }}
+                    className={cn(
+                      "absolute inset-x-0 bottom-0 transition-[height] duration-300",
+                      c >= 80 ? "bg-danger" : c >= 50 ? "bg-warning" : "bg-primary",
+                    )}
+                    style={{ height: `${Math.min(100, c)}%` }}
                   />
-                  <div className="absolute inset-x-0 bottom-0 text-center text-[8px] font-mono leading-3 text-white mix-blend-difference">
+                  <div className="absolute inset-x-0 bottom-0 text-center text-[8px] font-mono leading-3 text-fg mix-blend-difference">
                     {Math.round(c)}
                   </div>
                 </div>
@@ -225,34 +215,23 @@ export function CockpitDashboard({ instanceId, intervalSec, initial }: Props) {
         <Card>
           <CardContent className="py-3">
             <div className="mb-2 flex items-center justify-between text-xs font-semibold text-muted">
-              <span>Last {history.length} samples</span>
+              <span>{t("lastSamples", { count: history.length })}</span>
               <span className="font-mono text-[10px]">
                 {formatBytes(metrics?.memUsedMb ? metrics.memUsedMb * 1024 * 1024 : 0)} /{" "}
                 {formatBytes(metrics?.memTotalMb ? metrics.memTotalMb * 1024 * 1024 : 0)}
               </span>
             </div>
-            <Sparkline data={history.map((h) => h.cpu)} color="var(--color-primary)" label="CPU%" />
-            <Sparkline data={history.map((h) => h.mem)} color="oklch(75% 0.18 295)" label="Mem%" />
+            <div className="mb-2">
+              <div className="mb-0.5 text-[10px] text-muted">{t("cpuPct")}</div>
+              <Sparkline values={history.map((h) => h.cpu)} width={600} height={32} className="w-full text-primary" ariaLabel={t("cpuPct")} />
+            </div>
+            <div>
+              <div className="mb-0.5 text-[10px] text-muted">{t("memPct")}</div>
+              <Sparkline values={history.map((h) => h.mem)} width={600} height={32} className="w-full text-accent" ariaLabel={t("memPct")} />
+            </div>
           </CardContent>
         </Card>
       )}
-    </div>
-  );
-}
-
-function Sparkline({ data, color, label }: { data: number[]; color: string; label: string }) {
-  if (data.length < 2) return null;
-  const w = 600;
-  const h = 32;
-  const max = Math.max(100, ...data);
-  const stepX = w / (data.length - 1);
-  const points = data.map((v, i) => `${(i * stepX).toFixed(1)},${(h - (v / max) * h).toFixed(1)}`).join(" ");
-  return (
-    <div className="mb-2">
-      <div className="mb-0.5 text-[10px] text-muted">{label}</div>
-      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
-      </svg>
     </div>
   );
 }

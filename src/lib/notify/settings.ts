@@ -1,3 +1,4 @@
+import { LOCALES } from "@/i18n/config";
 import { db } from "@/lib/db";
 import { turzxSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -7,21 +8,23 @@ import { z } from "zod";
 const ROW_ID = 6;
 const hhmm = z.string().regex(/^\d{2}:\d{2}$/);
 
+// Human labels live in messages/notify `kinds.<id>`; this is colour + icon only.
 export const KIND_META = {
-  copilot: { label: "Copilot", color: "#6366f1", icon: "bot" },
-  agents: { label: "Agenți activi", color: "#6366f1", icon: "bot" },
-  intercom: { label: "Interfon", color: "#ff5a1f", icon: "bell-ring" },
-  pairing: { label: "Dispozitive noi", color: "#22c55e", icon: "smartphone" },
-  water: { label: "Apă", color: "#8fd3ff", icon: "glass-water" },
-  pc: { label: "PC", color: "#7cff9a", icon: "monitor" },
-  pi: { label: "Raspberry Pi", color: "#f2b85a", icon: "cpu" },
-  door: { label: "Ușa", color: "#f2b85a", icon: "door-open" },
-  window: { label: "Geam", color: "#8fd3ff", icon: "app-window" },
-  presence: { label: "Prezență", color: "#c084fc", icon: "radar" },
-  battery: { label: "Baterii", color: "#ff7a7a", icon: "battery-warning" },
-  system: { label: "Sistem", color: "#94a3b8", icon: "info" },
+  copilot: { color: "#6366f1", icon: "bot" },
+  agents: { color: "#6366f1", icon: "bot" },
+  intercom: { color: "#ff5a1f", icon: "bell-ring" },
+  pairing: { color: "#22c55e", icon: "smartphone" },
+  water: { color: "#8fd3ff", icon: "glass-water" },
+  pc: { color: "#7cff9a", icon: "monitor" },
+  pi: { color: "#f2b85a", icon: "cpu" },
+  door: { color: "#f2b85a", icon: "door-open" },
+  window: { color: "#8fd3ff", icon: "app-window" },
+  presence: { color: "#c084fc", icon: "radar" },
+  battery: { color: "#ff7a7a", icon: "battery-warning" },
+  system: { color: "#94a3b8", icon: "info" },
 } as const;
 export type KindId = keyof typeof KIND_META;
+export const KIND_IDS = Object.keys(KIND_META) as KindId[];
 
 const kindSchema = z.object({
   enabled: z.boolean().default(true),
@@ -32,7 +35,6 @@ const kindSchema = z.object({
 });
 
 type KindCfg = z.infer<typeof kindSchema>;
-const KIND_IDS = Object.keys(KIND_META) as KindId[];
 const defaultKinds: Record<KindId, KindCfg> = Object.fromEntries(
   KIND_IDS.map((k) => [k, { enabled: true, breakQuiet: k === "intercom" || k === "door", color: KIND_META[k].color, icon: KIND_META[k].icon }]),
 ) as Record<KindId, KindCfg>;
@@ -51,6 +53,8 @@ export const notifySettingsSchema = z.object({
   fcm: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
   /** HA Companion fallback when no paired device acks within 20 s */
   haFallback: z.boolean().default(true),
+  /** language for consumers without one of their own (HA Companion fallback) */
+  language: z.enum(LOCALES).default("ro"),
   /** water: nudge when below pace by this many ml (0 = off) */
   waterNudgeMl: z.number().int().min(0).max(1000).default(300),
   /** battery: notify below this percent */

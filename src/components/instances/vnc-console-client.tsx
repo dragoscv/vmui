@@ -1,29 +1,18 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Maximize2,
-  Power,
-  RotateCw,
-  Loader2,
-  Wifi,
-  WifiOff,
-  Keyboard,
-} from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
-import type { VncScreenHandle } from "react-vnc";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  startBridgeAction,
-  getBridgeStatusAction,
-} from "@/server/actions/local-kvm";
-import { instanceAction } from "@/server/actions/instances";
+import { Badge, Button } from "@/components/ui";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
+import { err, ok } from "@/lib/action-result";
+import { instanceAction } from "@/server/actions/instances";
+import { getBridgeStatusAction, startBridgeAction } from "@/server/actions/local-kvm";
+import { Keyboard, Loader2, Maximize2, Power, RotateCw, Wifi, WifiOff } from "lucide-react";
+import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { VncScreenHandle } from "react-vnc";
+import { toast } from "sonner";
 
 // react-vnc imports @novnc/novnc which uses browser-only globals.
 // Defer it to the client mount step.
@@ -39,6 +28,7 @@ interface ConsoleClientProps {
 }
 
 type ConnState = "starting" | "connecting" | "connected" | "disconnected" | "error";
+type GuestAction = "stop" | "reboot";
 
 export function VncConsoleClient({
   accountId,
@@ -46,12 +36,31 @@ export function VncConsoleClient({
   providerInstanceId,
   instanceName,
 }: ConsoleClientProps) {
+  const t = useTranslations("vm.console");
+  const ta = useTranslations("vm.actions");
+  const tc = useTranslations("common");
   const router = useRouter();
   const confirm = useConfirm();
   const vncRef = useRef<VncScreenHandle>(null);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [state, setState] = useState<ConnState>("starting");
   const [error, setError] = useState<string | null>(null);
+  const [canvasBg, setCanvasBg] = useState<string>();
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  useEffect(() => {
+    setCanvasBg(getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim() || undefined);
+  }, []);
+
+  const lastAction = useRef<GuestAction>("stop");
+  const { run: runGuestAction, pending: actionPending } = useAction(
+    async (action: GuestAction) => {
+      const r = await instanceAction(action, { accountId, region, providerInstanceId });
+      return r.ok ? ok() : err(r.error ?? "common.error");
+    },
+    { success: () => ta(lastAction.current === "stop" ? "stopRequested" : "rebootRequested") },
+  );
 
   // 1) Boot the websocket bridge in WSL, then connect.
   useEffect(() => {
@@ -73,12 +82,12 @@ export function VncConsoleClient({
           setWsUrl(r.url);
           setState("connecting");
         } else {
-          setError(r.error ?? "Bridge failed");
+          setError(r.error ?? tRef.current("bridgeFailed"));
           setState("error");
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Bridge failed");
+          setError(e instanceof Error ? e.message : tRef.current("bridgeFailed"));
           setState("error");
         }
       }
@@ -88,21 +97,17 @@ export function VncConsoleClient({
     };
   }, [accountId]);
 
-  function sendInstanceAction(action: "stop" | "reboot") {
+  function sendInstanceAction(action: GuestAction) {
     void (async () => {
       const ok = await confirm({
-        title: action === "stop" ? `Shut down ${instanceName}?` : `Reboot ${instanceName}?`,
-        description:
-          action === "stop"
-            ? "The guest OS will receive an ACPI power-down. Disk data is preserved."
-            : "The guest OS will reboot. Unsaved work may be lost.",
+        title: action === "stop" ? ta("confirmStopTitle", { name: instanceName }) : ta("confirmRebootTitle", { name: instanceName }),
+        description: action === "stop" ? ta("confirmStopBody") : ta("confirmRebootBody"),
         tone: "warning",
-        confirmText: action === "stop" ? "Shut down" : "Reboot",
+        confirmText: action === "stop" ? t("shutdown") : ta("reboot"),
       });
       if (!ok) return;
-      const r = await instanceAction(action, { accountId, region, providerInstanceId });
-      if (r.ok) toast.success(`${action} requested`);
-      else toast.error(r.error ?? "Failed");
+      lastAction.current = action;
+      await runGuestAction(action);
     })();
   }
 
@@ -116,46 +121,31 @@ export function VncConsoleClient({
   }
 
   return (
-    <div className="flex h-[calc(100vh-2rem)] flex-col gap-3">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm">
-            <Link href={`/instances/${encodeURIComponent(`${accountId}:${region}:${providerInstanceId}`)}`}>
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Link>
-          </Button>
-          <div>
-            <div className="text-sm font-medium">{instanceName}</div>
-            <div className="text-xs text-muted">In-browser console (noVNC)</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ConnBadge state={state} />
-          <Button variant="ghost" size="sm" onClick={sendCtrlAltDel} title="Send Ctrl+Alt+Del (most-VNC servers)">
-            <Keyboard className="h-3.5 w-3.5" /> Ctrl+Alt+Del
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => sendInstanceAction("reboot")}>
-            <RotateCw className="h-3.5 w-3.5" /> Reboot
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => sendInstanceAction("stop")}>
-            <Power className="h-3.5 w-3.5" /> Shutdown
-          </Button>
-          <Button variant="secondary" size="sm" onClick={fullscreen}>
-            <Maximize2 className="h-3.5 w-3.5" /> Fullscreen
-          </Button>
-        </div>
+    <div className="flex h-[calc(100vh-14rem)] min-h-[60vh] flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <ConnBadge state={state} />
+        <Button variant="ghost" size="sm" onClick={sendCtrlAltDel} title={t("ctrlAltDelHint")}>
+          <Keyboard className="size-3.5" aria-hidden /> {t("ctrlAltDel")}
+        </Button>
+        <Button variant="ghost" size="sm" disabled={actionPending} onClick={() => sendInstanceAction("reboot")}>
+          <RotateCw className="size-3.5" aria-hidden /> {ta("reboot")}
+        </Button>
+        <Button variant="ghost" size="sm" disabled={actionPending} onClick={() => sendInstanceAction("stop")}>
+          <Power className="size-3.5" aria-hidden /> {t("shutdown")}
+        </Button>
+        <Button variant="secondary" size="sm" onClick={fullscreen}>
+          <Maximize2 className="size-3.5" aria-hidden /> {t("fullscreen")}
+        </Button>
       </div>
 
-      {/* Canvas */}
       <div
         id="vnc-canvas-wrap"
-        className="relative flex-1 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-black"
+        className="relative flex-1 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-bg"
       >
-        {state === "starting" && <Centered>Starting websocket bridge…</Centered>}
+        {state === "starting" && <Centered spinner>{t("startingBridge")}</Centered>}
         {state === "error" && (
           <Centered>
-            <div className="text-[var(--color-danger)]">{error ?? "Connection failed"}</div>
+            <div role="alert" className="text-danger">{error ?? t("connectionFailed")}</div>
             <Button
               size="sm"
               className="mt-3"
@@ -169,7 +159,7 @@ export function VncConsoleClient({
                 }, 50);
               }}
             >
-              Retry
+              {tc("retry")}
             </Button>
           </Centered>
         )}
@@ -179,7 +169,7 @@ export function VncConsoleClient({
             ref={vncRef}
             url={wsUrl}
             scaleViewport
-            background="#000000"
+            background={canvasBg}
             style={{ width: "100%", height: "100%" }}
             qualityLevel={8}
             compressionLevel={2}
@@ -191,11 +181,11 @@ export function VncConsoleClient({
             onDisconnect={(e) => {
               setState("disconnected");
               if (!e?.detail?.clean) {
-                toast.error("VNC disconnected unexpectedly");
+                toast.error(tRef.current("disconnectedUnexpectedly"));
               }
             }}
             onSecurityFailure={(e) => {
-              setError(e?.detail?.reason ?? "Security failure");
+              setError(e?.detail?.reason ?? tRef.current("securityFailure"));
               setState("error");
             }}
           />
@@ -205,11 +195,11 @@ export function VncConsoleClient({
   );
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
+function Centered({ children, spinner = false }: { children: React.ReactNode; spinner?: boolean }) {
   return (
     <div className="absolute inset-0 grid place-items-center">
       <div className="flex flex-col items-center gap-2 text-center text-sm text-muted">
-        <Loader2 className="h-5 w-5 animate-spin" />
+        {spinner && <Loader2 className="size-5 animate-spin" aria-hidden />}
         {children}
       </div>
     </div>
@@ -217,18 +207,20 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 function ConnBadge({ state }: { state: ConnState }) {
-  const [variant, label, Icon] =
+  const t = useTranslations("vm.console");
+  const [variant, key, Icon] =
     state === "connected"
-      ? (["success" as const, "Connected", Wifi] as const)
+      ? (["success", "connected", Wifi] as const)
       : state === "connecting" || state === "starting"
-        ? (["info" as const, "Connecting…", Loader2] as const)
+        ? (["info", "connecting", Loader2] as const)
         : state === "error"
-          ? (["danger" as const, "Error", WifiOff] as const)
-          : (["muted" as const, "Disconnected", WifiOff] as const);
+          ? (["danger", "error", WifiOff] as const)
+          : (["muted", "disconnected", WifiOff] as const);
+  const busy = state === "connecting" || state === "starting";
   return (
-    <Badge variant={variant} className="gap-1.5">
-      <Icon className={state === "connecting" || state === "starting" ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
-      {label}
+    <Badge variant={variant} className="gap-1.5" role="status" aria-live="polite">
+      <Icon className={busy ? "size-3 animate-spin" : "size-3"} aria-hidden />
+      {t(key)}
     </Badge>
   );
 }

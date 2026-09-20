@@ -15,7 +15,7 @@ import {
     Tv,
     type LucideIcon,
 } from "lucide-react";
-  import { useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 export const KIND_ICON: Record<DeviceKind, LucideIcon> = {
   light: Lightbulb,

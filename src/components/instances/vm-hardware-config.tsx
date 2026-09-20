@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Cpu, MemoryStick, Save, AlertTriangle, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, Button, PageSection, SkeletonText } from "@/components/ui";
+import { useAction } from "@/hooks/use-action";
+import { err, ok } from "@/lib/action-result";
 import {
-  getHostCapabilitiesAction,
-  getVmHardwareAction,
-  updateVmHardwareAction,
-  type HostCapabilities,
+    getHostCapabilitiesAction,
+    getVmHardwareAction,
+    updateVmHardwareAction,
+    type HostCapabilities,
 } from "@/server/actions/local-kvm";
+import { Cpu, MemoryStick, Save } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useEffect, useId, useState } from "react";
 
 const RAM_PRESETS_MB = [4096, 8192, 12288, 16384, 24576, 32768];
 const CORES_OPTIONS = [1, 2, 4, 6, 8];
@@ -30,12 +31,26 @@ export function VmHardwareConfig({
   accountId: string;
   vmRunning: boolean;
 }) {
+  const t = useTranslations("vm.hardware");
+  const tc = useTranslations("common");
   const [caps, setCaps] = useState<HostCapabilities | null>(null);
   const [initial, setInitial] = useState<Hardware | null>(null);
   const [draft, setDraft] = useState<Hardware | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [pending, startTransition] = useTransition();
+  const [savedNextBoot, setSavedNextBoot] = useState(false);
+
+  const { run: runSave, pending } = useAction(
+    async (hw: Hardware) => {
+      const r = await updateVmHardwareAction(accountId, hw);
+      if (!r.ok) return err(r.error, undefined, r.fieldErrors);
+      return ok(r.appliedNextBoot);
+    },
+    {
+      success: (nextBoot) => (nextBoot ? t("savedNextBoot") : t("saved")),
+      refresh: false,
+    },
+  );
 
   // Load current config + host caps in parallel
   useEffect(() => {
@@ -62,29 +77,17 @@ export function VmHardwareConfig({
 
   if (error) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">VM hardware</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-[var(--color-danger)]">{error}</div>
-        </CardContent>
-      </Card>
+      <PageSection title={t("title")} description={t("description")}>
+        <Alert tone="danger">{error}</Alert>
+      </PageSection>
     );
   }
 
   if (!draft || !initial) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">VM hardware</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" /> Probing host…
-          </div>
-        </CardContent>
-      </Card>
+      <PageSection title={t("title")} description={t("probing")}>
+        <SkeletonText lines={3} />
+      </PageSection>
     );
   }
 
@@ -113,58 +116,51 @@ export function VmHardwareConfig({
     setFieldErrors({});
   }
 
-  function save() {
+  async function save() {
     if (!draft) return;
     setFieldErrors({});
-    startTransition(async () => {
-      const r = await updateVmHardwareAction(accountId, draft);
-      if (r.ok) {
-        setInitial(draft);
-        toast.success(
-          r.appliedNextBoot
-            ? "Saved — restart the VM to apply changes"
-            : "Saved",
-        );
-      } else {
-        if (r.fieldErrors) setFieldErrors(r.fieldErrors);
-        toast.error(r.error);
-      }
-    });
+    const r = await runSave(draft);
+    if (r.ok) {
+      setInitial(draft);
+      setSavedNextBoot(Boolean(r.data));
+    } else if (r.fieldErrors) {
+      setFieldErrors(r.fieldErrors);
+    }
   }
 
+  const smtFactor = (draft.threads / draft.cores).toFixed(0);
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">VM hardware</CardTitle>
-          {caps && (
-            <div className="text-[11px] text-muted">
-              host: {caps.hostCores} threads · {(caps.hostMemMb / 1024).toFixed(1)} GiB
-            </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Cores */}
-        <Field
+    <PageSection
+      title={t("title")}
+      description={t("description")}
+      action={
+        caps && (
+          <span className="text-[11px] text-muted">
+            {t("host", { threads: caps.hostCores, gib: (caps.hostMemMb / 1024).toFixed(1) })}
+          </span>
+        )
+      }
+    >
+      <div className="space-y-4">
+        <HardwareField
           icon={Cpu}
-          label="Cores per socket"
+          label={t("cores")}
           value={String(draft.cores)}
-          right={`${draft.cores} core${draft.cores > 1 ? "s" : ""}`}
+          right={t("coresValue", { count: draft.cores })}
         >
           <Pills
             value={draft.cores}
             options={CORES_OPTIONS.filter((c) => c <= maxCores)}
             onChange={setCores}
           />
-        </Field>
+        </HardwareField>
 
-        {/* Threads (SMT factor) */}
-        <Field
+        <HardwareField
           icon={Cpu}
-          label="vCPU threads"
-          value={`${draft.threads} (${(draft.threads / draft.cores).toFixed(0)}×SMT)`}
-          right={`${draft.threads} threads`}
+          label={t("threads")}
+          value={t("threadsSmt", { count: draft.threads, factor: smtFactor })}
+          right={t("threadsValue", { count: draft.threads })}
           error={fieldErrors.threads}
         >
           <Pills
@@ -173,16 +169,15 @@ export function VmHardwareConfig({
               (t) => t <= maxCores,
             )}
             onChange={setThreads}
-            renderLabel={(t) => `${t}t (${(t / draft.cores).toFixed(0)}×)`}
+            renderLabel={(n) => t("threadOption", { count: n, factor: (n / draft.cores).toFixed(0) })}
           />
-        </Field>
+        </HardwareField>
 
-        {/* RAM */}
-        <Field
+        <HardwareField
           icon={MemoryStick}
-          label="RAM"
-          value={`${(draft.ramMb / 1024).toFixed(draft.ramMb % 1024 === 0 ? 0 : 1)} GiB`}
-          right={`${draft.ramMb} MiB`}
+          label={t("ram")}
+          value={t("ramGib", { gib: (draft.ramMb / 1024).toFixed(draft.ramMb % 1024 === 0 ? 0 : 1) })}
+          right={t("ramMib", { mib: draft.ramMb })}
           error={fieldErrors.ramMb}
         >
           <Pills
@@ -199,50 +194,41 @@ export function VmHardwareConfig({
             value={draft.ramMb}
             onChange={(e) => setRam(Number(e.target.value))}
             className="vmui-range mt-2 w-full"
-            aria-label="RAM"
+            aria-label={t("ramAria")}
           />
-        </Field>
+        </HardwareField>
 
         <AnimatePresence>
-          {dirty && vmRunning && (
+          {vmRunning && (dirty || savedNextBoot) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="flex items-start gap-2 rounded-md border border-[color-mix(in_oklch,var(--color-warning,#f59e0b)_40%,transparent)] bg-[color-mix(in_oklch,var(--color-warning,#f59e0b)_10%,transparent)] p-2.5 text-xs">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--color-warning,#f59e0b)]" />
-                <span>VM is running — changes apply on the next reboot.</span>
-              </div>
+              <Alert tone="warning" className="text-xs">
+                {t("runningWarning")}
+              </Alert>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="flex items-center justify-end gap-2 border-t border-[var(--color-border)] pt-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={reset}
-            disabled={!dirty || pending}
-          >
-            Reset
+        <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+          <Button variant="ghost" size="sm" onClick={reset} disabled={!dirty || pending}>
+            {t("reset")}
           </Button>
-          <Button size="sm" onClick={save} disabled={!dirty || pending}>
-            {pending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            Save
+          <Button size="sm" onClick={save} disabled={!dirty} loading={pending}>
+            <Save className="h-3.5 w-3.5" aria-hidden />
+            {tc("save")}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </PageSection>
   );
 }
 
-function Field({
+function HardwareField({
   icon: Icon,
   label,
   value,
@@ -250,7 +236,7 @@ function Field({
   children,
   error,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
   value: string;
   right?: string;
@@ -261,14 +247,14 @@ function Field({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted">
-          <Icon className="h-3 w-3" />
+          <Icon className="h-3 w-3" aria-hidden />
           {label}
         </div>
         <div className="font-mono text-sm tabular-nums">{value}</div>
       </div>
       {children}
       <div className="flex items-center justify-between text-[11px]">
-        <span className={error ? "text-[var(--color-danger)]" : "text-muted"}>
+        <span className={error ? "text-danger" : "text-muted"} role={error ? "alert" : undefined}>
           {error ?? "\u00a0"}
         </span>
         <span className="text-muted">{right}</span>
@@ -291,7 +277,7 @@ function Pills<T extends number>({
   // Stable id-per-mount so each Pills group has its own layout animation
   const groupId = useId();
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1.5" role="group">
       {options.map((opt) => {
         const active = opt === value;
         return (
@@ -303,10 +289,10 @@ function Pills<T extends number>({
             onClick={() => onChange(opt)}
             aria-pressed={active}
             className={
-              "relative rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-colors " +
+              "relative min-h-8 rounded-full border px-3 py-1 text-xs font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary " +
               (active
-                ? "border-[var(--color-primary)] text-[var(--color-primary)]"
-                : "border-[var(--color-border)] text-muted hover:text-fg")
+                ? "border-primary text-primary"
+                : "border-border text-muted hover:text-fg")
             }
           >
             {active && (

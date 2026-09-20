@@ -1,29 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "motion/react";
-import Link from "next/link";
-import { Apple, MonitorSmartphone, Server, Globe, Pin, StickyNote, Moon, Cpu } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { StatusBadge } from "./status-badge";
-import { InstanceActions } from "./instance-actions";
-import { InstanceStatsInline } from "./instance-stats-inline";
-import { InstanceStatsDialog } from "./instance-stats-dialog";
-import { RenameInstanceDialog } from "./rename-dialog";
-import { NotesDialog } from "./notes-dialog";
-import { ConnectDialog } from "./connect-dialog";
-import { InstanceContextMenuWrapper } from "./instance-context-wrapper";
-import { InstanceMenuButton } from "./instance-menu-button";
-import { useInstanceMenuItems } from "./instance-menu";
-import { instanceLabel } from "./instance-label";
-import { VmScreenshot } from "./vm-screenshot";
-import { CostPill } from "./cost-pill";
 import { Badge } from "@/components/ui/badge";
-import { detectIdle } from "@/lib/idle";
-import { detectGpu } from "@/lib/gpu-detect";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { InstanceRow } from "@/lib/db/schema";
+import { detectGpu } from "@/lib/gpu-detect";
+import { detectIdle } from "@/lib/idle";
 import type { PricedRow } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
+import { Apple, Cpu, Globe, MonitorSmartphone, Moon, Pin, Server, StickyNote } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { useState } from "react";
+import { ConnectDialog } from "./connect-dialog";
+import { CostPill } from "./cost-pill";
+import { InstanceActions } from "./instance-actions";
+import { InstanceContextMenuWrapper } from "./instance-context-wrapper";
+import { instanceLabel } from "./instance-label";
+import { useInstanceMenuItems } from "./instance-menu";
+import { InstanceMenuButton } from "./instance-menu-button";
+import { InstanceStatsDialog } from "./instance-stats-dialog";
+import { InstanceStatsInline } from "./instance-stats-inline";
+import { NotesDialog } from "./notes-dialog";
+import { RenameInstanceDialog } from "./rename-dialog";
+import { StatusBadge } from "./status-badge";
+import { VmScreenshot } from "./vm-screenshot";
 
 const platformIcon = (p: string) => {
   if (p === "macos") return Apple;
@@ -46,6 +47,7 @@ export function InstanceCard({
   selectionActive?: boolean;
   price?: PricedRow;
 }) {
+  const t = useTranslations("vm.explorer");
   const Icon = platformIcon(instance.platform);
   const [statsOpen, setStatsOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -71,36 +73,35 @@ export function InstanceCard({
       onToggleSelect(instance.id, e.metaKey || e.ctrlKey || e.shiftKey);
     }
   }
+  const gpu = detectGpu(instance.instanceType);
+  const idle = detectIdle({ state: instance.state, lastStateChangeAt: instance.lastStateChangeAt });
 
   return (
     <>
       <motion.div
         layout
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: Math.min(index, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.2, delay: Math.min(index, 12) * 0.03 }}
         onClick={handleClick}
       >
         <InstanceContextMenuWrapper items={menuItems}>
           <Card
             className={cn(
               "card-hover cursor-default transition-[border-color,box-shadow]",
-              selected &&
-                "border-[color-mix(in_oklch,var(--color-primary)_55%,var(--color-border))] shadow-[var(--shadow-glow)]",
+              selected && "border-[color-mix(in_oklch,var(--color-primary)_55%,var(--color-border))] shadow-[var(--shadow-glow)]",
             )}
+            aria-selected={selectionActive ? selected : undefined}
             style={{ viewTransitionName: `inst-${instance.id.replace(/[^a-zA-Z0-9_-]/g, "-")}` }}
           >
             <CardHeader>
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-3">
-                  <div className="relative grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-md)] bg-[var(--color-bg-muted)] text-[var(--color-fg-muted)]">
-                    <Icon className="h-4 w-4" />
+                  <div className="relative grid size-9 shrink-0 place-items-center rounded-[var(--radius-md)] bg-bg-muted text-fg-muted">
+                    <Icon className="size-4" aria-hidden />
                     {instance.pinned && (
-                      <span
-                        className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-[var(--color-primary)] text-[var(--color-primary-fg)]"
-                        title="Pinned"
-                      >
-                        <Pin className="h-2.5 w-2.5" />
+                      <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-primary text-primary-fg" title={t("pinned")}>
+                        <Pin className="size-2.5" aria-hidden />
                       </span>
                     )}
                   </div>
@@ -111,18 +112,18 @@ export function InstanceCard({
                         onClick={(e) => {
                           if (selectionActive) e.preventDefault();
                         }}
-                        className="block min-w-0 truncate font-semibold hover:underline"
+                        className="block min-w-0 truncate font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         onDoubleClick={(e) => {
                           e.preventDefault();
                           setRenameOpen(true);
                         }}
-                        title={`${label} — double-click to rename`}
+                        title={label}
                       >
                         {label}
                       </Link>
                       {instance.notes && (
-                        <span title={instance.notes} aria-label="Has notes">
-                          <StickyNote className="h-3 w-3 shrink-0 text-[var(--color-warning)]" />
+                        <span title={instance.notes} aria-label={t("hasNotes")}>
+                          <StickyNote className="size-3 shrink-0 text-warning" aria-hidden />
                         </span>
                       )}
                     </div>
@@ -131,28 +132,18 @@ export function InstanceCard({
                     </div>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-1">
                   <StatusBadge state={instance.state} />
-                  {(() => {
-                    const gpu = detectGpu(instance.instanceType);
-                    return gpu ? (
-                      <Badge variant="info" title={`${gpu.count}× NVIDIA ${gpu.model}`} className="gap-1">
-                        <Cpu className="h-3 w-3" /> {gpu.count}×{gpu.model}
-                      </Badge>
-                    ) : null;
-                  })()}
-                  {(() => {
-                    const idle = detectIdle({ state: instance.state, lastStateChangeAt: instance.lastStateChangeAt });
-                    return idle.isIdle ? (
-                      <Badge
-                        variant="warning"
-                        title={`Running for ${idle.idleDays}d with no state change \u2014 possibly idle`}
-                        className="gap-1"
-                      >
-                        <Moon className="h-3 w-3" /> idle {idle.idleDays}d
-                      </Badge>
-                    ) : null;
-                  })()}
+                  {gpu && (
+                    <Badge variant="info" title={t("gpu", { count: gpu.count, model: gpu.model })} className="hidden gap-1 sm:inline-flex">
+                      <Cpu className="size-3" aria-hidden /> {gpu.count}×{gpu.model}
+                    </Badge>
+                  )}
+                  {idle.isIdle && (
+                    <Badge variant="warning" title={t("idleHint", { days: idle.idleDays })} className="gap-1">
+                      <Moon className="size-3" aria-hidden /> {t("idle", { days: idle.idleDays })}
+                    </Badge>
+                  )}
                   <InstanceMenuButton items={menuItems} />
                 </div>
               </div>
@@ -178,9 +169,9 @@ export function InstanceCard({
                   />
                 </div>
               )}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-                  <Globe className="h-3.5 w-3.5 shrink-0" />
+                  <Globe className="size-3.5 shrink-0" aria-hidden />
                   <span className="truncate">{instance.region}</span>
                   {instance.publicIp && (
                     <>
@@ -192,7 +183,7 @@ export function InstanceCard({
                 <InstanceActions instance={instance} />
               </div>
               {price && (
-                <div className="mt-2 border-t border-[var(--color-border)] pt-2">
+                <div className="mt-2 border-t border-border pt-2">
                   <CostPill usdPerHour={price.usdPerHour} source={price.source} />
                 </div>
               )}

@@ -11,13 +11,57 @@
     "title": "Idle panels",
     "hint": "Order, dwell time and whether a photo sits behind. Music shows up automatically when something plays.",
     "enabledAria": "{name} enabled",
-    "photo": "photo",
     "photoAria": "{name} with photo",
     "moveUp": "Move up",
     "moveDown": "Move down",
     "dwell": "Dwell",
     "dwellAria": "{name} dwell time in seconds",
-    "seconds": "{n} s"
+    "seconds": "{n} s",
+    "withPhoto": "photo",
+    "clock": {
+      "label": "Clock + weather",
+      "description": "Big time, outside and bedroom temperature, next event."
+    },
+    "weather": {
+      "label": "Detailed weather",
+      "description": "Hourly and daily forecast."
+    },
+    "home": {
+      "label": "Home",
+      "description": "Door, presence, AC, lights on, batteries."
+    },
+    "media": {
+      "label": "Music",
+      "description": "What is playing now, cover art full screen. Only shows while something plays."
+    },
+    "photo": {
+      "label": "Photo",
+      "description": "Just the image, with slow motion and a caption."
+    },
+    "nutrition": {
+      "label": "Nutrition + water",
+      "description": "Calories, macros, glasses of water, pace."
+    },
+    "pc": {
+      "label": "PC",
+      "description": "CPU / GPU / RAM for every computer that is on."
+    },
+    "pi": {
+      "label": "Raspberry Pi",
+      "description": "Home server: CPU, temperature, voltage, containers."
+    },
+    "calendar": {
+      "label": "Calendar",
+      "description": "Upcoming events."
+    },
+    "fx": {
+      "label": "BNR rates",
+      "description": "EUR, USD, GBP in RON."
+    },
+    "crypto": {
+      "label": "Crypto",
+      "description": "BTC, ETH."
+    }
   },
   "photos": {
     "title": "Photos",

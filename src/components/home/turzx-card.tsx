@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Field, SettingsPanel, Subsection } from "@/components/ui/settings-panel";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { BG_SOURCE_META, NOTIFY_APPS, SKIN_META, TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_META, type OptionField, type TurzxBgSource, type TurzxSkin } from "@/lib/turzx/catalog";
+import { Textarea } from "@/components/ui/textarea";
+import { NOTIFY_APPS, TURZX_BG_SOURCES, TURZX_SKINS, TURZX_VIEW_META, type OptionField, type TurzxBgSource, type TurzxSkin, type TurzxViewId } from "@/lib/turzx/catalog";
 import type { Pomodoro, TurzxBackground, TurzxSettings, TurzxViewConfig } from "@/lib/turzx/settings";
 import { cn } from "@/lib/utils";
 import { pomodoroAction, saveTurzxSettingsAction } from "@/server/actions/home";
@@ -124,23 +125,24 @@ export function TurzxCard({ initial, pomodoro, defaultOpen = false }: { initial:
           <ul className="space-y-2">
             {s.views.map((v, i) => {
               const meta = TURZX_VIEW_META[v.id];
+              const name = t(`views.${v.id}.label`);
               const isOpen = open === v.id;
               return (
                 <li key={v.id} className={cn("rounded-xl border transition", v.enabled ? "border-primary/40 bg-primary/5" : "border-border opacity-70")}>
                   <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2">
-                    <Switch checked={v.enabled} onCheckedChange={(on) => setView(v.id, { enabled: on })} aria-label={t("views.enabled", { name: meta.label })} className="shrink-0" />
+                    <Switch checked={v.enabled} onCheckedChange={(on) => setView(v.id, { enabled: on })} aria-label={t("views.enabled", { name })} className="shrink-0" />
                     <button type="button" className="min-w-0 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]" onClick={() => setOpen(isOpen ? null : v.id)} aria-expanded={isOpen}>
                       <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="min-w-0 truncate text-sm font-medium leading-tight">{meta.label}</span>
+                        <span className="min-w-0 truncate text-sm font-medium leading-tight">{name}</span>
                         {v.background?.mode === "photo" && <ImageIcon className="size-3.5 shrink-0 text-muted" aria-label={t("views.ownPhotoBg")} />}
                       </span>
                       <span className="block truncate text-xs leading-snug text-muted">
-                        {v.dwellSec} s · {SKIN_META[v.skin].label}
+                        {v.dwellSec} s · {t(`skins.${v.skin}.label`)}
                       </span>
                     </button>
                     <div className="flex shrink-0 items-center gap-0.5">
-                      <Button size="icon" variant="ghost" className="shrink-0" aria-label={t("views.moveUp", { name: meta.label })} onClick={() => move(v.id, -1)} disabled={i === 0}><ArrowUp className="size-4" /></Button>
-                      <Button size="icon" variant="ghost" className="shrink-0" aria-label={t("views.moveDown", { name: meta.label })} onClick={() => move(v.id, 1)} disabled={i === s.views.length - 1}><ArrowDown className="size-4" /></Button>
+                      <Button size="icon" variant="ghost" className="shrink-0" aria-label={t("views.moveUp", { name })} onClick={() => move(v.id, -1)} disabled={i === 0}><ArrowUp className="size-4" /></Button>
+                      <Button size="icon" variant="ghost" className="shrink-0" aria-label={t("views.moveDown", { name })} onClick={() => move(v.id, 1)} disabled={i === s.views.length - 1}><ArrowDown className="size-4" /></Button>
                       <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setOpen(isOpen ? null : v.id)} aria-label={isOpen ? t("views.collapse") : t("views.configure")} aria-expanded={isOpen}>
                         {isOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                       </Button>
@@ -148,7 +150,7 @@ export function TurzxCard({ initial, pomodoro, defaultOpen = false }: { initial:
                   </div>
                   {isOpen && (
                     <div className="space-y-3 border-t border-[var(--color-border)] px-3 py-3">
-                      <p className="text-xs leading-snug text-muted break-words">{meta.description}</p>
+                      <p className="text-xs leading-snug text-muted break-words">{t(`views.${v.id}.description`)}</p>
                       <div className="grid items-start gap-3 sm:grid-cols-2">
                         <Field label={t("views.dwell", { n: v.dwellSec })}>
                           <Slider min={MIN_DWELL} max={120} step={1} value={v.dwellSec} onChange={(n) => setView(v.id, { dwellSec: n })} aria-label={t("views.dwellAria")} />
@@ -164,7 +166,7 @@ export function TurzxCard({ initial, pomodoro, defaultOpen = false }: { initial:
                       {meta.options.length > 0 && (
                         <div className="grid items-start gap-3 sm:grid-cols-2">
                           {meta.options.map((f) => (
-                            <OptionInput key={f.key} field={f} value={v.options[f.key]} onChange={(val) => setView(v.id, { options: { ...v.options, [f.key]: val } })} />
+                            <OptionInput key={f.key} view={v.id} field={f} value={v.options[f.key]} onChange={(val) => setView(v.id, { options: { ...v.options, [f.key]: val } })} />
                           ))}
                         </div>
                       )}
@@ -217,12 +219,12 @@ export function TurzxCard({ initial, pomodoro, defaultOpen = false }: { initial:
             </div>
           </Group>
           <Field label={t("notify.otherPackages")}>
-            <textarea
+            <Textarea
               value={s.notify.packages.filter((p) => !NOTIFY_APPS.some((a) => a.pkg === p)).join("\n")}
               onChange={(e) => setNotify({ packages: [...s.notify.packages.filter((p) => NOTIFY_APPS.some((a) => a.pkg === p)), ...e.target.value.split(/\n|,/).map((x) => x.trim()).filter(Boolean)] })}
               placeholder={t("notify.otherPackagesPlaceholder")}
               rows={2}
-              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm"
+              aria-label={t("notify.otherPackages")}
             />
           </Field>
         </Subsection>
@@ -274,11 +276,12 @@ export function TurzxCard({ initial, pomodoro, defaultOpen = false }: { initial:
 }
 
 function SkinPicker({ value, allowed, onChange }: { value: TurzxSkin; allowed: TurzxSkin[]; onChange: (s: TurzxSkin) => void }) {
+  const t = useTranslations("turzx");
   return (
     <div className="flex flex-wrap gap-1.5">
       {TURZX_SKINS.filter((k) => allowed.includes(k)).map((k) => (
-        <button key={k} type="button" aria-pressed={value === k} onClick={() => onChange(k)} title={SKIN_META[k].description} className={cn(CHIP, value === k ? CHIP_ON : CHIP_OFF)}>
-          {SKIN_META[k].label}
+        <button key={k} type="button" aria-pressed={value === k} onClick={() => onChange(k)} title={t(`skins.${k}.description`)} className={cn(CHIP, value === k ? CHIP_ON : CHIP_OFF)}>
+          {t(`skins.${k}.label`)}
         </button>
       ))}
     </div>
@@ -301,8 +304,8 @@ function BackgroundEditor({ value, onChange }: { value: TurzxBackground; onChang
         <>
           <div className="flex flex-wrap gap-1.5">
             {TURZX_BG_SOURCES.map((src) => (
-              <button key={src} type="button" aria-pressed={value.sources.includes(src)} onClick={() => toggleSrc(src)} title={BG_SOURCE_META[src].description} className={cn(CHIP, value.sources.includes(src) ? CHIP_ON : CHIP_OFF)}>
-                {BG_SOURCE_META[src].label}
+              <button key={src} type="button" aria-pressed={value.sources.includes(src)} onClick={() => toggleSrc(src)} title={t(`sources.${src}.description`)} className={cn(CHIP, value.sources.includes(src) ? CHIP_ON : CHIP_OFF)}>
+                {t(`sources.${src}.label`)}
               </button>
             ))}
           </div>
@@ -325,48 +328,53 @@ function BackgroundEditor({ value, onChange }: { value: TurzxBackground; onChang
   );
 }
 
-function OptionInput({ field, value, onChange }: { field: OptionField; value: unknown; onChange: (v: unknown) => void }) {
+function OptionInput({ view, field, value, onChange }: { view: TurzxViewId; field: OptionField; value: unknown; onChange: (v: unknown) => void }) {
+  // option keys are data-driven (view × field), too wide for the typed key union → checked at runtime with has()
+  const t = useTranslations("turzx") as unknown as { (k: string): string; has(k: string): boolean };
+  const p = `options.${view}.${field.key}`;
+  const label = t(`${p}.label`);
+  const hint = t.has(`${p}.hint`) ? t(`${p}.hint`) : undefined;
+  const placeholder = t.has(`${p}.placeholder`) ? t(`${p}.placeholder`) : undefined;
   switch (field.type) {
     case "toggle":
       return (
-        <Field inline label={field.label}>
-          <Switch checked={value === undefined ? Boolean(field.default) : Boolean(value)} onCheckedChange={onChange} aria-label={field.label} />
+        <Field inline label={label}>
+          <Switch checked={value === undefined ? Boolean(field.default) : Boolean(value)} onCheckedChange={onChange} aria-label={label} />
         </Field>
       );
     case "number":
       return (
-        <Field label={`${field.label} · ${typeof value === "number" ? value : "—"}`}>
-          <Slider min={field.min} max={field.max} step={field.step ?? 1} value={typeof value === "number" ? value : field.min} onChange={onChange} aria-label={field.label} />
+        <Field label={`${label} · ${typeof value === "number" ? value : "—"}`}>
+          <Slider min={field.min} max={field.max} step={field.step ?? 1} value={typeof value === "number" ? value : field.min} onChange={onChange} aria-label={label} />
         </Field>
       );
     case "select":
       return (
-        <Field label={field.label}>
-          <Select value={typeof value === "string" ? value : field.choices[0]?.value} onValueChange={onChange}>
-            <SelectTrigger aria-label={field.label}><SelectValue /></SelectTrigger>
+        <Field label={label}>
+          <Select value={typeof value === "string" ? value : field.choices[0]} onValueChange={onChange}>
+            <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
             <SelectContent>
-              {field.choices.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+              {field.choices.map((c) => <SelectItem key={c} value={c}>{t(`${p}.choice_${c}`)}</SelectItem>)}
             </SelectContent>
           </Select>
         </Field>
       );
     case "list":
       return (
-        <Field label={field.label} hint={field.hint}>
-          <textarea
+        <Field label={label} hint={hint}>
+          <Textarea
             value={Array.isArray(value) ? value.join("\n") : ""}
             onChange={(e) => onChange(e.target.value.split(/\n|,/).map((x) => x.trim()).filter(Boolean))}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             rows={3}
-            aria-label={field.label}
-            className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm"
+            aria-label={label}
           />
         </Field>
       );
     default:
       return (
-        <Field label={field.label} hint={field.hint}>
-          <Input value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder} aria-label={field.label} />
+        <Field label={label} hint={hint}>
+          <Input value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} />
         </Field>
       );
   }

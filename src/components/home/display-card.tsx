@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Field, SettingsPanel, Subsection } from "@/components/ui/settings-panel";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { DISPLAY_VIEW_META, type DisplaySettings, type DisplayView } from "@/lib/display/settings-meta";
-import { BG_SOURCE_META, TURZX_BG_SOURCES, type TurzxBgSource } from "@/lib/turzx/catalog";
+import { type DisplaySettings, type DisplayView } from "@/lib/display/settings-meta";
+import { TURZX_BG_SOURCES, type TurzxBgSource } from "@/lib/turzx/catalog";
 import { cn } from "@/lib/utils";
 import { saveDisplaySettingsAction } from "@/server/actions/home";
 import { ArrowDown, ArrowUp, ExternalLink, Tablet } from "lucide-react";
@@ -20,6 +20,8 @@ const ACCENTS = ["#f2b85a", "#7c9cff", "#34d399", "#f472b6", "#a78bfa", "#22d3ee
 /** Settings for the Nest Hub kiosk (/display). Saved to the same table as Turzx, row 4. */
 export function DisplayCard({ initial, espToken, defaultOpen = false }: { initial: DisplaySettings; espToken: string; defaultOpen?: boolean }) {
   const t = useTranslations("nestHub");
+  // photo sources are shared with the Turzx screen, so their text lives in that namespace
+  const sources = useTranslations("turzx.sources");
   const [s, setS] = React.useState<DisplaySettings>(initial);
   const [busy, setBusy] = React.useState(false);
   const dirty = JSON.stringify(s) !== JSON.stringify(initial);
@@ -72,16 +74,16 @@ export function DisplayCard({ initial, espToken, defaultOpen = false }: { initia
         <Subsection title={t("views.title")} hint={t("views.hint")}>
           <ul className="space-y-2">
             {s.views.map((v, i) => {
-              const meta = DISPLAY_VIEW_META[v.id];
+              const name = t(`views.${v.id}.label`);
               return (
                 <li key={v.id} className={cn("grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 transition", v.enabled ? "border-primary/40 bg-primary/5" : "border-border opacity-70")}>
-                  <Switch checked={v.enabled} onCheckedChange={(en) => setView(v.id, { enabled: en })} aria-label={t("views.enabledAria", { name: meta.label })} />
+                  <Switch checked={v.enabled} onCheckedChange={(en) => setView(v.id, { enabled: en })} aria-label={t("views.enabledAria", { name })} />
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 truncate text-sm font-medium leading-tight">{meta.label}</span>
+                      <span className="min-w-0 truncate text-sm font-medium leading-tight">{name}</span>
                       <Badge variant="muted" className="shrink-0">{t("views.seconds", { n: v.dwellSec })}</Badge>
                     </div>
-                    <p className="truncate text-xs leading-snug text-muted">{meta.description}</p>
+                    <p className="truncate text-xs leading-snug text-muted">{t(`views.${v.id}.description`)}</p>
                   </div>
                   <div className="flex shrink-0 gap-0.5">
                     <Button size="icon" variant="ghost" aria-label={t("views.moveUp")} onClick={() => move(v.id, -1)} disabled={i === 0}><ArrowUp className="size-4" /></Button>
@@ -89,12 +91,12 @@ export function DisplayCard({ initial, espToken, defaultOpen = false }: { initia
                   </div>
                   <div className="col-span-2 col-start-2 flex min-w-0 items-center gap-3">
                     <label className="flex shrink-0 items-center gap-2 text-xs text-muted">
-                      <Switch checked={v.photo} onCheckedChange={(ph) => setView(v.id, { photo: ph })} aria-label={t("views.photoAria", { name: meta.label })} />
-                      {t("views.photo")}
+                      <Switch checked={v.photo} onCheckedChange={(ph) => setView(v.id, { photo: ph })} aria-label={t("views.photoAria", { name })} />
+                      {t("views.withPhoto")}
                     </label>
                     <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted">
                       <span className="shrink-0">{t("views.dwell")}</span>
-                      <Slider value={v.dwellSec} min={5} max={180} step={5} onChange={(n) => setView(v.id, { dwellSec: n })} aria-label={t("views.dwellAria", { name: meta.label })} className="min-w-0 flex-1" />
+                      <Slider value={v.dwellSec} min={5} max={180} step={5} onChange={(n) => setView(v.id, { dwellSec: n })} aria-label={t("views.dwellAria", { name })} className="min-w-0 flex-1" />
                     </label>
                     <Input
                       type="number"
@@ -104,7 +106,7 @@ export function DisplayCard({ initial, espToken, defaultOpen = false }: { initia
                       step={5}
                       value={v.dwellSec}
                       onChange={(e) => setView(v.id, { dwellSec: Math.min(180, Math.max(5, Number(e.target.value) || 5)) })}
-                      aria-label={t("views.dwellAria", { name: meta.label })}
+                      aria-label={t("views.dwellAria", { name })}
                       className="w-20 shrink-0 tabular-nums"
                     />
                   </div>
@@ -121,9 +123,9 @@ export function DisplayCard({ initial, espToken, defaultOpen = false }: { initia
               {TURZX_BG_SOURCES.map((src) => {
                 const active = s.photoSources.includes(src);
                 return (
-                  <button key={src} type="button" onClick={() => toggleSource(src)} aria-pressed={active} title={BG_SOURCE_META[src].description}
-                    className={cn("rounded-full border px-3 py-1 text-xs transition", active ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted")}>
-                    {BG_SOURCE_META[src].label}
+                  <button key={src} type="button" onClick={() => toggleSource(src)} aria-pressed={active} title={sources(`${src}.description`)}
+                    className={cn("rounded-full border px-3 py-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", active ? "border-primary bg-primary/15 text-fg" : "border-border text-muted")}>
+                    {sources(`${src}.label`)}
                   </button>
                 );
               })}
@@ -141,7 +143,7 @@ export function DisplayCard({ initial, espToken, defaultOpen = false }: { initia
             <div className="flex flex-wrap items-center gap-2">
               {ACCENTS.map((c) => (
                 <button key={c} type="button" aria-label={t("photos.accentSwatch", { color: c })} aria-pressed={s.accent === c} onClick={() => setS((p) => ({ ...p, accent: c }))}
-                  className={cn("size-7 shrink-0 rounded-full border-2 transition", s.accent === c ? "scale-110 border-foreground" : "border-transparent")} style={{ background: c }} />
+                  className={cn("size-7 shrink-0 rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", s.accent === c ? "scale-110 border-fg" : "border-transparent")} style={{ background: c }} />
               ))}
               <Input type="color" value={s.accent} onChange={(e) => setS((p) => ({ ...p, accent: e.target.value }))} className="h-8 w-12 shrink-0 p-1" aria-label={t("photos.accentCustom")} />
             </div>

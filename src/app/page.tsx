@@ -1,212 +1,201 @@
-import { AccountSpendCards } from "@/components/dashboard/account-spend-cards";
 import { CostAnomalyBanner } from "@/components/dashboard/cost-anomaly-banner";
+import { DashboardRail } from "@/components/dashboard/dashboard-rail";
 import { HeroCanvas } from "@/components/dashboard/hero-canvas";
+import { computeSpendRows } from "@/components/dashboard/spend-rows";
 import { BackgroundSync } from "@/components/instances/background-sync";
 import { InstancesExplorer } from "@/components/instances/instances-explorer";
 import { RunningVmsStrip } from "@/components/instances/running-vms-strip";
-import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
+import { Badge, Button, EmptyState, PageSection, PageShell, SkeletonCard, SkeletonTable, Stat, StatGrid } from "@/components/ui";
+import { getCurrentUser } from "@/lib/auth";
 import { formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
-import { listAccounts, listInstancesWithPrices } from "@/server/queries";
-import { ArrowRight, Cloud, Server, Sparkles } from "lucide-react";
+import { listAccounts, listAuditLog, listInstancesWithPrices } from "@/server/queries";
+import { listAccountHistory } from "@/server/queries/history";
+import { ArrowRight, Cloud, Layers, Play, Server, Sparkles, Square, Wallet } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function greetingKey(hour: number): "morning" | "afternoon" | "evening" | "night" {
+  if (hour < 5) return "night";
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  if (hour < 23) return "evening";
+  return "night";
+}
+
 export default async function DashboardPage() {
-  const [accounts, { instances, priceMap }] = await Promise.all([
+  const [accounts, { instances, priceMap }, user, t] = await Promise.all([
     listAccounts(),
     listInstancesWithPrices(),
+    getCurrentUser(),
+    getTranslations("dashboard"),
   ]);
 
   if (accounts.length === 0) {
-    return <EmptyState />;
+    return <Welcome />;
   }
 
-  const running = instances.filter((i) => i.state === "running").length;
+  const runningInstances = instances.filter((i) => i.state === "running");
+  const running = runningInstances.length;
   const stopped = instances.filter((i) => i.state === "stopped").length;
   const providers = Array.from(new Set(instances.map((i) => i.provider))).sort();
-  const runningInstances = instances.filter((i) => i.state === "running");
 
-  // Burn estimate: sum hourly cost of running instances × 730
-  const monthlyBurn = runningInstances.reduce((sum, i) => {
-    const p = priceMap[i.id]?.usdPerHour ?? 0;
-    return sum + p * HOURS_PER_MONTH;
-  }, 0);
-  const knownPriceCount = runningInstances.filter(
-    (i) => priceMap[i.id]?.usdPerHour != null,
-  ).length;
+  const monthlyBurn = runningInstances.reduce((sum, i) => sum + (priceMap[i.id]?.usdPerHour ?? 0) * HOURS_PER_MONTH, 0);
+  const knownPriceCount = runningInstances.filter((i) => priceMap[i.id]?.usdPerHour != null).length;
+
+  const [histories, activity] = await Promise.all([
+    Promise.all(accounts.map((a) => listAccountHistory(a.id, 2 * DAY_MS))),
+    listAuditLog(12),
+  ]);
+  const yesterday = Date.now() - DAY_MS;
+  let runningYesterday = 0;
+  let hourlyYesterday = 0;
+  let sawHistory = false;
+  for (const rows of histories) {
+    const snap = rows.find((r) => r.capturedAt.getTime() <= yesterday) ?? rows.at(-1);
+    if (!snap) continue;
+    sawHistory = true;
+    runningYesterday += snap.runningInstances;
+    hourlyYesterday += snap.hourlyUsd;
+  }
+  const runningDelta = sawHistory ? running - runningYesterday : null;
+  const burnDelta = sawHistory ? Math.round(monthlyBurn - hourlyYesterday * HOURS_PER_MONTH) : null;
+
+  const spendRows = computeSpendRows(accounts, instances, priceMap);
+  const name = user?.displayName ? `, ${user.displayName}` : "";
+  const hour = new Date().getHours();
 
   return (
-    <div className="space-y-6">
-      <BackgroundSync enabled={accounts.length > 0} />
-      <CostAnomalyBanner />
+    <PageShell>
+      <BackgroundSync enabled />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-gradient-to-br from-[color-mix(in_oklch,var(--color-primary)_18%,var(--color-surface))] to-[var(--color-surface)] p-6 sm:p-8">
-        <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[color-mix(in_oklch,var(--color-accent)_30%,transparent)] blur-3xl" />
+      <section
+        aria-labelledby="dashboard-title"
+        className="relative overflow-hidden rounded-[var(--radius-xl)] border border-border bg-gradient-to-br from-[color-mix(in_oklch,var(--color-primary)_14%,var(--color-surface))] to-surface p-5 sm:p-7"
+      >
         <HeroCanvas />
-        <div className="relative flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--color-primary)_20%,transparent)] px-3 py-1 text-xs font-medium text-[var(--color-primary)]">
-              <Sparkles className="h-3 w-3" /> live
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Your fleet at a glance
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <Badge variant="info" className="mb-2">
+              <Sparkles className="size-3" aria-hidden /> {t("hero.live")}
+            </Badge>
+            <h1 id="dashboard-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              {t(`greeting.${greetingKey(hour)}`, { name })}
             </h1>
-            <p className="mt-2 max-w-xl text-sm text-muted">
-              {accounts.length} account{accounts.length === 1 ? "" : "s"} connected · auto-syncing every 15s in the background.
-            </p>
+            <p className="mt-1 max-w-xl text-sm text-muted">{t("hero.summary", { accounts: accounts.length })}</p>
           </div>
-          <div className="flex flex-wrap gap-6">
-            <Stat label="Total" value={instances.length} />
-            <Stat label="Running" value={running} accent="success" />
-            <Stat label="Stopped" value={stopped} accent="muted" />
-            <Stat
-              label={`Burn / mo${knownPriceCount < runningInstances.length ? " · est" : ""}`}
-              value={formatUsd(monthlyBurn)}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Running fleet — live previews */}
-      {runningInstances.length > 0 && (
-        <RunningVmsStrip instances={runningInstances} priceMap={priceMap} />
-      )}
-
-      {/* Spend by account */}
-      <AccountSpendCards accounts={accounts} instances={instances} priceMap={priceMap} />
-
-      {/* Instances */}
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Instances</h2>
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild>
             <Link href="/instances/new">
-              <Server className="h-4 w-4" /> Launch new
+              <Server className="size-4" aria-hidden /> {t("instances.launch")}
             </Link>
           </Button>
         </div>
-        {instances.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center">
-              <p className="text-muted">
-                No instances yet. Launch one to get started — vmui will auto-sync from your accounts.
-              </p>
-              <div className="mt-4">
-                <Button asChild>
-                  <Link href="/instances/new">
-                    Launch instance <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <InstancesExplorer instances={instances} providers={providers} priceMap={priceMap} />
-        )}
       </section>
-    </div>
-  );
-}
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number | string;
-  accent?: "success" | "muted";
-}) {
-  return (
-    <div className="text-right">
-      <div
-        className={
-          accent === "success"
-            ? "text-3xl font-semibold tabular-nums text-[var(--color-success)]"
-            : accent === "muted"
-              ? "text-3xl font-semibold tabular-nums text-muted"
-              : "text-3xl font-semibold tabular-nums"
+      <CostAnomalyBanner />
+
+      <StatGrid cols={4}>
+        <Stat
+          label={t("stats.running")}
+          value={running}
+          tone="success"
+          icon={<Play />}
+          trend={runningDelta != null && runningDelta !== 0 ? { delta: runningDelta, label: t("stats.sinceYesterday") } : undefined}
+        />
+        <Stat label={t("stats.stopped")} value={stopped} icon={<Square />} />
+        <Stat
+          label={t("stats.burn")}
+          value={formatUsd(monthlyBurn)}
+          icon={<Wallet />}
+          hint={knownPriceCount < running ? t("stats.burnEstimated", { known: knownPriceCount, total: running }) : t("stats.burnHint")}
+          trend={burnDelta != null && burnDelta !== 0 ? { delta: burnDelta, label: t("stats.sinceYesterday") } : undefined}
+        />
+        <Stat label={t("stats.providers")} value={providers.length} icon={<Layers />} hint={t("stats.providersHint", { count: instances.length })} />
+      </StatGrid>
+
+      {runningInstances.length > 0 && (
+        <Suspense fallback={<SkeletonCard />}>
+          <RunningVmsStrip instances={runningInstances} priceMap={priceMap} />
+        </Suspense>
+      )}
+
+      <PageSection
+        title={t("instances.title")}
+        description={t("instances.description", { count: instances.length, providers: providers.length })}
+        action={
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/instances/new">
+              <Server className="size-4" aria-hidden /> {t("instances.launch")}
+            </Link>
+          </Button>
         }
       >
-        {value}
-      </div>
-      <div className="text-xs uppercase tracking-wider text-muted">{label}</div>
-    </div>
+        {instances.length === 0 ? (
+          <EmptyState
+            icon={<Server />}
+            title={t("instances.emptyTitle")}
+            description={t("instances.emptyDescription")}
+            action={
+              <Button asChild>
+                <Link href="/instances/new">
+                  {t("instances.emptyAction")} <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </Button>
+            }
+          />
+        ) : (
+          <Suspense fallback={<SkeletonTable rows={6} cols={6} />}>
+            <InstancesExplorer instances={instances} providers={providers} priceMap={priceMap} />
+          </Suspense>
+        )}
+      </PageSection>
+
+      <DashboardRail
+        spend={spendRows}
+        activity={activity.map((a) => ({ id: a.id, action: a.action, target: a.target, status: a.status, message: a.message, createdAt: a.createdAt }))}
+      />
+    </PageShell>
   );
 }
 
-function EmptyState() {
+async function Welcome() {
+  const t = await getTranslations("dashboard.welcome");
+  const features = ["feature1", "feature2", "feature3", "feature4"] as const;
   return (
-    <div className="mx-auto mt-12 max-w-2xl">
-      <Card>
-        <CardHeader>
-          <div className="mb-4 grid h-12 w-12 place-items-center rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] text-white shadow-[var(--shadow-glow)]">
-            <Cloud className="h-6 w-6" />
-          </div>
-          <CardTitle className="text-2xl">Welcome to vmui</CardTitle>
-          <CardDescription>
-            Connect a cloud account to start managing virtual machines from one beautiful place.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ul className="space-y-2 text-sm text-muted">
-            <li>· One-click start / stop / reboot on any instance</li>
-            <li>· Smart connect: .rdp file for Windows, SSH + VNC for macOS, SSH for Linux</li>
-            <li>· Background status checks every 15 seconds</li>
-            <li>· AES-256-GCM encrypted credentials, stored locally</li>
-          </ul>
-          <ProviderConstellation />
-          <div className="flex gap-2">
-            <Button asChild>
-              <Link href="/accounts/new">
-                Connect AWS account <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/accounts">All accounts</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function ProviderConstellation() {
-  const items = [
-    { id: "aws", label: "AWS", glyph: "AWS", color: "#ff9900" },
-    { id: "azure", label: "Azure", glyph: "AZ", color: "#0078d4" },
-    { id: "gcp", label: "GCP", glyph: "GCP", color: "#4285f4" },
-    { id: "scaleway", label: "Scaleway", glyph: "SW", color: "#4f0599" },
-    { id: "local-kvm", label: "Local KVM", glyph: "KVM", color: "#16a34a" },
-  ] as const;
-  return (
-    <div className="grid grid-cols-5 gap-2 rounded-[var(--radius-md)] border border-[color-mix(in_oklch,var(--color-border)_70%,transparent)] bg-[color-mix(in_oklch,var(--color-surface)_50%,transparent)] p-3">
-      {items.map((p) => (
-        <div
-          key={p.id}
-          className="group flex flex-col items-center gap-1.5 rounded-[var(--radius-sm)] py-2 transition hover:bg-[color-mix(in_oklch,var(--color-surface-2)_60%,transparent)]"
-          title={p.label}
-        >
-          <span
-            className="grid h-9 w-9 place-items-center rounded-full text-[10px] font-bold tracking-tight text-white shadow-sm transition group-hover:scale-110"
-            style={{ background: p.color }}
-            aria-hidden
-          >
-            {p.glyph}
-          </span>
-          <span className="text-[10px] text-muted">{p.label}</span>
+    <PageShell width="narrow" className="pt-6 sm:pt-12">
+      <section aria-labelledby="welcome-title" className="surface space-y-5 p-6 sm:p-8">
+        <div className="grid size-12 place-items-center rounded-[var(--radius-lg)] bg-gradient-to-br from-primary to-accent text-primary-fg shadow-[var(--shadow-glow)]" aria-hidden>
+          <Cloud className="size-6" />
         </div>
-      ))}
-    </div>
+        <div>
+          <h1 id="welcome-title" className="text-2xl font-semibold tracking-tight">
+            {t("title")}
+          </h1>
+          <p className="mt-1 text-sm text-muted">{t("description")}</p>
+        </div>
+        <ul className="space-y-2 text-sm text-muted">
+          {features.map((f) => (
+            <li key={f} className="flex items-start gap-2">
+              <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+              {t(f)}
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/accounts/new">
+              {t("connect")} <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/accounts">{t("allAccounts")}</Link>
+          </Button>
+        </div>
+      </section>
+    </PageShell>
   );
 }

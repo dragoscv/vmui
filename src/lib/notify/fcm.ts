@@ -3,7 +3,7 @@ import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import "server-only";
-import type { Card } from "./index";
+import type { LocalizedCard } from "./index";
 
 // FCM HTTP v1 with a service-account key (.private/fcm-service-account.json,
 // role Firebase Cloud Messaging API Admin on the vmui Firebase project).
@@ -51,7 +51,7 @@ export function fcmConfigured(): boolean {
 }
 
 /** Sends the card to every token; returns tokens FCM says are gone (UNREGISTERED) so the caller can drop them. */
-export async function sendFcm(tokens: string[], card: Card): Promise<string[]> {
+export async function sendFcm(tokens: string[], card: LocalizedCard): Promise<string[]> {
   const a = account();
   if (!a) return [];
   const at = await accessToken(a);

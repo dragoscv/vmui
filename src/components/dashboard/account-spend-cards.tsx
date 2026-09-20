@@ -1,117 +1,63 @@
+"use client";
+
+import { Badge, Progress, type ProgressTone } from "@/components/ui";
+import { cn, formatUsd } from "@/lib/utils";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
-import type { PricedRow } from "@/lib/pricing";
+import type { SpendRow } from "./spend-rows";
 
-interface Inst {
-  id: string;
-  accountId: string;
-  state: string;
-  provider: string;
+function tone(pct: number | null): ProgressTone {
+  if (pct == null) return "default";
+  if (pct >= 100) return "danger";
+  if (pct >= 80) return "warning";
+  return "default";
 }
 
-interface Account {
-  id: string;
-  name: string;
-  provider: string;
-  monthlyBudgetUsd?: number | null;
-}
-
-export function AccountSpendCards({
-  accounts,
-  instances,
-  priceMap,
-}: {
-  accounts: Account[];
-  instances: Inst[];
-  priceMap: Record<string, PricedRow | undefined>;
-}) {
-  if (accounts.length === 0) return null;
-
-  const rows = accounts
-    .map((a) => {
-      const running = instances.filter((i) => i.accountId === a.id && i.state === "running");
-      const hourly = running.reduce((s, i) => s + (priceMap[i.id]?.usdPerHour ?? 0), 0);
-      const monthly = hourly * HOURS_PER_MONTH;
-      const cap = a.monthlyBudgetUsd ?? null;
-      const pct = cap && cap > 0 ? Math.min(200, (monthly / cap) * 100) : null;
-      return { account: a, runningCount: running.length, hourly, monthly, cap, pct };
-    })
-    .filter((r) => r.runningCount > 0 || (r.cap ?? 0) > 0);
-
+export function AccountSpendCards({ rows, compact = false, className }: { rows: SpendRow[]; compact?: boolean; className?: string }) {
+  const t = useTranslations("dashboard.spend");
   if (rows.length === 0) return null;
 
   return (
-    <section>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Spend by account</h2>
-        <Link href="/costs" className="text-xs text-muted hover:text-[var(--color-primary)]">
-          full cost view →
-        </Link>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {rows.map((r) => {
-          const overBudget = r.pct != null && r.pct >= 100;
-          const nearBudget = r.pct != null && r.pct >= 80 && r.pct < 100;
-          return (
-            <Card key={r.account.id} className="overflow-hidden">
-              <CardContent className="space-y-2 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <Link
-                    href={`/accounts/${r.account.id}`}
-                    className="truncate text-sm font-medium hover:text-[var(--color-primary)]"
-                  >
-                    {r.account.name}
-                  </Link>
-                  <Badge variant="muted">{r.account.provider}</Badge>
-                </div>
-                <div className="flex items-end justify-between gap-2">
-                  <div>
-                    <div className="text-2xl font-semibold tabular-nums">
-                      {formatUsd(r.monthly)}
-                    </div>
-                    <div className="text-[11px] text-muted">
-                      projected / month · {r.runningCount} running
-                    </div>
-                  </div>
-                  {r.cap != null && (
-                    <div className="text-right text-[11px] text-muted">
-                      cap {formatUsd(r.cap)}
-                      <div
-                        className={
-                          overBudget
-                            ? "font-medium text-[var(--color-destructive)]"
-                            : nearBudget
-                              ? "font-medium text-[var(--color-warning)]"
-                              : "text-muted"
-                        }
-                      >
-                        {r.pct!.toFixed(0)}%
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {r.cap != null && (
-                  <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-border)]">
-                    <div
-                      className="h-full transition-[width]"
-                      style={{
-                        width: `${Math.min(100, r.pct ?? 0)}%`,
-                        background: overBudget
-                          ? "var(--color-destructive)"
-                          : nearBudget
-                            ? "var(--color-warning)"
-                            : "var(--color-primary)",
-                      }}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    </section>
+    <div className={cn(compact ? "flex flex-col gap-2" : "grid gap-3 sm:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4", className)}>
+      {rows.map((r, i) => (
+        <motion.article
+          key={r.account.id}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}
+          aria-label={r.account.name}
+          className={cn("surface card-hover min-w-0 space-y-2", compact ? "p-3" : "p-4")}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <Link
+              href={`/accounts/${encodeURIComponent(r.account.id)}`}
+              className="min-w-0 truncate text-sm font-medium hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {r.account.name}
+            </Link>
+            <Badge variant="muted">{r.account.provider}</Badge>
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            <div className="min-w-0">
+              <div className={cn("font-semibold tabular-nums", compact ? "text-lg" : "text-2xl")}>{formatUsd(r.monthly)}</div>
+              <div className="truncate text-[11px] text-muted">
+                {t("projected")} · {t("running", { count: r.runningCount })}
+              </div>
+            </div>
+            {r.cap != null && (
+              <div className={cn("shrink-0 text-right text-[11px]", r.pct != null && r.pct >= 100 ? "text-danger" : r.pct != null && r.pct >= 80 ? "text-warning" : "text-muted")}>
+                {t("cap", { cap: formatUsd(r.cap) })}
+              </div>
+            )}
+          </div>
+          {r.cap != null ? (
+            <Progress value={Math.min(100, r.pct ?? 0)} size="sm" tone={tone(r.pct)} label={t("ofBudget", { pct: Math.round(r.pct ?? 0) })} />
+          ) : (
+            !compact && <p className="text-[11px] text-muted">{t("noBudget")}</p>
+          )}
+        </motion.article>
+      ))}
+    </div>
   );
 }

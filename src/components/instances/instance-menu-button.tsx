@@ -1,14 +1,15 @@
 "use client";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MoreVertical } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { InstanceMenuItemDescriptor } from "./instance-menu";
 
 export function InstanceMenuButton({
@@ -18,16 +19,17 @@ export function InstanceMenuButton({
   items: InstanceMenuItemDescriptor[];
   size?: "sm" | "icon";
 }) {
+  const t = useTranslations("vm.menu");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size={size}
-          aria-label="More actions"
+          aria-label={t("moreActions")}
           onClick={(e) => e.stopPropagation()}
         >
-          <MoreVertical className="h-4 w-4" />
+          <MoreVertical className="h-4 w-4" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -53,7 +55,7 @@ export function InstanceMenuButton({
                 it.onSelect();
               }}
             >
-              <Icon className="h-4 w-4 opacity-80" />
+              <Icon className="h-4 w-4 opacity-80" aria-hidden />
               <span>{it.label}</span>
               {it.shortcut && (
                 <span className="ml-auto text-[11px] tracking-widest text-muted">

@@ -1,1 +1,163 @@
-{}
+{
+  "brand": {
+    "name": "vmui",
+    "tagline": "Panou de control local"
+  },
+  "or": "sau",
+  "theme": {
+    "toLight": "Comută pe tema luminoasă",
+    "toDark": "Comută pe tema întunecată"
+  },
+  "fields": {
+    "email": "Email",
+    "password": "Parolă",
+    "passwordHint": "Cel puțin 8 caractere.",
+    "confirmPassword": "Confirmă parola",
+    "displayName": "Nume afișat",
+    "role": "Rol",
+    "code": "Cod din aplicația de autentificare sau cod de rezervă",
+    "codePlaceholder": "123456"
+  },
+  "password": {
+    "show": "Arată parola",
+    "hide": "Ascunde parola"
+  },
+  "roles": {
+    "admin": "Administrator",
+    "operator": "Operator",
+    "viewer": "Vizualizator"
+  },
+  "signIn": {
+    "title": "Autentificare în vmui",
+    "description": "Mașinile tale virtuale, pe calculatorul tău. Nimic nu părăsește acest host.",
+    "submit": "Autentifică-te",
+    "noAccount": "Ai nevoie de un cont? Cere unui administrator vmui să-l creeze.",
+    "twoFactorTitle": "Verificare în doi pași",
+    "twoFactorBody": "Introdu codul pentru <b>{email}</b>.",
+    "verify": "Verifică"
+  },
+  "passkey": {
+    "button": "Autentificare cu passkey",
+    "signedIn": "Autentificat"
+  },
+  "signUp": {
+    "firstTitle": "Creează primul administrator vmui",
+    "firstDescription": "Nu există încă utilizatori — acest cont devine administratorul local.",
+    "addTitle": "Adaugă un utilizator",
+    "addDescription": "Noul utilizator se poate autentifica imediat cu rolul pe care îl alegi.",
+    "submitFirst": "Creează administratorul",
+    "submitAdd": "Creează utilizatorul",
+    "backToUsers": "Înapoi la utilizatori",
+    "haveAccount": "Ai deja un cont?",
+    "signInLink": "Autentifică-te"
+  },
+  "invite": {
+    "title": "Alătură-te gospodăriei",
+    "description": "Alege-ți datele de acces pentru a finaliza.",
+    "invitedBy": "Invitat de {name}",
+    "invitedAs": "Te alături ca",
+    "roomsIntro": "Camere la care vei avea acces",
+    "noRooms": "Nicio cameră acordată încă — proprietarul le poate adăuga ulterior.",
+    "accessUntil": "Acces până la {date}",
+    "displayName": "Numele tău",
+    "submit": "Creează-mi contul",
+    "joined": "Bine ai venit acasă",
+    "invalidTitle": "Invitație invalidă",
+    "invalidBody": "Acest link a expirat, a fost revocat sau a fost deja folosit. Cere proprietarului unul nou.",
+    "invalidCta": "Mergi la autentificare"
+  },
+  "validation": {
+    "emailRequired": "Introdu adresa de email.",
+    "emailInvalid": "Introdu o adresă de email validă.",
+    "passwordRequired": "Introdu parola.",
+    "passwordShort": "Parola trebuie să aibă cel puțin 8 caractere.",
+    "passwordMismatch": "Parolele nu coincid.",
+    "nameRequired": "Introdu un nume.",
+    "codeRequired": "Introdu codul din aplicația de autentificare."
+  },
+  "errors": {
+    "invalidInput": "Introdu un email și o parolă valide.",
+    "invalidCredentials": "Email sau parolă incorecte.",
+    "rateLimited": "Prea multe încercări. Reîncearcă în {seconds, plural, one {# secundă} few {# secunde} other {# de secunde}}.",
+    "codeInvalidInput": "Introdu codul de 6 cifre.",
+    "verificationExpired": "Verificarea a expirat. Autentifică-te din nou.",
+    "userNotFound": "Utilizatorul nu a fost găsit.",
+    "notEnrolled": "Verificarea în doi pași nu este activată pentru acest cont.",
+    "decryptFailed": "Nu s-a putut citi secretul pentru verificarea în doi pași.",
+    "invalidCode": "Cod invalid.",
+    "invalidEmail": "Introdu o adresă de email validă.",
+    "passwordShort": "Parola trebuie să aibă cel puțin 8 caractere.",
+    "nameRequired": "Introdu un nume afișat.",
+    "emailTaken": "Există deja un cont cu acest email.",
+    "createFailed": "Utilizatorul nu a putut fi creat.",
+    "notAuthenticated": "Nu ești autentificat.",
+    "adminRequired": "Doar un administrator poate crea utilizatori.",
+    "inviteInvalid": "Această invitație nu mai este valabilă.",
+    "noPasskeys": "Nu există încă passkey-uri înregistrate.",
+    "challengeExpired": "Provocarea passkey a expirat. Încearcă din nou.",
+    "unknownPasskey": "Acest passkey nu este recunoscut.",
+    "verificationFailed": "Verificarea passkey a eșuat.",
+    "generic": "Nu a funcționat: {message}"
+  },
+  "onboarding": {
+    "title": "Bine ai venit în vmui",
+    "description": "Panou de control multi-cloud, local-first. Totul rămâne pe această mașină — vmui nu are conturi cloud proprii.",
+    "progress": "{done} din {total} pași finalizați",
+    "status": {
+      "done": "gata",
+      "next": "următorul",
+      "later": "mai târziu"
+    },
+    "step": "Pasul {n}",
+    "steps": {
+      "masterKey": {
+        "title": "Setează cheia principală",
+        "done": "VMUI_MASTER_KEY este setată; credențialele sunt criptate pe disc.",
+        "todo": "Generează o cheie de 32 de octeți și pune-o în .env.local ca VMUI_MASTER_KEY înainte de a continua.",
+        "cta": "Cum o generezi"
+      },
+      "account": {
+        "title": "Conectează un cont cloud",
+        "done": "{count, plural, one {# cont conectat.} few {# conturi conectate.} other {# de conturi conectate.}}",
+        "todo": "Lipește credențiale API cu drepturi de citire și scriere pentru AWS, Azure, GCP, Scaleway sau local-kvm.",
+        "cta": "Conectează un cont"
+      },
+      "firstVm": {
+        "title": "Creează prima mașină virtuală",
+        "done": "{count, plural, one {# instanță în cache-ul local.} few {# instanțe în cache-ul local.} other {# de instanțe în cache-ul local.}}",
+        "todo": "Rulează o sincronizare pentru a prelua instanțele existente sau creează una nouă dintr-o imagine a furnizorului.",
+        "cta": "Instanță nouă"
+      },
+      "sshKey": {
+        "title": "Salvează o cheie SSH",
+        "detail": "Generează sau importă o cheie din Setări → Chei SSH pentru a folosi terminalul integrat fără să lipești cheia de fiecare dată.",
+        "cta": "Chei SSH"
+      },
+      "schedule": {
+        "title": "Programează oprirea automată",
+        "detail": "Oprește mașinile de dezvoltare peste noapte, repornește-le dimineața sau programează reporniri săptămânale.",
+        "cta": "Programări"
+      }
+    },
+    "optional": {
+      "title": "Pași opționali",
+      "description": "Utili după ce funcționează elementele de bază."
+    },
+    "keygen": {
+      "title": "Generarea cheii principale",
+      "body": "Rulează <code>pnpm keygen</code> în rădăcina proiectului, apoi adaugă linia afișată (<code>VMUI_MASTER_KEY=...</code>) în <code>.env.local</code>. Repornește serverul de dezvoltare. Tot ce este sensibil — credențiale, chei SSH private — este sigilat cu AES-256-GCM folosind această cheie."
+    },
+    "providers": {
+      "title": "Ghid rapid pentru furnizori",
+      "aws": "<b>AWS:</b> cheie de acces IAM + secret. Recomandat un utilizator dedicat cu drepturi de citire/scriere pe EC2, S3, RDS, ELB și Route53.",
+      "azure": "<b>Azure:</b> service principal — tenantId, clientId, clientSecret, subscriptionId. Rol Contributor pe abonamentul țintă.",
+      "gcp": "<b>GCP:</b> cheie JSON de service account. Roluri Compute, Storage, Cloud SQL, DNS. JSON-ul lipit este criptat înainte de a ajunge pe disc.",
+      "scaleway": "<b>Scaleway:</b> token API + id de organizație.",
+      "kvm": "<b>local-kvm:</b> host SSH + cheie pentru hostul libvirt. vmui vorbește direct cu libvirt prin URI-ul ales."
+    },
+    "background": {
+      "title": "Ce rulează în fundal",
+      "body": "O buclă de sincronizare reîmprospătează instanțele în fiecare minut. Programările se verifică la fiecare 30 de secunde. Jurnalele de audit mai vechi de 30 de zile sunt arhivate gzip pe disc și șterse din tabelul activ."
+    }
+  }
+}

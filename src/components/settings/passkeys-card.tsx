@@ -1,44 +1,46 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Fingerprint, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import { startRegistration } from "@simplewebauthn/browser";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
+import { Button, DataTable, EmptyState, Field, Input, type ColumnDef } from "@/components/ui";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAction } from "@/hooks/use-action";
 import {
-  deletePasskeyAction,
-  finishPasskeyRegistrationAction,
-  listPasskeysAction,
-  startPasskeyRegistrationAction,
-  type PasskeySummary,
+    deletePasskeyAction,
+    finishPasskeyRegistrationAction,
+    listPasskeysAction,
+    startPasskeyRegistrationAction,
+    type PasskeySummary,
 } from "@/server/actions/passkeys";
-
-function relative(d: Date | null): string {
-  if (!d) return "never";
-  const diff = Math.max(0, Date.now() - new Date(d).getTime());
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
-}
+import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
+import { Fingerprint, KeyRound, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { toResult } from "./adapt";
+import { RelativeTime } from "./relative-time";
 
 export function PasskeysCard() {
+  const t = useTranslations("settings.security.passkeys");
+  const tc = useTranslations("common");
+  const confirm = useConfirm();
   const [rows, setRows] = useState<PasskeySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [label, setLabel] = useState("");
   const [adding, setAdding] = useState(false);
-  const [pending, start] = useTransition();
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setRows(await listPasskeysAction());
     setLoading(false);
-  }
+  }, []);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    void refresh();
+  }, [refresh]);
+
+  const remove = useAction(async (id: string) => toResult(await deletePasskeyAction(id)), {
+    success: t("removed"),
+    refresh: false,
+    onSuccess: () => void refresh(),
+  });
 
   async function add() {
     setAdding(true);
@@ -53,19 +55,19 @@ export function PasskeysCard() {
       });
       const r = await finishPasskeyRegistrationAction({
         challengeKey: init.challengeKey,
-        label: label.trim() || "Passkey",
+        label: label.trim() || t("defaultLabel"),
         response,
       });
       if (r.ok) {
-        toast.success("Passkey added");
+        toast.success(t("added"));
         setLabel("");
         await refresh();
       } else {
-        toast.error(r.error ?? "Failed");
+        toast.error(r.error ?? tc("failed"));
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Cancelled";
-      if (!/cancel/i.test(msg) && !/AbortError/.test(msg)) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg && !/cancel/i.test(msg) && !/AbortError/.test(msg)) {
         toast.error(msg);
       }
     } finally {
@@ -73,68 +75,68 @@ export function PasskeysCard() {
     }
   }
 
-  function remove(id: string, label: string) {
-    if (!confirm(`Remove passkey "${label}"?`)) return;
-    start(async () => {
-      const r = await deletePasskeyAction(id);
-      if (r.ok) {
-        toast.success("Passkey removed");
-        await refresh();
-      } else {
-        toast.error(r.error ?? "Failed");
-      }
+  async function onRemove(p: PasskeySummary) {
+    const ok = await confirm({
+      title: t("confirmRemove", { label: p.label }),
+      description: t("confirmRemoveHint"),
+      tone: "danger",
+      confirmText: tc("remove"),
     });
+    if (ok) await remove.run(p.id);
   }
 
-  return (
-    <div className="space-y-3">
-      {loading ? (
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <Loader2 className="h-3 w-3 animate-spin" /> Loading passkeys…
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="text-xs text-muted">No passkeys yet. Add one to skip the password on sign-in.</p>
-      ) : (
-        <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-md)] border border-[var(--color-border)]">
-          {rows.map((p) => (
-            <li key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-              <div className="flex min-w-0 items-center gap-2">
-                <KeyRound className="h-3.5 w-3.5 text-muted" />
-                <span className="truncate font-medium">{p.label}</span>
-                <span className="text-[11px] text-muted">
-                  · added {relative(p.createdAt)} · last used {relative(p.lastUsedAt)}
-                </span>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => remove(p.id, p.label)}
-                disabled={pending}
-                aria-label="Remove"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex items-center gap-2">
-        <Input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Label (e.g. MacBook Touch ID)"
-          maxLength={60}
-          className="flex-1 text-xs"
-          disabled={adding}
-        />
-        <Button onClick={add} disabled={adding} size="sm">
-          {adding ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+  const columns = useMemo<ColumnDef<PasskeySummary, unknown>[]>(
+    () => [
+      {
+        accessorKey: "label",
+        header: t("label"),
+        cell: ({ row }) => (
+          <span className="flex min-w-0 items-center gap-2 font-medium">
+            <KeyRound className="size-3.5 shrink-0 text-fg-muted" aria-hidden />
+            <span className="truncate">{row.original.label}</span>
+          </span>
+        ),
+      },
+      {
+        accessorKey: "createdAt",
+        header: t("addedAt"),
+        cell: ({ row }) => <RelativeTime date={row.original.createdAt} className="whitespace-nowrap text-fg-muted" />,
+      },
+      {
+        accessorKey: "lastUsedAt",
+        header: t("lastUsed"),
+        cell: ({ row }) =>
+          row.original.lastUsedAt ? (
+            <RelativeTime date={row.original.lastUsedAt} className="whitespace-nowrap text-fg-muted" />
           ) : (
-            <Fingerprint className="h-3.5 w-3.5" />
-          )}
-          <Plus className="h-3 w-3" /> Add passkey
+            <span className="text-fg-muted">{t("never")}</span>
+          ),
+      },
+    ],
+    [t],
+  );
+
+  return (
+    <div className="space-y-4">
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={loading}
+        dense
+        getRowId={(r) => r.id}
+        emptyState={<EmptyState compact icon={<Fingerprint />} title={t("empty")} description={t("emptyHint")} />}
+        rowActions={(p) => (
+          <Button size="icon" variant="ghost" onClick={() => void onRemove(p)} disabled={remove.pending} aria-label={t("remove")}>
+            <Trash2 className="size-4 text-danger" aria-hidden />
+          </Button>
+        )}
+      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <Field label={t("label")} className="flex-1">
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("labelPlaceholder")} maxLength={60} disabled={adding} />
+        </Field>
+        <Button onClick={() => void add()} loading={adding} className="sm:mb-0">
+          <Fingerprint className="size-4" aria-hidden /> {t("add")}
         </Button>
       </div>
     </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { motion } from "motion/react";
-import { Cpu, MemoryStick, BarChart3 } from "lucide-react";
-import { Sparkline } from "./sparkline";
-import { useInstanceStats } from "./use-instance-stats";
 import { Button } from "@/components/ui/button";
+import { Sparkline } from "@/components/ui/sparkline";
+import { BarChart3, Cpu, MemoryStick } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import { useInstanceStats } from "./use-instance-stats";
 
 /**
  * Compact, one-line stats strip for the InstanceCard. Polls only when the
@@ -23,14 +24,15 @@ export function InstanceStatsInline({
   providerInstanceId?: string;
   instanceId?: string;
 }) {
+  const t = useTranslations("vm.stats");
   const { latest, history } = useInstanceStats(accountId, { enabled, intervalMs: 2000, providerInstanceId, instanceId });
 
   if (!enabled) return null;
   if (!latest?.running) {
     return (
       <div className="flex items-center gap-2 text-[11px] text-muted">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-border)]" />
-        <span>idle — no metrics</span>
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-border" aria-hidden />
+        <span>{t("idle")}</span>
       </div>
     );
   }
@@ -47,23 +49,24 @@ export function InstanceStatsInline({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
       className="flex items-center gap-3"
     >
-      <Stat
+      <Metric
         icon={Cpu}
-        label="CPU"
+        label={t("cpu")}
         value={`${cpu.toFixed(0)}%`}
         history={history.cpu}
-        color="var(--color-primary)"
-        max={100}
+        colorClass="text-primary"
+        ariaLabel={t("trend", { metric: t("cpu") })}
       />
-      <Stat
+      <Metric
         icon={MemoryStick}
-        label="MEM"
+        label={t("memShort")}
         value={`${memPct.toFixed(0)}%`}
         history={history.mem}
-        color="var(--color-accent)"
-        max={100}
+        colorClass="text-accent"
+        ariaLabel={t("trend", { metric: t("memory") })}
       />
       {onOpenDetails && (
         <Button
@@ -71,43 +74,38 @@ export function InstanceStatsInline({
           variant="ghost"
           className="ml-auto h-7 px-2 text-[11px]"
           onClick={onOpenDetails}
-          aria-label="Show detailed stats"
+          aria-label={t("showDetails")}
         >
-          <BarChart3 className="h-3 w-3" />
+          <BarChart3 className="h-3 w-3" aria-hidden />
         </Button>
       )}
     </motion.div>
   );
 }
 
-function Stat({
+function Metric({
   icon: Icon,
   label,
   value,
   history,
-  color,
-  max,
+  colorClass,
+  ariaLabel,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
   value: string;
   history: number[];
-  color: string;
-  max?: number;
+  colorClass: string;
+  ariaLabel: string;
 }) {
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex w-12 items-center gap-1 text-[10px] uppercase tracking-wider text-muted">
-        <Icon className="h-3 w-3" />
+        <Icon className="h-3 w-3" aria-hidden />
         {label}
       </div>
-      <Sparkline values={history} width={56} height={18} color={color} max={max} />
-      <div
-        className="w-9 text-right font-mono text-[11px] tabular-nums"
-        style={{ color }}
-      >
-        {value}
-      </div>
+      <Sparkline values={history} width={56} height={18} className={colorClass} ariaLabel={ariaLabel} />
+      <div className={`w-9 text-right font-mono text-[11px] tabular-nums ${colorClass}`}>{value}</div>
     </div>
   );
 }

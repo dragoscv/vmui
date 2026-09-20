@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Download, Upload, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Button, Checkbox, Field, PageSection } from "@/components/ui";
 import { exportBackup, importBackup } from "@/server/actions/backup";
+import { Download, Upload } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useId, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 export function BackupCard() {
+  const t = useTranslations("settings.data.backup");
   const [pending, start] = useTransition();
   const [overwrite, setOverwrite] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const fileId = useId();
 
   const doExport = () => {
     start(async () => {
@@ -24,7 +26,7 @@ export function BackupCard() {
       a.download = `vmui-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Backup downloaded");
+      toast.success(t("exported"));
     });
   };
 
@@ -35,7 +37,7 @@ export function BackupCard() {
       try {
         outer = JSON.parse(text) as typeof outer;
       } catch {
-        toast.error("Not a vmui backup file");
+        toast.error(t("notBackup"));
         return;
       }
       const res = await importBackup({
@@ -44,42 +46,25 @@ export function BackupCard() {
         overwrite,
       });
       if (res.error) toast.error(res.error);
-      else toast.success(`Restored ${res.accounts} accounts, ${res.sshKeys} keys`);
+      else toast.success(t("restored", { accounts: res.accounts, keys: res.sshKeys }));
     });
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Download className="h-4 w-4" /> Backup &amp; restore
-        </CardTitle>
-        <CardDescription>
-          Signed JSON of all accounts and SSH keys. Credentials remain encrypted with your master key — restore on the
-          same key on another host to migrate.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={doExport} disabled={pending}>
-            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            Export backup
-          </Button>
-          <Label className="ml-2 inline-flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={overwrite}
-              onChange={(e) => setOverwrite(e.currentTarget.checked)}
-            />
-            Overwrite existing rows on import
-          </Label>
-        </div>
-        <div>
-          <Label htmlFor="restore" className="text-xs text-muted">
-            Restore from file
-          </Label>
+    <PageSection
+      title={t("title")}
+      description={t("description")}
+      action={
+        <Button size="sm" onClick={doExport} loading={pending}>
+          <Download className="size-4" aria-hidden /> {t("export")}
+        </Button>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("restore")} hint={t("restoreHint")}>
           <input
-            id="restore"
+            ref={fileRef}
+            id={fileId}
             type="file"
             accept="application/json"
             disabled={pending}
@@ -88,11 +73,16 @@ export function BackupCard() {
               if (f) doImport(f);
               e.currentTarget.value = "";
             }}
-            className="mt-1 block w-full text-sm file:mr-3 file:rounded-[var(--radius-md)] file:border-0 file:bg-[var(--color-bg-muted)] file:px-3 file:py-1.5 file:text-sm hover:file:bg-[var(--color-surface)]"
+            className="sr-only"
           />
-          <Upload className="hidden" />
-        </div>
-      </CardContent>
-    </Card>
+          <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()} loading={pending} className="w-full sm:w-auto">
+            <Upload className="size-4" aria-hidden /> {t("restore")}
+          </Button>
+        </Field>
+        <Field inline label={t("overwrite")} hint={t("overwriteHint")}>
+          <Checkbox checked={overwrite} onCheckedChange={setOverwrite} disabled={pending} />
+        </Field>
+      </div>
+    </PageSection>
   );
 }

@@ -26,7 +26,111 @@
     "skin": "Skin",
     "ownBackground": "Fundal propriu",
     "ownBackgroundOn": "Fundal propriu pentru acest view",
-    "ownBackgroundOff": "Folosește fundalul global"
+    "ownBackgroundOff": "Folosește fundalul global",
+    "clock": {
+      "label": "Ceas",
+      "description": "Ora cu cifre care se morfează, data, înăuntru/afară."
+    },
+    "weather": {
+      "label": "Vremea",
+      "description": "Icon animat, temperatură, vânt, presiune, răsărit/apus."
+    },
+    "home": {
+      "label": "Acasă",
+      "description": "Ușă, prezență, AC-uri, lumini aprinse."
+    },
+    "ambilight": {
+      "label": "Ambilight",
+      "description": "Culoarea live a benzii, perete, HyperHDR."
+    },
+    "pc": {
+      "label": "PC",
+      "description": "CPU / GPU / RAM cu arce și sparkline."
+    },
+    "pi": {
+      "label": "Raspberry Pi",
+      "description": "CPU / temperatură / RAM ale serverului de casă, disc, rețea, throttling."
+    },
+    "activity": {
+      "label": "Activitate",
+      "description": "Ultimele evenimente din casă."
+    },
+    "media": {
+      "label": "Redare",
+      "description": "Ce se aude acum, cu copertă și titluri care derulează."
+    },
+    "lists": {
+      "label": "Liste",
+      "description": "Cumpărături și acțiuni din HA."
+    },
+    "fx": {
+      "label": "Curs BNR",
+      "description": "EUR/USD/GBP în RON cu tendința pe 30 de zile."
+    },
+    "crypto": {
+      "label": "Crypto",
+      "description": "Prețuri CoinGecko cu variația pe 24 h."
+    },
+    "photo": {
+      "label": "Foto / Artă",
+      "description": "O imagine pe tot ecranul, cu titlu și credit."
+    },
+    "fleet": {
+      "label": "Mașini virtuale",
+      "description": "VM-urile din vmui: stare, RAM, CPU."
+    },
+    "climate": {
+      "label": "Climat 24 h",
+      "description": "Grafic temperatură și umiditate pe ultimele 24 h."
+    },
+    "calendar": {
+      "label": "Calendar",
+      "description": "Următoarele evenimente din calendarele HA, cu countdown."
+    },
+    "pomodoro": {
+      "label": "Pomodoro",
+      "description": "Timer de focus controlat din /home. Vizibil doar când rulează."
+    },
+    "network": {
+      "label": "Rețea",
+      "description": "Ping, trafic up/down, Tailscale peers online."
+    },
+    "countdown": {
+      "label": "Countdown",
+      "description": "Zile până la evenimentele tale."
+    },
+    "quote": {
+      "label": "Citat",
+      "description": "Un citat pe zi, tipografic, peste artă."
+    },
+    "ambient": {
+      "label": "Ambient (noapte)",
+      "description": "Doar fundal și un ceas mic. Activ automat în intervalul de noapte."
+    },
+    "copilot": {
+      "label": "Agenți Copilot",
+      "description": "Sesiunile de agent active pe PC, repo-ul lor, ultimul mesaj, turn-uri azi."
+    },
+    "focus": {
+      "label": "Focus",
+      "description": "Fereastra activă și de cât timp, plus cum s-a împărțit ziua: cod / browser / media / altele."
+    },
+    "anniversaries": {
+      "label": "Aniversări",
+      "description": "Zile de naștere și aniversări anuale, cu vârsta și câte zile mai sunt."
+    },
+    "nutrition": {
+      "label": "Nutriție",
+      "description": "Calorii și macro azi față de țintă (Mifflin-St Jeor din greutatea de pe cântar), mesele zilei, streak, coach. Mesele vin de la asistentul codai de pe telefon."
+    },
+    "health": {
+      "label": "Sănătate",
+      "description": "Pași, puls, somn, SpO2, greutate din Samsung Health via Health Connect (aplicația HA de pe telefon)."
+    },
+    "energy": {
+      "label": "Energie",
+      "description": "Putere acum și kWh azi din senzorii HA, cost estimat."
+    }
   },
   "notify": {
     "title": "Notificări de pe telefon",
@@ -94,5 +198,219 @@
     "startWork": "Lucru",
     "startBreak": "Pauză",
     "stop": "Stop"
+  },
+  "options": {
+    "clock": {
+      "seconds": {
+        "label": "Arată secundele"
+      }
+    },
+    "pc": {
+      "hostname": {
+        "label": "Nume afișat",
+        "placeholder": "dragos-pc"
+      },
+      "disks": {
+        "label": "Discuri",
+        "hint": "litere separate prin spațiu",
+        "placeholder": "C: E:"
+      }
+    },
+    "pi": {
+      "hostname": {
+        "label": "Nume afișat",
+        "placeholder": "homepi"
+      }
+    },
+    "activity": {
+      "max": {
+        "label": "Evenimente afișate"
+      }
+    },
+    "media": {
+      "skipIdle": {
+        "label": "Sari peste când nimic nu redă"
+      },
+      "lyrics": {
+        "label": "Versuri sincronizate (LRCLIB)"
+      }
+    },
+    "fx": {
+      "currencies": {
+        "label": "Monede",
+        "hint": "coduri ISO, ex. EUR USD GBP CHF XAU (aur, RON/gram)",
+        "placeholder": "EUR"
+      },
+      "watchAmount": {
+        "label": "Sumă urmărită",
+        "hint": "afișează echivalentul în RON",
+        "placeholder": "1000 EUR"
+      }
+    },
+    "crypto": {
+      "coins": {
+        "label": "Monede",
+        "hint": "id-uri CoinGecko: bitcoin ethereum solana",
+        "placeholder": "bitcoin"
+      },
+      "vs": {
+        "label": "În",
+        "choice_usd": "USD",
+        "choice_eur": "EUR",
+        "choice_ron": "RON"
+      },
+      "holdings": {
+        "label": "Portofoliu",
+        "hint": "o linie: id cantitate → afișează valoarea totală și Δ azi",
+        "placeholder": "bitcoin 0.05"
+      }
+    },
+    "photo": {
+      "caption": {
+        "label": "Arată titlul și creditul"
+      },
+      "kenBurns": {
+        "label": "Mișcare lentă (Ken Burns)"
+      }
+    },
+    "calendar": {
+      "entities": {
+        "label": "Calendare (entity_id)",
+        "placeholder": "calendar.personal"
+      }
+    },
+    "pomodoro": {
+      "workMin": {
+        "label": "Lucru (min)"
+      },
+      "breakMin": {
+        "label": "Pauză (min)"
+      }
+    },
+    "network": {
+      "pingHost": {
+        "label": "Host ping",
+        "placeholder": "1.1.1.1"
+      }
+    },
+    "countdown": {
+      "events": {
+        "label": "Evenimente",
+        "hint": "o linie: YYYY-MM-DD Titlu",
+        "placeholder": "2026-12-24 Crăciun"
+      }
+    },
+    "quote": {
+      "lang": {
+        "label": "Limba",
+        "choice_ro": "Română",
+        "choice_en": "Engleză"
+      }
+    },
+    "ambient": {
+      "nightOnly": {
+        "label": "Doar noaptea"
+      }
+    },
+    "copilot": {
+      "activeMin": {
+        "label": "Activ în ultimele (min)"
+      }
+    },
+    "focus": {
+      "idleMin": {
+        "label": "Idle după (min)"
+      }
+    },
+    "anniversaries": {
+      "people": {
+        "label": "Persoane",
+        "hint": "o linie: YYYY-MM-DD Nume (anul = nașterea, pentru vârstă)",
+        "placeholder": "1990-05-14 Andreea"
+      }
+    },
+    "health": {
+      "stepsGoal": {
+        "label": "Țintă pași / zi"
+      },
+      "sleepGoalH": {
+        "label": "Țintă somn (ore)"
+      },
+      "device": {
+        "label": "Slug dispozitiv HA",
+        "hint": "prefixul entităților sensor.<slug>_heart_rate etc.",
+        "placeholder": "dragos_s_s25_ultra"
+      },
+      "heightCm": {
+        "label": "Înălțime (cm)"
+      },
+      "birthDate": {
+        "label": "Data nașterii",
+        "hint": "YYYY-MM-DD; împreună cu înălțimea dă IMC, grăsime, apă, mușchi (estimări Deurenberg/Hume/Boer — pad-urile cântarului OKOK sunt decorative)",
+        "placeholder": "1993-12-12"
+      },
+      "sex": {
+        "label": "Sex (m/f)",
+        "placeholder": "m"
+      }
+    },
+    "energy": {
+      "pricePerKwh": {
+        "label": "Preț RON/kWh"
+      },
+      "entities": {
+        "label": "Senzori putere (entity_id)",
+        "hint": "gol = toți senzorii cu device_class power/energy",
+        "placeholder": "sensor.priza_birou_power"
+      }
+    }
+  },
+  "skins": {
+    "minimal": {
+      "label": "Minimal",
+      "description": "Fundal închis, accent, fără ornamente."
+    },
+    "glass": {
+      "label": "Glass",
+      "description": "Plăci translucide peste fundal foto."
+    },
+    "neon": {
+      "label": "Neon",
+      "description": "Contururi luminoase, glow, negru adânc."
+    },
+    "editorial": {
+      "label": "Editorial",
+      "description": "O cifră dominantă, tipografie mare."
+    },
+    "terminal": {
+      "label": "Terminal",
+      "description": "Monospace verde/ambră, linii de scanare."
+    },
+    "paper": {
+      "label": "Paper",
+      "description": "Fundal deschis, serif, calm."
+    }
+  },
+  "sources": {
+    "folder": {
+      "label": "Folder local",
+      "description": "Imagini dintr-un folder de pe acest PC."
+    },
+    "apod": {
+      "label": "NASA APOD",
+      "description": "Poza astronomică a zilei."
+    },
+    "met": {
+      "label": "Met Museum",
+      "description": "Opere CC0 din The Met."
+    },
+    "artic": {
+      "label": "Art Institute Chicago",
+      "description": "Opere din domeniul public."
+    },
+    "commons": {
+      "label": "Wikimedia Commons",
+      "description": "Poza zilei de pe Commons."
+    }
   }
 }

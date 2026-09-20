@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Loader2, RefreshCw, ScrollText, Download } from "lucide-react";
+import { Alert, Badge, Button, PageSection } from "@/components/ui";
 import { getInstanceLogsAction } from "@/server/actions/metrics";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Download, RefreshCw } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useEffect, useState, useTransition } from "react";
 
 interface Props {
   accountId: string;
@@ -13,6 +12,8 @@ interface Props {
 }
 
 export function ConsoleLogsCard({ accountId, providerInstanceId }: Props) {
+  const t = useTranslations("vm.logs");
+  const format = useFormatter();
   const [text, setText] = useState<string>("");
   const [source, setSource] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -51,44 +52,45 @@ export function ConsoleLogsCard({ accountId, providerInstanceId }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ScrollText className="h-4 w-4" />
-            Console output
-            {source && <Badge variant="muted" className="text-[10px]">{source}</Badge>}
-          </CardTitle>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={download} disabled={!text}>
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={reload} disabled={pending}>
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <PageSection
+      title={
+        <span className="inline-flex items-center gap-2">
+          {t("title")}
+          {source && <Badge variant="muted" className="text-[10px]">{source}</Badge>}
+        </span>
+      }
+      description={t("description")}
+      action={
+        <>
+          <Button variant="ghost" size="sm" onClick={download} disabled={!text} aria-label={t("download")}>
+            <Download className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={reload} loading={pending} aria-label={t("refresh")}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-2">
         {error && (
-          <div className="rounded-md bg-[color-mix(in_oklch,var(--color-danger)_15%,transparent)] p-2 text-xs text-[var(--color-danger)]">
+          <Alert tone="danger" className="text-xs">
             {error}
-          </div>
+          </Alert>
         )}
         {note && (
-          <div className="rounded-md bg-[var(--color-bg-muted)] px-3 py-1.5 text-[11px] text-muted">
+          <Alert tone="info" className="text-xs">
             {note}
-          </div>
+          </Alert>
         )}
-        <pre className="max-h-[480px] overflow-auto rounded-md border border-[var(--color-border)] bg-black p-3 font-mono text-[11px] leading-relaxed text-[var(--color-fg)] shadow-inner">
-          {text || (pending ? "loading…" : error ? "" : "(no console output yet)")}
+        <pre className="max-h-[480px] overflow-auto rounded-[var(--radius-md)] border border-border bg-bg p-3 font-mono text-[11px] leading-relaxed text-fg shadow-inner">
+          {text || (pending ? t("loading") : error ? "" : t("empty"))}
         </pre>
         {fetchedAt && (
           <div className="text-right text-[10px] text-muted">
-            fetched {new Date(fetchedAt).toLocaleTimeString()}
+            {t("fetched", { time: format.dateTime(new Date(fetchedAt), { timeStyle: "medium" }) })}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </PageSection>
   );
 }

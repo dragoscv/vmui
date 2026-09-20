@@ -1,19 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, KeyRound, Loader2, Terminal, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { TerminalView } from "@/components/instances/terminal-view";
-import {
-  openCustomSshAction,
-  openLocalKvmSshAction,
-  openSavedKeySshAction,
-  reconnectSshSessionAction,
-} from "@/server/actions/ssh";
+import { Alert, Button, Field, Input, PageSection, Textarea, ToggleGroup } from "@/components/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { InstanceRow } from "@/lib/db/schema";
+import {
+    openCustomSshAction,
+    openLocalKvmSshAction,
+    openSavedKeySshAction,
+    reconnectSshSessionAction,
+} from "@/server/actions/ssh";
+import { Clock, KeyRound } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
 
 export interface SavedKeyOption {
   id: string;
@@ -23,15 +22,16 @@ export interface SavedKeyOption {
 }
 
 const TTL_OPTIONS = [
-  { label: "5m", ms: 5 * 60_000 },
-  { label: "15m", ms: 15 * 60_000 },
-  { label: "1h", ms: 60 * 60_000 },
-  { label: "4h", ms: 4 * 60 * 60_000 },
-  { label: "8h", ms: 8 * 60 * 60_000 },
+  { key: "ttl5m", ms: 5 * 60_000 },
+  { key: "ttl15m", ms: 15 * 60_000 },
+  { key: "ttl1h", ms: 60 * 60_000 },
+  { key: "ttl4h", ms: 4 * 60 * 60_000 },
+  { key: "ttl8h", ms: 8 * 60 * 60_000 },
 ] as const;
 const DEFAULT_TTL_MS = 60 * 60_000;
 
 export function SshClient({ instance, savedKeys = [] }: { instance: InstanceRow; savedKeys?: SavedKeyOption[] }) {
+  const t = useTranslations("vm.ssh");
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
@@ -94,7 +94,7 @@ export function SshClient({ instance, savedKeys = [] }: { instance: InstanceRow;
   async function openCustom() {
     if (mode === "saved") {
       if (!username || !savedKeyId) {
-        setError("Username and a saved key are required.");
+        setError(t("needUsernameAndSavedKey"));
         return;
       }
       setError(null);
@@ -115,7 +115,7 @@ export function SshClient({ instance, savedKeys = [] }: { instance: InstanceRow;
       return;
     }
     if (!username || !privateKey) {
-      setError("Username and private key are required.");
+      setError(t("needUsernameAndPrivateKey"));
       return;
     }
     setError(null);
@@ -140,139 +140,112 @@ export function SshClient({ instance, savedKeys = [] }: { instance: InstanceRow;
     if (isLocal) void openLocal();
   }, [isLocal, openLocal]);
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/instances/${encodeURIComponent(instance.id)}`}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
-        </Button>
-        <div className="flex items-center gap-2 text-sm">
-          <Terminal className="h-4 w-4 text-[var(--color-primary)]" />
-          <span className="font-medium">{instance.name ?? instance.providerInstanceId}</span>
-          <span className="text-muted">· {instance.provider} · {instance.region}</span>
-        </div>
+  if (wsUrl) {
+    return (
+      <div className="space-y-4">
+        {expiresAt && <SessionExpiryBar expiresAt={expiresAt} />}
+        <TerminalView
+          wsUrl={wsUrl}
+          label={`${username}@${instance.publicIp ?? instance.publicDns ?? "127.0.0.1"}`}
+          onReconnect={reconnect}
+        />
       </div>
+    );
+  }
 
-      {wsUrl ? (
-        <>
-          {expiresAt && <SessionExpiryBar expiresAt={expiresAt} />}
-          <TerminalView
-            wsUrl={wsUrl}
-            label={`${username}@${instance.publicIp ?? instance.publicDns ?? "127.0.0.1"}`}
-            onReconnect={reconnect}
+  if (isLocal) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center text-sm">
+        {loading ? (
+          <Button variant="ghost" loading disabled>
+            {t("opening")}
+          </Button>
+        ) : error ? (
+          <Alert tone="danger">{error}</Alert>
+        ) : null}
+      </div>
+    );
+  }
+
+  const ttlValue = String(ttlMs);
+  const canConnect = Boolean(username) && (mode === "saved" ? Boolean(savedKeyId) : Boolean(privateKey));
+
+  return (
+    <PageSection title={t("credentialsTitle")} description={t("credentialsDescription")}>
+      <div className="grid gap-4">
+        <Field label={t("username")}>
+          <Input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+        </Field>
+
+        <div className="space-y-1.5">
+          <span id="ssh-ttl-label" className="flex items-center gap-1 text-xs text-muted">
+            <Clock className="size-3.5" aria-hidden /> {t("duration")}
+          </span>
+          <ToggleGroup
+            size="sm"
+            aria-labelledby="ssh-ttl-label"
+            value={ttlValue}
+            onValueChange={(v) => setTtlMs(Number(v))}
+            options={TTL_OPTIONS.map((o) => ({ value: String(o.ms), label: t(o.key) }))}
           />
-        </>
-      ) : isLocal ? (
-        <div className="flex h-[60vh] items-center justify-center text-sm text-muted">
-          {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Opening session…</> : error ? (
-            <div className="text-center text-[var(--color-danger)]">{error}</div>
-          ) : null}
+          <p className="text-xs leading-snug text-muted">{t("durationHint")}</p>
         </div>
-      ) : (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h2 className="text-base font-semibold">Provide SSH credentials</h2>
-          <p className="mb-4 text-xs text-muted">
-            Your private key is held in server memory only for the lifetime of this session — it never touches disk
-            and can't be re-used after the WebSocket closes.
-          </p>
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" /> Session duration
-              </Label>
-              <div className="flex items-center gap-1 rounded-md border border-[var(--color-border)] p-0.5 w-fit">
-                {TTL_OPTIONS.map((o) => (
-                  <button
-                    key={o.label}
-                    type="button"
-                    onClick={() => setTtlMs(o.ms)}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition ${
-                      ttlMs === o.ms ? "bg-white/10 text-fg" : "text-muted hover:text-fg"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
+
+        {usableKeys.length > 0 && (
+          <ToggleGroup
+            size="sm"
+            aria-label={t("keySource")}
+            value={mode}
+            onValueChange={setMode}
+            options={[
+              { value: "saved", label: t("useSaved") },
+              { value: "paste", label: t("pasteKey") },
+            ]}
+          />
+        )}
+
+        {mode === "saved" && usableKeys.length > 0 ? (
+          <Field label={t("savedKey")}>
+            <Select value={savedKeyId} onValueChange={setSavedKeyId}>
+              <SelectTrigger aria-label={t("savedKey")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {usableKeys.map((k) => (
+                  <SelectItem key={k.id} value={k.id}>
+                    {t("savedKeyOption", { name: k.name, algo: k.algo })}
+                  </SelectItem>
                 ))}
-              </div>
-              <p className="text-[11px] text-muted">
-                How long this session can be reconnected without re-entering credentials. Tokens for the WebSocket
-                itself are still single-use and expire 60s after issuance.
-              </p>
-            </div>
-            {usableKeys.length > 0 && (
-              <div className="flex items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setMode("saved")}
-                  className={`rounded-full border px-2 py-0.5 ${mode === "saved" ? "border-[var(--color-primary)]/60 bg-[var(--color-primary)]/10" : "border-[var(--color-border)] text-muted"}`}
-                >
-                  Use saved key
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("paste")}
-                  className={`rounded-full border px-2 py-0.5 ${mode === "paste" ? "border-[var(--color-primary)]/60 bg-[var(--color-primary)]/10" : "border-[var(--color-border)] text-muted"}`}
-                >
-                  Paste key
-                </button>
-              </div>
-            )}
-            {mode === "saved" && usableKeys.length > 0 ? (
-              <div className="grid gap-1.5">
-                <Label htmlFor="sshKeyId">Saved key</Label>
-                <select
-                  id="sshKeyId"
-                  value={savedKeyId}
-                  onChange={(e) => setSavedKeyId(e.target.value)}
-                  className="h-9 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] px-2 text-sm"
-                >
-                  {usableKeys.map((k) => (
-                    <option key={k.id} value={k.id}>
-                      {k.name} ({k.algo})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="privateKey">Private key (PEM)</Label>
-                  <textarea
-                    id="privateKey"
-                    value={privateKey}
-                    onChange={(e) => setPrivateKey(e.target.value)}
-                    rows={8}
-                    spellCheck={false}
-                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
-                    className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-muted)] px-3 py-2 font-mono text-[11px]"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="passphrase">Passphrase (optional)</Label>
-                  <Input id="passphrase" type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} />
-                </div>
-              </>
-            )}
-            <div>
-              <Button onClick={openCustom} disabled={loading || !username || (mode === "saved" ? !savedKeyId : !privateKey)}>
-                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Connecting…</> : <><KeyRound className="h-4 w-4" /> Connect</>}
-              </Button>
-            </div>
-            {error && (
-              <div className="rounded-md bg-[color-mix(in_oklch,var(--color-danger)_15%,transparent)] p-2 text-xs text-[var(--color-danger)]">
-                {error}
-              </div>
-            )}
-          </div>
+              </SelectContent>
+            </Select>
+          </Field>
+        ) : (
+          <>
+            <Field label={t("privateKey")}>
+              <Textarea
+                value={privateKey}
+                onChange={(e) => setPrivateKey(e.target.value)}
+                rows={8}
+                spellCheck={false}
+                placeholder={t("privateKeyPlaceholder")}
+                className="bg-bg-muted font-mono text-[11px]"
+              />
+            </Field>
+            <Field label={t("passphrase")}>
+              <Input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" />
+            </Field>
+          </>
+        )}
+
+        <div>
+          <Button onClick={openCustom} loading={loading} disabled={!canConnect}>
+            <KeyRound className="size-4" aria-hidden /> {t("connect")}
+          </Button>
         </div>
-      )}
-    </div>
+
+        {error && <Alert tone="danger">{error}</Alert>}
+      </div>
+    </PageSection>
   );
 }
 
@@ -287,6 +260,8 @@ function defaultUserFor(inst: InstanceRow): string {
 }
 
 function SessionExpiryBar({ expiresAt }: { expiresAt: number }) {
+  const t = useTranslations("vm.ssh");
+  const format = useFormatter();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -294,18 +269,11 @@ function SessionExpiryBar({ expiresAt }: { expiresAt: number }) {
   }, []);
   const remainingMs = Math.max(0, expiresAt - now);
   if (remainingMs === 0) {
-    return (
-      <div className="flex items-center gap-2 rounded-md bg-[color-mix(in_oklch,var(--color-danger)_15%,transparent)] px-3 py-1.5 text-xs text-[var(--color-danger)]">
-        <Clock className="h-3.5 w-3.5" /> Session expired — Reconnect will require re-entering credentials.
-      </div>
-    );
+    return <Alert tone="danger" icon={<Clock />} className="text-xs">{t("expired")}</Alert>;
   }
-  const min = Math.floor(remainingMs / 60_000);
-  const sec = Math.floor((remainingMs % 60_000) / 1000);
-  const label = min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : min >= 1 ? `${min}m` : `${sec}s`;
   return (
-    <div className="flex items-center gap-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-muted">
-      <Clock className="h-3.5 w-3.5" /> Session reconnect window: {label} remaining
+    <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface px-3 py-1.5 text-xs text-muted">
+      <Clock className="size-3.5" aria-hidden /> {t("reconnectWindow", { time: format.relativeTime(expiresAt, now) })}
     </div>
   );
 }

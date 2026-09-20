@@ -11,13 +11,57 @@
     "title": "Panouri idle",
     "hint": "Ordinea, durata și dacă au fotografie în spate. Muzica apare automat când cântă ceva.",
     "enabledAria": "{name} activ",
-    "photo": "foto",
     "photoAria": "{name} cu fotografie",
     "moveUp": "Mută sus",
     "moveDown": "Mută jos",
     "dwell": "Durată",
     "dwellAria": "Durata {name} în secunde",
-    "seconds": "{n} s"
+    "seconds": "{n} s",
+    "withPhoto": "foto",
+    "clock": {
+      "label": "Ceas + vreme",
+      "description": "Ora mare, temperatura de afară și din dormitor, următorul eveniment."
+    },
+    "weather": {
+      "label": "Vreme detaliată",
+      "description": "Prognoza pe ore și pe zile."
+    },
+    "home": {
+      "label": "Casa",
+      "description": "Ușă, prezență, AC, lumini aprinse, baterii."
+    },
+    "media": {
+      "label": "Muzică",
+      "description": "Ce se aude acum, cu coperta pe tot ecranul. Apare doar când cântă ceva."
+    },
+    "photo": {
+      "label": "Fotografie",
+      "description": "Doar imaginea, cu mișcare lentă și legendă."
+    },
+    "nutrition": {
+      "label": "Nutriție + apă",
+      "description": "Calorii, macro, pahare de apă, ritm."
+    },
+    "pc": {
+      "label": "PC",
+      "description": "CPU / GPU / RAM pentru fiecare calculator pornit."
+    },
+    "pi": {
+      "label": "Raspberry Pi",
+      "description": "Serverul casei: CPU, temperatură, tensiune, containere."
+    },
+    "calendar": {
+      "label": "Calendar",
+      "description": "Următoarele evenimente."
+    },
+    "fx": {
+      "label": "Curs BNR",
+      "description": "EUR, USD, GBP în RON."
+    },
+    "crypto": {
+      "label": "Crypto",
+      "description": "BTC, ETH."
+    }
   },
   "photos": {
     "title": "Fotografii",

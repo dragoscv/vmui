@@ -75,19 +75,20 @@ export async function armAutoOpen(minutes: number, by = "web"): Promise<Intercom
 // Companion app on its own when no paired device acks within 20 s.
 async function phoneRing() {
   const { notify } = await import("@/lib/notify");
+  const { msg } = await import("@/lib/notify/i18n");
   await notify({
     kind: "intercom",
     tag: PHONE_TAG,
-    title: "Sună la interfon",
-    body: isAutoOpenArmed() ? "Deschidere automată armată — se deschide." : "Cineva e jos. Deschizi?",
+    title: msg("cards.intercom.ringTitle"),
+    body: msg(isAutoOpenArmed() ? "cards.intercom.ringArmed" : "cards.intercom.ringAsk"),
     priority: "urgent",
     icon: "bell-ring",
     sticky: true,
     ttlSec: 55,
     force: true,
     actions: [
-      { id: "open", label: "Răspunde și deschide", style: "primary" },
-      { id: "ignore", label: "Ignoră", style: "ghost" },
+      { id: "open", label: msg("cards.intercom.open"), style: "primary" },
+      { id: "ignore", label: msg("cards.intercom.ignore"), style: "ghost" },
     ],
   });
 }
@@ -99,7 +100,8 @@ async function phoneClear() {
 
 async function phoneOpened(by: string) {
   const { notify } = await import("@/lib/notify");
-  await notify({ kind: "intercom", tag: PHONE_TAG, title: "Ușa deschisă", body: by === "auto" ? "Deschidere automată." : `Deschis de pe ${by}.`, color: "#2ecc71", icon: "door-open", priority: "low", ttlSec: 20, noFallback: true });
+  const { msg } = await import("@/lib/notify/i18n");
+  await notify({ kind: "intercom", tag: PHONE_TAG, title: msg("cards.intercom.openedTitle"), body: by === "auto" ? msg("cards.intercom.openedAuto") : msg("cards.intercom.openedBy", { by }), color: "#2ecc71", icon: "door-open", priority: "low", ttlSec: 20, noFallback: true });
 }
 
 export async function publishToHa(): Promise<void> {
@@ -151,11 +153,14 @@ export async function onEspEvent(event: IntercomEvent, node: string): Promise<{ 
   return { open: false };
 }
 
-/** Phone / web -> ESP: run the talk+open sequence. */
+/** Stable reason for a refused open; humans see it through `notify.errors.noCall`. */
+export const NO_CALL = "no_call";
+
+/** Phone / web -> ESP: run the talk+open sequence. `error` is `NO_CALL` or the raw HA failure. */
 export async function openDoor(by: string): Promise<{ ok: boolean; error?: string }> {
   if (!intercomState().ringingSince) {
     await db.insert(auditLog).values({ accountId: "home", action: "intercom.open", target: by, status: "error", message: "no call in progress" });
-    return { ok: false, error: "Nu sună nimeni acum." };
+    return { ok: false, error: NO_CALL };
   }
   try {
     await ha.callService("esphome", `${st.node.replace(/-/g, "_")}_intercom_open`, {});

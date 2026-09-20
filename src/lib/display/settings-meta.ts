@@ -8,18 +8,18 @@ import { z } from "zod";
 export const DISPLAY_VIEW_IDS = ["clock", "home", "media", "photo", "nutrition", "pc", "pi", "calendar", "fx", "crypto", "weather"] as const;
 export type DisplayViewId = (typeof DISPLAY_VIEW_IDS)[number];
 
-export const DISPLAY_VIEW_META: Record<DisplayViewId, { label: string; description: string; defaultDwell: number; needsTurzx?: string[] }> = {
-  clock: { label: "Ceas + vreme", description: "Ora mare, temperatura de afară și din dormitor, următorul eveniment.", defaultDwell: 30 },
-  weather: { label: "Vreme detaliată", description: "Prognoza pe ore și pe zile.", defaultDwell: 20, needsTurzx: ["weather"] },
-  home: { label: "Casa", description: "Ușă, prezență, AC, lumini aprinse, baterii.", defaultDwell: 15 },
-  media: { label: "Muzică", description: "Ce se aude acum, cu coperta pe tot ecranul. Apare doar când cântă ceva.", defaultDwell: 20 },
-  photo: { label: "Fotografie", description: "Doar imaginea, cu mișcare lentă și legendă.", defaultDwell: 40 },
-  nutrition: { label: "Nutriție + apă", description: "Calorii, macro, pahare de apă, ritm.", defaultDwell: 15, needsTurzx: ["nutrition"] },
-  pc: { label: "PC", description: "CPU / GPU / RAM pentru fiecare calculator pornit.", defaultDwell: 12 },
-  pi: { label: "Raspberry Pi", description: "Serverul casei: CPU, temperatură, tensiune, containere.", defaultDwell: 12 },
-  calendar: { label: "Calendar", description: "Următoarele evenimente.", defaultDwell: 15, needsTurzx: ["calendar"] },
-  fx: { label: "Curs BNR", description: "EUR, USD, GBP în RON.", defaultDwell: 12, needsTurzx: ["fx"] },
-  crypto: { label: "Crypto", description: "BTC, ETH.", defaultDwell: 12, needsTurzx: ["crypto"] },
+export const DISPLAY_VIEW_META: Record<DisplayViewId, { defaultDwell: number; needsTurzx?: string[] }> = {
+  clock: { defaultDwell: 30 },
+  weather: { defaultDwell: 20, needsTurzx: ["weather"] },
+  home: { defaultDwell: 15 },
+  media: { defaultDwell: 20 },
+  photo: { defaultDwell: 40 },
+  nutrition: { defaultDwell: 15, needsTurzx: ["nutrition"] },
+  pc: { defaultDwell: 12 },
+  pi: { defaultDwell: 12 },
+  calendar: { defaultDwell: 15, needsTurzx: ["calendar"] },
+  fx: { defaultDwell: 12, needsTurzx: ["fx"] },
+  crypto: { defaultDwell: 12, needsTurzx: ["crypto"] },
 };
 
 export const displayViewSchema = z.object({

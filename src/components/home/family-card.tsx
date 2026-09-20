@@ -3,14 +3,19 @@
 import { RoomGrantsEditor } from "@/components/home/room-grants-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTable, sortableHeader, type ColumnDef } from "@/components/ui/data-table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, Panel, Subsection } from "@/components/ui/settings-panel";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FAMILY_ROLES, type FamilyRole, type RoomGrants } from "@/lib/home/access-model";
 import { ROOMS } from "@/lib/home/catalog";
 import { bindDeviceAction, createInviteAction, createMemberAccountAction, removeMemberAction, revokeInviteAction, upsertMemberAction } from "@/server/actions/family";
-import { Check, Copy, Laptop, Link2, Loader2, Smartphone, Trash2, X } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { Check, Copy, Laptop, Link2, Pencil, Smartphone, Trash2, Users, X } from "lucide-react";
+import { motion } from "motion/react";
+import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import * as React from "react";
@@ -88,20 +93,36 @@ function generatePassword(): string {
 /** Household access: members with per-room grants, invite links with QR, direct account creation. */
 export function FamilyCard({ members, invites, candidates, me, origin }: FamilyCardProps) {
   const t = useTranslations("family");
+  const [editing, setEditing] = React.useState<string | null>(null);
+  const member = members.find((m) => m.userId === editing) ?? null;
   return (
     <Panel id="family" title={t("title")} description={t("description")}>
       <div className="space-y-4">
         <Subsection title={t("members.title")} hint={t("members.hint")}>
           {members.length === 0 ? (
-            <p className="text-sm text-muted">{t("members.empty")}</p>
+            <EmptyState compact icon={<Users />} title={t("members.empty")} />
           ) : (
-            <ul className="divide-y divide-[var(--color-border)]">
-              {members.map((m) => (
-                <MemberRow key={`${m.userId}:${m.role}:${JSON.stringify(m.rooms)}:${m.expiresAt ?? ""}:${m.devices.length}`} member={m} isMe={m.userId === me} />
-              ))}
-            </ul>
+            <>
+              <div className="hidden md:block">
+                <MembersTable members={members} me={me} onEdit={setEditing} />
+              </div>
+              <ul className="space-y-2 md:hidden">
+                {members.map((m, i) => (
+                  <motion.li key={m.userId} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }}>
+                    <MemberCard member={m} isMe={m.userId === me} onEdit={() => setEditing(m.userId)} />
+                  </motion.li>
+                ))}
+              </ul>
+            </>
           )}
         </Subsection>
+        <Sheet open={member !== null} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+          {member && (
+            <SheetContent title={t("members.editTitle")} description={t("members.editDescription", { name: member.displayName })}>
+              <MemberEditor key={`${member.userId}:${member.role}:${JSON.stringify(member.rooms)}:${member.expiresAt ?? ""}:${member.devices.length}`} member={member} isMe={member.userId === me} onDone={() => setEditing(null)} />
+            </SheetContent>
+          )}
+        </Sheet>
         <InviteSection invites={invites} origin={origin} />
         <CreateAccountSection />
         {candidates.length > 0 && <ExistingUserSection candidates={candidates} />}
@@ -112,7 +133,109 @@ export function FamilyCard({ members, invites, candidates, me, origin }: FamilyC
 
 // ---- members
 
-function MemberRow({ member, isMe }: { member: FamilyMemberView; isMe: boolean }) {
+function Avatar({ name }: { name: string }) {
+  const initial = (name || "?").trim().charAt(0).toUpperCase();
+  return <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] text-sm font-semibold text-primary">{initial}</span>;
+}
+
+function RoleBadge({ role }: { role: FamilyRole }) {
+  const t = useTranslations("family.roles");
+  const variant = role === "owner" ? "info" : role === "guest" ? "warning" : role === "child" ? "muted" : "default";
+  return <Badge variant={variant}>{t(role)}</Badge>;
+}
+
+function RoomChips({ role, rooms }: { role: FamilyRole; rooms: RoomGrants }) {
+  const t = useTranslations("family");
+  const roomNames = useTranslations("home.rooms");
+  if (role === "owner") return <span className="text-xs text-muted">{t("members.allRooms")}</span>;
+  const ids = ROOMS.filter((r) => rooms[r.id]).map((r) => r.id);
+  if (ids.length === 0) return <span className="text-xs text-muted">{t("members.roomsCount", { count: 0 })}</span>;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {ids.map((id) => (
+        <Badge key={id} variant={rooms[id] === "control" ? "success" : "muted"} className="whitespace-nowrap">
+          {roomNames(id)}
+        </Badge>
+      ))}
+    </span>
+  );
+}
+
+function MembersTable({ members, me, onEdit }: { members: FamilyMemberView[]; me: string; onEdit: (id: string) => void }) {
+  const t = useTranslations("family");
+  const columns = React.useMemo<ColumnDef<FamilyMemberView, unknown>[]>(
+    () => [
+      {
+        id: "member",
+        accessorFn: (m) => `${m.displayName} ${m.email}`,
+        header: sortableHeader(t("members.columns.member")),
+        cell: ({ row }) => {
+          const m = row.original;
+          const expired = m.expiresAt !== null && new Date(m.expiresAt).getTime() < Date.now();
+          return (
+            <span className="flex min-w-0 items-center gap-3">
+              <Avatar name={m.displayName || m.email} />
+              <span className="min-w-0">
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="truncate font-medium">{m.displayName}</span>
+                  {m.userId === me && <Badge variant="info">{t("members.you")}</Badge>}
+                  {expired && <Badge variant="danger">{t("members.expired")}</Badge>}
+                </span>
+                <span className="block truncate text-xs text-muted">{m.email}</span>
+              </span>
+            </span>
+          );
+        },
+      },
+      { id: "role", accessorKey: "role", header: sortableHeader(t("members.columns.role")), cell: ({ row }) => <RoleBadge role={row.original.role} /> },
+      { id: "rooms", enableSorting: false, header: t("members.columns.rooms"), cell: ({ row }) => <RoomChips role={row.original.role} rooms={row.original.rooms} /> },
+      { id: "devices", accessorFn: (m) => m.devices.length, header: sortableHeader(t("members.columns.devices")), cell: ({ row }) => <span className="whitespace-nowrap text-muted">{t("members.devicesCount", { count: row.original.devices.length })}</span> },
+      { id: "lastLogin", accessorFn: (m) => (m.lastLoginAt ? new Date(m.lastLoginAt).getTime() : 0), header: sortableHeader(t("members.columns.lastLogin")), cell: ({ row }) => <span className="whitespace-nowrap text-muted">{row.original.lastLoginAt ? ago(t, row.original.lastLoginAt) : t("members.neverLoggedIn")}</span> },
+    ],
+    [t, me],
+  );
+  return (
+    <DataTable
+      columns={columns}
+      data={members}
+      getRowId={(m) => m.userId}
+      searchable={members.length > 5}
+      dense
+      onRowClick={(m) => onEdit(m.userId)}
+      rowActions={(m) => (
+        <Button size="sm" variant="ghost" aria-label={t("members.editAria", { name: m.displayName })} onClick={() => onEdit(m.userId)}>
+          <Pencil className="size-4" aria-hidden /> <span className="hidden lg:inline">{t("members.edit")}</span>
+        </Button>
+      )}
+    />
+  );
+}
+
+function MemberCard({ member: m, isMe, onEdit }: { member: FamilyMemberView; isMe: boolean; onEdit: () => void }) {
+  const t = useTranslations("family");
+  const expired = m.expiresAt !== null && new Date(m.expiresAt).getTime() < Date.now();
+  return (
+    <button type="button" onClick={onEdit} aria-label={t("members.editAria", { name: m.displayName })} className="surface card-hover flex w-full min-w-0 items-start gap-3 p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      <Avatar name={m.displayName || m.email} />
+      <span className="min-w-0 flex-1 space-y-1.5">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate text-sm font-semibold">{m.displayName}</span>
+          <RoleBadge role={m.role} />
+          {isMe && <Badge variant="info">{t("members.you")}</Badge>}
+          {expired && <Badge variant="danger">{t("members.expired")}</Badge>}
+        </span>
+        <span className="block truncate text-xs text-muted">{m.email}</span>
+        <RoomChips role={m.role} rooms={m.rooms} />
+        <span className="block text-xs text-muted">
+          {t("members.devicesCount", { count: m.devices.length })} · {m.lastLoginAt ? t("members.lastLogin", { ago: ago(t, m.lastLoginAt) }) : t("members.neverLoggedIn")}
+        </span>
+      </span>
+      <Pencil className="size-4 shrink-0 text-muted" aria-hidden />
+    </button>
+  );
+}
+
+function MemberEditor({ member, isMe, onDone }: { member: FamilyMemberView; isMe: boolean; onDone: () => void }) {
   const t = useTranslations("family");
   const router = useRouter();
   const [role, setRole] = React.useState<FamilyRole>(member.role);
@@ -130,6 +253,7 @@ function MemberRow({ member, isMe }: { member: FamilyMemberView; isMe: boolean }
     if (!r.ok) return void toast.error(errorText(t, r.error));
     toast.success(t("members.saved", { name: member.displayName }));
     router.refresh();
+    onDone();
   };
   const remove = async () => {
     if (!window.confirm(t("members.removeConfirm", { name: member.displayName }))) return;
@@ -139,6 +263,7 @@ function MemberRow({ member, isMe }: { member: FamilyMemberView; isMe: boolean }
     if (!r.ok) return void toast.error(errorText(t, r.error));
     toast.success(t("members.removed", { name: member.displayName }));
     router.refresh();
+    onDone();
   };
   const unbind = async (d: FamilyMemberView["devices"][number]) => {
     setBusy(d.id);
@@ -149,11 +274,10 @@ function MemberRow({ member, isMe }: { member: FamilyMemberView; isMe: boolean }
     router.refresh();
   };
 
-  const initial = (member.displayName || member.email || "?").trim().charAt(0).toUpperCase();
   return (
-    <li className="space-y-3 py-3 first:pt-0 last:pb-0">
+    <div className="space-y-4">
       <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-        <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklch,var(--color-primary)_18%,transparent)] text-sm font-semibold text-[var(--color-primary)]">{initial}</span>
+        <Avatar name={member.displayName || member.email} />
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="min-w-0 truncate text-sm font-semibold">{member.displayName}</span>
@@ -165,7 +289,7 @@ function MemberRow({ member, isMe }: { member: FamilyMemberView; isMe: boolean }
         </div>
       </div>
 
-      <div className="grid items-start gap-3 sm:grid-cols-2">
+      <div className="grid items-start gap-3">
         <Field label={t("members.role")} hint={t(`roleHints.${role}`)}>
           <RoleSelect value={role} onChange={setRole} roles={FAMILY_ROLES} />
         </Field>
@@ -214,16 +338,16 @@ function MemberRow({ member, isMe }: { member: FamilyMemberView; isMe: boolean }
       </div>
 
       <div className="flex flex-wrap justify-end gap-2">
-        <Button size="sm" variant="ghost" className="shrink-0" aria-label={t("members.removeAria", { name: member.displayName })} disabled={isMe || busy !== null} onClick={() => void remove()}>
-          {busy === "remove" ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+        <Button size="sm" variant="ghost" className="shrink-0" aria-label={t("members.removeAria", { name: member.displayName })} disabled={isMe || (busy !== null && busy !== "remove")} loading={busy === "remove"} onClick={() => void remove()}>
+          <Trash2 className="size-4" aria-hidden />
           {t("members.remove")}
         </Button>
-        <Button size="sm" className="shrink-0" disabled={!dirty || busy !== null} onClick={() => void save()}>
-          {busy === "save" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+        <Button size="sm" className="shrink-0" disabled={!dirty || (busy !== null && busy !== "save")} loading={busy === "save"} onClick={() => void save()}>
+          <Check className="size-4" aria-hidden />
           {t("members.save")}
         </Button>
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -266,7 +390,7 @@ function roomsSummary(t: T, rooms: ReturnType<typeof useTranslations<"home.rooms
 function InviteSection({ invites, origin }: { invites: FamilyInviteView[]; origin: string }) {
   const t = useTranslations("family");
   const rooms = useTranslations("home.rooms");
-  const locale = useLocale();
+  const fmt = useFormatter();
   const router = useRouter();
   const [name, setName] = React.useState("");
   const [role, setRole] = React.useState<InviteRole>("adult");
@@ -286,7 +410,7 @@ function InviteSection({ invites, origin }: { invites: FamilyInviteView[]; origi
     return () => { alive = false; };
   }, [created]);
 
-  const fmtDate = (iso: string) => new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+  const fmtDate = (iso: string) => fmt.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
   const daysLeft = (iso: string) => Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000));
 
   const create = async (e: React.FormEvent) => {
@@ -342,19 +466,20 @@ function InviteSection({ invites, origin }: { invites: FamilyInviteView[]; origi
           <RoomGrantsEditor value={grants} onChange={setGrants} />
         </div>
         <div className="flex justify-end">
-          <Button type="submit" size="sm" className="shrink-0" disabled={busy !== null || name.trim().length === 0}>
-            {busy === "create" ? <Loader2 className="size-4 animate-spin" /> : <Link2 className="size-4" />}
+          <Button type="submit" size="sm" className="shrink-0" disabled={(busy !== null && busy !== "create") || name.trim().length === 0} loading={busy === "create"}>
+            <Link2 className="size-4" aria-hidden />
             {t("invite.create")}
           </Button>
         </div>
       </form>
 
       {created && (
-        <div className="grid items-start gap-3 rounded-lg border border-[color-mix(in_oklch,var(--color-success)_45%,var(--color-border))] bg-[color-mix(in_oklch,var(--color-success)_8%,transparent)] p-3 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="grid items-start gap-3 rounded-[var(--radius-lg)] border border-[color-mix(in_oklch,var(--color-success)_45%,var(--color-border))] bg-[color-mix(in_oklch,var(--color-success)_8%,transparent)] p-3 sm:grid-cols-[auto_minmax(0,1fr)]">
           {qr ? (
-            <img src={qr} alt={t("invite.qrAlt")} width={192} height={192} className="mx-auto size-48 rounded-md bg-white p-1 sm:mx-0" />
+            // eslint-disable-next-line @next/next/no-img-element -- data URL generated client-side
+            <img src={qr} alt={t("invite.qrAlt")} width={192} height={192} className="mx-auto size-48 rounded-[var(--radius-md)] bg-[oklch(1_0_0)] p-1 sm:mx-0" />
           ) : (
-            <div className="mx-auto size-48 animate-pulse rounded-md bg-[var(--color-bg-muted)] sm:mx-0" aria-hidden />
+            <Skeleton className="mx-auto size-48 rounded-[var(--radius-md)] sm:mx-0" />
           )}
           <div className="min-w-0 space-y-2">
             <span className="block text-xs text-muted">{t("invite.link")}</span>
@@ -388,8 +513,8 @@ function InviteSection({ invites, origin }: { invites: FamilyInviteView[]; origi
                     {[t("invite.expiresIn", { days: daysLeft(inv.expiresAt) }), inv.accessExpiresAt ? t("invite.accessUntil", { date: fmtDate(inv.accessExpiresAt) }) : null].filter(Boolean).join(" · ")}
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" className="shrink-0" aria-label={t("invite.revokeAria", { name: inv.name })} disabled={busy !== null} onClick={() => void revoke(inv)}>
-                  {busy === inv.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                <Button size="sm" variant="ghost" className="shrink-0" aria-label={t("invite.revokeAria", { name: inv.name })} disabled={busy !== null && busy !== inv.id} loading={busy === inv.id} onClick={() => void revoke(inv)}>
+                  <Trash2 className="size-4" aria-hidden />
                   <span className="hidden sm:inline">{t("invite.revoke")}</span>
                 </Button>
               </li>
@@ -473,8 +598,8 @@ function CreateAccountSection() {
           <RoomGrantsEditor value={grants} onChange={setGrants} />
         </div>
         <div className="flex justify-end">
-          <Button type="submit" size="sm" className="shrink-0" disabled={busy}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          <Button type="submit" size="sm" className="shrink-0" loading={busy}>
+            <Check className="size-4" aria-hidden />
             {t("create.submit")}
           </Button>
         </div>
@@ -541,8 +666,8 @@ function ExistingUserSection({ candidates }: { candidates: FamilyCandidate[] }) 
           </div>
         )}
         <div className="flex justify-end">
-          <Button type="submit" size="sm" className="shrink-0" disabled={busy || !userId}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          <Button type="submit" size="sm" className="shrink-0" disabled={!userId} loading={busy}>
+            <Check className="size-4" aria-hidden />
             {t("existing.add")}
           </Button>
         </div>

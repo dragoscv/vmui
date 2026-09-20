@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { haptic } from "@/lib/haptics";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { haptic } from "@/lib/haptics";
+import { useEffect, useRef, useState } from "react";
 
 const THRESHOLD = 80;
 

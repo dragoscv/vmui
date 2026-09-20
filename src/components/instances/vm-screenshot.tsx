@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Camera, MonitorOff } from "lucide-react";
-import { getScreenshotAction } from "@/server/actions/screenshots";
 import { cn } from "@/lib/utils";
+import { getScreenshotAction } from "@/server/actions/screenshots";
+import { Camera, MonitorOff } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Live-ish screenshot for a local-kvm running VM. Polls
@@ -27,6 +28,7 @@ export function VmScreenshot({
   maxWidth?: number;
   className?: string;
 }) {
+  const t = useTranslations("vm.screenshot");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasFrame, setHasFrame] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
@@ -67,39 +69,41 @@ export function VmScreenshot({
   return (
     <div
       className={cn(
-        "relative aspect-video w-full overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-muted)]",
+        "relative aspect-video w-full overflow-hidden rounded-[var(--radius-md)] border border-border bg-bg-muted",
         className,
       )}
     >
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label={t("alt")}
         className={cn(
           "h-full w-full object-contain transition-opacity duration-500",
           hasFrame ? "opacity-100" : "opacity-0",
         )}
       />
       {!hasFrame && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted" role="status">
           {unsupported ? (
             <>
-              <MonitorOff className="h-5 w-5" />
-              <span className="text-[11px]">screenshots unavailable</span>
+              <MonitorOff className="h-5 w-5" aria-hidden />
+              <span className="text-[11px]">{t("unavailable")}</span>
             </>
           ) : enabled ? (
             <>
-              <Camera className="h-5 w-5 animate-pulse" />
-              <span className="text-[11px]">capturing…</span>
+              <Camera className="h-5 w-5 animate-pulse" aria-hidden />
+              <span className="text-[11px]">{t("capturing")}</span>
             </>
           ) : (
             <>
-              <MonitorOff className="h-5 w-5" />
-              <span className="text-[11px]">VM is off</span>
+              <MonitorOff className="h-5 w-5" aria-hidden />
+              <span className="text-[11px]">{t("off")}</span>
             </>
           )}
         </div>
       )}
       {hasFrame && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-60" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" aria-hidden />
       )}
     </div>
   );

@@ -1,156 +1,165 @@
-import "server-only";
-import Link from "next/link";
-import { Sparkles, Key, Cloud, RefreshCcw, ArrowRight } from "lucide-react";
-import { db } from "@/lib/db";
-import { cloudAccounts } from "@/lib/db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader, PageSection, PageShell } from "@/components/ui/page-shell";
+import { Progress } from "@/components/ui/progress";
+import { db } from "@/lib/db";
+import { cloudAccounts, instances } from "@/lib/db/schema";
 import { env } from "@/lib/env";
+import { cn } from "@/lib/utils";
+import { ArrowRight, Check, Cloud, KeyRound, RefreshCcw, Server, Sparkles } from "lucide-react";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+import "server-only";
 
 export const dynamic = "force-dynamic";
 
+type StepStatus = "done" | "next" | "later";
 interface Step {
+  id: "masterKey" | "account" | "firstVm";
+  icon: React.ReactNode;
   title: string;
   detail: string;
-  status: "done" | "next" | "later";
-  href?: string;
+  status: StepStatus;
+  cta: string;
+  href: string;
 }
 
 export default async function OnboardingPage() {
-  const accounts = await db.select().from(cloudAccounts);
+  const t = await getTranslations("auth.onboarding");
+  const [accounts, instanceRows] = await Promise.all([
+    db.select({ id: cloudAccounts.id }).from(cloudAccounts),
+    db.select({ id: instances.id }).from(instances),
+  ]);
   const hasMasterKey = !!env.VMUI_MASTER_KEY;
   const hasAccount = accounts.length > 0;
-  const hasSyncedAccount = accounts.some((a) => a.updatedAt && a.updatedAt.getTime() > a.createdAt.getTime() + 5_000);
+  const hasInstance = instanceRows.length > 0;
 
   const steps: Step[] = [
     {
-      title: "1. Master key",
-      detail: hasMasterKey
-        ? "VMUI_MASTER_KEY is set; credentials are encrypted at rest."
-        : "Generate a 32-byte hex key and put it in .env.local as VMUI_MASTER_KEY before continuing.",
+      id: "masterKey",
+      icon: <KeyRound />,
+      title: t("steps.masterKey.title"),
+      detail: hasMasterKey ? t("steps.masterKey.done") : t("steps.masterKey.todo"),
       status: hasMasterKey ? "done" : "next",
+      cta: t("steps.masterKey.cta"),
+      href: "#keygen",
     },
     {
-      title: "2. Connect a cloud account",
-      detail: hasAccount
-        ? `${accounts.length} account${accounts.length === 1 ? "" : "s"} connected.`
-        : "Paste read+write API credentials for AWS, Azure, GCP, Scaleway, or local-kvm.",
+      id: "account",
+      icon: <Cloud />,
+      title: t("steps.account.title"),
+      detail: hasAccount ? t("steps.account.done", { count: accounts.length }) : t("steps.account.todo"),
       status: hasAccount ? "done" : hasMasterKey ? "next" : "later",
-      href: "/accounts",
+      cta: t("steps.account.cta"),
+      href: "/accounts/new",
     },
     {
-      title: "3. First sync",
-      detail: hasSyncedAccount
-        ? "Sync runs in the background every minute; force-refresh from the topbar."
-        : "After connecting, run a sync to pull instances and resources into the local cache.",
-      status: hasSyncedAccount ? "done" : hasAccount ? "next" : "later",
-      href: "/",
-    },
-    {
-      title: "4. (Optional) Save an SSH key",
-      detail: "Generate or import a key under Settings → SSH keys to use the in-app terminal without pasting keys each time.",
-      status: "later",
-      href: "/settings/ssh-keys",
-    },
-    {
-      title: "5. (Optional) Schedule auto-shutdown",
-      detail: "Stop dev VMs overnight, restart them in the morning, or schedule weekly reboots.",
-      status: "later",
-      href: "/schedules",
+      id: "firstVm",
+      icon: <Server />,
+      title: t("steps.firstVm.title"),
+      detail: hasInstance ? t("steps.firstVm.done", { count: instanceRows.length }) : t("steps.firstVm.todo"),
+      status: hasInstance ? "done" : hasAccount ? "next" : "later",
+      cta: t("steps.firstVm.cta"),
+      href: "/instances/new",
     },
   ];
+  const done = steps.filter((s) => s.status === "done").length;
+
+  const optional = [
+    { id: "sshKey", title: t("steps.sshKey.title"), detail: t("steps.sshKey.detail"), cta: t("steps.sshKey.cta"), href: "/settings/ssh-keys" },
+    { id: "schedule", title: t("steps.schedule.title"), detail: t("steps.schedule.detail"), cta: t("steps.schedule.cta"), href: "/schedules" },
+  ];
+
+  const code = (chunks: React.ReactNode) => <code className="rounded-[var(--radius-sm)] bg-bg-muted px-1 py-0.5 font-mono text-[11px] text-fg">{chunks}</code>;
+  const b = (chunks: React.ReactNode) => <strong className="text-fg">{chunks}</strong>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-          <Sparkles className="h-6 w-6 text-[var(--color-primary)]" />
-          Welcome to vmui
-        </h1>
-        <p className="text-sm text-muted">
-          Local-first multi-cloud control plane. Everything stays on this machine — no cloud accounts of vmui&apos;s own.
-        </p>
-      </div>
+    <PageShell width="narrow">
+      <PageHeader icon={<Sparkles />} title={t("title")} description={t("description")} />
 
-      <div className="grid gap-3">
-        {steps.map((s) => (
-          <Card key={s.title} className="surface">
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  {s.title}
-                  {s.status === "done" && <Badge variant="success">done</Badge>}
-                  {s.status === "next" && <Badge variant="info">next</Badge>}
-                </div>
-                <div className="mt-1 text-xs text-muted">{s.detail}</div>
+      <Progress value={done} max={steps.length} label={t("progress", { done, total: steps.length })} tone={done === steps.length ? "success" : "default"} />
+
+      <ol className="grid gap-3">
+        {steps.map((s, i) => (
+          <li key={s.id}>
+            <PageSection
+              id={s.id}
+              className={cn(s.status === "next" && "border-[color-mix(in_oklch,var(--color-primary)_45%,var(--color-border))]")}
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums",
+                      s.status === "done" ? "bg-success text-success-fg" : s.status === "next" ? "bg-primary text-primary-fg" : "bg-bg-muted text-fg-muted",
+                    )}
+                    aria-label={t("step", { n: i + 1 })}
+                  >
+                    {s.status === "done" ? <Check className="size-3.5" aria-hidden /> : i + 1}
+                  </span>
+                  <span>{s.title}</span>
+                  {s.status === "done" && <Badge variant="success">{t("status.done")}</Badge>}
+                  {s.status === "next" && <Badge variant="info">{t("status.next")}</Badge>}
+                  {s.status === "later" && <Badge variant="muted">{t("status.later")}</Badge>}
+                </span>
+              }
+              action={
+                s.status !== "done" && (
+                  <Button asChild size="sm" variant={s.status === "next" ? "primary" : "outline"}>
+                    <Link href={s.href}>
+                      {s.cta}
+                      <ArrowRight className="size-3.5" aria-hidden />
+                    </Link>
+                  </Button>
+                )
+              }
+            >
+              <div className="flex items-center gap-2 text-xs text-fg-muted">
+                <span className="grid size-8 shrink-0 place-items-center rounded-[var(--radius-md)] bg-bg-muted text-primary [&>svg]:size-4" aria-hidden>
+                  {s.icon}
+                </span>
+                <span className="min-w-0">{s.detail}</span>
               </div>
-              {s.href && s.status !== "done" && (
-                <Link
-                  href={s.href}
-                  className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-primary)]/40 px-3 py-1 text-xs hover:bg-[var(--color-primary)]/10"
-                >
-                  Go <ArrowRight className="h-3 w-3" />
-                </Link>
-              )}
-            </CardContent>
-          </Card>
+            </PageSection>
+          </li>
         ))}
-      </div>
+      </ol>
 
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Key className="h-4 w-4" /> Generating a master key
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-muted">
-          Run <code className="rounded bg-[var(--color-bg)] px-1 py-0.5 text-[11px]">pnpm keygen</code> in the project
-          root, then add the printed line (<code className="font-mono">VMUI_MASTER_KEY=...</code>) to{" "}
-          <code className="font-mono">.env.local</code>. Restart the dev server. Everything sensitive — credentials, SSH
-          private keys — is sealed with AES-256-GCM using this key.
-        </CardContent>
-      </Card>
+      <PageSection title={t("optional.title")} description={t("optional.description")}>
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {optional.map((o) => (
+            <li key={o.id} className="flex min-w-0 flex-col gap-2 rounded-[var(--radius-lg)] border border-border p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{o.title}</p>
+                <p className="mt-0.5 text-xs leading-snug text-fg-muted">{o.detail}</p>
+                </div>
+              <Button asChild size="sm" variant="outline" className="mt-auto self-start">
+                <Link href={o.href}>
+                  {o.cta}
+                  <ArrowRight className="size-3.5" aria-hidden />
+                </Link>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </PageSection>
 
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Cloud className="h-4 w-4" /> Provider quick reference
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-xs text-muted md:grid-cols-2">
-          <div>
-            <strong className="text-foreground">AWS:</strong> IAM access key + secret. Recommend a dedicated user with
-            EC2 + S3 + RDS + ELB + Route53 read/write.
-          </div>
-          <div>
-            <strong className="text-foreground">Azure:</strong> Service principal — tenantId, clientId, clientSecret,
-            subscriptionId. Contributor on the target subscription.
-          </div>
-          <div>
-            <strong className="text-foreground">GCP:</strong> Service-account JSON key. Compute, Storage, Cloud SQL,
-            DNS roles. Pasted JSON is encrypted before disk.
-          </div>
-          <div>
-            <strong className="text-foreground">Scaleway:</strong> API token + organization id.
-          </div>
-          <div className="md:col-span-2">
-            <strong className="text-foreground">local-kvm:</strong> SSH host + key for the libvirt host. vmui talks
-            directly to libvirt via the chosen URI.
-          </div>
-        </CardContent>
-      </Card>
+      <PageSection id="keygen" title={<span className="flex items-center gap-2"><KeyRound className="size-4 text-primary" aria-hidden />{t("keygen.title")}</span>}>
+        <p className="text-xs leading-relaxed text-fg-muted">{t.rich("keygen.body", { code })}</p>
+      </PageSection>
 
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <RefreshCcw className="h-4 w-4" /> What runs in the background
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-muted">
-          A sync loop refreshes instances every minute. Schedules tick every 30 seconds. Audit logs older than 30 days
-          are gzipped to disk and removed from the live table.
-        </CardContent>
-      </Card>
-    </div>
+      <PageSection title={<span className="flex items-center gap-2"><Cloud className="size-4 text-primary" aria-hidden />{t("providers.title")}</span>}>
+        <ul className="grid gap-2 text-xs leading-relaxed text-fg-muted sm:grid-cols-2">
+          {(["aws", "azure", "gcp", "scaleway", "kvm"] as const).map((p) => (
+            <li key={p} className={cn("min-w-0", p === "kvm" && "sm:col-span-2")}>
+              {t.rich(`providers.${p}`, { b })}
+            </li>
+          ))}
+        </ul>
+      </PageSection>
+
+      <PageSection title={<span className="flex items-center gap-2"><RefreshCcw className="size-4 text-primary" aria-hidden />{t("background.title")}</span>}>
+        <p className="text-xs leading-relaxed text-fg-muted">{t("background.body")}</p>
+      </PageSection>
+    </PageShell>
   );
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import * as React from "react";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import * as React from "react";
 import type { InstanceMenuItemDescriptor } from "./instance-menu";
 
 /**
@@ -49,7 +49,7 @@ export function InstanceContextMenuWrapper({
                 it.onSelect();
               }}
             >
-              <Icon className="h-4 w-4 opacity-80" />
+              <Icon className="h-4 w-4 opacity-80" aria-hidden />
               <span>{it.label}</span>
               {it.shortcut && (
                 <span className="ml-auto text-[11px] tracking-widest text-muted">

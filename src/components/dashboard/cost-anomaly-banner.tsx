@@ -1,13 +1,17 @@
-import "server-only";
-import { AlertTriangle } from "lucide-react";
-import { detectCostAnomalies } from "@/server/queries/anomalies";
+import { Alert, Button } from "@/components/ui";
 import { env } from "@/lib/env";
+import { formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
+import { detectCostAnomalies } from "@/server/queries/anomalies";
+import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+import "server-only";
 
 let lastWebhookDigest = "";
 
 export async function CostAnomalyBanner() {
   const anomalies = await detectCostAnomalies();
   if (anomalies.length === 0) return null;
+  const t = await getTranslations("dashboard.anomaly");
 
   if (env.VMUI_ANOMALY_WEBHOOK) {
     const digest = anomalies.map((a) => `${a.accountId}:${a.currentHourly.toFixed(2)}`).join("|");
@@ -29,17 +33,23 @@ export async function CostAnomalyBanner() {
   return (
     <div className="space-y-2">
       {anomalies.map((a) => (
-        <div
+        <Alert
           key={a.accountId}
-          role="alert"
-          className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-4 py-3 text-sm"
+          tone="warning"
+          title={t("title", { account: a.accountName })}
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link href="/costs">{t("view")}</Link>
+            </Button>
+          }
         >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-warning)]" />
-          <div>
-            <div className="font-medium">Cost spike on {a.accountName}</div>
-            <div className="text-xs text-muted">{a.message}</div>
-          </div>
-        </div>
+          {t(a.ratio > 0 ? "body" : "bodyNoRatio", {
+            current: formatUsd(a.currentHourly),
+            ratio: a.ratio.toFixed(1),
+            median: formatUsd(a.median7dHourly),
+            monthly: formatUsd(a.currentHourly * HOURS_PER_MONTH),
+          })}
+        </Alert>
       ))}
     </div>
   );

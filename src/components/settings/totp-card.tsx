@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { ShieldCheck, ShieldOff, Loader2, KeyRound, Copy, RefreshCcw, Check } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Alert, Badge, Button, Field, Input, SkeletonText } from "@/components/ui";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  confirmTotpEnrollmentAction,
-  disableTotpAction,
-  getTotpStatusAction,
-  pingTotpAction,
-  regenerateBackupCodesAction,
-  startTotpEnrollmentAction,
-  type TotpStatus,
+    confirmTotpEnrollmentAction,
+    disableTotpAction,
+    getTotpStatusAction,
+    pingTotpAction,
+    regenerateBackupCodesAction,
+    startTotpEnrollmentAction,
+    type TotpStatus,
 } from "@/server/actions/totp";
+import { Check, Copy, KeyRound, RefreshCcw, ShieldCheck, ShieldOff } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { toast } from "sonner";
 
 type Stage =
   | { kind: "loading" }
@@ -22,19 +22,25 @@ type Stage =
   | { kind: "enrolling"; qr: string; secret: string; enrollmentId: string; code: string }
   | { kind: "on"; status: TotpStatus };
 
+type Prompt = { kind: "disable" | "regenerate" | "test"; value: string };
+
 export function TotpCard() {
+  const t = useTranslations("settings.security.totp");
+  const tc = useTranslations("common");
+  const format = useFormatter();
   const [stage, setStage] = useState<Stage>({ kind: "loading" });
   const [pending, start] = useTransition();
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
+  const [prompt, setPrompt] = useState<Prompt | null>(null);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const status = await getTotpStatusAction();
     setStage(status.enrolled ? { kind: "on", status } : { kind: "off" });
-  }
+  }, []);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    void refresh();
+  }, [refresh]);
 
   function enroll() {
     start(async () => {
@@ -55,7 +61,7 @@ export function TotpCard() {
       const r = await confirmTotpEnrollmentAction({ enrollmentId, code });
       if (r.ok) {
         setNewCodes(r.backupCodes);
-        toast.success("2FA enabled");
+        toast.success(t("enabledToast"));
         await refresh();
       } else {
         toast.error(r.error);
@@ -63,67 +69,58 @@ export function TotpCard() {
     });
   }
 
-  function disable() {
-    const password = prompt("Confirm your password to disable 2FA:") ?? "";
-    if (!password) return;
+  function submitPrompt() {
+    if (!prompt || !prompt.value.trim()) return;
+    const { kind, value } = prompt;
     start(async () => {
-      const r = await disableTotpAction({ password });
-      if (r.ok) {
-        toast.success("2FA disabled");
-        setNewCodes(null);
-        await refresh();
+      if (kind === "disable") {
+        const r = await disableTotpAction({ password: value });
+        if (r.ok) {
+          toast.success(t("disabled"));
+          setNewCodes(null);
+          await refresh();
+        } else {
+          toast.error(r.error ?? tc("failed"));
+          return;
+        }
+      } else if (kind === "regenerate") {
+        const r = await regenerateBackupCodesAction({ password: value });
+        if (r.ok) {
+          setNewCodes(r.codes);
+          toast.success(t("regenerated"));
+          await refresh();
+        } else {
+          toast.error(r.error);
+          return;
+        }
       } else {
-        toast.error(r.error ?? "Failed");
+        const r = await pingTotpAction({ code: value.trim() });
+        if (r.ok) toast.success(t("testOk"));
+        else {
+          toast.error(t("testFail"));
+          return;
+        }
       }
+      setPrompt(null);
     });
-  }
-
-  function regenerate() {
-    const password = prompt("Confirm your password to regenerate backup codes:") ?? "";
-    if (!password) return;
-    start(async () => {
-      const r = await regenerateBackupCodesAction({ password });
-      if (r.ok) {
-        setNewCodes(r.codes);
-        toast.success("New backup codes generated");
-        await refresh();
-      } else {
-        toast.error(r.error);
-      }
-    });
-  }
-
-  async function testCode() {
-    const code = prompt("Enter the 6-digit code from your authenticator:") ?? "";
-    if (!code) return;
-    const r = await pingTotpAction({ code: code.trim() });
-    if (r.ok) toast.success("Code matches — your authenticator is in sync.");
-    else toast.error("Code did not match.");
   }
 
   async function copyCodes() {
     if (!newCodes) return;
     await navigator.clipboard.writeText(newCodes.join("\n"));
-    toast.success("Backup codes copied");
+    toast.success(t("codesCopied"));
   }
 
   if (stage.kind === "loading") {
-    return (
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <Loader2 className="h-3 w-3 animate-spin" /> Loading 2FA status…
-      </div>
-    );
+    return <SkeletonText lines={2} />;
   }
 
   if (stage.kind === "off") {
     return (
-      <div className="space-y-2">
-        <p className="text-xs text-muted">
-          Add a second factor (Google Authenticator, 1Password, Authy, Bitwarden…) so a stolen password isn&apos;t enough to sign in.
-        </p>
-        <Button onClick={enroll} disabled={pending} size="sm">
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-          Enable 2FA
+      <div className="space-y-3">
+        <p className="text-sm text-fg-muted">{t("offHint")}</p>
+        <Button onClick={enroll} loading={pending}>
+          <ShieldCheck className="size-4" aria-hidden /> {t("enable")}
         </Button>
       </div>
     );
@@ -131,79 +128,117 @@ export function TotpCard() {
 
   if (stage.kind === "enrolling") {
     return (
-      <div className="space-y-3">
-        <div className="flex items-start gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={stage.qr} alt="TOTP QR" width={180} height={180} className="rounded-md border border-[var(--color-border)] bg-white p-1" />
-          <div className="space-y-2 text-xs">
-            <p className="text-muted">1. Scan the QR with your authenticator.</p>
-            <p className="text-muted">
-              Or paste this secret manually:
-              <code className="ml-1 break-all rounded bg-[var(--color-bg)] px-1 py-0.5 font-mono">{stage.secret}</code>
-            </p>
-            <p className="text-muted">2. Enter the current 6-digit code:</p>
-            <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        {/* eslint-disable-next-line @next/next/no-img-element -- data: URL from the server, next/image cannot optimise it */}
+        <img src={stage.qr} alt={t("qrAlt")} width={180} height={180} className="size-[180px] shrink-0 self-center rounded-[var(--radius-md)] border border-border bg-white p-1 sm:self-start" />
+        <div className="min-w-0 flex-1 space-y-3 text-sm">
+          <p className="text-fg-muted">{t("step1")}</p>
+          <p className="text-fg-muted">
+            {t("manual")} <code className="break-all rounded bg-bg-muted px-1 py-0.5 font-mono text-xs">{stage.secret}</code>
+          </p>
+          <p className="text-fg-muted">{t("step2")}</p>
+          <div className="flex flex-wrap items-center gap-2">
               <Input
                 value={stage.code}
                 onChange={(e) => setStage({ ...stage, code: e.target.value })}
-                placeholder="123456"
+              placeholder={t("codePlaceholder")}
                 inputMode="numeric"
+              autoComplete="one-time-code"
                 maxLength={10}
-                className="w-32 font-mono"
+              aria-label={t("step2")}
+              className="w-32 font-mono tabular-nums"
               />
-              <Button onClick={confirm} disabled={pending || stage.code.length < 6} size="sm">
-                {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Verify & enable
+            <Button onClick={confirm} disabled={stage.code.length < 6} loading={pending}>
+              <Check className="size-4" aria-hidden /> {t("verify")}
               </Button>
-              <Button onClick={() => setStage({ kind: "off" })} variant="ghost" size="sm">
-                Cancel
+            <Button onClick={() => setStage({ kind: "off" })} variant="ghost">
+              {tc("cancel")}
               </Button>
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // stage.kind === "on"
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm">
-        <Badge variant="success">enabled</Badge>
-        <span className="text-muted">
-          Enrolled {stage.status.verifiedAt ? new Date(stage.status.verifiedAt).toLocaleDateString() : "—"} · {stage.status.backupCodesRemaining} backup code
-          {stage.status.backupCodesRemaining === 1 ? "" : "s"} remaining
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge variant="success">{t("enabled")}</Badge>
+        <span className="text-fg-muted">
+          {stage.status.verifiedAt ? t("enrolledAt", { date: format.dateTime(new Date(stage.status.verifiedAt), { dateStyle: "medium" }) }) : null}
+          {stage.status.verifiedAt ? " · " : null}
+          {t("backupRemaining", { count: stage.status.backupCodesRemaining })}
         </span>
       </div>
       {newCodes && (
-        <div className="space-y-1 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Save these backup codes</span>
-            <Button onClick={copyCodes} size="sm" variant="ghost">
-              <Copy className="h-3 w-3" /> Copy all
+        <Alert
+          tone="warning"
+          title={t("saveCodes")}
+          action={
+            <Button onClick={() => void copyCodes()} size="sm" variant="outline">
+              <Copy className="size-4" aria-hidden /> {t("copyAll")}
             </Button>
-          </div>
-          <p className="text-muted">
-            Each code works once. Keep them in your password manager — they replace the old codes.
-          </p>
-          <ul className="grid grid-cols-2 gap-1 pt-1 font-mono">
+          }
+        >
+          <p>{t("saveCodesHint")}</p>
+          <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-xs text-fg sm:grid-cols-3">
             {newCodes.map((c) => (
-              <li key={c} className="rounded bg-[var(--color-surface)] px-2 py-1">{c}</li>
+              <li key={c} className="rounded-[var(--radius-sm)] bg-surface px-2 py-1 tabular-nums">
+                {c}
+              </li>
             ))}
           </ul>
-        </div>
+        </Alert>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button onClick={testCode} variant="ghost" size="sm">
-          <KeyRound className="h-3.5 w-3.5" /> Test code
+        <Button onClick={() => setPrompt({ kind: "test", value: "" })} variant="outline" size="sm">
+          <KeyRound className="size-4" aria-hidden /> {t("testCode")}
         </Button>
-        <Button onClick={regenerate} variant="ghost" size="sm" disabled={pending}>
-          <RefreshCcw className="h-3.5 w-3.5" /> Regenerate backup codes
+        <Button onClick={() => setPrompt({ kind: "regenerate", value: "" })} variant="outline" size="sm" disabled={pending}>
+          <RefreshCcw className="size-4" aria-hidden /> {t("regenerate")}
         </Button>
-        <Button onClick={disable} variant="ghost" size="sm" disabled={pending} className="text-[var(--color-danger)]">
-          <ShieldOff className="h-3.5 w-3.5" /> Disable 2FA
+        <Button onClick={() => setPrompt({ kind: "disable", value: "" })} variant="ghost" size="sm" disabled={pending} className="text-danger">
+          <ShieldOff className="size-4" aria-hidden /> {t("disable")}
         </Button>
       </div>
+
+      <Dialog open={prompt !== null} onOpenChange={(o) => !o && setPrompt(null)}>
+        <DialogContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitPrompt();
+            }}
+            className="space-y-4"
+          >
+            <DialogHeader>
+              <DialogTitle>{prompt?.kind === "test" ? t("testCode") : prompt?.kind === "regenerate" ? t("regenerate") : t("disable")}</DialogTitle>
+              <DialogDescription>
+                {prompt?.kind === "test" ? t("testPrompt") : prompt?.kind === "regenerate" ? t("regeneratePrompt") : t("disablePrompt")}
+              </DialogDescription>
+            </DialogHeader>
+            <Field label={prompt?.kind === "test" ? t("codePlaceholder") : t("password")}>
+              <Input
+                autoFocus
+                type={prompt?.kind === "test" ? "text" : "password"}
+                inputMode={prompt?.kind === "test" ? "numeric" : undefined}
+                autoComplete={prompt?.kind === "test" ? "one-time-code" : "current-password"}
+                value={prompt?.value ?? ""}
+                onChange={(e) => prompt && setPrompt({ ...prompt, value: e.target.value })}
+                className={prompt?.kind === "test" ? "font-mono tabular-nums" : undefined}
+              />
+            </Field>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setPrompt(null)}>
+                {tc("cancel")}
+              </Button>
+              <Button type="submit" variant={prompt?.kind === "disable" ? "danger" : "primary"} loading={pending} disabled={!prompt?.value.trim()}>
+                {t("confirm")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

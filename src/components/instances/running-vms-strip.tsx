@@ -1,15 +1,16 @@
 "use client";
 
-import { motion } from "motion/react";
-import Link from "next/link";
-import { Apple, MonitorSmartphone, Server, Plug } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { VmScreenshot } from "./vm-screenshot";
-import { instanceLabel } from "./instance-label";
-import { InstanceStatsInline } from "./instance-stats-inline";
-import { CostPill } from "./cost-pill";
+import { Badge, Button } from "@/components/ui";
 import type { InstanceRow } from "@/lib/db/schema";
 import type { PricedRow } from "@/lib/pricing";
+import { Apple, MonitorSmartphone, Plug, Server } from "lucide-react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+import Link from "next/link";
+import { CostPill } from "./cost-pill";
+import { instanceLabel } from "./instance-label";
+import { InstanceStatsInline } from "./instance-stats-inline";
+import { VmScreenshot } from "./vm-screenshot";
 
 const platformIcon = (p: string) => {
   if (p === "macos") return Apple;
@@ -17,11 +18,6 @@ const platformIcon = (p: string) => {
   return Server;
 };
 
-/**
- * Hero strip on the dashboard showing the running fleet at a glance.
- * Local-KVM VMs get a live screenshot + inline stats; cloud VMs get a
- * tasteful gradient placard with platform icon & connect shortcut.
- */
 export function RunningVmsStrip({
   instances,
   priceMap,
@@ -29,38 +25,43 @@ export function RunningVmsStrip({
   instances: InstanceRow[];
   priceMap?: Record<string, PricedRow>;
 }) {
+  const t = useTranslations("dashboard.live");
   if (instances.length === 0) return null;
   return (
-    <section>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Live</h2>
-        <span className="text-xs text-muted">
-          {instances.length} running
-        </span>
+    <section aria-label={t("title")}>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted">
+          {t("title")}
+          <Badge variant="success" dot>
+            {t("count", { count: instances.length })}
+          </Badge>
+        </h2>
       </div>
-      <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+      <ul className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-1 sm:px-1 xl:mx-0 xl:grid xl:grid-cols-3 xl:overflow-visible xl:px-0 3xl:grid-cols-4">
         {instances.map((i, idx) => (
-          <motion.div
+          <motion.li
             key={i.id}
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: Math.min(idx, 8) * 0.05, ease: [0.16, 1, 0.3, 1] }}
-            className="snap-start"
+            transition={{ duration: 0.2, delay: Math.min(idx, 12) * 0.03 }}
+            className="w-[min(18rem,85vw)] shrink-0 snap-start xl:w-auto"
           >
             <RunningCard instance={i} price={priceMap?.[i.id]} />
-          </motion.div>
+          </motion.li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }
 
 function RunningCard({ instance, price }: { instance: InstanceRow; price?: PricedRow }) {
+  const t = useTranslations("dashboard.live");
   const Icon = platformIcon(instance.platform);
   const isKvm = instance.provider === "local-kvm";
   const label = instanceLabel(instance);
+  const href = `/instances/${encodeURIComponent(instance.id)}`;
   return (
-    <div className="surface group relative w-72 overflow-hidden p-2">
+    <article className="surface card-hover group relative min-w-0 overflow-hidden p-2" aria-label={label}>
       {isKvm ? (
         <VmScreenshot
           accountId={instance.accountId}
@@ -70,23 +71,19 @@ function RunningCard({ instance, price }: { instance: InstanceRow; price?: Price
           className="aspect-video"
         />
       ) : (
-        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-gradient-to-br from-[color-mix(in_oklch,var(--color-primary)_25%,var(--color-surface))] to-[color-mix(in_oklch,var(--color-accent)_25%,var(--color-surface))]">
-          <div className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[color-mix(in_oklch,var(--color-primary)_40%,transparent)] blur-3xl transition-transform duration-700 group-hover:scale-110" />
-          <Icon className="relative h-10 w-10 text-white/90" />
+        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[var(--radius-md)] border border-border bg-gradient-to-br from-[color-mix(in_oklch,var(--color-primary)_25%,var(--color-surface))] to-[color-mix(in_oklch,var(--color-accent)_25%,var(--color-surface))]">
+          <div className="absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-[color-mix(in_oklch,var(--color-primary)_40%,transparent)] blur-3xl" aria-hidden />
+          <Icon className="relative size-10 text-primary" aria-hidden />
         </div>
       )}
 
       <div className="mt-2 flex items-start justify-between gap-2 px-1">
         <div className="min-w-0">
-          <Link
-            href={`/instances/${encodeURIComponent(instance.id)}`}
-            className="block truncate text-sm font-semibold hover:underline"
-            title={label}
-          >
+          <Link href={href} className="block truncate text-sm font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" title={label}>
             {label}
           </Link>
           <div className="truncate text-[11px] text-muted">
-            {instance.region} · {instance.instanceType ?? "—"}
+            {instance.region} · {instance.instanceType ?? t("noType")}
           </div>
           {price && (
             <div className="mt-0.5">
@@ -94,9 +91,9 @@ function RunningCard({ instance, price }: { instance: InstanceRow; price?: Price
             </div>
           )}
         </div>
-        <Button asChild variant="secondary" size="sm" className="h-7 shrink-0 px-2 text-xs">
-          <Link href={`/instances/${encodeURIComponent(instance.id)}`}>
-            <Plug className="h-3 w-3" />
+        <Button asChild variant="secondary" size="icon" className="shrink-0">
+          <Link href={href} aria-label={t("open", { name: label })}>
+            <Plug className="size-4" aria-hidden />
           </Link>
         </Button>
       </div>
@@ -106,6 +103,6 @@ function RunningCard({ instance, price }: { instance: InstanceRow; price?: Price
           <InstanceStatsInline accountId={instance.accountId} enabled providerInstanceId={instance.providerInstanceId} instanceId={instance.id} />
         </div>
       )}
-    </div>
+    </article>
   );
 }

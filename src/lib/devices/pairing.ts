@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { auditLog, pairedDevices, type PairedDeviceRow } from "@/lib/db/schema";
+import { msg } from "@/lib/notify/i18n";
 import { and, desc, eq } from "drizzle-orm";
 import { createHash, randomBytes, randomInt } from "node:crypto";
 import "server-only";
@@ -22,6 +23,8 @@ const PENDING_TTL_MS = 10 * 60_000;
 
 export type DeviceInfo = Omit<PairedDeviceRow, "tokenHash" | "code">;
 export type PairingTicket = { id: string; token: string; code: string };
+/** Why an approval was refused; the caller renders it (`notify.errors.pairing.*`). */
+export type PairingError = "not_found" | "expired" | "code_mismatch";
 
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
 const strip = (r: PairedDeviceRow): DeviceInfo => {
@@ -54,15 +57,15 @@ export async function requestPairing(name: string, platform: string, ip: string 
     notify({
       kind: "pairing",
       tag: `pair-${id}`,
-      title: `${name} cere acces`,
-      body: `${platform} · ${ip ?? "?"} · verifică pe dispozitiv că afișează codul ${code}`,
-      subtitle: `cod ${code}`,
+      title: msg("cards.pairing.title", { name }),
+      body: msg("cards.pairing.body", { platform, ip: ip ?? "?", code }),
+      subtitle: msg("cards.pairing.subtitle", { code }),
       priority: "high",
       sticky: true,
       ttlSec: PENDING_TTL_MS / 1000,
       actions: [
-        { id: "approve", label: `Aprobă · ${code}`, style: "primary", body: { deviceId: id, code } },
-        { id: "reject", label: "Respinge", style: "danger", body: { deviceId: id } },
+        { id: "approve", label: msg("cards.pairing.approve", { code }), style: "primary", body: { deviceId: id, code } },
+        { id: "reject", label: msg("cards.pairing.reject"), style: "danger", body: { deviceId: id } },
       ],
       data: { deviceId: id, code, platform },
     }),
@@ -76,11 +79,11 @@ export async function pairingStatus(id: string): Promise<{ status: string; code:
 }
 
 /** `userId` = the family member this device will act as (lib/home/access.ts); the approver binds it to themselves by default. */
-export async function approveDevice(id: string, code: string, by: string, userId: string | null = null): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function approveDevice(id: string, code: string, by: string, userId: string | null = null): Promise<{ ok: true } | { ok: false; error: PairingError }> {
   const r = await db.select().from(pairedDevices).where(eq(pairedDevices.id, id)).get();
-  if (!r || r.status !== "pending") return { ok: false, error: "cerere inexistentă sau expirată" };
-  if (r.createdAt.getTime() < Date.now() - PENDING_TTL_MS) return { ok: false, error: "cererea a expirat" };
-  if ((r.code ?? "") !== code) return { ok: false, error: "codul nu se potrivește" };
+  if (!r || r.status !== "pending") return { ok: false, error: "not_found" };
+  if (r.createdAt.getTime() < Date.now() - PENDING_TTL_MS) return { ok: false, error: "expired" };
+  if ((r.code ?? "") !== code) return { ok: false, error: "code_mismatch" };
   await db.update(pairedDevices).set({ status: "approved", code: null, approvedBy: by, userId }).where(eq(pairedDevices.id, id));
   await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.approve", target: id, status: "ok", message: `${r.name} approved by ${by}${userId ? ` as user ${userId}` : ""}` });
   bump();

@@ -91,7 +91,7 @@ export function AmbilightPanel({ wall }: { wall: WallSetting }) {
           key={e}
           type="button"
           disabled={busy !== null}
-          title={e}
+          title={t(`effects.${EFFECT_KEY[e]}`)}
           onClick={() => act(e, () => runHyperEffectAction({ effect: e }))}
           className={cn(
             "flex min-w-0 items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm transition-colors hover:border-[var(--color-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:opacity-50",

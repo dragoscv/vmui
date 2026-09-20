@@ -1,7 +1,7 @@
 "use client";
 
-import { ROOMS, type RoomId } from "@/lib/home/catalog";
 import type { RoomGrants, RoomLevel } from "@/lib/home/access-model";
+import { ROOMS, type RoomId } from "@/lib/home/catalog";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 

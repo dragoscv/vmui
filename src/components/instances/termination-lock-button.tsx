@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Lock, Unlock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAction } from "@/hooks/use-action";
+import { err, ok } from "@/lib/action-result";
+import { cn } from "@/lib/utils";
 import { setTerminationLockAction } from "@/server/actions/instance-lock";
+import { Lock, Unlock } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useState } from "react";
 
 export function TerminationLockButton({
   accountId,
@@ -16,37 +20,34 @@ export function TerminationLockButton({
   providerInstanceId: string;
   initial: boolean;
 }) {
+  const t = useTranslations("vm.actions.lock");
   const [locked, setLocked] = useState(initial);
-  const [pending, start] = useTransition();
+  const { run, pending } = useAction(
+    async (next: boolean) => {
+      const r = await setTerminationLockAction({ accountId, region, providerInstanceId, locked: next });
+      return r.ok ? ok(next) : err(r.error ?? "common.error");
+    },
+    { success: (next) => t(next ? "lockedToast" : "unlockedToast") },
+  );
   const Icon = locked ? Lock : Unlock;
 
   return (
-    <button
+    <Button
       type="button"
-      disabled={pending}
-      onClick={() => {
+      variant="outline"
+      size="sm"
+      loading={pending}
+      aria-pressed={locked}
+      title={locked ? t("unlockHint") : t("lockHint")}
+      onClick={async () => {
         const next = !locked;
         setLocked(next);
-        start(async () => {
-          const r = await setTerminationLockAction({
-            accountId,
-            region,
-            providerInstanceId,
-            locked: next,
-          });
-          if (!r.ok) {
-            toast.error(r.error ?? "Failed to update");
-            setLocked(!next);
-          } else {
-            toast.success(next ? "Termination locked" : "Termination unlocked");
-          }
-        });
+        const r = await run(next);
+        if (!r.ok) setLocked(!next);
       }}
-      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-2 py-1 text-xs hover:bg-white/5 disabled:opacity-50"
-      title={locked ? "Click to unlock terminate" : "Click to prevent accidental terminate"}
     >
-      <Icon className={`h-3.5 w-3.5 ${locked ? "text-[var(--color-warning)]" : "text-muted"}`} />
-      {locked ? "Locked" : "Unlocked"}
-    </button>
+      <Icon className={cn("h-3.5 w-3.5", locked ? "text-warning" : "text-muted")} aria-hidden />
+      {locked ? t("locked") : t("unlocked")}
+    </Button>
   );
 }

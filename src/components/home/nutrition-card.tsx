@@ -2,20 +2,23 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field, Subsection } from "@/components/ui/settings-panel";
+import { Stat, StatGrid, type StatTone } from "@/components/ui/stat";
 import { Switch } from "@/components/ui/switch";
 import { ACTIVITY, GOALS, MEAL_TYPES, type MealType, type NutritionProfile } from "@/lib/nutrition/schema";
 import type { NutritionSummary } from "@/lib/nutrition/summary";
 import { cn } from "@/lib/utils";
 import { addMealAction, addWaterAction, deleteMealAction, saveNutritionProfileAction, undoWaterAction } from "@/server/actions/nutrition";
 import { Droplets, Flame, Plus, Salad, Scale, Trash2, Undo2, UtensilsCrossed } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useFormatter, useTranslations } from "next-intl";
 import * as React from "react";
 import { toast } from "sonner";
 
-const SELECT_CLASS = "block h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-transparent px-2 text-sm text-[var(--color-fg)]";
-const TRACK_CLASS = "overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--color-fg)_10%,transparent)]";
 const GLASS_ML = 250;
 const SIP_ML = 100;
 
@@ -81,18 +84,19 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
     else toast.success(t("toast.profileSaved"));
   };
 
-  const tiles: Array<{ key: string; value: string; label: string; hint?: string; tone?: string }> = [
-    { key: "kcal", value: fmt.number(Math.round(s.today.calories)), label: t("tiles.kcalToday"), hint: t("tiles.kcalOfTarget", { kcal: fmt.number(s.targets.calories) }) },
+  const tiles: Array<{ key: string; value: string; label: string; hint?: string; tone?: StatTone; icon: React.ReactNode }> = [
+    { key: "kcal", value: fmt.number(Math.round(s.today.calories)), label: t("tiles.kcalToday"), hint: t("tiles.kcalOfTarget", { kcal: fmt.number(s.targets.calories) }), icon: <Flame /> },
     {
       key: "remaining",
       value: fmt.number(Math.round(Math.abs(s.remaining.calories))),
       label: over ? t("tiles.over") : t("tiles.remaining"),
-      tone: over ? "text-[var(--color-warning)]" : "text-[var(--color-success)]",
+      tone: over ? "warning" : "success",
+      icon: <UtensilsCrossed />,
     },
-    { key: "water", value: t("water.liters", { l: liters(s.water.ml) }), label: t("tiles.water"), hint: t("tiles.waterOfTarget", { l: liters(s.water.targetMl) }) },
+    { key: "water", value: t("water.liters", { l: liters(s.water.ml) }), label: t("tiles.water"), hint: t("tiles.waterOfTarget", { l: liters(s.water.targetMl) }), icon: <Droplets /> },
     s.balance !== null
-      ? { key: "balance", value: `${s.balance > 0 ? "+" : ""}${fmt.number(Math.round(s.balance))}`, label: t("tiles.balance"), hint: t("tiles.balanceHint") }
-      : { key: "weight", value: t("weight", { kg: s.targets.weightKg.toFixed(1) }), label: t("tiles.weight"), hint: t("tiles.weightHint", { source: t(`weightSource.${s.targets.weightSource === "scale" ? "scale" : "profile"}`) }) },
+      ? { key: "balance", value: `${s.balance > 0 ? "+" : ""}${fmt.number(Math.round(s.balance))}`, label: t("tiles.balance"), hint: t("tiles.balanceHint"), icon: <Scale /> }
+      : { key: "weight", value: t("weight", { kg: s.targets.weightKg.toFixed(1) }), label: t("tiles.weight"), hint: t("tiles.weightHint", { source: t(`weightSource.${s.targets.weightSource === "scale" ? "scale" : "profile"}`) }), icon: <Scale /> },
   ];
 
   const macros = [
@@ -129,18 +133,14 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="surface min-w-0 space-y-4 p-4 sm:p-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {tiles.map((tile) => (
-              <div key={tile.key} className="min-w-0 rounded-xl border border-[var(--color-border)] p-3">
-                <p className={cn("truncate text-lg font-semibold tabular-nums", tile.tone)}>{tile.value}</p>
-                <p className="text-xs text-muted">{tile.label}</p>
-                {tile.hint && <p className="truncate text-xs text-muted tabular-nums">{tile.hint}</p>}
-              </div>
+          <StatGrid cols={4}>
+            {tiles.map((tile, i) => (
+              <motion.div key={tile.key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.03 }} className="min-w-0">
+                <Stat label={tile.label} value={tile.value} hint={tile.hint} tone={tile.tone} icon={tile.icon} className="h-full border border-border shadow-none" />
+              </motion.div>
             ))}
-          </div>
-          <div className={cn("h-2", TRACK_CLASS)} role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={120} aria-label={t("today.progressAria")}>
-            <div className={cn("h-full rounded-full transition-[width]", over ? "bg-[var(--color-warning)]" : "bg-primary")} style={{ width: `${Math.min(100, pct * 100)}%` }} />
-          </div>
+          </StatGrid>
+          <Progress value={Math.min(100, pct * 100)} tone={over ? "warning" : "default"} label={t("today.progressAria")} />
 
           <dl className="grid grid-cols-3 gap-3 text-sm" aria-label={t("macros.title")}>
             {macros.map((m) => (
@@ -149,9 +149,7 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
                 <dd className="font-medium tabular-nums">
                   {fmt.number(Math.round(m.v))} <span className="text-xs font-normal text-muted">{t("macros.ofTarget", { g: fmt.number(m.target) })}</span>
                 </dd>
-                <div className={cn("mt-1 h-1", TRACK_CLASS)}>
-                  <div className="h-full bg-primary/80" style={{ width: `${Math.min(100, m.target > 0 ? (m.v / m.target) * 100 : 0)}%` }} />
-                </div>
+                <Progress size="sm" className="mt-2" value={m.target > 0 ? (m.v / m.target) * 100 : 0} />
               </div>
             ))}
           </dl>
@@ -168,11 +166,9 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
                 {s.water.underPace && <span className="ml-2 text-[var(--color-warning)]">{t("water.underPace")}</span>}
               </span>
             </div>
-            <div className={cn("h-1.5", TRACK_CLASS)} role="progressbar" aria-valuenow={s.water.ml} aria-valuemin={0} aria-valuemax={s.water.targetMl} aria-label={t("water.progressAria")}>
-              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, s.water.targetMl > 0 ? (s.water.ml / s.water.targetMl) * 100 : 0)}%` }} />
-            </div>
+            <Progress size="sm" value={s.water.ml} max={Math.max(1, s.water.targetMl)} tone={s.water.underPace ? "warning" : "default"} label={t("water.progressAria")} />
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={busy === "water"} onClick={() => water(GLASS_ML)} aria-label={t("water.addAria", { ml: GLASS_ML })}>
+              <Button size="sm" variant="outline" loading={busy === "water"} onClick={() => water(GLASS_ML)} aria-label={t("water.addAria", { ml: GLASS_ML })}>
                 <Plus className="size-3.5" aria-hidden /> {t("water.add", { ml: GLASS_ML })}
               </Button>
               <Button size="sm" variant="outline" disabled={busy === "water"} onClick={() => water(SIP_ML)} aria-label={t("water.addAria", { ml: SIP_ML })}>
@@ -186,10 +182,13 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
 
           <div className="space-y-2">
             <p className="text-sm font-semibold">{t("meals.title")}</p>
+            {s.meals.length === 0 ? (
+              <EmptyState compact icon={<UtensilsCrossed />} title={t("meals.empty")} />
+            ) : (
             <ul className="divide-y divide-[var(--color-border)]" aria-label={t("meals.listAria")}>
-              {s.meals.length === 0 && <li className="py-3 text-sm text-muted">{t("meals.empty")}</li>}
-              {s.meals.map((m) => (
-                <li key={m.id} className="flex items-center gap-3 py-2 text-sm">
+              <AnimatePresence initial={false}>
+              {s.meals.map((m, i) => (
+                <motion.li key={m.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 12) * 0.03 }} className="flex items-center gap-3 py-2 text-sm">
                   <span className="w-12 shrink-0 text-xs text-muted tabular-nums">{fmtTime(m.at)}</span>
                   <span className="min-w-0 flex-1 truncate">
                     {m.name}
@@ -199,12 +198,14 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">{t("meals.kcal", { kcal: fmt.number(Math.round(m.calories)) })}</span>
                   <span className="hidden w-24 shrink-0 text-right text-xs text-muted tabular-nums sm:inline">{t("meals.macrosShort", { p: Math.round(m.protein), c: Math.round(m.carbs), f: Math.round(m.fats) })}</span>
-                  <Button variant="ghost" size="icon" aria-label={t("meals.deleteAria", { name: m.name })} disabled={busy === m.id} onClick={() => remove(m.id, m.name)}>
+                  <Button variant="ghost" size="icon" aria-label={t("meals.deleteAria", { name: m.name })} loading={busy === m.id} onClick={() => remove(m.id, m.name)}>
                     <Trash2 className="size-3.5" aria-hidden />
                   </Button>
-                </li>
+                </motion.li>
               ))}
+              </AnimatePresence>
             </ul>
+            )}
           </div>
 
           <Subsection title={t("addMeal.title")} hint={t("addMeal.hint")}>
@@ -214,11 +215,14 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
                   <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t("addMeal.namePlaceholder")} />
                 </Field>
                 <Field label={t("addMeal.type")}>
-                  <select className={SELECT_CLASS} value={form.mealType} onChange={(e) => setForm({ ...form, mealType: e.target.value as MealType })}>
-                    {MEAL_TYPES.map((type) => (
-                      <option key={type} value={type}>{t(`mealType.${type}`)}</option>
-                    ))}
-                  </select>
+                  <Select value={form.mealType} onValueChange={(v) => setForm({ ...form, mealType: v as MealType })}>
+                    <SelectTrigger aria-label={t("addMeal.type")}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MEAL_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>{t(`mealType.${type}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -229,7 +233,7 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
                 ))}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" disabled={busy === "add"}>
+                <Button type="submit" loading={busy === "add"}>
                   <Plus className="size-4" aria-hidden /> {t("addMeal.submit")}
                 </Button>
               </div>
@@ -271,18 +275,24 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
             <Subsection title={t("profile.targets.title")} hint={t("profile.targets.hint")}>
               <div className="grid grid-cols-2 items-start gap-3">
                 <Field label={t("profile.goal")}>
-                  <select className={SELECT_CLASS} value={p.goal} onChange={(e) => setP({ ...p, goal: e.target.value as NutritionProfile["goal"] })}>
-                    {GOALS.map((g) => (
-                      <option key={g} value={g}>{t(`goal.${g}`)}</option>
-                    ))}
-                  </select>
+                  <Select value={p.goal} onValueChange={(v) => setP({ ...p, goal: v as NutritionProfile["goal"] })}>
+                    <SelectTrigger aria-label={t("profile.goal")}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {GOALS.map((g) => (
+                        <SelectItem key={g} value={g}>{t(`goal.${g}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <Field label={t("profile.activity")}>
-                  <select className={SELECT_CLASS} value={p.activity} onChange={(e) => setP({ ...p, activity: e.target.value as NutritionProfile["activity"] })}>
-                    {ACTIVITY.map((a) => (
-                      <option key={a} value={a}>{t(`activity.${a}`)}</option>
-                    ))}
-                  </select>
+                  <Select value={p.activity} onValueChange={(v) => setP({ ...p, activity: v as NutritionProfile["activity"] })}>
+                    <SelectTrigger aria-label={t("profile.activity")}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ACTIVITY.map((a) => (
+                        <SelectItem key={a} value={a}>{t(`activity.${a}`)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <Field label={t("profile.targetOverride")} hint={t("profile.targetOverrideHint")} className="col-span-2">
                   <Input type="number" inputMode="numeric" min={800} max={6000} value={p.targetCaloriesOverride ?? ""} onChange={(e) => setP({ ...p, targetCaloriesOverride: e.target.value ? Number(e.target.value) : null })} />
@@ -320,7 +330,7 @@ export function NutritionCard({ initial, profile }: { initial: NutritionSummary;
             </Subsection>
 
             <div className="flex flex-wrap justify-end gap-2">
-              <Button size="sm" disabled={!dirty || busy === "profile"} onClick={saveProfile}>{t("profile.save")}</Button>
+              <Button size="sm" disabled={!dirty} loading={busy === "profile"} onClick={saveProfile}>{t("profile.save")}</Button>
             </div>
           </div>
         </div>
