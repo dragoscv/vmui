@@ -1,4 +1,5 @@
-import { espAuthorized } from "@/lib/esp/auth";
+import { deviceIdFromRequest, espAuthorized } from "@/lib/esp/auth";
+import { canOpenDoor, currentHomeActor, homeActorOrOwner } from "@/lib/home/access";
 import { armAutoOpen, ignoreCall, intercomState, isAutoOpenArmed, onEspEvent, openDoor } from "@/lib/home/intercom";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -23,7 +24,8 @@ export async function POST(req: NextRequest) {
 
 // GET /api/esp/intercom?k=…            state for the phone / turzx
 export async function GET(req: NextRequest) {
-  if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
+  // shared token (ESP32, HA), a bound device, or any signed-in household member polling the card
+  if (!espAuthorized(req) && !(await currentHomeActor())) return new NextResponse("forbidden", { status: 403 });
   const s = intercomState();
   return NextResponse.json({ ringing: s.ringingSince !== null, ringingSince: s.ringingSince, lastRingAt: s.lastRingAt, lastOpenAt: s.lastOpenAt, autoOpenUntil: s.autoOpenUntil, armed: isAutoOpenArmed(), log: s.log }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -35,11 +37,19 @@ const cmd = z.object({
 });
 
 // PUT /api/esp/intercom?k=…  body {action: open|ignore|arm|disarm, minutes?, by?}
+//   Shared-token callers (ESP32, Nest Hub, HA) are the owner's own hardware and
+//   act as the owner. A paired device (`Bearer vmd_`) acts as the member it is
+//   bound to: children and guests may ignore a call but not open or arm the door.
 export async function PUT(req: NextRequest) {
   if (!espAuthorized(req)) return new NextResponse("forbidden", { status: 403 });
   const p = cmd.safeParse(await req.json().catch(() => ({})));
   if (!p.success) return NextResponse.json({ ok: false, error: p.error.flatten() }, { status: 400 });
   const { action, minutes, by } = p.data;
+  if (action === "open" || action === "arm") {
+    const actor = await homeActorOrOwner(req, deviceIdFromRequest(req) === null);
+    if (!actor) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    if (!canOpenDoor(actor)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
   if (action === "open") return NextResponse.json(await openDoor(by));
   if (action === "ignore") {
     await ignoreCall(by);

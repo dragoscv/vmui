@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { approveDevice, rejectDevice } from "@/lib/devices/pairing";
+import { canOpenDoor, ownerActor, type HomeActor } from "@/lib/home/access";
 import { ha } from "@/lib/home/ha-client";
 import "server-only";
 import { dismiss, getCard, type Card, type NotifyAction } from "./index";
@@ -8,18 +9,30 @@ import { dismiss, getCard, type Card, type NotifyAction } from "./index";
 // A tap on a card button lands here with the card + the action the source
 // attached (its `body` is opaque to the client). Everything is routed by
 // `kind` so sources never expose arbitrary service calls to the phone.
+//
+// `actor` is the family member behind the tap (lib/home/access.ts): a bound
+// device or a browser session. `undefined` = an unattributed internal caller
+// (HA rest_command, shared desktop token) that acts as the owner; `null` = a
+// caller we identified but who has no household access.
 
 export type ActResult = { ok: true; message?: string; card?: Card | null } | { ok: false; error: string };
 
-export async function runAction(cardId: string, actionId: string, by: string): Promise<ActResult> {
+const DOOR_ACTIONS = new Set(["open", "arm"]);
+
+export async function runAction(cardId: string, actionId: string, by: string, actor?: HomeActor | null): Promise<ActResult> {
   const card = await getCard(cardId);
   if (!card) return { ok: false, error: "notificare inexistentă" };
   if (card.dismissedAt) return { ok: false, error: "deja rezolvată" };
   const action = card.actions.find((a) => a.id === actionId);
   if (!action) return { ok: false, error: "acțiune necunoscută" };
   if (actionId === "dismiss") return { ok: true, card: await dismiss(card.id, by, "dismiss") };
+  const who = actor === undefined ? await ownerActor() : actor;
+  if (card.kind === "intercom" && DOOR_ACTIONS.has(actionId) && !(who && canOpenDoor(who))) {
+    await db.insert(auditLog).values({ accountId: "notify", action: `notify.act.${card.kind}.${actionId}`, target: card.id, status: "error", message: `${by}: forbidden (${who?.role ?? "no access"})` });
+    return { ok: false, error: "forbidden" };
+  }
   try {
-    const message = await dispatch(card, action, by);
+    const message = await dispatch(card, action, by, who);
     await db.insert(auditLog).values({ accountId: "notify", action: `notify.act.${card.kind}.${actionId}`, target: card.id, status: "ok", message: `${by}: ${message ?? ""}`.slice(0, 200) });
     const done = await dismiss(card.id, by, actionId);
     return { ok: true, message, card: done };
@@ -30,7 +43,7 @@ export async function runAction(cardId: string, actionId: string, by: string): P
   }
 }
 
-async function dispatch(card: Card, a: NotifyAction, by: string): Promise<string | undefined> {
+async function dispatch(card: Card, a: NotifyAction, by: string, who: HomeActor | null): Promise<string | undefined> {
   const b = (a.body ?? {}) as Record<string, unknown>;
   switch (card.kind) {
     case "intercom": {
@@ -46,7 +59,8 @@ async function dispatch(card: Card, a: NotifyAction, by: string): Promise<string
     case "pairing": {
       const id = String(b.deviceId ?? "");
       if (a.id === "approve") {
-        const r = await approveDevice(id, String(b.code ?? ""), by);
+        // the new device acts as the approver; "solo" installs have no user rows to bind to
+        const r = await approveDevice(id, String(b.code ?? ""), by, who && who.userId !== "solo" ? who.userId : null);
         if (!r.ok) throw new Error(r.error);
         return "aprobat";
       }
@@ -56,7 +70,10 @@ async function dispatch(card: Card, a: NotifyAction, by: string): Promise<string
     case "water": {
       const ml = Number(b.ml ?? 250);
       const { addWater } = await import("@/lib/nutrition/water");
-      await addWater(ml, `notify:${by}`);
+      const { journalUserId, ownerActor } = await import("@/lib/home/access");
+      // The water nudge is computed from the owner's journal, so its reply lands there too.
+      const o = await ownerActor();
+      await addWater(ml, `notify:${by}`, Date.now(), o ? journalUserId(o) : null);
       return `+${ml} ml`;
     }
     case "pc": {

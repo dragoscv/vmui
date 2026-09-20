@@ -1,3 +1,4 @@
+import { localeFromAcceptLanguage } from "@/i18n/config";
 import { verifyUserPassword } from "@/lib/auth";
 import { approveByLogin, pairingStatus, requestPairing } from "@/lib/devices/pairing";
 import { NextResponse, type NextRequest } from "next/server";
@@ -17,6 +18,8 @@ function limited(ip: string): boolean {
   return arr.length > 10;
 }
 const ipOf = (req: NextRequest) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip") ?? null;
+// the phone's UI language, so its notifications render in it (lib/notify/i18n.ts)
+const langOf = (req: NextRequest) => localeFromAcceptLanguage(req.headers.get("accept-language"));
 
 const body = z.union([
   z.object({ name: z.string().min(1).max(64), platform: z.string().min(1).max(32) }),
@@ -32,10 +35,10 @@ export async function POST(req: NextRequest) {
   if ("email" in p.data) {
     const r = await verifyUserPassword(p.data.email, p.data.password);
     if (!r.ok) return NextResponse.json({ error: "email sau parolă greșită" }, { status: 401 });
-    const t = await approveByLogin(p.data.name, p.data.platform, ip, r.user.email);
+    const t = await approveByLogin(p.data.name, p.data.platform, ip, r.user.email, langOf(req), r.user.id);
     return NextResponse.json({ id: t.id, token: t.token, status: "approved" });
   }
-  const t = await requestPairing(p.data.name, p.data.platform, ip);
+  const t = await requestPairing(p.data.name, p.data.platform, ip, langOf(req));
   return NextResponse.json({ id: t.id, token: t.token, code: t.code, status: "pending" });
 }
 

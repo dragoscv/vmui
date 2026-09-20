@@ -31,7 +31,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState<Record<NavGroup["id"], boolean>>(DEFAULT_OPEN);
@@ -68,11 +68,11 @@ export function Sidebar() {
 
       <nav aria-label={t("sidebar.label")} className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 [scrollbar-width:thin]">
         <div className="flex flex-col gap-0.5">
-          {NAV_PRIMARY.map((it) => (
+          {(compact ? NAV_PRIMARY.filter((it) => it.id === "home") : NAV_PRIMARY).map((it) => (
             <NavLink key={it.href} item={it} active={isNavActive(pathname, it)} />
           ))}
         </div>
-        {NAV_GROUPS.map((g) => {
+        {!compact && NAV_GROUPS.map((g) => {
           const hasActive = g.items.some((it) => isNavActive(pathname, it));
           const expanded = open[g.id] || hasActive;
           const bodyId = `nav-group-${g.id}`;
@@ -97,9 +97,9 @@ export function Sidebar() {
             </div>
           );
         })}
-        <div className="mt-3 border-t border-[var(--color-border)] pt-3">
+        {!compact && <div className="mt-3 border-t border-[var(--color-border)] pt-3">
           <NavLink item={NAV_SETTINGS} active={isNavActive(pathname, NAV_SETTINGS)} />
-        </div>
+        </div>}
       </nav>
 
       <div className="space-y-2 border-t border-[var(--color-border)] p-4 text-xs text-muted">

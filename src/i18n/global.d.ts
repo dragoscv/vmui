@@ -2,6 +2,7 @@ import type ambilight from "../../messages/ambilight/en.json";
 import type auth from "../../messages/auth/en.json";
 import type devices from "../../messages/devices/en.json";
 import type en from "../../messages/en.json";
+import type family from "../../messages/family/en.json";
 import type homeCards from "../../messages/homeCards/en.json";
 import type misc from "../../messages/misc/en.json";
 import type nestHub from "../../messages/nestHub/en.json";
@@ -24,6 +25,7 @@ declare module "next-intl" {
       turzx: typeof turzx;
       nestHub: typeof nestHub;
       devices: typeof devices;
+      family: typeof family;
       shell: typeof shell;
       vm: typeof vm;
       settings: typeof settings;

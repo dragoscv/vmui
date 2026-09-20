@@ -927,10 +927,14 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS paired_devices (
   last_seen_at INTEGER,
   last_ip TEXT,
   push_token TEXT,
+  language TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 )`);
-if (!(sqlite.prepare("PRAGMA table_info(paired_devices)").all() as Array<{ name: string }>).some((c) => c.name === "push_token")) {
-  sqlite.exec("ALTER TABLE paired_devices ADD COLUMN push_token TEXT");
+{
+  const cols = new Set((sqlite.prepare("PRAGMA table_info(paired_devices)").all() as Array<{ name: string }>).map((c) => c.name));
+  if (!cols.has("push_token")) sqlite.exec("ALTER TABLE paired_devices ADD COLUMN push_token TEXT");
+  if (!cols.has("language")) sqlite.exec("ALTER TABLE paired_devices ADD COLUMN language TEXT");
+  if (!cols.has("user_id")) sqlite.exec("ALTER TABLE paired_devices ADD COLUMN user_id TEXT");
 }
 sqlite.exec(`CREATE TABLE IF NOT EXISTS meals (
   id TEXT PRIMARY KEY,
@@ -969,6 +973,55 @@ sqlite.exec(`CREATE TABLE IF NOT EXISTS hydration (
   source TEXT NOT NULL DEFAULT 'web'
 )`);
 sqlite.exec(`CREATE INDEX IF NOT EXISTS hydration_day ON hydration(day)`);
+for (const table of ["meals", "hydration"] as const) {
+  const cols = new Set((sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name));
+  if (!cols.has("user_id")) sqlite.exec(`ALTER TABLE ${table} ADD COLUMN user_id TEXT`);
+}
+sqlite.exec(`CREATE INDEX IF NOT EXISTS meals_user_day ON meals(user_id, day)`);
+sqlite.exec(`CREATE INDEX IF NOT EXISTS hydration_user_day ON hydration(user_id, day)`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS nutrition_profiles (
+  user_id TEXT PRIMARY KEY,
+  json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
+// Family membership + invites for /home (lib/home/access.ts).
+sqlite.exec(`CREATE TABLE IF NOT EXISTS home_members (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  rooms TEXT NOT NULL DEFAULT '{}',
+  expires_at INTEGER,
+  created_by TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+sqlite.exec(`CREATE TABLE IF NOT EXISTS home_invites (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  rooms TEXT NOT NULL DEFAULT '{}',
+  access_expires_at INTEGER,
+  expires_at INTEGER NOT NULL,
+  accepted_at INTEGER,
+  accepted_by TEXT,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+// Before family mode there was exactly one household: the first admin. Everything
+// already logged belongs to them, and they become the owner so nothing disappears.
+{
+  const owner = sqlite.prepare("SELECT id FROM users ORDER BY created_at ASC, rowid ASC LIMIT 1").get() as { id: string } | undefined;
+  const hasOwner = sqlite.prepare("SELECT 1 FROM home_members WHERE role = 'owner' LIMIT 1").get();
+  if (owner && !hasOwner) {
+    sqlite.prepare("INSERT OR IGNORE INTO home_members (user_id, role, rooms, created_by) VALUES (?, 'owner', '{}', 'bootstrap')").run(owner.id);
+  }
+  if (owner) {
+    sqlite.prepare("UPDATE meals SET user_id = ? WHERE user_id IS NULL").run(owner.id);
+    sqlite.prepare("UPDATE hydration SET user_id = ? WHERE user_id IS NULL").run(owner.id);
+    sqlite.prepare("UPDATE paired_devices SET user_id = ? WHERE user_id IS NULL AND status = 'approved'").run(owner.id);
+  }
+}
 
 const accCols = sqlite.prepare("PRAGMA table_info(cloud_accounts)").all() as Array<{ name: string }>;
 if (!new Set(accCols.map((c) => c.name)).has("team_id")) {

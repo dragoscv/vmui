@@ -47,6 +47,10 @@
     "openHa": "Home Assistant",
     "haDown": "Home Assistant is not reachable",
     "haDownHint": "{error}. Showing the last known layout; controls will fail until it is back.",
+    "noAccess": {
+      "title": "No access to this home",
+      "hint": "Ask the home owner to add you to the family and grant you some rooms."
+    },
     "tabs": {
       "label": "Home views",
       "home": "Home",
@@ -57,10 +61,23 @@
     },
     "settings": {
       "label": "Settings sections",
-      "turzx": { "title": "Turzx", "hint": "Desk display views, background, screen" },
-      "nestHub": { "title": "Nest Hub", "hint": "Bedroom kiosk panels and photos" },
+      "family": {
+        "title": "Family",
+        "hint": "Members, rooms and invitations"
+      },
+      "turzx": {
+        "title": "Turzx",
+        "hint": "Desk display views, background, screen"
+      },
+      "nestHub": {
+        "title": "Nest Hub",
+        "hint": "Bedroom kiosk panels and photos"
+      },
       "deskButton": { "title": "Desk button", "hint": "What each click does" },
-      "copilot": { "title": "Copilot signals", "hint": "Lights and cards for agent events" }
+      "copilot": {
+        "title": "Copilot signals",
+        "hint": "Lights and cards for agent events"
+      }
     },
     "quick": {
       "label": "Quick actions",
@@ -91,7 +108,8 @@
       "bedroom": "Bedroom",
       "living_room": "Living room",
       "kitchen": "Kitchen",
-      "office": "Office"
+      "office": "Office",
+      "viewOnly": "view only"
     },
     "sections": {
       "floorPlan": "Floor plan",

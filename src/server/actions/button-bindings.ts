@@ -1,8 +1,8 @@
 "use server";
 
-import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
+import { requireOwner } from "@/lib/home/access";
 import { buttonBindingsSchema, describeAction, saveButtonBindings, type ButtonBindings, type Gesture } from "@/lib/home/button-bindings";
 import { runButtonGesture } from "@/lib/home/button-run";
 import { revalidatePath } from "next/cache";
@@ -13,7 +13,7 @@ export async function saveButtonBindingsAction(input: ButtonBindings): Promise<R
   const parsed = buttonBindingsSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "invalid" };
   try {
-    await requireRole("operator");
+    await requireOwner();
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Not authorized" };
   }
@@ -26,7 +26,7 @@ export async function saveButtonBindingsAction(input: ButtonBindings): Promise<R
 
 export async function testButtonGestureAction(gesture: Gesture): Promise<Result> {
   try {
-    await requireRole("operator");
+    await requireOwner();
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Not authorized" };
   }

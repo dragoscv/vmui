@@ -31,6 +31,18 @@ export function espAuthorized(req: Request): boolean {
   return true;
 }
 
+/** Approved paired-device id behind `Bearer vmd_…` / `?d=`, or null when the caller
+ *  used the shared token (or nothing). Lets a route tell "owner's hardware" from
+ *  "a family member's phone" — the latter carries its own permissions. */
+export function deviceIdFromRequest(req: Request): string | null {
+  const auth = req.headers.get("authorization") ?? "";
+  const d = auth.startsWith("Bearer ") ? auth.slice(7) : new URL(req.url).searchParams.get("d") ?? "";
+  if (!d.startsWith("vmd_")) return null;
+  const hash = createHash("sha256").update(d).digest("hex");
+  const row = db.select({ id: pairedDevices.id, status: pairedDevices.status }).from(pairedDevices).where(eq(pairedDevices.tokenHash, hash)).get();
+  return row && row.status === "approved" ? row.id : null;
+}
+
 const seen = new Map<string, number>();
 function touch(id: string, req: Request) {
   const now = Date.now();

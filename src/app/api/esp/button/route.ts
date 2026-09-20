@@ -1,10 +1,12 @@
 import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { pushActivity } from "@/lib/esp/activity";
-import { espAuthorized } from "@/lib/esp/auth";
+import { deviceIdFromRequest, espAuthorized } from "@/lib/esp/auth";
 import { currentView, nextView, showMessage, togglePause } from "@/lib/esp/gallery";
+import { canOpenDoor, homeActorOrOwner, journalUserId, ownerActor } from "@/lib/home/access";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
-import { runButtonGesture } from "@/lib/home/button-run";
+import { loadButtonBindings } from "@/lib/home/button-bindings";
+import { runButtonAction } from "@/lib/home/button-run";
 import { ha } from "@/lib/home/ha-client";
 import { drinkGlass, undoGlass } from "@/lib/nutrition/water-actions";
 import { NextResponse, type NextRequest } from "next/server";
@@ -35,12 +37,23 @@ export async function POST(req: NextRequest) {
   try {
     if (btn === "desk") {
       const g = click === "single" ? "1" : click === "double" ? "2" : click;
-      const r = await runButtonGesture(g, `button:${node}`);
+      const action = (await loadButtonBindings()).gestures[g] ?? { type: "none" as const };
+      // the desk button's gestures may open/arm the intercom; shared-token hardware is the
+      // owner's, but a paired device replaying this route acts as its bound member
+      if (action.type === "intercom_open" || action.type === "intercom_arm") {
+        const actor = await homeActorOrOwner(req, deviceIdFromRequest(req) === null);
+        if (!actor) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+        if (!canOpenDoor(actor)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+      }
+      const r = await runButtonAction(action, `button:${node}`);
       await db.insert(auditLog).values({ accountId: "home", action: "esp.button", target: node, status: "ok", message: `desk ${g} -> ${r.result}` });
       return NextResponse.json({ ok: true, result: r.result, led: r.led, action: r.action.type });
     }
     if (btn === "water") {
-      const r = click === "long" ? await undoGlass("esp-button") : await drinkGlass(click === "double" ? 100 : 250, "esp-button");
+      // The case switch is the owner's: it logs into their journal.
+      const o = await ownerActor();
+      const uid = o ? journalUserId(o) : null;
+      const r = click === "long" ? await undoGlass("esp-button", uid) : await drinkGlass(click === "double" ? 100 : 250, "esp-button", uid);
       result = `${r.action} ${r.ml} ml -> ${r.water.ml}/${r.water.targetMl}`;
       await db.insert(auditLog).values({ accountId: "home", action: "esp.button", target: node, status: "ok", message: `water ${click} -> ${result}` });
       return NextResponse.json({ ok: true, result, led: r.action === "add" ? 1 : r.action === "undo" ? 2 : 3, ml: r.water.ml, target: r.water.targetMl, underPace: r.water.underPace });

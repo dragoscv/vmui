@@ -1,0 +1,121 @@
+{
+  "title": "Family",
+  "description": "Who can see and drive the house. Rooms are granted per person; the owner always has everything.",
+  "roles": {
+    "owner": "Owner",
+    "adult": "Adult",
+    "child": "Child",
+    "guest": "Guest"
+  },
+  "roleHints": {
+    "owner": "Every room, settings, arranging the floor plan.",
+    "adult": "Granted rooms, can open the door.",
+    "child": "Granted rooms, sees the door but cannot open it.",
+    "guest": "Granted rooms until the expiry date."
+  },
+  "level": {
+    "none": "None",
+    "view": "View",
+    "control": "Control"
+  },
+  "members": {
+    "title": "Members",
+    "hint": "Change a role or the rooms, then save that person.",
+    "empty": "No members yet. Invite someone below.",
+    "you": "you",
+    "role": "Role",
+    "rooms": "Rooms",
+    "allRooms": "All rooms",
+    "roomsCount": "{count, plural, =0 {no rooms} one {# room} other {# rooms}}",
+    "expiresAt": "Access until",
+    "expiresHint": "Leave empty for no expiry.",
+    "expired": "expired",
+    "lastLogin": "last sign-in {ago}",
+    "neverLoggedIn": "never signed in",
+    "save": "Save",
+    "saved": "{name} updated",
+    "remove": "Remove",
+    "removeAria": "Remove {name} from the household",
+    "removeConfirm": "Remove {name} from the household? Their account stays, their paired devices are revoked.",
+    "removed": "{name} removed"
+  },
+  "devices": {
+    "title": "Devices",
+    "none": "No paired devices",
+    "unbind": "Unbind",
+    "unbindAria": "Unbind {name}",
+    "unbound": "{name} unbound"
+  },
+  "invite": {
+    "title": "Invite by link",
+    "hint": "Send a link or show the QR code. The invitee picks their own email and password. Links are valid for 7 days.",
+    "name": "Name",
+    "namePlaceholder": "Who is this for?",
+    "create": "Create invite",
+    "created": "Invite created",
+    "link": "Invite link",
+    "copy": "Copy",
+    "copied": "Link copied",
+    "copyFailed": "Could not copy, select the link and copy it by hand",
+    "qrAlt": "QR code of the invite link",
+    "linkExpires": "Link valid until {date}",
+    "pending": "Pending invites",
+    "pendingEmpty": "No pending invites.",
+    "for": "for {name}",
+    "expiresIn": "{days, plural, =0 {expires today} one {expires in # day} other {expires in # days}}",
+    "accessUntil": "access until {date}",
+    "revoke": "Revoke",
+    "revokeAria": "Revoke invite for {name}",
+    "revokeConfirm": "Revoke the invite for {name}? The link stops working.",
+    "revoked": "Invite revoked"
+  },
+  "create": {
+    "title": "Create an account directly",
+    "hint": "For a child without a phone, or when you hand over the password in person.",
+    "email": "Email",
+    "displayName": "Display name",
+    "password": "Password",
+    "passwordHint": "At least 8 characters.",
+    "generate": "Generate",
+    "generatedNote": "Write it down now, it is shown only once.",
+    "submit": "Create account",
+    "created": "Account for {name} created"
+  },
+  "existing": {
+    "title": "Add an existing user",
+    "hint": "Accounts that can sign in to vmui but have no household access yet.",
+    "user": "User",
+    "pick": "Pick a user",
+    "add": "Add to household",
+    "added": "{name} added"
+  },
+  "accept": {
+    "title": "Join the household",
+    "invited": "You were invited as {role}.",
+    "roomsIntro": "Rooms you will have access to:",
+    "noRooms": "No rooms granted yet, the owner can add them later.",
+    "accessUntil": "Access until {date}.",
+    "displayName": "Your name",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "submit": "Create my account",
+    "joined": "Welcome home",
+    "invalidTitle": "Invite not valid",
+    "invalidBody": "This link has expired, was revoked, or was already used. Ask the owner for a new one.",
+    "signIn": "Already have an account? Sign in"
+  },
+  "errors": {
+    "emailTaken": "An account with this email already exists.",
+    "invalid": "This invite is no longer valid.",
+    "passwordMismatch": "The passwords do not match.",
+    "passwordShort": "The password needs at least 8 characters.",
+    "generic": "That did not work: {message}"
+  },
+  "ago": {
+    "now": "just now",
+    "minutes": "{n, plural, one {# minute ago} other {# minutes ago}}",
+    "hours": "{n, plural, one {# hour ago} other {# hours ago}}",
+    "days": "{n, plural, one {# day ago} other {# days ago}}"
+  }
+}

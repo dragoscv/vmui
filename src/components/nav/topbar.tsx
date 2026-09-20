@@ -15,7 +15,7 @@ import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { currentNavItem } from "./nav-model";
 
-export function Topbar({ user }: { user?: ReactNode }) {
+export function Topbar({ user, compact = false }: { user?: ReactNode; compact?: boolean }) {
   const t = useTranslations("nav");
   const tShell = useTranslations("shell");
   const pathname = usePathname();
@@ -60,7 +60,7 @@ export function Topbar({ user }: { user?: ReactNode }) {
 
         <div className="hidden sm:block"><VibeSwitcher /></div>
 
-        <div className="hidden sm:block"><Tooltip>
+        {!compact && <div className="hidden sm:block"><Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -73,7 +73,7 @@ export function Topbar({ user }: { user?: ReactNode }) {
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t("syncAll")}</TooltipContent>
-        </Tooltip></div>
+        </Tooltip></div>}
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -94,11 +94,11 @@ export function Topbar({ user }: { user?: ReactNode }) {
           <TooltipContent>{t("toggleTheme")}</TooltipContent>
         </Tooltip>
 
-        <Button asChild size="sm" className="hidden sm:inline-flex">
+        {!compact && <Button asChild size="sm" className="hidden sm:inline-flex">
           <Link href="/instances/new" aria-label={t("newInstance")}>
             <Plus className="h-4 w-4" /> <span className="hidden md:inline">{t("newInstance")}</span>
           </Link>
-        </Button>
+        </Button>}
         {user && <div className="ml-0.5 border-l border-[var(--color-border)] pl-1.5 sm:ml-1 sm:pl-3">{user}</div>}
       </div>
     </header>

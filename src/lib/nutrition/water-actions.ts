@@ -6,6 +6,7 @@ import { pushActivity } from "@/lib/esp/activity";
 import { listNodes, showFrame } from "@/lib/esp/gallery";
 import { renderWater } from "@/lib/esp/views";
 import { setNutritionEvent } from "./events";
+import { dayOf } from "./store";
 import { nutritionSummary, publishToHa } from "./summary";
 import { addWater, GLASS_ML, undoWater, type WaterSummary } from "./water";
 
@@ -24,29 +25,36 @@ function espCard(action: WaterResult["action"], w: WaterSummary): void {
 
 const fmt = (ml: number) => (ml >= 1000 ? `${(ml / 1000).toFixed(ml % 1000 ? 2 : 1).replace(/\.?0+$/, "")} L` : `${ml} ml`);
 
+const scopeOf = (userId: string | null, isOwner: boolean) => (userId ? { userId, isOwner } : null);
+
 /** One glass in: log, screen card, HA mirror, audit. Shared by the desk
- *  button, the phone route and the /home card so all three behave the same. */
-export async function drinkGlass(ml = GLASS_ML, source = "web"): Promise<WaterResult> {
-  await addWater(ml, source);
-  const s = await nutritionSummary();
+ *  button, the phone route and the /home card so all three behave the same.
+ *  `userId` = whose journal (null on single-user installs). The desk screens,
+ *  the HA sensors and the activity feed are the household's, so they only
+ *  reflect the owner's glasses. */
+export async function drinkGlass(ml = GLASS_ML, source = "web", userId: string | null = null, isOwner = true): Promise<WaterResult> {
+  await addWater(ml, source, Date.now(), userId);
+  const s = await nutritionSummary(scopeOf(userId, isOwner));
   const w = s.water;
-  setNutritionEvent({ kind: "meal", at: Date.now(), name: `+${fmt(ml)} apă`, text: `${fmt(w.ml)} din ${fmt(w.targetMl)}${w.remainingMl === 0 ? " · țintă atinsă" : ""}` });
-  pushActivity({ at: Date.now(), kind: "other", text: `apă +${ml} ml (${w.glasses} pahare, ${fmt(w.ml)})` });
-  espCard("add", w);
+  if (isOwner) {
+    setNutritionEvent({ kind: "meal", at: Date.now(), name: `+${fmt(ml)} apă`, text: `${fmt(w.ml)} din ${fmt(w.targetMl)}${w.remainingMl === 0 ? " · țintă atinsă" : ""}` });
+    pushActivity({ at: Date.now(), kind: "other", text: `apă +${ml} ml (${w.glasses} pahare, ${fmt(w.ml)})` });
+    espCard("add", w);
+  }
   await db.insert(auditLog).values({ accountId: "home", action: "nutrition.water.add", target: source, status: "ok", message: `${ml} ml -> ${w.ml}/${w.targetMl}` });
-  publishToHa(s).catch(() => undefined);
+  if (isOwner) publishToHa(s).catch(() => undefined);
   return { ok: true, action: "add", ml, water: w };
 }
 
-export async function undoGlass(source = "web"): Promise<WaterResult> {
-  const removed = await undoWater();
-  const s = await nutritionSummary();
+export async function undoGlass(source = "web", userId: string | null = null, isOwner = true): Promise<WaterResult> {
+  const removed = await undoWater(dayOf(), userId);
+  const s = await nutritionSummary(scopeOf(userId, isOwner));
   const w = s.water;
-  espCard(removed ? "undo" : "noop", w);
+  if (isOwner) espCard(removed ? "undo" : "noop", w);
   if (removed) {
-    setNutritionEvent({ kind: "meal", at: Date.now(), name: "Pahar anulat", text: `${fmt(w.ml)} din ${fmt(w.targetMl)}` });
+    if (isOwner) setNutritionEvent({ kind: "meal", at: Date.now(), name: "Pahar anulat", text: `${fmt(w.ml)} din ${fmt(w.targetMl)}` });
     await db.insert(auditLog).values({ accountId: "home", action: "nutrition.water.undo", target: source, status: "ok", message: `-${removed.ml} ml -> ${w.ml}/${w.targetMl}` });
-    publishToHa(s).catch(() => undefined);
+    if (isOwner) publishToHa(s).catch(() => undefined);
   }
   return { ok: true, action: removed ? "undo" : "noop", ml: removed?.ml ?? 0, water: w };
 }

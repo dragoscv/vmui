@@ -35,22 +35,25 @@ export function waterTargetMl(weightKg: number, activeKcal: number | null): numb
   return base + (activeKcal !== null && activeKcal > 500 ? 500 : 0);
 }
 
-export async function addWater(ml = GLASS_ML, source = "web", at = Date.now()): Promise<HydrationRow> {
-  const row: HydrationRow = { id: randomUUID(), at: new Date(at), day: dayOf(at), ml, source };
+export async function addWater(ml = GLASS_ML, source = "web", at = Date.now(), userId: string | null = null): Promise<HydrationRow> {
+  const row: HydrationRow = { id: randomUUID(), at: new Date(at), day: dayOf(at), ml, source, userId };
   await db.insert(hydration).values(row);
   return row;
 }
 
+/** Journal scope: a member sees only their rows; `null` (single-user install) sees everything. */
+const forUser = (userId: string | null) => (userId === null ? undefined : eq(hydration.userId, userId));
+
 /** Removes the newest glass of the day. Returns it, or null when there is nothing to undo. */
-export async function undoWater(day = dayOf()): Promise<HydrationRow | null> {
-  const last = await db.select().from(hydration).where(eq(hydration.day, day)).orderBy(desc(hydration.at)).limit(1).get();
+export async function undoWater(day = dayOf(), userId: string | null = null): Promise<HydrationRow | null> {
+  const last = await db.select().from(hydration).where(and(eq(hydration.day, day), forUser(userId))).orderBy(desc(hydration.at)).limit(1).get();
   if (!last) return null;
   await db.delete(hydration).where(eq(hydration.id, last.id));
   return last;
 }
 
-export async function deleteWater(id: string): Promise<boolean> {
-  const r = await db.delete(hydration).where(eq(hydration.id, id)).returning({ id: hydration.id });
+export async function deleteWater(id: string, userId: string | null = null): Promise<boolean> {
+  const r = await db.delete(hydration).where(and(eq(hydration.id, id), forUser(userId))).returning({ id: hydration.id });
   return r.length > 0;
 }
 
@@ -58,9 +61,9 @@ function hourIn(tz: string, at: Date): number {
   return Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hour12: false }).format(at));
 }
 
-export async function waterSummary(weightKg: number, activeKcal: number | null, now = new Date()): Promise<WaterSummary> {
+export async function waterSummary(weightKg: number, activeKcal: number | null, now = new Date(), userId: string | null = null): Promise<WaterSummary> {
   const day = dayOf(now);
-  const entries = await db.select().from(hydration).where(eq(hydration.day, day)).orderBy(desc(hydration.at));
+  const entries = await db.select().from(hydration).where(and(eq(hydration.day, day), forUser(userId))).orderBy(desc(hydration.at));
   const ml = entries.reduce((a, e) => a + e.ml, 0);
   const targetMl = waterTargetMl(weightKg, activeKcal);
   const lastAt = entries[0]?.at.getTime() ?? null;
@@ -80,7 +83,7 @@ export async function waterSummary(weightKg: number, activeKcal: number | null, 
   const rows = await db
     .select({ day: hydration.day, ml: sql<number>`sum(${hydration.ml})` })
     .from(hydration)
-    .where(and(gte(hydration.day, fromDay), lt(hydration.day, dayOf(next))))
+    .where(and(gte(hydration.day, fromDay), lt(hydration.day, dayOf(next)), forUser(userId)))
     .groupBy(hydration.day);
   const byDay = new Map(rows.map((r) => [r.day, Number(r.ml)]));
   const week: WaterSummary["week"] = [];

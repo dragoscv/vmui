@@ -1,3 +1,5 @@
+import { homeActorOrOwner } from "@/lib/home/access";
+import { localizeCard } from "@/lib/notify";
 import { runAction } from "@/lib/notify/actions";
 import { notifyActor } from "@/lib/notify/auth";
 import { NextResponse, type NextRequest } from "next/server";
@@ -13,6 +15,10 @@ export async function POST(req: NextRequest) {
   if (!who) return new NextResponse("forbidden", { status: 403 });
   const p = body.safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ ok: false, error: "invalid" }, { status: 400 });
-  const r = await runAction(p.data.id, p.data.action, who.by);
-  return NextResponse.json(r, { status: r.ok ? 200 : 400 });
+  // bound device / session → that member; shared desktop token → the owner (it is their PC);
+  // an approved but unbound device gets no household actor and so cannot open the door
+  const actor = await homeActorOrOwner(req, who.deviceId === "desktop");
+  const r = await runAction(p.data.id, p.data.action, who.by, actor);
+  const out = r.ok && r.card ? { ...r, card: await localizeCard(r.card, who.locale) } : r;
+  return NextResponse.json(out, { status: r.ok ? 200 : !r.ok && r.error === "forbidden" ? 403 : 400 });
 }

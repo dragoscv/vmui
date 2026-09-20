@@ -1,19 +1,16 @@
-import { authEnabled, getCurrentUser } from "@/lib/auth";
-import { DEVICES } from "@/lib/home/catalog";
+import { homeActorOrOwner, visibleEntities } from "@/lib/home/access";
+import { espAuthorized } from "@/lib/esp/auth";
 import { ha, haStateChanges } from "@/lib/home/ha-client";
 import "server-only";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const wanted = new Set<string>(["light.hyperhdr", "sensor.dragos_s_s25_ultra_last_notification"]);
-for (const d of DEVICES) {
-  if (d.entity) wanted.add(d.entity);
-  for (const e of d.entities ?? []) wanted.add(e);
-}
-
 export async function GET(req: Request) {
-  if ((await authEnabled()) && !(await getCurrentUser())) return new Response("unauthorized", { status: 401 });
+  // a member's session or bound device sees their rooms; the shared display token (Nest Hub kiosk) sees the owner's
+  const actor = await homeActorOrOwner(req, espAuthorized(req));
+  if (!actor) return new Response("unauthorized", { status: 401 });
+  const wanted = visibleEntities(actor);
   if (!ha.configured()) return new Response("home assistant not configured", { status: 503 });
 
   const enc = new TextEncoder();

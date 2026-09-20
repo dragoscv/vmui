@@ -1,105 +1,106 @@
 {
-	"floorPlan": {
-		"hintTap": "Atinge un dispozitiv pentru a-l controla.",
-		"hintArrange": "Trage un dispozitiv acolo unde stă de fapt. Pozițiile se salvează automat.",
-		"arrange": "Aranjează",
-		"done": "Gata",
-		"reset": "Resetează",
-		"layoutReset": "Planul a fost resetat la valorile implicite",
-		"rooms": {
-			"bedroom": "Dormitor",
-			"living_room": "Sufragerie",
-			"kitchen": "Bucătărie",
-			"office": "Birou"
-		}
-	},
-	"kinds": {
-		"light": "Lumină",
-		"strip": "Bandă LED",
-		"projector": "Proiector",
-		"ac": "Aer condiționat",
-		"tv": "TV",
-		"display": "Ecran inteligent",
-		"monitor": "Monitor",
-		"sensor": "Senzor",
-		"presence": "Prezență",
-		"door": "Ușă",
-		"pc": "Calculator",
-		"proxy": "Proxy Bluetooth"
-	},
-	"device": {
-		"subtitle": "{kind} · {via}",
-		"ambilightZone": "ambilight · {zone}",
-		"openInHa": "Deschide în Home Assistant",
-		"state": {
-			"pcGlow": "Strălucirea urmărește ecranul (OpenRGB)",
-			"stripHyper": "Condusă per-LED de HyperHDR",
-			"notEntity": "Nu este o entitate HA",
-			"unavailable": "Indisponibil",
-			"someoneHere": "Este cineva aici",
-			"nobody": "Nimeni detectat",
-			"open": "Deschisă",
-			"closed": "Închisă",
-			"off": "Oprit",
-			"on": "Pornit · {pct}%",
-			"acRunning": "{mode} · {target}° → {current}° acum"
-		},
-		"power": "Alimentare",
-		"brightness": "Luminozitate",
-		"warmth": "Căldură",
-		"colourTemperature": "Temperatura de culoare",
-		"colour": "Culoare",
-		"customColour": "Culoare personalizată",
-		"presets": {
-			"cinema": "Cinema",
-			"ocean": "Ocean",
-			"forest": "Pădure",
-			"violet": "Violet",
-			"rose": "Roz",
-			"daylight": "Lumină de zi"
-		},
-		"staticStrip": {
-			"dxlight": "Această bandă nu are entitate în Home Assistant — HyperHDR îi scrie direct prin USB la ~59 fps. Folosește panoul Ambilight pentru a schimba ce afișează.",
-			"none": "Fără control direct."
-		},
-		"climate": {
-			"lower": "Scade",
-			"raise": "Crește",
-			"room": "cameră {t}°",
-			"target": "țintă",
-			"fan": "Ventilator",
-			"fanMode": "Mod ventilator",
-			"hvac": {
-				"off": "Oprit",
-				"cool": "Răcire",
-				"heat": "Încălzire",
-				"dry": "Dezumidificare",
-				"fan_only": "Doar ventilator",
-				"auto": "Auto",
-				"heat_cool": "Încălzire / răcire"
-			}
-		},
-		"media": {
-			"nowPlaying": "Se redă",
-			"turnOn": "Pornește",
-			"turnOff": "Oprește",
-			"playPause": "Redare / pauză",
-			"volumeDown": "Volum jos",
-			"volumeUp": "Volum sus",
-			"mute": "Mut",
-			"volume": "Volum {pct}%"
-		},
-		"sensor": {
-			"updated": "actualizat {ago}"
-		},
-		"more": "Mai multe",
-		"press": "Apasă",
-		"sent": "Trimis",
-		"timeAgo": {
-			"justNow": "chiar acum",
-			"minutes": "{n, plural, one {acum # min} other {acum # min}}",
-			"hours": "{n, plural, one {acum # h} other {acum # h}}",
-			"days": "{n, plural, one {acum # zi} other {acum # zile}}"
-		}
-	}
+  "floorPlan": {
+    "hintTap": "Atinge un dispozitiv pentru a-l controla.",
+    "hintArrange": "Trage un dispozitiv acolo unde stă de fapt. Pozițiile se salvează automat.",
+    "arrange": "Aranjează",
+    "done": "Gata",
+    "reset": "Resetează",
+    "layoutReset": "Planul a fost resetat la valorile implicite",
+    "rooms": {
+      "bedroom": "Dormitor",
+      "living_room": "Sufragerie",
+      "kitchen": "Bucătărie",
+      "office": "Birou"
+    }
+  },
+  "kinds": {
+    "light": "Lumină",
+    "strip": "Bandă LED",
+    "projector": "Proiector",
+    "ac": "Aer condiționat",
+    "tv": "TV",
+    "display": "Ecran inteligent",
+    "monitor": "Monitor",
+    "sensor": "Senzor",
+    "presence": "Prezență",
+    "door": "Ușă",
+    "pc": "Calculator",
+    "proxy": "Proxy Bluetooth"
+  },
+  "device": {
+    "subtitle": "{kind} · {via}",
+    "viewOnly": "Doar vizualizare",
+    "ambilightZone": "ambilight · {zone}",
+    "openInHa": "Deschide în Home Assistant",
+    "state": {
+      "pcGlow": "Strălucirea urmărește ecranul (OpenRGB)",
+      "stripHyper": "Condusă per-LED de HyperHDR",
+      "notEntity": "Nu este o entitate HA",
+      "unavailable": "Indisponibil",
+      "someoneHere": "Este cineva aici",
+      "nobody": "Nimeni detectat",
+      "open": "Deschisă",
+      "closed": "Închisă",
+      "off": "Oprit",
+      "on": "Pornit · {pct}%",
+      "acRunning": "{mode} · {target}° → {current}° acum"
+    },
+    "power": "Alimentare",
+    "brightness": "Luminozitate",
+    "warmth": "Căldură",
+    "colourTemperature": "Temperatura de culoare",
+    "colour": "Culoare",
+    "customColour": "Culoare personalizată",
+    "presets": {
+      "cinema": "Cinema",
+      "ocean": "Ocean",
+      "forest": "Pădure",
+      "violet": "Violet",
+      "rose": "Roz",
+      "daylight": "Lumină de zi"
+    },
+    "staticStrip": {
+      "dxlight": "Această bandă nu are entitate în Home Assistant — HyperHDR îi scrie direct prin USB la ~59 fps. Folosește panoul Ambilight pentru a schimba ce afișează.",
+      "none": "Fără control direct."
+    },
+    "climate": {
+      "lower": "Scade",
+      "raise": "Crește",
+      "room": "cameră {t}°",
+      "target": "țintă",
+      "fan": "Ventilator",
+      "fanMode": "Mod ventilator",
+      "hvac": {
+        "off": "Oprit",
+        "cool": "Răcire",
+        "heat": "Încălzire",
+        "dry": "Dezumidificare",
+        "fan_only": "Doar ventilator",
+        "auto": "Auto",
+        "heat_cool": "Încălzire / răcire"
+      }
+    },
+    "media": {
+      "nowPlaying": "Se redă",
+      "turnOn": "Pornește",
+      "turnOff": "Oprește",
+      "playPause": "Redare / pauză",
+      "volumeDown": "Volum jos",
+      "volumeUp": "Volum sus",
+      "mute": "Mut",
+      "volume": "Volum {pct}%"
+    },
+    "sensor": {
+      "updated": "actualizat {ago}"
+    },
+    "more": "Mai multe",
+    "press": "Apasă",
+    "sent": "Trimis",
+    "timeAgo": {
+      "justNow": "chiar acum",
+      "minutes": "{n, plural, one {acum # min} other {acum # min}}",
+      "hours": "{n, plural, one {acum # h} other {acum # h}}",
+      "days": "{n, plural, one {acum # zi} other {acum # zile}}"
+    }
+  }
 }

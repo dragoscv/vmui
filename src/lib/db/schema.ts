@@ -1236,6 +1236,8 @@ export const meals = sqliteTable("meals", {
   source: text("source").notNull().default("web"),
   clientId: text("client_id"),
   syncedToHealthConnect: integer("synced_hc", { mode: "boolean" }).notNull().default(false),
+  /** Whose journal this is; null only for rows written before family mode (treated as the owner's). */
+  userId: text("user_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type MealRow = typeof meals.$inferSelect;
@@ -1259,8 +1261,17 @@ export const hydration = sqliteTable("hydration", {
   day: text("day").notNull(),
   ml: integer("ml").notNull(),
   source: text("source").notNull().default("web"),
+  userId: text("user_id"),
 });
 export type HydrationRow = typeof hydration.$inferSelect;
+
+/** Per-member nutrition profile (targets, body, coach). The owner's legacy
+ *  profile lives in turzx_settings row 5 and is copied here on first read. */
+export const nutritionProfiles = sqliteTable("nutrition_profiles", {
+  userId: text("user_id").primaryKey(),
+  json: text("json").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
 
 /** Phones / desktops paired with this vmui (see lib/devices/pairing.ts). One
  *  revocable token per device instead of the shared ESP_DISPLAY_TOKEN. */
@@ -1279,9 +1290,48 @@ export const pairedDevices = sqliteTable("paired_devices", {
   lastIp: text("last_ip"),
   /** FCM registration token (Android) — wakes the app for a notification */
   pushToken: text("push_token"),
+  /** UI language the device asked for (`en` | `ro`); notifications render in it */
+  language: text("language"),
+  /** Family member this device acts as; its room permissions apply to every call the device makes. */
+  userId: text("user_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 export type PairedDeviceRow = typeof pairedDevices.$inferSelect;
+
+/** Family membership for /home (lib/home/access.ts). Separate from `users.role`,
+ *  which governs the VM control plane: an infrastructure viewer can be the
+ *  household owner, and a family guest never sees a VM. `rooms` is JSON
+ *  `{ [roomId]: "view" | "control" }`; a room absent from it is hidden. */
+export const homeMembers = sqliteTable("home_members", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role", { enum: ["owner", "adult", "child", "guest"] }).notNull(),
+  rooms: text("rooms").notNull().default("{}"),
+  /** Guests stop having access after this; null = no expiry. */
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+  createdBy: text("created_by"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type HomeMemberRow = typeof homeMembers.$inferSelect;
+
+/** Single-use invitation links for new family members (/invite/<token>). The
+ *  clear token is only in the link; we store its sha256. */
+export const homeInvites = sqliteTable("home_invites", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  /** Pre-filled display name the inviter typed (the invitee may change it). */
+  name: text("name").notNull(),
+  role: text("role", { enum: ["adult", "child", "guest"] }).notNull(),
+  rooms: text("rooms").notNull().default("{}"),
+  /** Guest access expiry copied onto the member at acceptance. */
+  accessExpiresAt: integer("access_expires_at", { mode: "timestamp" }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+  acceptedBy: text("accepted_by"),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type HomeInviteRow = typeof homeInvites.$inferSelect;
 
 /** Notification centre (lib/notify). One row per card; `tag` lets a source
  *  update a card in place (progress, agents summary). Actions are JSON

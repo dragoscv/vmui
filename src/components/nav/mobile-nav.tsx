@@ -15,10 +15,11 @@ const TABS: Array<NavItem & { labelKey: "vms" | "apps" | "shell" | null }> = [
   { id: "terminal", href: "/terminal", icon: TerminalSquare, labelKey: "shell" },
 ];
 
-export function MobileNav() {
+export function MobileNav({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
   const t = useTranslations("shell");
   const [showMore, setShowMore] = useState(false);
+  if (compact) return null;
   const inTabs = TABS.some((it) => isNavActive(pathname, it));
   const moreActive = !inTabs && pathname !== "/";
 

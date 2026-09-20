@@ -36,21 +36,21 @@ const HVAC_MODES = ["off", "cool", "heat", "dry", "fan_only", "auto", "heat_cool
 type HvacMode = (typeof HVAC_MODES)[number];
 const isHvacMode = (m: string): m is HvacMode => (HVAC_MODES as readonly string[]).includes(m);
 
-export function DeviceSheet({ device, haUrl, onClose }: { device: PlacedDevice | null; haUrl: string | null; onClose: () => void }) {
+export function DeviceSheet({ device, haUrl, onClose, readOnly = false }: { device: PlacedDevice | null; haUrl: string | null; onClose: () => void; readOnly?: boolean }) {
   const t = useTranslations("homeCards.device");
   const kindLabel = useKindLabel();
   return (
     <Sheet open={device !== null} onOpenChange={(o) => !o && onClose()}>
       {device && (
         <SheetContent title={device.name} description={t("subtitle", { kind: kindLabel(device.kind), via: device.via })}>
-          <DeviceBody device={device} haUrl={haUrl} />
+          <DeviceBody device={device} haUrl={haUrl} readOnly={readOnly} />
         </SheetContent>
       )}
     </Sheet>
   );
 }
 
-function DeviceBody({ device, haUrl }: { device: PlacedDevice; haUrl: string | null }) {
+function DeviceBody({ device, haUrl, readOnly }: { device: PlacedDevice; haUrl: string | null; readOnly: boolean }) {
   const t = useTranslations("homeCards.device");
   const s = useEntity(device.entity);
   const Icon = KIND_ICON[device.kind];
@@ -65,16 +65,17 @@ function DeviceBody({ device, haUrl }: { device: PlacedDevice; haUrl: string | n
           {device.notes && <p className="text-xs text-muted">{device.notes}</p>}
         </div>
         {device.ambilight && <Badge variant="info">{t("ambilightZone", { zone: device.ambilight })}</Badge>}
+        {readOnly && <Badge variant="muted">{t("viewOnly")}</Badge>}
       </div>
 
-      {device.kind === "light" || device.kind === "strip" || device.kind === "projector" ? (
+      {!readOnly && (device.kind === "light" || device.kind === "strip" || device.kind === "projector") ? (
         device.entity ? <LightControls entity={device.entity} whiteOnly={device.whiteOnly} /> : <StaticStrip device={device} />
       ) : null}
-      {device.kind === "ac" && device.entity && <ClimateControls entity={device.entity} />}
-      {(device.kind === "tv" || device.kind === "display" || device.kind === "monitor") && device.entity && <MediaControls entity={device.entity} />}
+      {!readOnly && device.kind === "ac" && device.entity && <ClimateControls entity={device.entity} />}
+      {!readOnly && (device.kind === "tv" || device.kind === "display" || device.kind === "monitor") && device.entity && <MediaControls entity={device.entity} />}
       {(device.kind === "sensor" || device.kind === "presence" || device.kind === "door") && <SensorReadout device={device} />}
 
-      {device.entities && device.entities.length > 0 && <ExtraEntities ids={device.entities} />}
+      {!readOnly && device.entities && device.entities.length > 0 && <ExtraEntities ids={device.entities} />}
 
       {haUrl && device.entity && (
         <a

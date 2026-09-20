@@ -1,0 +1,121 @@
+{
+  "title": "Familie",
+  "description": "Cine poate vedea și controla casa. Camerele se acordă per persoană; proprietarul are întotdeauna totul.",
+  "roles": {
+    "owner": "Proprietar",
+    "adult": "Adult",
+    "child": "Copil",
+    "guest": "Oaspete"
+  },
+  "roleHints": {
+    "owner": "Toate camerele, setările, aranjarea planului.",
+    "adult": "Camerele acordate, poate deschide ușa.",
+    "child": "Camerele acordate, vede ușa dar nu o poate deschide.",
+    "guest": "Camerele acordate până la data de expirare."
+  },
+  "level": {
+    "none": "Fără",
+    "view": "Vede",
+    "control": "Controlează"
+  },
+  "members": {
+    "title": "Membri",
+    "hint": "Schimbă rolul sau camerele, apoi salvează persoana respectivă.",
+    "empty": "Niciun membru încă. Invită pe cineva mai jos.",
+    "you": "tu",
+    "role": "Rol",
+    "rooms": "Camere",
+    "allRooms": "Toate camerele",
+    "roomsCount": "{count, plural, =0 {nicio cameră} one {# cameră} few {# camere} other {# de camere}}",
+    "expiresAt": "Acces până la",
+    "expiresHint": "Lasă gol pentru acces fără expirare.",
+    "expired": "expirat",
+    "lastLogin": "ultima autentificare {ago}",
+    "neverLoggedIn": "nu s-a autentificat niciodată",
+    "save": "Salvează",
+    "saved": "{name} actualizat",
+    "remove": "Elimină",
+    "removeAria": "Elimină pe {name} din gospodărie",
+    "removeConfirm": "Elimini pe {name} din gospodărie? Contul rămâne, dispozitivele asociate sunt revocate.",
+    "removed": "{name} eliminat"
+  },
+  "devices": {
+    "title": "Dispozitive",
+    "none": "Niciun dispozitiv asociat",
+    "unbind": "Dezleagă",
+    "unbindAria": "Dezleagă {name}",
+    "unbound": "{name} dezlegat"
+  },
+  "invite": {
+    "title": "Invitație prin link",
+    "hint": "Trimite linkul sau arată codul QR. Invitatul își alege singur emailul și parola. Linkurile sunt valabile 7 zile.",
+    "name": "Nume",
+    "namePlaceholder": "Pentru cine este?",
+    "create": "Creează invitația",
+    "created": "Invitație creată",
+    "link": "Link de invitație",
+    "copy": "Copiază",
+    "copied": "Link copiat",
+    "copyFailed": "Nu s-a putut copia, selectează linkul și copiază-l manual",
+    "qrAlt": "Cod QR al linkului de invitație",
+    "linkExpires": "Link valabil până la {date}",
+    "pending": "Invitații în așteptare",
+    "pendingEmpty": "Nicio invitație în așteptare.",
+    "for": "pentru {name}",
+    "expiresIn": "{days, plural, =0 {expiră azi} one {expiră într-o zi} few {expiră în # zile} other {expiră în # de zile}}",
+    "accessUntil": "acces până la {date}",
+    "revoke": "Revocă",
+    "revokeAria": "Revocă invitația pentru {name}",
+    "revokeConfirm": "Revoci invitația pentru {name}? Linkul nu va mai funcționa.",
+    "revoked": "Invitație revocată"
+  },
+  "create": {
+    "title": "Creează un cont direct",
+    "hint": "Pentru un copil fără telefon sau când îi spui parola personal.",
+    "email": "Email",
+    "displayName": "Nume afișat",
+    "password": "Parolă",
+    "passwordHint": "Cel puțin 8 caractere.",
+    "generate": "Generează",
+    "generatedNote": "Notează-o acum, se afișează o singură dată.",
+    "submit": "Creează contul",
+    "created": "Cont creat pentru {name}"
+  },
+  "existing": {
+    "title": "Adaugă un utilizator existent",
+    "hint": "Conturi care se pot autentifica în vmui, dar nu au încă acces la casă.",
+    "user": "Utilizator",
+    "pick": "Alege un utilizator",
+    "add": "Adaugă în gospodărie",
+    "added": "{name} adăugat"
+  },
+  "accept": {
+    "title": "Intră în gospodărie",
+    "invited": "Ai fost invitat ca {role}.",
+    "roomsIntro": "Camerele la care vei avea acces:",
+    "noRooms": "Nicio cameră acordată încă, proprietarul le poate adăuga mai târziu.",
+    "accessUntil": "Acces până la {date}.",
+    "displayName": "Numele tău",
+    "email": "Email",
+    "password": "Parolă",
+    "confirmPassword": "Confirmă parola",
+    "submit": "Creează-mi contul",
+    "joined": "Bine ai venit acasă",
+    "invalidTitle": "Invitația nu este validă",
+    "invalidBody": "Acest link a expirat, a fost revocat sau a fost deja folosit. Cere proprietarului unul nou.",
+    "signIn": "Ai deja un cont? Autentifică-te"
+  },
+  "errors": {
+    "emailTaken": "Există deja un cont cu acest email.",
+    "invalid": "Această invitație nu mai este validă.",
+    "passwordMismatch": "Parolele nu coincid.",
+    "passwordShort": "Parola trebuie să aibă cel puțin 8 caractere.",
+    "generic": "Nu a mers: {message}"
+  },
+  "ago": {
+    "now": "chiar acum",
+    "minutes": "{n, plural, one {acum un minut} few {acum # minute} other {acum # de minute}}",
+    "hours": "{n, plural, one {acum o oră} few {acum # ore} other {acum # de ore}}",
+    "days": "{n, plural, one {acum o zi} few {acum # zile} other {acum # de zile}}"
+  }
+}

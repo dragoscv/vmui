@@ -17,6 +17,7 @@ import { VoiceCommander } from "@/components/voice-commander";
 import { ensureAlertSchedulerRunning } from "@/lib/alert-engine";
 import { ensureAuditRetention } from "@/lib/audit-retention";
 import { getCurrentUser } from "@/lib/auth";
+import { currentHomeActor } from "@/lib/home/access";
 import { ensureBackupSchedulerRunning } from "@/lib/backups";
 import { ensureComplianceScanRunning } from "@/lib/compliance-scheduler";
 import { ensureGitopsSchedulerRunning } from "@/lib/gitops";
@@ -26,6 +27,7 @@ import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -84,6 +86,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </html>
     );
   }
+  // Family members (adult/child/guest) get the home surface only: no VM navigation, no incident banner.
+  // Redirecting here (not in page.tsx) runs before the shell streams, so it is a real 307 instead of a
+  // client-side replace racing the dashboard's Suspense fallback.
+  const familyOnly = await currentHomeActor().then((a) => !!a && a.role !== "owner").catch(() => false);
+  if (familyOnly) {
+    const path = (await headers()).get("x-vmui-path") ?? "";
+    if (path && !path.startsWith("/home") && !path.startsWith("/sign-") && !path.startsWith("/invite")) redirect("/home");
+  }
+  // Auth-ish pages (sign-in, invitation acceptance) have no shell: nothing to navigate to yet.
+  const bare = ((await headers()).get("x-vmui-path") ?? "").startsWith("/invite/");
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
@@ -102,18 +114,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <TooltipProvider delayDuration={300}>
                 <ConfirmProvider>
                   <PullToRefresh>
+                    {bare ? (
+                      <main className="grid min-h-screen place-items-center px-4 py-10">{children}</main>
+                    ) : (
                     <div className="flex min-h-screen">
-                      <Sidebar />
+                      <Sidebar compact={familyOnly} />
                       <div className="flex min-w-0 flex-1 flex-col">
-                        <Topbar user={<UserMenuSlot />} />
+                        <Topbar user={<UserMenuSlot />} compact={familyOnly} />
                         <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 md:pb-12 lg:px-10">
-                          <IncidentBanner />
+                          {!familyOnly && <IncidentBanner />}
                           {children}
                         </main>
                       </div>
                     </div>
+                    )}
                   </PullToRefresh>
-                  <MobileNav />
+                  <MobileNav compact={familyOnly || bare} />
                   <Toaster position="bottom-right" theme="system" richColors closeButton />
                   <GlobalOverlays />
                   <ServiceWorkerRegister />

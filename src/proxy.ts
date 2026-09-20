@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PREFIXES = [
   "/sign-in",
   "/sign-up",
+  "/invite", // family invitation links: the invitee has no account yet
   "/api/events",
   "/api/v1",
   "/api/esp",   // ESP32 display: token-authenticated, no session cookie
@@ -30,20 +31,21 @@ function isPublic(pathname: string): boolean {
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const h = new Headers(req.headers);
+  h.set("x-vmui-path", pathname);
   if (pathname === "/display") {
     // the root layout reads this to skip the app shell (sidebar, palette, SW…) on the Nest Hub
-    const h = new Headers(req.headers);
     h.set("x-vmui-kiosk", "1");
     return NextResponse.next({ request: { headers: h } });
   }
-  if (isPublic(pathname)) return NextResponse.next();
+  if (isPublic(pathname)) return NextResponse.next({ request: { headers: h } });
   const session = req.cookies.get("vmui_session");
   if (!session) {
     const url = req.nextUrl.clone();
     url.pathname = "/sign-in";
     return NextResponse.redirect(url);
   }
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: h } });
 }
 
 export const config = {

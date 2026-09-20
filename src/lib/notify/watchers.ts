@@ -1,5 +1,6 @@
 import { haConfig } from "@/lib/home/credentials";
 import { ha } from "@/lib/home/ha-client";
+import { ownerActor } from "@/lib/home/access";
 import { nutritionSummary } from "@/lib/nutrition/summary";
 import { execFile } from "node:child_process";
 import { platform } from "node:os";
@@ -41,7 +42,9 @@ export function ensureNotifyWatchers(): void {
 async function water() {
   const s = await loadNotifySettings();
   if (!s.waterNudgeMl) return;
-  const n = await nutritionSummary().catch(() => null);
+  // Phone nudges go to the owner, so pace is measured against their journal.
+  const o = await ownerActor().catch(() => null);
+  const n = await nutritionSummary(o && o.userId !== "solo" ? { userId: o.userId, isOwner: true } : null).catch(() => null);
   if (!n?.water) return;
   const { ml, targetMl, underPace } = n.water;
   const hour = new Date().getHours();

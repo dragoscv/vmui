@@ -24,7 +24,7 @@ type Props = {
  * percent of their room. Drag a dot to move it (arrange mode); the drop is
  * persisted through placeDeviceAction and echoed back on refresh.
  */
-export function FloorPlan({ devices, selected, onSelect }: Props) {
+export function FloorPlan({ devices, selected, onSelect, canArrange = true }: Props & { canArrange?: boolean }) {
   const t = useTranslations("homeCards.floorPlan");
   const [arrange, setArrange] = React.useState(false);
   const [local, setLocal] = React.useState(devices);
@@ -66,7 +66,7 @@ export function FloorPlan({ devices, selected, onSelect }: Props) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 text-xs text-muted">{arrange ? t("hintArrange") : t("hintTap")}</p>
-        <div className="flex shrink-0 items-center gap-1">
+        {canArrange && <div className="flex shrink-0 items-center gap-1">
           {arrange && (
             <Button
               variant="ghost"
@@ -83,7 +83,7 @@ export function FloorPlan({ devices, selected, onSelect }: Props) {
             {arrange ? <LockOpen className="mr-1.5 h-3.5 w-3.5" /> : <Lock className="mr-1.5 h-3.5 w-3.5" />}
             {arrange ? t("done") : t("arrange")}
           </Button>
-        </div>
+        </div>}
       </div>
 
       <div

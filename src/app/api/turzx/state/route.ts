@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { ensureActivityFeed, recentActivity } from "@/lib/esp/activity";
 import { espAuthorized } from "@/lib/esp/auth";
+import { ownerActor } from "@/lib/home/access";
 import { ambilightSettings } from "@/lib/home/ambilight-settings";
 import { ambilightStatus } from "@/lib/home/ambilight-status";
 import { haConfig } from "@/lib/home/credentials";
@@ -100,7 +101,9 @@ export async function GET(req: NextRequest) {
   let nutrition: Awaited<ReturnType<typeof nutritionSummary>> | null = null;
   if (enabled.has("nutrition")) {
     try {
-      nutrition = await nutritionSummary();
+      // The desk screen is the owner's; it shows their journal.
+      const o = await ownerActor();
+      nutrition = await nutritionSummary(o && o.userId !== "solo" ? { userId: o.userId, isOwner: true } : null);
       const g = globalThis as unknown as { __vmuiNutriTick?: number };
       if (Date.now() - (g.__vmuiNutriTick ?? 0) > 5 * 60_000) {
         g.__vmuiNutriTick = Date.now();

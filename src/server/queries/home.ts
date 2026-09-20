@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { homeLayout } from "@/lib/db/schema";
 import { ambilightSettings } from "@/lib/home/ambilight-settings";
+import { canView, visibleEntities, type HomeActor } from "@/lib/home/access";
 import { DEVICES, type CatalogDevice } from "@/lib/home/catalog";
 import { ha, type HaState } from "@/lib/home/ha-client";
 import "server-only";
@@ -14,25 +15,20 @@ export async function wallSetting(): Promise<WallSetting> {
   return { wallHex: s.wallHex, strength: s.wallStrength };
 }
 
-export async function listPlacedDevices(): Promise<PlacedDevice[]> {
+/** Devices in the rooms the actor may see (a device dragged into a hidden room disappears for them). */
+export async function listPlacedDevices(actor: HomeActor): Promise<PlacedDevice[]> {
   const rows = await db.select().from(homeLayout);
   const byId = new Map(rows.map((r) => [r.deviceId, r]));
-  return DEVICES.map((d) => {
+  return DEVICES.map((d): PlacedDevice => {
     const r = byId.get(d.id);
     return r ? { ...d, room: r.room as CatalogDevice["room"], x: r.x, y: r.y, placed: true } : { ...d, placed: false };
-  });
+  }).filter((d) => canView(actor, d.room));
 }
 
-/** Every HA state the catalog references, keyed by entity_id. Empty map when HA is down. */
-export async function loadHomeStates(): Promise<Record<string, HaState>> {
+/** HA states for the entities the actor may see, keyed by entity_id. Empty map when HA is down. */
+export async function loadHomeStates(actor: HomeActor): Promise<Record<string, HaState>> {
   if (!ha.configured()) return {};
-  const wanted = new Set<string>();
-  for (const d of DEVICES) {
-    if (d.entity) wanted.add(d.entity);
-    for (const e of d.entities ?? []) wanted.add(e);
-  }
-  wanted.add("light.hyperhdr");
-  wanted.add("sensor.dragos_s_s25_ultra_last_notification");
+  const wanted = visibleEntities(actor);
   try {
     const all = await ha.states();
     const out: Record<string, HaState> = {};

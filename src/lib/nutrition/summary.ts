@@ -59,11 +59,23 @@ export async function activeKcalToday(): Promise<number | null> {
   }
 }
 
-export async function nutritionSummary(): Promise<NutritionSummary> {
+/** `scope` = whose journal: null for a single-user install; `{ userId, isOwner }` for a family member.
+ *  The scale weight and HA active-kcal are household sensors and only apply to the owner. */
+export async function nutritionSummary(scope: { userId: string; isOwner: boolean } | null = null): Promise<NutritionSummary> {
   const day = dayOf();
-  const [profile, weight, active, list, week, streak, coach] = await Promise.all([loadProfile(), scaleWeightKg(), activeKcalToday(), mealsForDay(day), dailyTotals(7, day), streakDays(), lastCoachMessage()]);
+  const uid = scope?.userId ?? null;
+  const owner = scope?.isOwner ?? true;
+  const [profile, weight, active, list, week, streak, coach] = await Promise.all([
+    loadProfile(uid, owner),
+    owner ? scaleWeightKg() : Promise.resolve(null),
+    owner ? activeKcalToday() : Promise.resolve(null),
+    mealsForDay(day, uid),
+    dailyTotals(7, day, uid),
+    streakDays(uid),
+    owner ? lastCoachMessage() : Promise.resolve(null),
+  ]);
   const targets = computeTargets(profile, weight);
-  const water = await waterSummary(targets.weightKg, active);
+  const water = await waterSummary(targets.weightKg, active, new Date(), uid);
   const today = week[week.length - 1] ?? { day, calories: 0, protein: 0, carbs: 0, fats: 0, fiber: 0, meals: 0 };
   return {
     day,

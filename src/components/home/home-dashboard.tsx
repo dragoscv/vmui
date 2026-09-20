@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CopilotSignals } from "@/lib/copilot/signals-schema";
 import type { DisplaySettings } from "@/lib/display/settings-meta";
-import { AMBILIGHT_MODES } from "@/lib/home/catalog";
 import type { ButtonBindings } from "@/lib/home/button-bindings-schema";
+import type { HomeAccessView } from "@/lib/home/access-model";
+import { AMBILIGHT_MODES, type RoomId } from "@/lib/home/catalog";
 import type { HaState } from "@/lib/home/ha-client";
 import type { NutritionProfile } from "@/lib/nutrition/schema";
 import type { NutritionSummary } from "@/lib/nutrition/summary";
@@ -15,7 +16,7 @@ import { setAmbilightModeAction } from "@/server/actions/home";
 import { armIntercomAction } from "@/server/actions/intercom";
 import { addWaterAction } from "@/server/actions/nutrition";
 import type { PlacedDevice, WallSetting } from "@/server/queries/home";
-import { BellRing, Bot, Clapperboard, DoorOpen, Droplets, GlassWater, Lamp, Lightbulb, MonitorSmartphone, MousePointerClick, Music2, Radar, Tablet, Thermometer } from "lucide-react";
+import { BellRing, Bot, Clapperboard, DoorOpen, Droplets, Eye, GlassWater, Lamp, Lightbulb, MonitorSmartphone, MousePointerClick, Music2, Radar, Tablet, Thermometer, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -26,6 +27,7 @@ import { CopilotSignalsCard } from "./copilot-signals-card";
 import { KIND_ICON } from "./device-icon";
 import { DeviceSheet } from "./device-sheet";
 import { DisplayCard } from "./display-card";
+import { FamilyCard, type FamilyCardProps } from "./family-card";
 import { FloorPlan } from "./floor-plan";
 import { IntercomCard, type IntercomCardState } from "./intercom-card";
 import { NotifyCenterCard } from "./notify-card";
@@ -35,10 +37,16 @@ import { HOME_TABS, normalizeHomeTab, SETTINGS_SECTIONS, type HomeTab, type Sett
 import { TurzxCard } from "./turzx-card";
 import { cssColor, HomeStatesProvider, isOn, useEntity, useHomeStates } from "./use-home-states";
 
-const SECTION_ICON = { turzx: MonitorSmartphone, nestHub: Tablet, deskButton: MousePointerClick, copilot: Bot } as const;
+const SECTION_ICON = { family: Users, turzx: MonitorSmartphone, nestHub: Tablet, deskButton: MousePointerClick, copilot: Bot } as const;
 const MODE_ICON = { movie: Clapperboard, music: Music2, off: Lamp } as const;
 
+const AccessContext = React.createContext<HomeAccessView>({ role: "owner", rooms: {}, canOpenDoor: true, canManage: true, canControlAny: true, userId: "", displayName: "" });
+export const useHomeAccess = () => React.useContext(AccessContext);
+const canControlRoom = (a: HomeAccessView, room: RoomId) => a.rooms[room] === "control";
+
 export function HomeDashboard({
+  access,
+  family,
   devices,
   initialStates,
   haUrl,
@@ -57,6 +65,8 @@ export function HomeDashboard({
   buttons,
   haScripts,
 }: {
+  access: HomeAccessView;
+  family: Omit<FamilyCardProps, "me"> | null;
   devices: PlacedDevice[];
   initialStates: Record<string, HaState>;
   haUrl: string | null;
@@ -78,6 +88,7 @@ export function HomeDashboard({
   const t = useTranslations("home");
   const [selected, setSelected] = React.useState<string | null>(null);
   const device = devices.find((d) => d.id === selected) ?? null;
+  const tabs = HOME_TABS.filter((id) => (id === "settings" ? access.canManage : id === "ambilight" ? access.canControlAny : true));
   const router = useRouter();
   const params = useSearchParams();
   const [tab, setTab] = React.useState<HomeTab>(initialTab);
@@ -93,12 +104,13 @@ export function HomeDashboard({
   };
 
   return (
+    <AccessContext.Provider value={access}>
     <HomeStatesProvider initial={initialStates}>
       <div className="space-y-5">
         <Tabs value={tab} onValueChange={(v) => navigate(normalizeHomeTab(v))}>
           <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
             <TabsList aria-label={t("tabs.label")} className="h-10 w-max justify-start gap-0.5">
-              {HOME_TABS.map((id) => (
+              {tabs.map((id) => (
                 <TabsTrigger key={id} value={id} className="px-3.5 py-1.5">{t(`tabs.${id}`)}</TabsTrigger>
               ))}
             </TabsList>
@@ -107,14 +119,16 @@ export function HomeDashboard({
           <TabsContent value="home" className="space-y-6">
             <Vitals />
             <QuickActions water={nutrition.water} intercom={intercom} onSettings={(s) => navigate("settings", s)} />
-            <FloorPlan devices={devices} selected={selected} onSelect={setSelected} />
+            <FloorPlan devices={devices} selected={selected} onSelect={setSelected} canArrange={access.canManage} />
             <DeviceGrid devices={devices} onSelect={setSelected} />
-            <IntercomCard initial={intercom} token={espToken} />
+            <IntercomCard initial={intercom} token={espToken} canOpen={access.canOpenDoor} />
           </TabsContent>
 
-          <TabsContent value="ambilight">
-            <AmbilightPanel wall={wall} />
-          </TabsContent>
+          {access.canControlAny && (
+            <TabsContent value="ambilight">
+              <AmbilightPanel wall={wall} />
+            </TabsContent>
+          )}
 
           <TabsContent value="notifications" className="space-y-4">
             <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -127,21 +141,23 @@ export function HomeDashboard({
             <NutritionCard initial={nutrition} profile={nutritionProfile} />
           </TabsContent>
 
-          <TabsContent value="settings">
+          {access.canManage && <TabsContent value="settings">
             <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
               <SettingsNav value={section} onChange={(s) => navigate("settings", s)} />
               <div className="min-w-0 max-w-3xl">
+                {section === "family" && family && <FamilyCard {...family} me={access.userId} />}
                 {section === "turzx" && <TurzxCard initial={turzx} pomodoro={pomodoro} defaultOpen />}
                 {section === "nestHub" && <DisplayCard initial={display} espToken={espToken} defaultOpen />}
                 {section === "deskButton" && <ButtonBindingsCard initial={buttons} scripts={haScripts} defaultOpen />}
                 {section === "copilot" && <CopilotSignalsCard initial={copilot} lights={rgbLights} defaultOpen />}
               </div>
             </div>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       </div>
-      <DeviceSheet device={device} haUrl={haUrl} onClose={() => setSelected(null)} />
+      <DeviceSheet device={device} haUrl={haUrl} onClose={() => setSelected(null)} readOnly={device ? !canControlRoom(access, device.room) : false} />
     </HomeStatesProvider>
+    </AccessContext.Provider>
   );
 }
 
@@ -181,6 +197,7 @@ function SettingsNav({ value, onChange }: { value: SettingsSection; onChange: (s
 /** One-tap actions that used to need a form: ambilight scene, a glass of water, arming the intercom. */
 function QuickActions({ water, intercom, onSettings }: { water: NutritionSummary["water"]; intercom: IntercomCardState; onSettings: (s: SettingsSection) => void }) {
   const t = useTranslations("home.quick");
+  const access = useHomeAccess();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [ml, setMl] = React.useState(water.ml);
   const [mode, setMode] = React.useState<string | null>(null);
@@ -196,7 +213,7 @@ function QuickActions({ water, intercom, onSettings }: { water: NutritionSummary
   return (
     <section aria-label={t("label")} className="surface p-3 sm:p-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-2">
+        {access.canControlAny && <div className="min-w-0 space-y-2">
           <p className="text-xs font-medium uppercase tracking-wider text-muted">{t("ambilight")}</p>
           <div className="grid grid-cols-3 gap-2">
             {AMBILIGHT_MODES.map((m) => {
@@ -218,7 +235,7 @@ function QuickActions({ water, intercom, onSettings }: { water: NutritionSummary
               );
             })}
           </div>
-        </div>
+        </div>}
         <div className="min-w-0 space-y-2">
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wider text-muted">{t("water")}</p>
@@ -236,17 +253,17 @@ function QuickActions({ water, intercom, onSettings }: { water: NutritionSummary
             </Button>
           </div>
         </div>
-        <div className="min-w-0 space-y-2">
+        {access.canOpenDoor && <div className="min-w-0 space-y-2">
           <p className="text-xs font-medium uppercase tracking-wider text-muted">{t("intercom")}</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant={armed ? "primary" : "secondary"} disabled={busy !== null} onClick={() => run("arm", () => armIntercomAction(30), () => toast.success(t("armed", { n: 30 })))}>
               <BellRing className="size-4" aria-hidden /> {t("armFor", { n: 30 })}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => onSettings("deskButton")}>
+            {access.canManage && <Button size="sm" variant="ghost" onClick={() => onSettings("deskButton")}>
               <MousePointerClick className="size-4" aria-hidden /> {t("deskButton")}
-            </Button>
+            </Button>}
           </div>
-        </div>
+        </div>}
       </div>
     </section>
   );
@@ -287,15 +304,20 @@ function Vitals() {
 
 function DeviceGrid({ devices, onSelect }: { devices: PlacedDevice[]; onSelect: (id: string) => void }) {
   const t = useTranslations("home.rooms");
+  const access = useHomeAccess();
   const rooms = ["bedroom", "living_room", "kitchen", "office"] as const;
   return (
     <div className="space-y-5">
       {rooms.map((r) => {
         const list = devices.filter((d) => d.room === r);
         if (!list.length) return null;
+        const viewOnly = !canControlRoom(access, r);
         return (
           <section key={r} aria-label={t(r)} className="space-y-2">
-            <h3 className="text-xs font-medium uppercase tracking-[0.14em] text-muted">{t(r)}</h3>
+            <h3 className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted">
+              {t(r)}
+              {viewOnly && <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-border)] px-1.5 py-0.5 normal-case tracking-normal"><Eye className="size-3" aria-hidden />{t("viewOnly")}</span>}
+            </h3>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {list.map((d) => (
                 <DeviceTile key={d.id} device={d} onSelect={() => onSelect(d.id)} />

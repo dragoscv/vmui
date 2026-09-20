@@ -9,12 +9,16 @@ export const dynamic = "force-dynamic";
 // Who may manage devices: a signed-in vmui user (web /home), an already-
 // approved device (the "approve from the phone you already have" path), or
 // the desktop app on the PC that holds .private/credentials.env (shared token).
-async function actor(req: NextRequest): Promise<string | null> {
+// `userId` is the member a newly approved device gets bound to: the approver
+// themselves, or the member the approving device already acts as.
+type Actor = { by: string; userId: string | null };
+async function actor(req: NextRequest): Promise<Actor | null> {
   const u = await getCurrentUser().catch(() => null);
-  if (u) return u.email;
+  if (u) return { by: u.email, userId: u.id };
   const d = await deviceFromRequest(req);
-  if (d) return `device:${d.name}`;
-  return espAuthorized(req) ? "desktop:shared-token" : null;
+  if (d) return { by: `device:${d.name}`, userId: d.userId };
+  // shared token has no identity; the device stays unbound until rebound in the family card
+  return espAuthorized(req) ? { by: "desktop:shared-token", userId: null } : null;
 }
 
 /** GET: everything + pending (with codes) for banners. `?since=N` long-polls up to 25 s for a change. */
@@ -37,13 +41,14 @@ const body = z.discriminatedUnion("op", [
 ]);
 
 export async function POST(req: NextRequest) {
-  const by = await actor(req);
-  if (!by) return new NextResponse("forbidden", { status: 403 });
+  const who = await actor(req);
+  if (!who) return new NextResponse("forbidden", { status: 403 });
+  const by = who.by;
   const p = body.safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ ok: false, error: "invalid" }, { status: 400 });
   switch (p.data.op) {
     case "approve": {
-      const r = await approveDevice(p.data.id, p.data.code, by);
+      const r = await approveDevice(p.data.id, p.data.code, by, who.userId);
       return NextResponse.json(r, { status: r.ok ? 200 : 400 });
     }
     case "reject":

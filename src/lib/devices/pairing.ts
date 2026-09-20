@@ -36,7 +36,7 @@ function bump() {
   version++;
 }
 
-export async function requestPairing(name: string, platform: string, ip: string | null): Promise<PairingTicket> {
+export async function requestPairing(name: string, platform: string, ip: string | null, language: string | null = null): Promise<PairingTicket> {
   // one pending request per name+ip; a retry replaces it instead of piling up
   const stale = await db.select().from(pairedDevices).where(eq(pairedDevices.status, "pending"));
   for (const s of stale) {
@@ -46,7 +46,7 @@ export async function requestPairing(name: string, platform: string, ip: string 
   const id = randomBytes(8).toString("hex");
   const token = "vmd_" + randomBytes(24).toString("base64url");
   const code = String(randomInt(0, 10000)).padStart(4, "0");
-  await db.insert(pairedDevices).values({ id, name: name.slice(0, 64), platform: platform.slice(0, 32), tokenHash: hash(token), status: "pending", code, lastIp: ip, lastSeenAt: new Date() });
+  await db.insert(pairedDevices).values({ id, name: name.slice(0, 64), platform: platform.slice(0, 32), tokenHash: hash(token), status: "pending", code, lastIp: ip, lastSeenAt: new Date(), language });
   await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.request", target: id, status: "ok", message: `${name} (${platform}) from ${ip ?? "?"} code ${code}` });
   bump();
   // card on every surface (phone, desktop, web); the code must match what the new device shows
@@ -75,13 +75,14 @@ export async function pairingStatus(id: string): Promise<{ status: string; code:
   return r ? { status: r.status, code: r.status === "pending" ? r.code : null } : null;
 }
 
-export async function approveDevice(id: string, code: string, by: string): Promise<{ ok: true } | { ok: false; error: string }> {
+/** `userId` = the family member this device will act as (lib/home/access.ts); the approver binds it to themselves by default. */
+export async function approveDevice(id: string, code: string, by: string, userId: string | null = null): Promise<{ ok: true } | { ok: false; error: string }> {
   const r = await db.select().from(pairedDevices).where(eq(pairedDevices.id, id)).get();
   if (!r || r.status !== "pending") return { ok: false, error: "cerere inexistentă sau expirată" };
   if (r.createdAt.getTime() < Date.now() - PENDING_TTL_MS) return { ok: false, error: "cererea a expirat" };
   if ((r.code ?? "") !== code) return { ok: false, error: "codul nu se potrivește" };
-  await db.update(pairedDevices).set({ status: "approved", code: null, approvedBy: by }).where(eq(pairedDevices.id, id));
-  await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.approve", target: id, status: "ok", message: `${r.name} approved by ${by}` });
+  await db.update(pairedDevices).set({ status: "approved", code: null, approvedBy: by, userId }).where(eq(pairedDevices.id, id));
+  await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.approve", target: id, status: "ok", message: `${r.name} approved by ${by}${userId ? ` as user ${userId}` : ""}` });
   bump();
   void import("@/lib/notify").then((n) => n.dismissByTag(`pair-${id}`, by)).catch(() => undefined);
   return { ok: true };
@@ -95,10 +96,10 @@ export async function rejectDevice(id: string, by: string): Promise<void> {
 }
 
 /** Sign-in path: the device proved it holds the vmui account, so it is approved immediately. */
-export async function approveByLogin(name: string, platform: string, ip: string | null, userEmail: string): Promise<PairingTicket> {
+export async function approveByLogin(name: string, platform: string, ip: string | null, userEmail: string, language: string | null = null, userId: string | null = null): Promise<PairingTicket> {
   const id = randomBytes(8).toString("hex");
   const token = "vmd_" + randomBytes(24).toString("base64url");
-  await db.insert(pairedDevices).values({ id, name: name.slice(0, 64), platform: platform.slice(0, 32), tokenHash: hash(token), status: "approved", approvedBy: userEmail, lastIp: ip, lastSeenAt: new Date() });
+  await db.insert(pairedDevices).values({ id, name: name.slice(0, 64), platform: platform.slice(0, 32), tokenHash: hash(token), status: "approved", approvedBy: userEmail, lastIp: ip, lastSeenAt: new Date(), language, userId });
   await db.insert(auditLog).values({ accountId: "devices", action: "device.pair.login", target: id, status: "ok", message: `${name} (${platform}) signed in as ${userEmail}` });
   bump();
   return { id, token, code: "" };

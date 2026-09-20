@@ -1,10 +1,10 @@
 "use server";
 
-import { requireRole } from "@/lib/auth";
 import { copilotSignalsSchema, saveCopilotSignals, type CopilotEvent, type CopilotSignals } from "@/lib/copilot/signals";
 import { db } from "@/lib/db";
 import { auditLog, homeLayout } from "@/lib/db/schema";
 import { displaySettingsSchema, saveDisplaySettings, type DisplaySettings } from "@/lib/display/settings";
+import { canControlAny, HomeAccessError, requireEntityControl, requireHomeActor, requireOwner, type HomeActor } from "@/lib/home/access";
 import { setAmbilightSettings } from "@/lib/home/ambilight-settings";
 import { AMBILIGHT_MODES, DEVICES, ROOMS } from "@/lib/home/catalog";
 import { credential } from "@/lib/home/credentials";
@@ -15,29 +15,36 @@ import { z } from "zod";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-async function guard(): Promise<Result> {
-  try {
-    await requireRole("operator");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Not authorized" };
-  }
+/** House-wide features (ambilight scenes, wall colour, pomodoro): control in at least one room. */
+async function requireAnyControl(): Promise<HomeActor> {
+  const a = await requireHomeActor();
+  if (!canControlAny(a)) throw new HomeAccessError();
+  return a;
 }
+
+const by = (a: HomeActor) => (a.email ? ` by ${a.email}` : "");
 
 async function audit(action: string, target: string, message: string, status: "ok" | "error" = "ok") {
   await db.insert(auditLog).values({ accountId: "home", action, target, status, message });
 }
 
-async function run(action: string, target: string, message: string, fn: () => Promise<unknown>): Promise<Result> {
-  const g = await guard();
-  if (!g.ok) return g;
+/** Gate first (its failure is audited as an error and returned), then the work. */
+async function run(action: string, target: string, message: string, fn: () => Promise<unknown>, gate: () => Promise<HomeActor> = requireAnyControl): Promise<Result> {
+  let actor: HomeActor;
+  try {
+    actor = await gate();
+  } catch (e) {
+    const error = e instanceof Error ? e.message : "Not authorized";
+    await audit(action, target, error, "error");
+    return { ok: false, error };
+  }
   try {
     await fn();
-    await audit(action, target, message);
+    await audit(action, target, `${message}${by(actor)}`);
     return { ok: true };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    await audit(action, target, error, "error");
+    await audit(action, target, `${error}${by(actor)}`, "error");
     return { ok: false, error };
   }
 }
@@ -64,11 +71,17 @@ export async function toggleEntityAction(input: { entity: string; on: boolean })
   if (!p.success) return { ok: false, error: "Invalid input" };
   const { entity, on } = p.data;
   const domain = entity.split(".")[0] ?? "homeassistant";
-  return run("home.toggle", entity, on ? "on" : "off", async () => {
-    assertKnown(entity);
-    const svcDomain = ["light", "switch", "fan", "media_player", "climate", "humidifier"].includes(domain) ? domain : "homeassistant";
-    await ha.callService(svcDomain, on ? "turn_on" : "turn_off", { entity_id: entity });
-  });
+  return run(
+    "home.toggle",
+    entity,
+    on ? "on" : "off",
+    async () => {
+      assertKnown(entity);
+      const svcDomain = ["light", "switch", "fan", "media_player", "climate", "humidifier"].includes(domain) ? domain : "homeassistant";
+      await ha.callService(svcDomain, on ? "turn_on" : "turn_off", { entity_id: entity });
+    },
+    () => requireEntityControl(entity),
+  );
 }
 
 export async function setLightAction(input: {
@@ -89,16 +102,22 @@ export async function setLightAction(input: {
     .safeParse(input);
   if (!p.success) return { ok: false, error: "Invalid input" };
   const { entity, rgb: color, brightnessPct, kelvin, transition } = p.data;
-  return run("home.light", entity, JSON.stringify({ color, brightnessPct, kelvin }), async () => {
-    assertKnown(entity);
-    if (color && whiteOnlyEntities.has(entity)) throw new Error("This light only supports white — use Warmth instead");
-    const data: Record<string, unknown> = { entity_id: entity };
-    if (color) data.rgb_color = color;
-    if (brightnessPct !== undefined) data.brightness_pct = brightnessPct;
-    if (kelvin !== undefined) data.color_temp_kelvin = kelvin;
-    if (transition !== undefined) data.transition = transition;
-    await ha.callService("light", "turn_on", data);
-  });
+  return run(
+    "home.light",
+    entity,
+    JSON.stringify({ color, brightnessPct, kelvin }),
+    async () => {
+      assertKnown(entity);
+      if (color && whiteOnlyEntities.has(entity)) throw new Error("This light only supports white — use Warmth instead");
+      const data: Record<string, unknown> = { entity_id: entity };
+      if (color) data.rgb_color = color;
+      if (brightnessPct !== undefined) data.brightness_pct = brightnessPct;
+      if (kelvin !== undefined) data.color_temp_kelvin = kelvin;
+      if (transition !== undefined) data.transition = transition;
+      await ha.callService("light", "turn_on", data);
+    },
+    () => requireEntityControl(entity),
+  );
 }
 
 export async function setClimateAction(input: {
@@ -117,35 +136,53 @@ export async function setClimateAction(input: {
     .safeParse(input);
   if (!p.success) return { ok: false, error: "Invalid input" };
   const { entity, hvacMode, temperature, fanMode } = p.data;
-  return run("home.climate", entity, JSON.stringify({ hvacMode, temperature, fanMode }), async () => {
-    assertKnown(entity);
-    if (hvacMode) await ha.callService("climate", "set_hvac_mode", { entity_id: entity, hvac_mode: hvacMode });
-    if (temperature !== undefined) await ha.callService("climate", "set_temperature", { entity_id: entity, temperature });
-    if (fanMode) await ha.callService("climate", "set_fan_mode", { entity_id: entity, fan_mode: fanMode });
-  });
+  return run(
+    "home.climate",
+    entity,
+    JSON.stringify({ hvacMode, temperature, fanMode }),
+    async () => {
+      assertKnown(entity);
+      if (hvacMode) await ha.callService("climate", "set_hvac_mode", { entity_id: entity, hvac_mode: hvacMode });
+      if (temperature !== undefined) await ha.callService("climate", "set_temperature", { entity_id: entity, temperature });
+      if (fanMode) await ha.callService("climate", "set_fan_mode", { entity_id: entity, fan_mode: fanMode });
+    },
+    () => requireEntityControl(entity),
+  );
 }
 
 export async function selectOptionAction(input: { entity: string; option: string }): Promise<Result> {
   const p = z.object({ entity: entityId, option: z.string().max(64) }).safeParse(input);
   if (!p.success) return { ok: false, error: "Invalid input" };
   const { entity, option } = p.data;
-  return run("home.select", entity, option, async () => {
-    assertKnown(entity);
-    await ha.callService("select", "select_option", { entity_id: entity, option });
-  });
+  return run(
+    "home.select",
+    entity,
+    option,
+    async () => {
+      assertKnown(entity);
+      await ha.callService("select", "select_option", { entity_id: entity, option });
+    },
+    () => requireEntityControl(entity),
+  );
 }
 
 export async function mediaCommandAction(input: { entity: string; command: "play_pause" | "volume_up" | "volume_down" | "volume_mute" | "turn_on" | "turn_off" }): Promise<Result> {
   const p = z.object({ entity: entityId, command: z.enum(["play_pause", "volume_up", "volume_down", "volume_mute", "turn_on", "turn_off"]) }).safeParse(input);
   if (!p.success) return { ok: false, error: "Invalid input" };
   const { entity, command } = p.data;
-  return run("home.media", entity, command, async () => {
-    assertKnown(entity);
-    const svc = command === "play_pause" ? "media_play_pause" : command;
-    const data: Record<string, unknown> = { entity_id: entity };
-    if (command === "volume_mute") data.is_volume_muted = true;
-    await ha.callService("media_player", svc, data);
-  });
+  return run(
+    "home.media",
+    entity,
+    command,
+    async () => {
+      assertKnown(entity);
+      const svc = command === "play_pause" ? "media_play_pause" : command;
+      const data: Record<string, unknown> = { entity_id: entity };
+      if (command === "volume_mute") data.is_volume_muted = true;
+      await ha.callService("media_player", svc, data);
+    },
+    () => requireEntityControl(entity),
+  );
 }
 
 export async function setAmbilightModeAction(mode: string): Promise<Result> {
@@ -203,53 +240,77 @@ export async function setWallCompensationAction(input: { wallHex: string; streng
 export async function saveTurzxSettingsAction(input: TurzxSettings): Promise<Result> {
   const p = turzxSettingsSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
-  return run("turzx.settings", "turzx", `${p.data.views.filter((v) => v.enabled).length} views on, ${p.data.fps}fps`, async () => {
-    await saveTurzxSettings(p.data);
-    revalidatePath("/home");
-  });
+  return run(
+    "turzx.settings",
+    "turzx",
+    `${p.data.views.filter((v) => v.enabled).length} views on, ${p.data.fps}fps`,
+    async () => {
+      await saveTurzxSettings(p.data);
+      revalidatePath("/home");
+    },
+    requireOwner,
+  );
 }
 
 /** Nest Hub kiosk preferences; /display polls them within ~3 s. */
 export async function saveDisplaySettingsAction(input: DisplaySettings): Promise<Result> {
   const p = displaySettingsSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
-  return run("display.settings", "nest-hub", `${p.data.views.filter((v) => v.enabled).length} views on, photo ${p.data.photoSec}s`, async () => {
-    await saveDisplaySettings(p.data);
-    revalidatePath("/home");
-  });
+  return run(
+    "display.settings",
+    "nest-hub",
+    `${p.data.views.filter((v) => v.enabled).length} views on, photo ${p.data.photoSec}s`,
+    async () => {
+      await saveDisplaySettings(p.data);
+      revalidatePath("/home");
+    },
+    requireOwner,
+  );
 }
 
 /** Pomodoro on the desk screen: start work, skip to break, or stop. */
 export async function saveCopilotSignalsAction(input: CopilotSignals): Promise<Result> {
   const p = copilotSignalsSchema.safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? "Invalid settings" };
-  return run("copilot.settings", "copilot", `${p.data.lights.length} lights, ${Object.values(p.data.patterns).filter((x) => x.enabled).length} events on`, async () => {
-    await saveCopilotSignals(p.data);
-    revalidatePath("/home");
-  });
+  return run(
+    "copilot.settings",
+    "copilot",
+    `${p.data.lights.length} lights, ${Object.values(p.data.patterns).filter((x) => x.enabled).length} events on`,
+    async () => {
+      await saveCopilotSignals(p.data);
+      revalidatePath("/home");
+    },
+    requireOwner,
+  );
 }
 
 /** Fire one event through the same path the hooks use, so the UI test button proves the whole chain. */
 export async function testCopilotSignalAction(event: CopilotEvent): Promise<Result> {
   const p = z.enum(["ask", "done", "blocked", "failed"]).safeParse(event);
   if (!p.success) return { ok: false, error: "Invalid event" };
-  return run("copilot.test", "copilot", p.data, async () => {
-    const tok = credential("ESP_DISPLAY_TOKEN");
-    if (!tok) throw new Error("ESP_DISPLAY_TOKEN missing");
-    const port = process.env.PORT ?? "3737";
-    const r = await fetch(`http://127.0.0.1:${port}/api/copilot/event?k=${encodeURIComponent(tok)}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ event: p.data, text: "test din mui", source: "mui" }),
-    });
-    if (!r.ok) throw new Error(`event endpoint ${r.status}`);
-    if (p.data === "ask") {
-      // A test `ask` must not strobe forever: cancel it after 6 s.
-      setTimeout(() => {
-        fetch(`http://127.0.0.1:${port}/api/copilot/event?k=${encodeURIComponent(tok)}`, { method: "DELETE" }).catch(() => undefined);
-      }, 6000);
-    }
-  });
+  return run(
+    "copilot.test",
+    "copilot",
+    p.data,
+    async () => {
+      const tok = credential("ESP_DISPLAY_TOKEN");
+      if (!tok) throw new Error("ESP_DISPLAY_TOKEN missing");
+      const port = process.env.PORT ?? "3737";
+      const r = await fetch(`http://127.0.0.1:${port}/api/copilot/event?k=${encodeURIComponent(tok)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event: p.data, text: "test din mui", source: "mui" }),
+      });
+      if (!r.ok) throw new Error(`event endpoint ${r.status}`);
+      if (p.data === "ask") {
+        // A test `ask` must not strobe forever: cancel it after 6 s.
+        setTimeout(() => {
+          fetch(`http://127.0.0.1:${port}/api/copilot/event?k=${encodeURIComponent(tok)}`, { method: "DELETE" }).catch(() => undefined);
+        }, 6000);
+      }
+    },
+    requireOwner,
+  );
 }
 
 export async function pomodoroAction(cmd: "start" | "break" | "stop"): Promise<Result> {
@@ -279,9 +340,12 @@ export async function placeDeviceAction(input: { deviceId: string; room: string;
     })
     .safeParse(input);
   if (!p.success) return { ok: false, error: p.error.issues.map((i) => i.message).join("; ") };
-  const g = await guard();
-  if (!g.ok) return g;
   const { deviceId, room, x, y } = p.data;
+  try {
+    await requireOwner();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Not authorized" };
+  }
   await db
     .insert(homeLayout)
     .values({ deviceId, room, x, y })
@@ -291,10 +355,14 @@ export async function placeDeviceAction(input: { deviceId: string; room: string;
 }
 
 export async function resetLayoutAction(): Promise<Result> {
-  const g = await guard();
-  if (!g.ok) return g;
-  await db.delete(homeLayout);
-  await audit("home.layout.reset", "home_layout", "defaults restored");
-  revalidatePath("/home");
-  return { ok: true };
+  return run(
+    "home.layout.reset",
+    "home_layout",
+    "defaults restored",
+    async () => {
+      await db.delete(homeLayout);
+      revalidatePath("/home");
+    },
+    requireOwner,
+  );
 }

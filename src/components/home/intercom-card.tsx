@@ -25,7 +25,7 @@ const isLogEvent = (e: string): e is LogEvent => (LOG_EVENTS as readonly string[
 /** Electra IA02 intercom on the office ESP32: live call state, one-tap open,
  *  and the courier/guest auto-open arm with an expiry. Polls the state every
  *  3 s while mounted so a ring shows up without a reload. */
-export function IntercomCard({ initial, token }: { initial: IntercomCardState; token: string }) {
+export function IntercomCard({ initial, token, canOpen = true }: { initial: IntercomCardState; token: string; canOpen?: boolean }) {
   const t = useTranslations("devices.intercom");
   const locale = useLocale();
   const [s, setS] = React.useState(initial);
@@ -46,7 +46,7 @@ export function IntercomCard({ initial, token }: { initial: IntercomCardState; t
     const tick = async () => {
       setNow(Date.now());
       try {
-        const r = await fetch(`/api/esp/intercom?k=${encodeURIComponent(token)}`, { cache: "no-store" });
+        const r = await fetch(token ? `/api/esp/intercom?k=${encodeURIComponent(token)}` : "/api/esp/intercom", { cache: "no-store" });
         if (r.ok) setS((await r.json()) as IntercomCardState);
       } catch {
         /* offline; keep last */
@@ -79,7 +79,7 @@ export function IntercomCard({ initial, token }: { initial: IntercomCardState; t
       action={s.ringing ? <Badge variant="warning">{t("badge.ringing")}</Badge> : armed ? <Badge variant="success">{t("badge.armed", { left: ago(s.autoOpenUntil) })}</Badge> : <Badge variant="muted">{t("badge.quiet")}</Badge>}
     >
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-2">
+        {canOpen && <div className="flex flex-wrap gap-2">
           <Button disabled={!s.ringing || busy} onClick={() => run(t("toast.opening"), openIntercomAction)}>
             <DoorOpen className="size-4" aria-hidden /> {t("actions.answerOpen")}
           </Button>
@@ -100,7 +100,7 @@ export function IntercomCard({ initial, token }: { initial: IntercomCardState; t
               </Button>
             </>
           )}
-        </div>
+        </div>}
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
           <div className="min-w-0">
             <dt className="text-xs text-muted">{t("stats.state")}</dt>

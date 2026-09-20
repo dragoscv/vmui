@@ -1,21 +1,21 @@
-import Link from "next/link";
-import { Cloud, Server, ArrowRight, Sparkles } from "lucide-react";
-import { listAccounts, listInstancesWithPrices } from "@/server/queries";
+import { AccountSpendCards } from "@/components/dashboard/account-spend-cards";
+import { CostAnomalyBanner } from "@/components/dashboard/cost-anomaly-banner";
+import { HeroCanvas } from "@/components/dashboard/hero-canvas";
+import { BackgroundSync } from "@/components/instances/background-sync";
 import { InstancesExplorer } from "@/components/instances/instances-explorer";
+import { RunningVmsStrip } from "@/components/instances/running-vms-strip";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
-import { BackgroundSync } from "@/components/instances/background-sync";
-import { RunningVmsStrip } from "@/components/instances/running-vms-strip";
-import { CostAnomalyBanner } from "@/components/dashboard/cost-anomaly-banner";
-import { AccountSpendCards } from "@/components/dashboard/account-spend-cards";
-import { HeroCanvas } from "@/components/dashboard/hero-canvas";
 import { formatUsd, HOURS_PER_MONTH } from "@/lib/utils";
+import { listAccounts, listInstancesWithPrices } from "@/server/queries";
+import { ArrowRight, Cloud, Server, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
