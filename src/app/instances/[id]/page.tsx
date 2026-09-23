@@ -2,6 +2,7 @@ import { ContainerPanel } from "@/components/containers/container-panel";
 import { AutoStartToggle } from "@/components/instances/auto-start-toggle";
 import { CloudInitStream } from "@/components/instances/cloud-init-stream";
 import { CockpitDashboard } from "@/components/instances/cockpit-dashboard";
+import { CodaiEnvironmentCard } from "@/components/instances/codai-environment-card";
 import { ConsoleLinkButton } from "@/components/instances/console-link-button";
 import { ConsoleLogsCard } from "@/components/instances/console-logs-card";
 import { InstanceActions } from "@/components/instances/instance-actions";
@@ -23,6 +24,8 @@ import { VmScreenshot } from "@/components/instances/vm-screenshot";
 import { InstanceSchedulesCard } from "@/components/schedules/instance-schedules-card";
 import { Button, PageHeader, PageSection, PageShell, SkeletonCard, Stat, StatGrid } from "@/components/ui";
 import { getInstancePrice } from "@/lib/pricing";
+import { getCodaiLink } from "@/lib/codai/links";
+import { getCodaiSettingsPublic } from "@/lib/codai/settings";
 import type { ProviderId } from "@/lib/providers/types";
 import { formatUsd, formatUsdPerHour, HOURS_PER_MONTH } from "@/lib/utils";
 import { getInstanceById } from "@/server/queries";
@@ -47,12 +50,14 @@ export default async function InstanceDetailPage({ params }: PageProps) {
   const instance = await getInstanceById(decodeURIComponent(id));
   if (!instance) notFound();
 
-  const [price, schedules, t, tPlatform, format] = await Promise.all([
+  const [price, schedules, t, tPlatform, format, codaiLink, codaiSettings] = await Promise.all([
     getInstancePrice(instance.provider, instance.region, instance.instanceType, instance.platform, instance.accountId),
     listSchedulesForInstance(instance.id),
     getTranslations("vm.detail"),
     getTranslations("vm.platform"),
     getFormatter(),
+    getCodaiLink(instance.id),
+    getCodaiSettingsPublic(),
   ]);
 
   const Icon = instance.platform === "macos" ? Apple : instance.platform === "windows" ? MonitorSmartphone : Server;
@@ -173,6 +178,17 @@ export default async function InstanceDetailPage({ params }: PageProps) {
         </Suspense>
       )}
       {isKvm && <VmHardwareConfig accountId={instance.accountId} vmRunning={running} />}
+      <CodaiEnvironmentCard
+        instanceId={instance.id}
+        instanceName={label}
+        platform={instance.platform}
+        codaiConfigured={codaiSettings.configured}
+        initialLink={
+          codaiLink
+            ? { environmentId: codaiLink.environmentId, projectId: codaiLink.projectId, slug: codaiLink.slug, state: codaiLink.lastStatus, lastCheckedAt: codaiLink.lastCheckedAt }
+            : null
+        }
+      />
       <div id="schedules" className="scroll-mt-4">
         <InstanceSchedulesCard
           instanceId={instance.id}

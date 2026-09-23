@@ -11,7 +11,30 @@
       "title": "Automatizări",
       "hint": "Webhook-uri, scripturi de boot, ore de liniște"
     },
+    "integrations": { "title": "Integrări", "hint": "Medii codai" },
     "data": { "title": "Date", "hint": "Backup și restaurare" }
+  },
+  "integrations": {
+    "codai": {
+      "title": "codai",
+      "description": "Transformă orice VM gestionat de vmui într-un mediu codai (BYO). vmui rămâne local; codai vede doar conexiunea de ieșire a daemonului.",
+      "intro": "Creează o cheie API în consola codai (<code>codai_…</code>). Este criptată la repaus cu cheia master vmui și nu mai este afișată niciodată — doar prefixul și lungimea.",
+      "gatewayUrl": "URL gateway",
+      "gatewayUrlHint": "Baza API-ului de medii. Lasă implicit dacă nu găzduiești singur codai.",
+      "apiKey": "Cheie API",
+      "apiKeyHint": "Lipește o singură dată; se stochează criptat.",
+      "apiKeyStored": "Stocată: {prefix} ({length} caractere). Lipește o cheie nouă pentru a o înlocui.",
+      "apiKeyReplace": "Lipește o cheie nouă pentru înlocuire",
+      "configured": "configurat",
+      "notConfigured": "neconfigurat",
+      "test": "Testează conexiunea",
+      "testOk": "Conectat — {count, plural, =0 {niciun proiect încă} one {# proiect} few {# proiecte} other {# de proiecte}}",
+      "clear": "Șterge cheia",
+      "clearConfirm": "Ștergi cheia API codai?",
+      "clearHint": "Mediile legate continuă să funcționeze; vmui nu mai poate provizion sau interoga până adaugi o cheie nouă.",
+      "saved": "Setările codai au fost salvate",
+      "cleared": "Cheia API codai a fost ștearsă"
+    }
   },
   "general": {
     "environment": {

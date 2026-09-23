@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Database, KeyRound, Settings2, ShieldCheck, Users, Workflow, type LucideIcon } from "lucide-react";
+import { Database, KeyRound, Plug, Settings2, ShieldCheck, Users, Workflow, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SETTINGS_HUB_SECTIONS, type SettingsHubSection } from "./sections";
 
@@ -11,6 +11,7 @@ const ICON: Record<SettingsHubSection, LucideIcon> = {
   users: Users,
   access: KeyRound,
   automation: Workflow,
+  integrations: Plug,
   data: Database,
 };
 

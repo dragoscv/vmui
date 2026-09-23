@@ -14,7 +14,30 @@
       "title": "Automation",
       "hint": "Webhooks, boot scripts, quiet hours"
     },
+    "integrations": { "title": "Integrations", "hint": "codai environments" },
     "data": { "title": "Data", "hint": "Backup and restore" }
+  },
+  "integrations": {
+    "codai": {
+      "title": "codai",
+      "description": "Turn any VM vmui manages into a codai Environment (BYO). vmui stays local; codai only sees the daemon's outbound connection.",
+      "intro": "Create an API key in the codai console (<code>codai_…</code>). It is encrypted at rest with the vmui master key and never shown again — only its prefix and length.",
+      "gatewayUrl": "Gateway URL",
+      "gatewayUrlHint": "Environments API base. Leave the default unless you self-host codai.",
+      "apiKey": "API key",
+      "apiKeyHint": "Paste once; stored encrypted.",
+      "apiKeyStored": "Stored: {prefix} ({length} chars). Paste a new key to replace it.",
+      "apiKeyReplace": "Paste a new key to replace",
+      "configured": "configured",
+      "notConfigured": "not configured",
+      "test": "Test connection",
+      "testOk": "Connected — {count, plural, =0 {no projects yet} one {# project} other {# projects}}",
+      "clear": "Remove key",
+      "clearConfirm": "Remove the codai API key?",
+      "clearHint": "Linked environments keep working; vmui just cannot provision or poll until a key is added again.",
+      "saved": "codai settings saved",
+      "cleared": "codai API key removed"
+    }
   },
   "general": {
     "environment": {

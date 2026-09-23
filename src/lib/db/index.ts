@@ -1048,6 +1048,17 @@ if (!new Set(accCols.map((c) => c.name)).has("team_id")) {
   sqlite.exec(`ALTER TABLE cloud_accounts ADD COLUMN team_id TEXT`);
 }
 
+// vmui VM ↔ codai Environment link (Provision codai environment, BYO path).
+sqlite.exec(`CREATE TABLE IF NOT EXISTS codai_environments (
+  instance_id TEXT PRIMARY KEY REFERENCES instances(id) ON DELETE CASCADE,
+  environment_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  last_status TEXT NOT NULL DEFAULT 'pending',
+  last_checked_at INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+)`);
+
 export const db = drizzle(sqlite, { schema });
 export { sqlite as rawSqlite, schema };
 

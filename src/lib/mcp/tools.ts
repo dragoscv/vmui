@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { ScopeKey } from "@/lib/api-key-scopes";
+import { getCodaiLink } from "@/lib/codai/links";
+import { provisionCodaiEnvironment, refreshCodaiStatus } from "@/lib/codai/provision";
 import { db } from "@/lib/db";
 import { auditLog, instances } from "@/lib/db/schema";
 import { showMessage } from "@/lib/esp/gallery";
@@ -380,6 +382,51 @@ export const TOOLS: McpTool[] = [
         const r = await executeInstanceAction(action as "start" | "stop" | "reboot" | "terminate", { accountId: row.accountId, region: row.region, providerInstanceId: row.providerInstanceId });
         if (!r.ok) throw new Error(r.error);
       }),
+  },
+  {
+    name: "codai_provision_environment",
+    description:
+      "Turn a VM (id from vm_list; Linux/macOS with a public address and an account probe SSH key) into a codai Environment via the BYO path: ensures a codai project, creates the environment, mints a one-time enrol token and runs the codaid installer over SSH, then waits up to 5 min for enrolment. Requires the codai API key under Settings → Integrations. Not destructive: nothing on the VM is removed; re-running on a linked VM reuses its environment. Slow (1–6 min).",
+    schema: z.object({
+      instance_id: z.string().min(1),
+      environment_name: z.string().trim().min(1).max(80),
+      project_id: z.string().uuid().optional(),
+      project_name: z.string().trim().min(1).max(80).optional(),
+    }),
+    destructive: false,
+    scopeKey: ({ instance_id }) => (typeof instance_id === "string" ? { kind: "vm", id: instance_id } : undefined),
+    run: async ({ instance_id, environment_name, project_id, project_name }, by) => {
+      try {
+        const lines: string[] = [];
+        const r = await provisionCodaiEnvironment(
+          { instanceId: instance_id as string, environmentName: environment_name as string, projectId: project_id as string | undefined, projectName: (project_name as string | undefined) ?? (environment_name as string) },
+          (ev) => {
+            if (ev.type === "line" || ev.type === "step") lines.push(ev.type === "step" ? `▸ ${ev.message}` : ev.text);
+          },
+          { by },
+        );
+        return { ok: true, environment_id: r.environmentId, project_id: r.projectId, slug: r.slug, state: r.state, install_exit_code: r.installExitCode, log_tail: lines.slice(-30) };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+  },
+  {
+    name: "codai_environment_status",
+    description: "Whether a VM (id from vm_list) is linked to a codai Environment and its current state (pending / enrolling / running / stopped / error). Reads codai live when configured; falls back to the last cached state.",
+    schema: z.object({ instance_id: z.string().min(1) }),
+    readOnly: true,
+    scopeKey: ({ instance_id }) => (typeof instance_id === "string" ? { kind: "vm", id: instance_id } : undefined),
+    run: async ({ instance_id }) => {
+      const link = await getCodaiLink(instance_id as string);
+      if (!link) return { ok: true, linked: false };
+      try {
+        const live = await refreshCodaiStatus(instance_id as string);
+        return { ok: true, linked: true, ...(live ?? {}), cached: false };
+      } catch (e) {
+        return { ok: true, linked: true, environmentId: link.environmentId, projectId: link.projectId, slug: link.slug, state: link.lastStatus, cached: true, warning: e instanceof Error ? e.message : String(e) };
+      }
+    },
   },
 ];
 

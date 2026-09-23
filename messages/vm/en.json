@@ -350,6 +350,56 @@
     "deleteBody": "Anything relying on this value will stop working.",
     "deleteAria": "Delete secret {key}"
   },
+  "codai": {
+    "title": "codai environment",
+    "description": "Make this VM a codai Environment: installs the codaid daemon over SSH and enrols it (BYO, free).",
+    "hint": "Nothing is linked yet. Provisioning installs codaid, which only opens an outbound WebSocket to relay.codai.ro — no inbound ports.",
+    "notConfigured": "Add a codai API key first so vmui can create the environment for you.",
+    "configure": "Configure codai",
+    "unsupported": "codaid's installer runs on Linux and macOS guests only.",
+    "provision": "Provision codai environment",
+    "openInCodai": "Open in codai",
+    "copyCommand": "Copy install command",
+    "copyCommandHint": "Mints a fresh one-time enrol token (30 min) and copies the installer one-liner — paste it into the VM if the automatic install failed.",
+    "commandCopied": "Install command copied (token valid 30 min)",
+    "refresh": "Refresh status",
+    "refreshed": "codai status refreshed",
+    "unlink": "Unlink",
+    "unlinkConfirm": "Unlink this VM from its codai environment?",
+    "unlinkHint": "Only vmui forgets the link. The environment and the daemon on the VM are untouched; manage them from codai.",
+    "unlinked": "Unlinked from codai",
+    "slug": "Slug",
+    "environmentId": "Environment",
+    "projectId": "Project",
+    "dialogTitle": "Provision codai environment for {name}",
+    "project": "codai project",
+    "projectHint": "Reuse an existing project or create one.",
+    "newProject": "Create new project…",
+    "projectName": "New project name",
+    "environmentName": "Environment name",
+    "whatHappens": "vmui will create the environment in codai, mint a one-time token, run the codaid installer on the VM over SSH (needs sudo for /usr/local/bin and systemd) and wait up to 5 minutes for the daemon to enrol.",
+    "state": {
+      "notLinked": "Not linked",
+      "pending": "Pending",
+      "enrolling": "Enrolling",
+      "running": "Online",
+      "stopped": "Stopped",
+      "error": "Error",
+      "destroyed": "Destroyed"
+    },
+    "step": {
+      "project": "Ensuring project",
+      "environment": "Creating environment",
+      "token": "Minting enrol token",
+      "install": "Installing codaid over SSH",
+      "poll": "Waiting for enrolment"
+    },
+    "phase": {
+      "running": "Provisioning…",
+      "done": "Enrolled",
+      "error": "Failed"
+    }
+  },
   "cloudInit": {
     "title": "Cloud-init / bootstrap log",
     "description": "Tails the bootstrap log over SSH.",

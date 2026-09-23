@@ -7,6 +7,7 @@ import { PushManager } from "@/components/pwa/push-manager";
 import { SoundEffectsToggle } from "@/components/sound-effects-toggle";
 import { Alert, Badge, Button, Field, Kbd, PageHeader, PageSection, PageShell, Stat, StatGrid } from "@/components/ui";
 import type { BootScriptRow, WebhookRow } from "@/lib/db/schema";
+import type { CodaiSettingsPublic } from "@/lib/codai/settings";
 import type { QuietHoursConfig } from "@/lib/quiet-hours";
 import type { KnownHostRow } from "@/server/actions/known-hosts";
 import type { SettingsSnapshot } from "@/server/queries/settings";
@@ -19,6 +20,7 @@ import * as React from "react";
 import { BackupCard } from "./backup-card";
 import { BootScriptsCard } from "./boot-scripts-card";
 import { ChangePasswordCard } from "./change-password-card";
+import { CodaiCard } from "./codai-card";
 import { KnownHostsCard } from "./known-hosts-card";
 import { PasskeysCard } from "./passkeys-card";
 import { QuietHoursPanel } from "./quiet-hours-panel";
@@ -35,6 +37,7 @@ export interface SettingsHubProps {
   bootScripts: BootScriptRow[];
   quietHours: QuietHoursConfig;
   authEnabled: boolean;
+  codai: CodaiSettingsPublic;
 }
 
 const ENTRANCE = { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.2 } } as const;
@@ -60,6 +63,7 @@ export function SettingsHub(props: SettingsHubProps) {
           {section === "automation" && (
             <AutomationSection webhooks={props.webhooks} bootScripts={props.bootScripts} quietHours={props.quietHours} />
           )}
+          {section === "integrations" && <CodaiCard initial={props.codai} />}
           {section === "data" && <BackupCard />}
           <div className="2xl:hidden">
             <RelatedLinks />

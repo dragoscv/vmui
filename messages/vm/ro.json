@@ -350,6 +350,56 @@
     "deleteBody": "Tot ce depinde de această valoare va înceta să funcționeze.",
     "deleteAria": "Șterge secretul {key}"
   },
+  "codai": {
+    "title": "Mediu codai",
+    "description": "Transformă acest VM într-un mediu codai: instalează daemonul codaid prin SSH și îl înrolează (BYO, gratuit).",
+    "hint": "Nimic legat încă. Provizionarea instalează codaid, care deschide doar un WebSocket de ieșire către relay.codai.ro — fără porturi de intrare.",
+    "notConfigured": "Adaugă mai întâi o cheie API codai ca vmui să poată crea mediul pentru tine.",
+    "configure": "Configurează codai",
+    "unsupported": "Instalatorul codaid rulează doar pe Linux și macOS.",
+    "provision": "Provizionează mediu codai",
+    "openInCodai": "Deschide în codai",
+    "copyCommand": "Copiază comanda de instalare",
+    "copyCommandHint": "Generează un token nou de înrolare (30 min, unic) și copiază comanda — lipește-o în VM dacă instalarea automată a eșuat.",
+    "commandCopied": "Comanda de instalare copiată (token valid 30 min)",
+    "refresh": "Actualizează starea",
+    "refreshed": "Starea codai a fost actualizată",
+    "unlink": "Dezleagă",
+    "unlinkConfirm": "Dezlegi acest VM de mediul său codai?",
+    "unlinkHint": "Doar vmui uită legătura. Mediul și daemonul din VM rămân neatinse; le gestionezi din codai.",
+    "unlinked": "Dezlegat de codai",
+    "slug": "Slug",
+    "environmentId": "Mediu",
+    "projectId": "Proiect",
+    "dialogTitle": "Provizionează mediu codai pentru {name}",
+    "project": "Proiect codai",
+    "projectHint": "Refolosește un proiect existent sau creează unul.",
+    "newProject": "Creează proiect nou…",
+    "projectName": "Numele proiectului nou",
+    "environmentName": "Numele mediului",
+    "whatHappens": "vmui va crea mediul în codai, va genera un token unic, va rula instalatorul codaid în VM prin SSH (necesită sudo pentru /usr/local/bin și systemd) și va aștepta până la 5 minute ca daemonul să se înroleze.",
+    "state": {
+      "notLinked": "Nelegat",
+      "pending": "În așteptare",
+      "enrolling": "Se înrolează",
+      "running": "Online",
+      "stopped": "Oprit",
+      "error": "Eroare",
+      "destroyed": "Distrus"
+    },
+    "step": {
+      "project": "Se asigură proiectul",
+      "environment": "Se creează mediul",
+      "token": "Se generează tokenul",
+      "install": "Se instalează codaid prin SSH",
+      "poll": "Se așteaptă înrolarea"
+    },
+    "phase": {
+      "running": "Se provizionează…",
+      "done": "Înrolat",
+      "error": "Eșuat"
+    }
+  },
   "cloudInit": {
     "title": "Jurnal cloud-init / bootstrap",
     "description": "Urmărește jurnalul de bootstrap prin SSH.",

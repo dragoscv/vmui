@@ -1385,3 +1385,22 @@ export const turzxSettings = sqliteTable("turzx_settings", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+/**
+ * Link between a vmui-managed VM and a codai Environment (BYO provider),
+ * created by "Provision codai environment". One link per instance; the codai
+ * side owns the environment, vmui only remembers ids + last observed state.
+ */
+export const codaiEnvironments = sqliteTable("codai_environments", {
+  instanceId: text("instance_id")
+    .primaryKey()
+    .references(() => instances.id, { onDelete: "cascade" }),
+  environmentId: text("environment_id").notNull(),
+  projectId: text("project_id").notNull(),
+  slug: text("slug").notNull(),
+  /** Last state read from `GET /v1/environments/:id` (pending | enrolling | running | error | …). */
+  lastStatus: text("last_status").notNull().default("pending"),
+  lastCheckedAt: integer("last_checked_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+export type CodaiEnvironmentRow = typeof codaiEnvironments.$inferSelect;
+
